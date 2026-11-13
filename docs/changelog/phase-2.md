@@ -1,5 +1,7 @@
 # Changelog archive — Phase 2 — closed, never released
 
+**Anchors:** 2 — every converted pointer below carries the words it cites.
+
 Archived verbatim from the root [`CHANGELOG.md`](../../CHANGELOG.md) on
 2026-11-11. The body is byte-identical to the sections as they stood there,
 except that each relative link gained the depth of `docs/changelog/`.
@@ -389,8 +391,8 @@ container and [the archives index](../../CHANGELOG.md#archives).
   run: dispatch 40663728369 at `0adfbe3`, 2026-10-28, printing the same endpoint
   fingerprint as the two local runs. The
   predicate that decides whether the witness runs is witnessed in the unit class
-  (`tests/test_provider_credentials.py:309` and
-  `tests/test_provider_credentials.py:355`), and `requires_provider` was added to
+  (`tests/test_provider_credentials.py:319` — `def test_the_live_smoke_is_configured_only_by_the_named_variables() -> None:` and
+  `tests/test_provider_credentials.py:355` — `live_settings({SMOKE_KEY_ENV: FAKE_KEY}) is None`), and `requires_provider` was added to
   the marker-to-class mapping so
   the fifth class is reachable by construction rather than unreachable in prose.
   **The harness's own veto went with it:** `--classes real_model_smoke` printed

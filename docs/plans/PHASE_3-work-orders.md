@@ -1,5 +1,7 @@
 ## 1. The board at this writing
 
+**Anchors:** 5 — every converted pointer below carries the words it cites.
+
 Status vocabulary is the project's own — `NOT STARTED` · `IN PROGRESS` · `PASS`
 · `PASS WITH NOTES` · `BLOCKED` · `FAIL` — and **no Phase 3 row is `PASS` or
 `PASS WITH NOTES`**. A row moves in the same commit as the evidence that moves
@@ -116,7 +118,7 @@ shell, which is what execution plan §6's first gap-register row requires.
 
 **4.2 Scope.** The wire and the render: `create_app` → a socket → the page the
 participant sees. In-process transports are out of scope *as evidence*:
-`tests/test_workbench_live_service.py:142` drives the service through
+`tests/test_workbench_live_service.py:142` — `transport = httpx.ASGITransport(app=app)` drives the service through
 `httpx.ASGITransport` (measured live 2026-11-08), and
 [`../THREAT-MODEL.md`](../THREAT-MODEL.md) §6.1 records that every web test stops
 at the `fetch` boundary `web/src/test/fakeApi.ts` answers. The nearest precedent
@@ -136,8 +138,8 @@ path works and what it shows, and how well is not a question this ticket answers
 | Fact | Measured at |
 |---|---|
 | `web/package.json` carries `jsdom 30.1.2` and **no** Playwright, Puppeteer, Selenium or Electron package | `web/package.json`, 2026-11-08. `jsdom` is not a browser and does not exercise the wire, so the driver decision (§2 item 1) has an install cost this ticket records rather than assumes away. |
-| The web quality gate runs on `ubuntu-latest` | `.github/workflows/web.yml:48`, 2026-11-08 |
-| The service is reachable in tests only through an in-process transport | `tests/test_workbench_live_service.py:142`, 2026-11-08 |
+| The web quality gate runs on `ubuntu-latest` | `.github/workflows/web.yml:48` — `runs-on: ubuntu-latest`, 2026-11-08 |
+| The service is reachable in tests only through an in-process transport | `tests/test_workbench_live_service.py:142` — `transport = httpx.ASGITransport(app=app)`, 2026-11-08 |
 | The stream is read with the client's own `fetch`, never `EventSource` | [`../THREAT-MODEL.md`](../THREAT-MODEL.md) **§6.2** (line 637), 2026-11-08 — the preparation draft cited §6.1 for this and its own freshness review corrected it; §6.2 is the row in this tree |
 
 **4.5 Areas this window owns.**
@@ -319,7 +321,7 @@ at merge; this window reports its entries (§3 rule 3).
 
 - **On §7, and this one is load-bearing.** `src/labcairn/workspace/outputs.py` is
   the only place in the product that writes a file — its own first line says so —
-  and `src/labcairn/workspace/outputs.py:164` names its atomic temporary as
+  and `src/labcairn/workspace/outputs.py:164` — `created = False` names its atomic temporary as
   `.lc-write-<hex>.tmp` (measured live 2026-11-08: a fixed 46-character name).
   Execution plan §6 records a `FileNotFoundError` opening that name exactly when
   the visible path length crossed 260 characters, with the 259/260 switch
@@ -1281,7 +1283,7 @@ different number and only a POSIX run may state it.
   budget at the workspace root — with the seam's own budget stated, since a layout
   rule and a name rule solve different halves of the same wall.
 - **The existing leftover scan re-checked, not assumed.**
-  `tests/test_workspace_boundaries.py:556` finds leftovers by
+  `tests/test_workspace_boundaries.py:556` — `leftovers = [p.name for p in (workspace.output_root.path).rglob("*")` finds leftovers by
   `".lc-write-" in p.name`. A shorter name that keeps the prefix leaves that check
   standing as written; **any** change to the prefix means that witness is
   re-measured in the same change, and no direction may weaken it.

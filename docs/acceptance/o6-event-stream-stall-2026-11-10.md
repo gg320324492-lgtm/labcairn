@@ -1,5 +1,5 @@
 # O6 — one unwired event stream stopped the whole service: mechanism found, fixed, witnessed
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-11-10; the tree has moved since. Follow the sentence, not the number.  
 Anchors, printed live while this record was written:
 
 | what | value |

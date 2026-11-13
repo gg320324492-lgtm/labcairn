@@ -1,6 +1,6 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-11 · **Phase 3 implementation is delivered; no
+**Date:** 2026-11-12 · **Phase 3 implementation is delivered; no
 Phase 3 gate is closed.** The accumulated batch was delivered in
 [PR #156](https://github.com/gg320324492-lgtm/labcairn/pull/156) and merged
 as `777bb63192af4cb5aef51cd561d5031353d1f230` — 18 checks passing,
@@ -60,7 +60,7 @@ provisional). Shard costs were subsequently re-measured from runner run
 `42733499009`, so the balance witnesses are no longer expected red. The
 fifth independent review's PASS and the merge are this batch's gate; nothing
 here is a `PASS`, a `PASS WITH NOTES`, a push, a pull request or a CI run, and
-none is authorised by this document. See the 2026-11-10 entry above for the
+none is authorised by this document. See the 2026-11-12 entry above for the
 current state.
 
 **Date:** 2026-11-08 · **Phase 3's G1 work orders are issued, and nothing is
@@ -1335,6 +1335,15 @@ starts ten CI jobs; (b) the pilot's **annotators and arbiter** (two
 readers and a third, none of them the same person); (c) the **grant's
 scope and ceiling** for the first real request, which the probe has now
 made possible and which is still a human's to set.
+
+> **Dated snapshot — true when written, superseded since.** The ten jobs this
+> entry counts were the whole of a push on 2026-10-31: `python.yml` had no
+> `lint` job of its own then, so a push started the ten shard legs and nothing
+> else. Since 2026-11-02 (`e5472f8fdb5739d37e1c997546784aa38255329c`, the
+> commit that split `lint` out of the shard jobs) the python jobs are the
+> eleven that a push event starts — the ten shard legs and `lint` — and
+> `.github/CI.md` is where that count is written down. The ten is left as
+> written because it is what the tree was then.
 
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-01,
 the model-call path, is landed: T00–T07.** `src/labcairn/application/

@@ -1,5 +1,5 @@
 # ADR-0014: Paper revision provenance — what a manuscript version is, and where a change is anchored
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-29; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Proposed
 **Work order:** LC-P2-06, LC-P2-07, LC-P2-08 (proposed; not yet dispatched).
 **Status:** the ADR is drafted and **not accepted**; LC-P2-07's reader

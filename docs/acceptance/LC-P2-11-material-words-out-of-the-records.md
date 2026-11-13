@@ -46,9 +46,14 @@ project's exclusion promises — *not committed* proven with `git ls-files`, the
 index. This joins that family, and both directions are watched.
 
 **The pin.** `scripts/cjk_ceilings.py` measures the longest run of Han characters
-in every tracked file — 48 files carry Chinese at all, and the longest runs are the
-**project's own voice**: the bilingual README (29), the ADRs that state their rules
-in the owner's language (20, 18, 15), the OOXML fixtures' synthetic sentences (15).
+in every tracked file — **49** files carry Chinese at all, and the longest runs are
+the **project's own voice**: the bilingual README (29, 29), the upstream study
+record (23), the ADRs that state their rules in the owner's language (20, 20, 18,
+15) and the plans that carry the same (20, 16). **The pin is the authority**:
+`CJK_RUN_CEILINGS` in `tests/test_no_reference_leakage.py` holds 49 entries, and
+the runs this paragraph first printed omitted two of them — the research record at
+23 and the reuse matrix at 16 — while the OOXML corpus's own run is 13, not the 15
+printed here. All three were in the pin when this record was written.
 The test pins that measurement and fails on **added**, **grown** *or* **removed**,
 so a carried-forward number reddens exactly like a new quotation does. The Chinese
 is not the enemy; an unmeasured change to it is.
@@ -58,9 +63,11 @@ hole and closed it: a long Chinese run in a record, *with the table widened to
 match and the file struck from the named list*, passed every assertion. So records
 and the handoff are held to `RECORD_HAN_RUN_CAP = 14` — **a policy number, not a
 measurement of the file it guards**. A quotation cannot be legalised by
-re-measuring the page it was written into. `docs/acceptance/**` and
-`docs/handoff/**` carry 14 today, and both instances are design vocabulary; raising
-14 is a deliberate edit that a reviewer sees as a change of policy.
+re-measuring the page it was written into. `docs/acceptance/**` carries 14 today —
+in `LC-P2-07-fidelity-baseline.md` and `P2-G0-evidence-pack.md`, both design
+vocabulary — and `docs/handoff/**` carries **no Han run at all** today, so the cap
+is not reached there at all; raising 14 is a deliberate edit that a reviewer sees
+as a change of policy.
 
 **The named records.** The three files above are additionally asserted to carry **no
 Han run at all**, so a re-added quotation fails naming the file and what it means.
@@ -123,10 +130,14 @@ pin's `added` direction — the file was new, so nobody had measured it — not 
 cap and not the named list. **A fresh record is watched; a grown one is watched
 only past 14 characters,** and that is the number a reviewer is meant to see.
 
-**The separate defect stays open.** The 24 comment rows whose `anchor_text_sha256`
-is the SHA-256 of the empty string — 7 of them marked `resolved` — are a different
+**The separate defect is closed.** The 24 comment rows whose `anchor_text_sha256`
+is the SHA-256 of the empty string — 7 of them marked `resolved` — were a different
 fault, owned by `anchor-empty-claim`, and are recorded in
 [LC-P2-11-fourth-ring.md](LC-P2-11-fourth-ring.md) §4.
+[LC-P2-27](LC-P2-27-position-anchors.md) closed it on 2026-11-04: the store went
+from `0019` to `0023`, the collapsed `w:del` rows were re-anchored to the text the
+fixed reader derives, the zero-width rows were recast as `position`, and the
+corrected store carries no row over empty text and none carrying `sha256("")`.
 
 **Gates.** `ruff check .`, `ruff format --check .` and `mypy --strict src tests`
 clean (389 source files); the three new witnesses pass; `README.zh-CN.md`, which a

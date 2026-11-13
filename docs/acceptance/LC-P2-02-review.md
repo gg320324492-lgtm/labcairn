@@ -1,5 +1,5 @@
 # LC-P2-02 — independent review of the acceptance record
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood when it was written; the tree has moved since. Follow the sentence, not the number.  
 **Record reviewed:** `docs/acceptance/LC-P2-02-acceptance.md` (restart-durable
 consent), as it stands in this branch.
 **The tree reviewed:** `e10359e` (*citation identity: a record can carry an

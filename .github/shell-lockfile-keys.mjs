@@ -19,9 +19,11 @@
  * file prints each one rather than a single figure a reader would misread.
  *
  * **This is the reader the witnesses use.** `shell/test/notice-licences.test.mjs`
- * imports `lockfileKeys` and `closureOf` rather than carrying its own copy, so
- * its mutation controls feed altered text through *this* code — a reader that
- * cannot be tested is a reader that can be turned off.
+ * imports `lockfileKeys` rather than carrying its own copy, so its mutation
+ * controls feed altered text through *this* code — a reader that cannot be
+ * tested is a reader that can be turned off. `closureOf` is this module's own
+ * closure reader: no witness imports it, and
+ * `shell/test/notice-licences.test.mjs:321` watches that it is still exported.
  *
  * Usage: node .github/shell-lockfile-keys.mjs [path/to/pnpm-lock.yaml]
  */

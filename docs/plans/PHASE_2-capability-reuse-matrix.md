@@ -1,5 +1,7 @@
 # Phase 2 — capability reuse matrix
 
+**Anchors:** 19 — every converted pointer below carries the words it cites.
+
 **Date:** 2026-10-29 · **Base commit:** `66dde87` (the merge of PR #125) ·
 **Scope:** what Phase 1 already provides that Phase 2's mentor-trajectory
 mainline can build on, what must be extended, and what must **not** be reused.
@@ -58,7 +60,7 @@ hard parts are.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/runtime/event.py:39-77` (`EventType`), `src/labcairn/db/models.py:556` (`events`) |
+| **Where** | `src/labcairn/runtime/event.py:39-77` (`EventType`), `src/labcairn/db/models.py:584` — `__tablename__ = "events"` (`events`) |
 | **Watched by** | `tests/test_event_payload_vocabulary.py`, `tests/test_store_events.py` |
 | **Verdict** | **reuse, with one addition (see §3.1)** |
 
@@ -72,12 +74,12 @@ log.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/security/approval.py`, `src/labcairn/security/policy.py`, `src/labcairn/security/capabilities.py`, `src/labcairn/recovery/approvals.py:100` (`ApprovalStore`) |
+| **Where** | `src/labcairn/security/approval.py`, `src/labcairn/security/policy.py`, `src/labcairn/security/capabilities.py`, `src/labcairn/recovery/approvals.py:100` — `class ApprovalStore:` (`ApprovalStore`) |
 | **Watched by** | `tests/test_security_approval.py`, `tests/test_application_approvals.py`, `tests/test_recovery_approvals.py`, `tests/test_recovery_crash_matrix.py` |
 | **Verdict** | **reuse the machinery; the row is extended by LC-P2-02** |
 
 The single-use guarantee is one conditional `UPDATE` —
-`recovery/approvals.py:328` `conditional_spend()` — and the module explains
+`src/labcairn/recovery/approvals.py:328` — `def conditional_spend(approval_id: ApprovalId, now: datetime) -> Update:` `conditional_spend()` — and the module explains
 why it is not inlined: *"the test that was supposed to prove the predicate
 load-bearing re-implemented the statement in the test file instead of
 calling it — so deleting the predicate from the product left the suite
@@ -99,12 +101,12 @@ is correct. Migration head is `0008_c2_profile`; the fix needs `0009`.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/security/capabilities.py:59` (`CapabilityId`), `:299` (`CAPABILITIES`), `:370` (`MODEL_REQUEST`) |
+| **Where** | `src/labcairn/security/capabilities.py:59` — `class CapabilityId(StrEnum):` (`CapabilityId`), `:299` (`CAPABILITIES`), `:370` (`MODEL_REQUEST`) |
 | **Watched by** | `tests/test_capability_namespaces.py`, `tests/test_security_policy.py`, `tests/test_cli_refusal_enumeration.py` |
 | **Verdict** | **reuse** |
 
 The registry already holds **`MODEL_REQUEST`** with its own argument model
-(`ModelRequestArgs`, `capabilities.py:262`). Phase 2's model call does not
+`ModelRequestArgs`, `src/labcairn/security/capabilities.py:312` — `class ModelRequestArgs(_Args):`). Phase 2's model call does not
 need a new capability id, and *must not* mint one: the registry is what
 `assert_capability_registered` checks before a consent is spent, so a
 private capability id would be an authorisation bypass wearing a new name.
@@ -143,7 +145,7 @@ operation-approval table does not.**
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/sources/source.py:88` (`SourceKind`), `src/labcairn/sources/locators.py:65` (`LocatorKind`), `src/labcairn/material/addressing.py:112` (`render_locator_key`), `src/labcairn/db/models.py:674,836,1059` (`sources`, `source_texts`, `source_anchors`) |
+| **Where** | `src/labcairn/sources/source.py:88` — `class SourceKind(StrEnum):` (`SourceKind`), `src/labcairn/sources/locators.py:73` — `class LocatorKind(StrEnum):` (`LocatorKind`), `src/labcairn/material/addressing.py:135` — `def render_locator_key(locator: SourceLocator) -> str:` (`render_locator_key`), `src/labcairn/db/models.py:674,836,1059` (`sources`, `source_texts`, `source_anchors`) |
 | **Watched by** | `tests/test_source_contracts.py`, `tests/test_material_addressing.py`, `tests/test_material_schema.py`, `tests/test_source_id_type.py`, `tests/test_evidence_anchor_registry.py` |
 | **Verdict** | **reuse the model; extend the vocabulary (see §3.2)** |
 
@@ -158,7 +160,7 @@ requirement the `locator_key` already serves for pages and cells.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/material/ingest.py`, `walk.py:101` (`ingest_workspace`), `indexing.py:71` (`build_index`), `version.py:78` (`derive_extraction_version`) |
+| **Where** | `src/labcairn/material/ingest.py`, `src/labcairn/material/walk.py:101` — `def ingest_workspace(`, `src/labcairn/material/indexing.py:71` — `def build_index(`, `src/labcairn/material/version.py:78` — `def derive_extraction_version(` |
 | **Watched by** | `tests/test_material_ingest.py`, `tests/test_material_indexing.py`, `tests/test_material_walk.py`, `tests/test_material_regressions.py` |
 | **Verdict** | **reuse** |
 
@@ -167,7 +169,7 @@ Three things Phase 2 gets for free:
 - **Content addressing.** Bytes are hashed and stored by hash; the workspace
   walk records *where* the material is, not the key it was handed.
 - **Readability as a distinct state.** `SourceReadability` separates "we
-  could not look" from "there was nothing there" (`sources/source.py:104`).
+  could not look" from "there was nothing there" (`src/labcairn/sources/source.py:109` — `class SourceReadability(StrEnum):`).
   Phase 2's "the revision exists but its author is unknown" needs exactly
   this discipline, and it is already the project's.
 - **Derive the extraction version from the source.** `material/version.py`
@@ -181,7 +183,7 @@ Three things Phase 2 gets for free:
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/evidence/record.py`, `states.py:50` (`VerificationStatus`), `gate.py`, `store.py`, `index.py` |
+| **Where** | `src/labcairn/evidence/record.py`, `src/labcairn/evidence/states.py:50` — `class VerificationStatus(StrEnum):` (`VerificationStatus`), `gate.py`, `store.py`, `index.py` |
 | **Watched by** | `tests/test_evidence_contracts.py`, `tests/test_evidence_gate.py`, `tests/test_evidence_store.py`, `tests/test_evidence_schema.py`, `tests/test_cite_c1.py`, `tests/test_cite_c2.py`, `tests/test_cite_c3.py` |
 | **Verdict** | **reuse** |
 
@@ -243,7 +245,7 @@ deliberately outside the transition families.
 
 ### 3.2 A DOCX source kind — `SourceKind` extension
 
-`SourceKind` (`sources/source.py:88`) is `PDF | MARKDOWN | TEXT | CSV |
+`SourceKind` (`src/labcairn/sources/source.py:88` — `class SourceKind(StrEnum):`) is `PDF | MARKDOWN | TEXT | CSV |
 XLSX | OTHER`. **There is no DOCX.** `OTHER` exists for files that "can be
 inventoried and hashed, just not cited" — so today a Word file can enter the
 store and be hashed, and cannot be addressed. Phase 2 needs DOCX to be a
@@ -263,7 +265,7 @@ would put a citable claim on an address that resolves to nothing.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/evidence/states.py:96-112` (`EvidenceCreator.MODEL_PROPOSAL`), `src/labcairn/evidence/states.py:50-76` (`VerificationStatus`, six states), `src/labcairn/evidence/record.py:363-371` (the constructor check), `src/labcairn/application/evidence.py:44` |
+| **Where** | `src/labcairn/evidence/states.py:96-112` (`EvidenceCreator.MODEL_PROPOSAL`), `src/labcairn/evidence/states.py:50-76` (`VerificationStatus`, six states), `src/labcairn/evidence/record.py:363-371` (the constructor check), `src/labcairn/application/evidence.py:44` — `the same resource and the same question` |
 | **Watched by** | `tests/test_evidence_contracts.py`, `tests/test_evidence_schema.py` |
 | **Verdict** | **extend — and this is Phase 2's most important reuse** |
 
@@ -314,14 +316,14 @@ scientific claims. ADR-0016's C13 is the witness for that line.
 ### 3.4 The DOCX *writer* already exists — the DOCX *reader* does not
 
 `python-docx` is a declared dependency (`pyproject.toml`, LC-P1-11's report
-export), used by `reports/render/docx.py:65`. It **writes** documents. It does
+export), used by `src/labcairn/reports/render/docx.py:76` — `from docx.document import Document`. It **writes** documents. It does
 not read revisions: `python-docx` gives no access to `w:ins`, `w:del`,
 `w:moveFrom`, `w:moveTo`, `w:commentRangeStart` or `w:commentReference` as
 first-class objects.
 
 So Phase 2 needs a **new read path** — a raw OOXML reader over the ZIP's XML
 parts — and it must be a *new adapter* in the `material` package's own
-registry (`material/units.py:251` `adapter_for`), so it inherits the
+registry (`src/labcairn/material/units.py:251` — `def adapter_for(kind: SourceKind) -> Adapter:` `adapter_for`), so it inherits the
 readability states, the addressing and the derived extraction version. This
 is an **extension of an existing mechanism**, not a new subsystem.
 
@@ -405,7 +407,7 @@ Web 直接开放到课题组局域网或公网"*.
 
 `evidence/index.py` builds an FTS5 index on a **trigram** tokenizer
 (migration `0006`), and the index build reports what it excluded
-(`material/indexing.py:204`). Trigrams find lexical overlap. They do not find
+(`src/labcairn/material/indexing.py:204` — `def _excluded_reasons(connection: Connection) -> dict[str, int]:`). Trigrams find lexical overlap. They do not find
 *"a mentor who said this about method design in a different discipline"*.
 
 LC-P2-11's case retrieval needs semantic matching over guidance cases. That
@@ -456,7 +458,7 @@ the same refusal discipline for pages it cannot read.
    three the design names as its technical hurdles: a DOCX OOXML reader
    (§3.2, §3.4), a version graph (§4.1), and a response-link model.
 3. **Two vocabulary slots exist and are empty** — `model_proposal` (§3.3) and
-   `OUTBOUND_CONSENT_REQUESTED` (`runtime/event.py:76`, declared and never
+   `OUTBOUND_CONSENT_REQUESTED` (`src/labcairn/runtime/event.py:76` — `OUTBOUND_CONSENT_REQUESTED = "outbound_consent_requested"`, declared and never
    emitted). The design's ADR `model-proposal-and-human-confirmation` and the
    Phase 1 carried limitation "ADR-0006's outbound-consent bridge is not
    built — both modules exist, nothing joins them" are the same fact seen

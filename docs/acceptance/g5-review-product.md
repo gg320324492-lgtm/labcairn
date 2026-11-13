@@ -1,5 +1,5 @@
 # G5 — Gate review, scope: product behaviour and measurement
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood when it was written; the tree has moved since. Follow the sentence, not the number.  
 **Gate:** G5 — the public alpha. Work orders **LC-P1-13** (evaluation, fault
 injection and competitor baseline) and **LC-P1-14** (the public alpha handoff
 and review dossier).

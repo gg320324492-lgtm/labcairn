@@ -1,5 +1,5 @@
 # Phase 2, Gate 0 — the evidence pack
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-29; the tree has moved since. Follow the sentence, not the number.  
 **Date:** 2026-10-29 · **Base commit:** `66dde87` · **Scope:** P2-G0 of the
 Phase 2 execution design
 

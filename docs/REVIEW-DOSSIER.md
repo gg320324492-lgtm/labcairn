@@ -1,5 +1,7 @@
 # The P1 review dossier — upstream designs, LabCairn's independent implementation, and its tests
 
+**Anchors:** 9 — every converted pointer below carries the words it cites.
+
 **Work order:** LC-P1-14 (public alpha handoff and review dossier) · **Task:** T08
 **Status:** the dossier exists; the checkbox it discharges is `docs/UPSTREAM_REFERENCES.md:197`.
 **Tree it describes:** `dd08573` — the merge of the first four G5 components into the delivery branch. Every claim below is about the tree at that commit.
@@ -28,7 +30,7 @@ what was refused and why, and which test witnesses each LabCairn behaviour so th
 reader can check the claim rather than believe it.
 
 **What this document is not.** It is not a comparison, and it contains no claim that
-LabCairn is better than any upstream project. `docs/EVALUATION.md:29` forbids
+LabCairn is better than any upstream project. `docs/EVALUATION.md:29` — `Results are benchmarks only when measured on immutable fixture/version labels` forbids
 claiming superiority over PaperQA2/PaperSpine/others without like-for-like
 matched-task baselines, verified capabilities, and documented confidence intervals
 or limitations, and `docs/UPSTREAM_REFERENCES.md:127` forbids claiming superiority
@@ -211,12 +213,12 @@ Recorded in `docs/adr/ADR-0002-model-and-tool-execution-boundary.md`.
 
 | Upstream design studied | LabCairn's own contract | Where it lives | Witness |
 |---|---|---|---|
-| A tri-state cost field alongside integer token counters that default to zero | `UsageValue = Known \| Unknown`; `Unknown` carries a reason and has no numeric value, so summing over it raises rather than producing a number | `src/labcairn/core/providers/usage.py:197` (the union), `src/labcairn/core/providers/usage.py:114` (`Known`), `src/labcairn/core/providers/usage.py:159` (`Unknown`) | `tests/test_provider_budget.py::test_a_measured_zero_passes_every_ceiling`, `::test_a_half_measured_response_leaves_the_total_unknown`, `::test_budget_module_contains_no_numeric_coercion` |
+| A tri-state cost field alongside integer token counters that default to zero | `UsageValue = Known \| Unknown`; `Unknown` carries a reason and has no numeric value, so summing over it raises rather than producing a number | `src/labcairn/core/providers/usage.py:197` — `type UsageValue = Known | Unknown` (the union), `src/labcairn/core/providers/usage.py:114` — `class Known:` (`Known`), `src/labcairn/core/providers/usage.py:159` — `class Unknown:` (`Unknown`) | `tests/test_provider_budget.py::test_a_measured_zero_passes_every_ceiling`, `::test_a_half_measured_response_leaves_the_total_unknown`, `::test_budget_module_contains_no_numeric_coercion` |
 | Capability flags resolved from the model *name* rather than probed | `ProviderCapabilities` + `ProviderProbe`: real requests against the configured endpoint, an unprobed capability treated as unsupported, probe results cached per (endpoint, model, protocol) | `src/labcairn/providers/capabilities.py`, `src/labcairn/providers/probe.py` | `tests/test_provider_capabilities.py::test_model_profile_name_match_is_not_capability_evidence`, `::test_probe_never_reads_a_model_profile`, `::test_probe_unsupported_tool_calling_fails_closed_without_text_parsing`, `::test_capability_unverified_behaves_as_unsupported` |
 | A budget ceiling that warns and proceeds when the cost cannot be priced | Ceilings fail **closed**: an unpriced cost with a cost ceiling halts the run; an unproven usage-reporting capability blocks a token ceiling **before** the request | `src/labcairn/providers/budget.py` | `tests/test_provider_budget.py::test_cost_ceiling_fails_closed_when_price_unknown`, `::test_token_ceiling_fails_closed_when_tokens_unknown`, `tests/test_provider_adapter.py::test_capability_failure_decided_before_request_not_after` |
 | A request counter that excludes provider-side retries | `max_model_requests` bounds LabCairn-issued requests; provider attempts are recorded separately so a report can show the gap | `src/labcairn/providers/ledger.py`, `budget.py` | `tests/test_provider_budget.py::test_provider_retry_does_not_consume_model_request_budget`, `::test_the_ledger_reports_both_counters_so_a_report_can_show_the_gap` |
 | A tool-call counter that counts successes | `max_tool_calls` counts **attempts**, so a failing-tool loop is bounded | `src/labcairn/providers/budget.py` | `tests/test_provider_budget.py::test_tool_calls_are_counted_as_attempts_not_successes` |
-| A closed failure vocabulary with the third-party detail discarded | `FailureKind` + `OperationFailure`: the raw detail is redacted and only a digest is persisted | `src/labcairn/providers/errors.py:60`, `src/labcairn/providers/redaction.py:119` | `tests/test_provider_redaction.py::test_a_classified_failure_carries_no_field_that_can_hold_third_party_text`, `::test_classification_uses_the_status_code_and_discards_the_body` |
+| A closed failure vocabulary with the third-party detail discarded | `FailureKind` + `OperationFailure`: the raw detail is redacted and only a digest is persisted | `src/labcairn/providers/errors.py:60` — `class FailureKind(StrEnum):`, `src/labcairn/providers/redaction.py:119` — `def scrub(self, text: str) -> str:` | `tests/test_provider_redaction.py::test_a_classified_failure_carries_no_field_that_can_hold_third_party_text`, `::test_classification_uses_the_status_code_and_discards_the_body` |
 
 **Why this is an independent implementation and not a port.** The upstream
 vocabulary does not survive into LabCairn: upstream's confirmation policy returns
@@ -388,7 +390,7 @@ independent checks, and what each one found:
 
 | # | Check | Result |
 |---|---|---|
-| 1 | `git ls-files` for any path matching the three reference families `_references*`, `.upstreams*`, `labcairn-upstreams*` (`docs/UPSTREAM_REFERENCES.md:166`) | **No upstream file is tracked.** The project's own matcher is segment-based rather than substring-based, and it deliberately lets `docs/UPSTREAM_REFERENCES.md` through as a **near miss that must stay visible** — `tests/test_no_reference_leakage.py:508` asserts that this file is *not* a reference path. That is the only near miss in the tracked tree, and it is LabCairn's own document about upstream. |
+| 1 | `git ls-files` for any path matching the three reference families `_references*`, `.upstreams*`, `labcairn-upstreams*` (`docs/UPSTREAM_REFERENCES.md:166`) | **No upstream file is tracked.** The project's own matcher is segment-based rather than substring-based, and it deliberately lets `docs/UPSTREAM_REFERENCES.md` through as a **near miss that must stay visible** — `tests/test_no_reference_leakage.py:508` — `("docs/UPSTREAM_REFERENCES.md", False),` asserts that this file is *not* a reference path. That is the only near miss in the tracked tree, and it is LabCairn's own document about upstream. |
 | 2 | `git log --all --diff-filter=A` for any upstream path ever added | **No upstream source tree has ever been tracked**, on any branch in this repository. The only added file a loose substring search finds is `docs/UPSTREAM_REFERENCES.md` — LabCairn's own document. |
 | 3 | Grep of `src/` for upstream identifiers (`CANNOT_ANSWER_PHRASE`, `GROUP_PREFIXES`, `PRECISE_LOCATOR_RE`, `_check_fs_permission`, `should_confirm`, `ConfirmationPolicyBase`, `sanitize_messages`, `UsageLimits`, `TodoListMiddleware`, `EventLog`, …) | **Zero hits.** The identifiers that do appear — `ModelProfile`, `accumulated_cost`, `SecurityRisk`, `ErrorClassification` — appear only inside docstrings and comments, as citations to the observation that motivated a decision. |
 | 4 | Grep of `src/` for the upstream *package* names (`pydantic_ai`, `openhands`, `deepagents`, `paperspine`, `paperqa`, `pqac-`) | Hits are **comments and docstrings only**, except the three import sites in §4.3. The same four names appear in `pyproject.toml` only inside comments that cite the paper-qa licence lesson — not as a dependency. |
@@ -397,7 +399,7 @@ independent checks, and what each one found:
 scanning for copied code will hit at least one name that matches an upstream
 identifier, and the dossier should say so rather than let the reader find it and
 wonder. `FailureKind` is an upstream enum name, and LabCairn has one at
-`src/labcairn/providers/errors.py:60` — with its own twelve members, a
+`src/labcairn/providers/errors.py:60` — `class FailureKind(StrEnum):` — with its own twelve members, a
 different set from the upstream one. What ADR-0002 §5 records is that the
 upstream *shape* was studied — a closed four-field record whose raw third-party
 detail is discarded rather than persisted — and reimplemented with LabCairn's
@@ -592,7 +594,7 @@ not needed, and the quotation is the risk.
 
 Stated plainly, because a dossier that lists only its strengths is a brochure.
 
-1. **No superiority claim, and no comparison.** `docs/EVALUATION.md:29` permits a
+1. **No superiority claim, and no comparison.** `docs/EVALUATION.md:29` — `Results are benchmarks only when measured on immutable fixture/version labels` permits a
    comparison only on like-for-like matched tasks with verified capabilities and
    stated limitations. No such baseline was run for this dossier, so no ranking
    over PaperQA2, PaperSpine or any other project appears anywhere above.

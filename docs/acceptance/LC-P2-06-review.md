@@ -1,5 +1,5 @@
 # LC-P2-06 / LC-P2-08 — independent review of the merged tree
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood when it was written; the tree has moved since. Follow the sentence, not the number.  
 **Work orders reviewed:** LC-P2-06 (data governance, consent and access) and
 LC-P2-08 (the paper project and the version graph), as they stand in the
 merged tree.

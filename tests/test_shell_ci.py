@@ -8,7 +8,7 @@ console script and a scratch directory the runner actually has.
 
 **Why it needs watching.** `pyproject.toml`'s `norecursedirs` names `shell` —
 "Electron tree; its Node witnesses are not pytest files" — so no shard, no gate
-class and no witness ledger can see the shell's Node cases (52 across nine
+class and no witness ledger can see the shell's Node cases (80 across twelve
 files, measured at `CASE_FLOORS_MEASURED_AT`). Before this file,
 deleting `shell/test/window-security.test.mjs` left **every** pytest test green,
 and renaming a job so that its two platform legs report one name left every
@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import fnmatch
 import re
+import subprocess
 from pathlib import Path
 from typing import Any, Final
 
@@ -107,7 +108,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "7548c6621c2936fe8ec5f21a57b3fc91251e0a44"
+CASE_FLOORS_MEASURED_AT: Final[str] = "59f943eeeb125935486b265d1c8ba79e30f42e1e"
 
 
 # --------------------------------------------------------------------------
@@ -545,6 +546,115 @@ def test_the_shell_case_counts_are_at_least_the_recorded_floors(repo_root: Path)
     assert total >= sum(SHELL_CASE_FLOORS.values()), (
         f"the shell witnesses declare {total} cases between them; "
         f"{sum(SHELL_CASE_FLOORS.values())} were measured at {CASE_FLOORS_MEASURED_AT}"
+    )
+
+
+def _revision_is_in(repo_root: Path, revision: str) -> bool:
+    """Whether `revision` is a commit this checkout can show."""
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "cat-file", "-e", f"{revision}^{{commit}}"],
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _shell_test_text_at(repo_root: Path, revision: str, name: str) -> str | None:
+    """One shell witness file as it stood at `revision`, or None if it is not there."""
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "show", f"{revision}:shell/test/{name}"],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout.decode("utf-8")
+
+
+def _floors_below(files: dict[str, str], floors: dict[str, int]) -> list[str]:
+    """The floors the given files do not meet, one line each."""
+    below: list[str] = []
+    for name, floor in sorted(floors.items()):
+        text = files.get(name)
+        if text is None:
+            below.append(f"{name}: absent from the tree")
+            continue
+        count = _node_case_count(text)
+        if count < floor:
+            below.append(f"{name}: {count} cases, floor {floor}")
+    return below
+
+
+def test_the_case_floors_are_met_at_the_revision_this_file_names(repo_root: Path) -> None:
+    """The anchor names a tree, and the tree can be asked whether it holds.
+
+    **Why this is watched.** `CASE_FLOORS_MEASURED_AT` is a claim about a tree:
+    these floors were measured there. The floors themselves are checked against
+    the *current* tree, so a false anchor keeps this witness green forever —
+    which is what happened. The anchor named a tree whose
+    `installer-binaries.test.mjs` declared eight cases against a floor of nine
+    and whose `packaging-config.test.mjs` declared nine against a floor of
+    fourteen, so the table and the revision it claimed to come from were two
+    different trees (74 cases against 80), and the file's own docstring still
+    printed the table as it stood at that revision. A name is not a
+    measurement; this asks the tree.
+
+    **What it checks.** Every file the floors name is read at the revision and
+    counted with the same counter the current tree is counted with, so the two
+    readings are the same reading.
+
+    **When it cannot be asked.** A checkout without the revision cannot answer
+    the question, and that is the only reason this check skips.
+    """
+    revision = CASE_FLOORS_MEASURED_AT
+    if not _revision_is_in(repo_root, revision):
+        pytest.skip(f"{revision} is not in this checkout, so the question cannot be asked")
+    files: dict[str, str] = {}
+    missing: list[str] = []
+    for name in SHELL_CASE_FLOORS:
+        text = _shell_test_text_at(repo_root, revision, name)
+        if text is None:
+            missing.append(name)
+        else:
+            files[name] = text
+    assert not missing, (
+        f"these shell witness files are not in the tree at {revision}: {missing}. "
+        f"The anchor names a tree the floors were not measured in."
+    )
+    below = _floors_below(files, SHELL_CASE_FLOORS)
+    assert not below, (
+        f"the floors are not met at the revision this file names ({revision}): "
+        + "; ".join(below)
+        + ". The table and the revision it claims to come from are two different "
+        "trees. Re-measure the floors and move the anchor to the tree they were "
+        "measured in."
+    )
+
+
+def test_the_floor_anchor_check_reports_a_floor_the_revision_does_not_meet(
+    repo_root: Path,
+) -> None:
+    """The check above is not vacuous: a raised floor is reported.
+
+    A check that cannot fail is a check that can be switched off without anyone
+    noticing, so the reader is exercised against a floor the revision does not
+    meet, and the report is shown to name the file and both numbers.
+    """
+    revision = CASE_FLOORS_MEASURED_AT
+    if not _revision_is_in(repo_root, revision):
+        pytest.skip(f"{revision} is not in this checkout, so the question cannot be asked")
+    name = "installer-binaries.test.mjs"
+    text = _shell_test_text_at(repo_root, revision, name)
+    assert text is not None, f"{name} is not in the tree at {revision}"
+    count = _node_case_count(text)
+    raised = {name: count + 1}
+    below = _floors_below({name: text}, raised)
+    assert below, (
+        "a floor one case above what the revision declares was not reported; the "
+        "anchor check cannot fail, so it cannot be trusted"
+    )
+    assert name in below[0] and str(count) in below[0], (
+        f"the report does not name the file and the count it found: {below[0]}"
     )
 
 

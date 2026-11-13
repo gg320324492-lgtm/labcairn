@@ -133,9 +133,10 @@ it failed. Run the command, then read its status separately.
 **The owner decided this on 2026-10-24**, and it is recorded in
 `docs/plans/LC-P1-11-12-task-breakdown.md` §1.5.
 
-- **Do not push to start a run.** The suite is five shards per platform, so a
-  push starts ten python jobs; that is the owner's call, not the
-  session's.
+- **Do not push to start a run.** The suite is five shards per platform and
+  `lint` is one job of its own, so the python jobs are the eleven that a push
+  event starts — the ten shard legs and `lint`; that is the owner's call, not
+  the session's.
 - **Do not open a pull request.** Not for a finished piece of work, not for
   a document, not for a commit that is "ready to be reviewed". The work
   lands in the tree, the record says what it is, and the pull request waits
@@ -192,10 +193,11 @@ wall clock does not change: lint finishes before the shards, and the wait is
 still the slowest shard (Windows). What the split removes is ten duplicate
 runs, not minutes.
 
-**And the count is measured as well.** Six shards were tried on 2026-10-25,
-and the best arrangement their costs allow was a balance factor of 1.603;
-five is better, and a sixth shard only adds a job without shortening the
-wall clock. **The workflow's matrix is the authority** — `shard: [0, 1, 2, 3,
+**And the count is measured as well.** Six shards were tried on 2026-10-25
+(the six-shard matrix `d8f5788512318c8e9b8b85d13357867749a353f6`), and the
+best arrangement their costs allow was a balance factor of 1.603; five is
+better, and a sixth shard only adds a job without shortening the wall clock.
+**The workflow's matrix is the authority** — `shard: [0, 1, 2, 3,
 4]` — and `tests/test_ci_shard_coverage.py` checks the partition against it.
 
 **Adding a test file means adding it to the shard list**, and

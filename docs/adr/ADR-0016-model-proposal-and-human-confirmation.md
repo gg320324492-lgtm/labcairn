@@ -1,5 +1,5 @@
 # ADR-0016: A model's proposal is a proposal — and a human's confirmation is the only promotion
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-29; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Proposed
 **Work order:** LC-P2-01, LC-P2-12 (proposed; not yet dispatched)
 **Date:** 2026-10-29

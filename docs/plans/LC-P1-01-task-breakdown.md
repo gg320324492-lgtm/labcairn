@@ -1,5 +1,7 @@
 # LC-P1-01 — Public repository and reproducible engineering baseline
 
+**Anchors:** 4 — every converted pointer below carries the words it cites.
+
 > ## ⚠️ PARTIALLY SUPERSEDED — read before using this plan
 >
 > [`LC-P1-01-approved-amendments.md`](LC-P1-01-approved-amendments.md) **overrides this document** wherever the two conflict. The conflicts were found by independent review on 2026-10-15 and are listed below; every other section of this plan stands as written.
@@ -302,7 +304,7 @@ the allowlist is what protects the clones. It does not; T11's operating procedur
 | `test_upload_artifact_and_cache_paths_exclude_reference_paths` | every `actions/upload-artifact` / `actions/cache` `path:` excludes them |
 | `test_workflows_do_not_require_upstream_checkouts` | no workflow step references `labcairn-upstreams`, `../labcairn-upstreams`, or `checkout_upstreams.py` outside an exclusion context — **this is the "external contributor has no clone" gate** |
 | `test_workflows_do_not_use_no_git_secret_scan` | see T04 |
-| `test_checkout_upstreams_script_rejects_in_repo_destination` | exercises the existing guard at `scripts/checkout_upstreams.py:76` (`dest == ROOT or ROOT in dest.parents`) without cloning anything |
+| `test_checkout_upstreams_script_rejects_in_repo_destination` | exercises the existing guard at `scripts/checkout_upstreams.py:144` — `dest == ROOT or ROOT in dest.parents` — without cloning anything |
 | `test_gitignore_ignores_reference_paths_case_variants` | **behavioural**, via `git check-ignore` against paths created in a temp dir inside the repo — never by matching `.gitignore` text |
 
 **Depends on**: T02 (build config exists so `uv build` works). **T05 may be written in
@@ -812,7 +814,7 @@ soft as prose and hard as a test. T07's `tests/test_readme_commands.py` is the m
 
 Additional assertions:
 - The README must contain a status line marking Phase 1 as under construction (already
-  present at `README.md:5` and `:44`).
+  present at `README.md:5` — `Phase 1 is closed at G5` and `:44`).
 - The README must **not** mention any LC-P1-12+ surface. LC-P1-01 ships no CLI and no UI, so
   `labcairn init`, `labcairn doctor`, `localhost:8000`, screenshots and "demo" claims are all
   test failures, not style preferences.
@@ -828,7 +830,7 @@ CI does **not** validate a LICENSE file in LC-P1-01.
   PyPI both treat that name as a legal grant, and placeholder text under it would be a false
   statement about licensing. Instead: `LICENSE.PENDING.md`, containing (a) the intended MIT
   grant, (b) the two conditions from the work order — *"MIT license once ownership cleared"*
-  and *"subject to final ownership and dependency review"* (`README.md:63`) — and (c) the
+  and *"subject to final ownership and dependency review"* (`README.md:166` — `License status: MIT.`) — and (c) the
   trigger for replacement. The README's existing "Open source and attribution" paragraph is
   the human-readable placeholder of record and already says the right thing:
   *"this README is not a substitute for a license."*
@@ -839,7 +841,7 @@ CI does **not** validate a LICENSE file in LC-P1-01.
   "license/NOTICE audit"**, which is where ownership is actually cleared.
 - **Conditions to close it out.** All four must hold before `LICENSE` is written:
   1. Copyright ownership of all LabCairn source is settled.
-  2. The dependency set is final enough that the "dependency review" in `README.md:63` can be
+  2. The dependency set is final enough that the "dependency review" in `README.md:169` — `The dependency review is recorded in` can be
      performed (note: PyMuPDF and any `paper-qa` component remain open license questions —
      `docs/UPSTREAM_REFERENCES.md` §"Verified license boundaries").
   3. ADR-0004's AGPL-3.0 boundary is confirmed un-crossed by the final dependency graph.

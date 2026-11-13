@@ -1,9 +1,13 @@
 # LC-P1-13 / LC-P1-14 — The public alpha: evaluation, fault injection, and the handoff
 
+**Anchors:** 1 — every converted pointer below carries the words it cites.
+
 **Gate:** G5 — the public alpha · **Work orders:** 13 (evaluation, fault injection
 and a competitor baseline) and 14 (public alpha handoff and review dossier)
-· **Status of this document:** the work orders are **NOT STARTED** and this
-document does not change that. It says what the gate must produce, what
+· **Status of this document:** the work orders were **NOT STARTED** when it was
+written; the board now records both as **`PASS WITH NOTES`** and merged
+([`docs/PHASE_1_WORKORDERS.md`](../PHASE_1_WORKORDERS.md)). This document says
+what the gate must produce, what
 already exists for it, and which decisions belong to the owner.
 
 **Read this first:** [the work-order board](../PHASE_1_WORKORDERS.md) for the
@@ -48,8 +52,8 @@ is already built is how a gate gets re-done twice.
 | What G5 needs | What exists | Where |
 |---|---|---|
 | **The evaluation protocol** — five mandatory gate classes, the metrics, the denominators, the six Phase 1 blockers | **written, 2026-10-15** | [`docs/EVALUATION.md`](../EVALUATION.md) |
-| **Fixtures with expected outputs** | `tests/fixtures/` in three groups — `analysis/` (21 files: CSV and XLSX with a `*.expected.json` beside each), `papers/`, `retrieval/` | `tests/fixtures/` |
-| **A crash matrix** | **eight cases**: AT1 (crash before write — replayable), AT2 (crash after write, before commit — *the only bad case*), AT2b (the write counter as evidence), AT3 (crash after commit, before the receipt — no replay needed), AT3b (a reconnecting client gets exactly the missed events), AT5 (reconciliation detects an absent write), AT6 (reconciliation flags conflicting content for a human), AT7 (the matrix itself, run as a subprocess) | `tests/test_recovery_crash_matrix.py` |
+| **Fixtures with expected outputs** | `tests/fixtures/` in five groups — `analysis/` (21 files: CSV and XLSX with a `*.expected.json` beside each), `papers/`, `papers-gold/`, `public/`, `retrieval/` | `tests/fixtures/` |
+| **A crash matrix** | **nine cases**: AT1 (crash before write — replayable), AT2 (crash after write, before commit — *the only bad case*), AT2b (the write counter as evidence), AT2c (an attempting operation is refused before reconciliation runs), AT3 (crash after commit, before the receipt — no replay needed), AT3b (a reconnecting client gets exactly the missed events), AT5 (reconciliation detects an absent write), AT6 (reconciliation flags conflicting content for a human), AT7 (the matrix itself, run as a subprocess) | `tests/test_recovery_crash_matrix.py` |
 | **An exit demonstration that is run by a test** | `examples/g4_exit_demo.py`, run as a subprocess whose **exit code is the assertion**, with the fault planted from outside | `tests/test_smoke_path.py` |
 | **The architecture document** | written | [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) |
 | **The font audit** — what third-party material reaches a user, measured | **done, 2026-10-25** | [`LC-P1-14-font-licence-audit.md`](../acceptance/LC-P1-14-font-licence-audit.md) |
@@ -66,7 +70,7 @@ the board and the handoff name them, and G5 has to cover them:
   conclusion held: the gates' own records say the reviewer *"did not implement
   any of this"* and call the method *"internal cross-validation by two agents,
   not an external independent audit"*
-  ([`G2-acceptance.md:98`](../acceptance/G2-acceptance.md)). What makes the rule
+  ([`G2-acceptance.md:98`](../acceptance/G2-acceptance.md) — `internal cross-validation by two agents`). What makes the rule
   unmet is that the reviewer was inside the project rather than an independent
   party at a named commit — and, since the owner's ruling of 2026-10-28, that
   the retro-review agents are **procedural independence, not human**. See

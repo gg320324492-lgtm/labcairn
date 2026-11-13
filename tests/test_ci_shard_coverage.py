@@ -2188,21 +2188,31 @@ def test_the_remeasurement_refuses_to_write_a_table_it_could_not_measure(
 # count**.
 
 #: The records held today: the CI contract records, the files whose job it is to state
-#: what the gate runs. The 2026-11-12 sweep found job-count sentences in 24 files;
-#: widening this list is a decision about which records phrase their claims in a form a
-#: witness can read, so it is reported to the owner rather than taken here. Two
-#: **current pointers** print a push starting ten jobs where `python.yml` gives
-#: **eleven** — `docs/handoff/CURRENT.md` and `CONTRIBUTING.md`: the same defect family
-#: as the thirteen, in another window's files, listed as a follow-up rather than edited
-#: here.
+#: what the gate runs, and — since the owner decided on 2026-11-12 — the **live pointers**
+#: a session reads before it decides whether to push, and the decision record that says
+#: why: `CLAUDE.md`, `CONTRIBUTING.md`, `docs/handoff/CURRENT.md` and
+#: `docs/plans/LC-P1-11-12-task-breakdown.md`.
+#:
+#: The 2026-11-12 sweep found job-count sentences in 24 files; widening this list is a
+#: decision about which records phrase their claims in a form a witness can read, so it is
+#: reported to the owner rather than taken here. The owner took it for the four below, and
+#: the wording in them was changed so that the reader can see the count each one states:
+#: **a record this witness cannot read is a record it cannot watch.** Two of them also
+#: carry a historical sentence about the six-shard matrix, and those name the revision the
+#: six shards were measured in — an exemption earned by producing the figure, not by
+#: mentioning a date.
 JOB_COUNT_RECORDS: Final[tuple[Path, ...]] = (
     Path(".github") / "CI.md",
     WORKFLOW_FILE,
     Path("docs") / "plans" / "LC-P1-13-evaluation-ci.md",
+    Path("CLAUDE.md"),
+    Path("CONTRIBUTING.md"),
+    Path("docs") / "handoff" / "CURRENT.md",
+    Path("docs") / "plans" / "LC-P1-11-12-task-breakdown.md",
 )
 
-#: The workflow a claim is judged against when its own sentence names none. All three
-#: records above are `python.yml`'s records.
+#: The workflow a claim is judged against when its own sentence names none. Every record
+#: above is `python.yml`'s records.
 DEFAULT_WORKFLOW: Final[str] = "python.yml"
 
 _COUNTED_EVENTS: Final[tuple[str, ...]] = ("pull_request", "push", "schedule")
@@ -2336,17 +2346,25 @@ _SENTENCE_REVISION: Final[re.Pattern[str]] = re.compile(r"\b[0-9a-f]{7,40}\b")
 _WORKFLOW_NAMED: Final[re.Pattern[str]] = re.compile(r"\b([a-z0-9][a-z0-9-]*\.ya?ml)\b")
 
 #: How many job-count claims each record carries, measured 2026-11-12 by running this
-#: instrument over the three records. Pinned, because the way a check goes green while a
+#: instrument over the records above. Pinned, because the way a check goes green while a
 #: record moves out of its reach is that a claim stops being readable: the count moving says
 #: either the record changed or this witness stopped seeing a claim it used to see, and the
 #: second is the more dangerous of the two. `python.yml` reads 8 rather than 7 because an
 #: earlier `_record_paragraphs` left a `# ` inside a joined YAML comment, which cut
 #: "not the eleven that a / pull-request event spends" between the number and its quantity:
 #: the claim was invisible to the witness while the comment stayed exactly where it was.
+#: The four live pointers were added on 2026-11-12 and measured the same day, with the same
+#: instrument: each of them carries one push-event claim of eleven, readable because the
+#: wording states the quantity it counts rather than putting the number beside the word
+#: "push".
 JOB_COUNT_CLAIMS: Final[dict[str, int]] = {
     "CI.md": 11,
     "python.yml": 8,
     "LC-P1-13-evaluation-ci.md": 4,
+    "CLAUDE.md": 6,
+    "CONTRIBUTING.md": 3,
+    "CURRENT.md": 6,
+    "LC-P1-11-12-task-breakdown.md": 1,
 }
 
 
@@ -2942,9 +2960,9 @@ def test_the_job_count_reader_fails_for_a_record_left_behind_by_the_matrix(
         six_stale.extend(found)
     assert len(six_stale) >= 3, (
         f"a six-shard matrix left {len(six_stale)} job counts behind in the records. The "
-        "records state five shards, ten shard legs, eleven pull-request jobs and twelve "
-        "rendered names; against a six-shard matrix those are five claims, and a reader that "
-        "reports fewer is reading the wording rather than the quantities."
+        "records state five shards, ten shard legs, eleven jobs for a push or a pull request, "
+        "and twelve rendered names; against a six-shard matrix every one of those is wrong, so "
+        "a reader that reports fewer is reading the wording rather than the quantities."
     )
     assert any("shard axis" in report or "shards" in report for report in six_stale), six_stale
     assert any("rendered job names" in report or "twelve" in report for report in six_stale), (
@@ -3027,6 +3045,121 @@ def test_the_job_count_reader_fails_for_a_record_left_behind_by_the_matrix(
     assert workflow_path.read_bytes() == workflow_bytes, (
         f"{WORKFLOW_FILE} changed while it was being read"
     )
+
+
+#: The push-count sentence the live pointers share, and the wrong figure a control writes into
+#: it. **The needle is a pattern and the substitution is asserted.** A needle that matches
+#: nothing leaves the record untouched, and the control would then be proving that a reader
+#: stays quiet — the opposite of what it is for. The pattern carries `\s+` because the
+#: sentence wraps in two of the three records (`CLAUDE.md` and `CONTRIBUTING.md` break it
+#: between "push" and "event", and `docs/handoff/CURRENT.md` prefixes the second line with
+#: the blockquote mark), and a needle typed from the joined sentence would match none of
+#: them.
+_PUSH_COUNT_CLAIM: Final[re.Pattern[str]] = re.compile(r"eleven that a push\s+event\s+starts", re.I)
+_PUSH_COUNT_WRONG: Final[str] = "ten that a push event starts"
+
+#: The parenthesis that holds the revision a historical six-shard sentence names, stripped to
+#: show the exemption is load-bearing: without it the sentence is judged against today's
+#: shard axis, and today's axis is five. **The pattern carries `\s+` because the parenthesis
+#: wraps in both records** — `CLAUDE.md` breaks the line before it and the task breakdown
+#: breaks it inside — and a needle typed from the joined sentence would match neither.
+_SIX_SHARD_ANCHOR: Final[re.Pattern[str]] = re.compile(
+    r"\s*\(the six-shard matrix `d8f5788[0-9a-f]*`(?:\s+tried)?\)"
+)
+
+
+def test_the_live_pointers_job_counts_are_watched_too(repo_root: Path) -> None:
+    """The live pointers' job counts are held to the workflow, and their dated sentences to
+    the revision they name.
+
+    **The property.** `CLAUDE.md`, `CONTRIBUTING.md` and `docs/handoff/CURRENT.md` are what a
+    session reads before it decides whether to push, and
+    `docs/plans/LC-P1-11-12-task-breakdown.md` is the record of the decision that pushing is
+    expensive. Their job counts are claims like any other, and a claim nobody checks is a
+    claim nobody keeps true: the 2026-11-12 sweep found two of them printing a push
+    starting ten jobs where `python.yml` gives eleven.
+
+    **What this control does that the demonstration above does not.** The demonstration
+    mutates `.github/CI.md` and the workflow; this one mutates the **records the owner added
+    on 2026-11-12**, one figure at a time, on a copy of the text. Two things are checked per
+    record. First, that a wrong figure is reported, and that the report names the file and
+    the figure — a report that says only "something is wrong" leaves the reader to guess
+    which record to open. Second, that the historical six-shard sentence is exempt only
+    because it names the revision the six shards were measured in: strip that revision and
+    the sentence has to be reported, because nothing gives six shards today.
+
+    **The records are not touched.** Every mutation here happens on a copy of the text, and
+    the bytes on disk are compared before and after, so the control cannot be the thing
+    that breaks the records it guards.
+    """
+    pointers = (
+        Path("CLAUDE.md"),
+        Path("CONTRIBUTING.md"),
+        Path("docs") / "handoff" / "CURRENT.md",
+    )
+    dated = (
+        Path("CLAUDE.md"),
+        Path("docs") / "plans" / "LC-P1-11-12-task-breakdown.md",
+    )
+    before = {
+        relative: (repo_root / relative).read_bytes()
+        for relative in dict.fromkeys(pointers + dated)
+    }
+
+    for relative in pointers:
+        text = before[relative].decode("utf-8")
+        stale, unresolvable, _anchored = _job_count_reports(repo_root, {relative: text})
+        assert not stale and not unresolvable, (
+            f"{relative} is read as carrying a job count no workflow gives, today or at the "
+            f"revision it names: {stale + unresolvable}"
+        )
+
+        wrong = _PUSH_COUNT_CLAIM.sub(_PUSH_COUNT_WRONG, text, count=1)
+        assert wrong != text, (
+            f"{relative} carries no push-count sentence this control can mutate "
+            f"({_PUSH_COUNT_CLAIM.pattern!r}), so the mutation would change nothing and the "
+            "control would prove nothing"
+        )
+        stale, _unresolvable, _anchored = _job_count_reports(repo_root, {relative: wrong})
+        assert len(stale) == 1, (
+            f"one wrong figure in {relative} produced {len(stale)} reports: {stale}"
+        )
+        report = stale[0]
+        assert relative.name in report, (
+            f"the report for {relative} does not name the record it is about: {report}"
+        )
+        assert "prints 10" in report and "gives [11]" in report, (
+            f"the report for {relative} does not name the figure the record prints and the "
+            f"figure the workflow gives: {report}"
+        )
+
+    for relative in dated:
+        text = before[relative].decode("utf-8")
+        stale, unresolvable, anchored = _job_count_reports(repo_root, {relative: text})
+        assert not stale and not unresolvable, (
+            f"{relative} is read as carrying a job count no workflow gives: {stale + unresolvable}"
+        )
+        assert any("d8f5788" in report for report in anchored), (
+            f"{relative} carries a six-shard sentence that names no revision the six shards "
+            f"were measured in, so nothing exempts it: {anchored}"
+        )
+
+        stripped = _SIX_SHARD_ANCHOR.sub("", text, count=1)
+        assert stripped != text, (
+            f"{relative} carries no six-shard anchor for this control to strip, so stripping "
+            "it would change nothing and the control would prove nothing"
+        )
+        stale, _unresolvable, _anchored = _job_count_reports(repo_root, {relative: stripped})
+        assert len(stale) == 1, (
+            f"removing the revision a six-shard sentence named produced {len(stale)} reports "
+            f"in {relative}: {stale}"
+        )
+        assert "prints 6" in stale[0] and "shard axis" in stale[0], stale[0]
+
+    for relative, original in before.items():
+        assert (repo_root / relative).read_bytes() == original, (
+            f"{relative} changed while it was being read"
+        )
 
 
 #: What the property has held for across the workflow's own history, measured 2026-11-12 over

@@ -1,5 +1,5 @@
 # ADR-0015: Dataset consent and access — four permissions, not one
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-29; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Proposed
 **Work order:** LC-P2-06 (proposed; not yet dispatched)
 **Date:** 2026-10-29

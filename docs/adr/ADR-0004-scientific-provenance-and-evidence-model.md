@@ -1,5 +1,5 @@
 # ADR-0004: Scientific provenance and evidence model
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-15; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Proposed
 **Work order:** LC-P1-09 (evidence ledger and cite-support validator); prerequisite input for LC-P1-08 (source locators) and gate G3 (evidence path)
 **Date:** 2026-10-15
