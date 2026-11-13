@@ -1855,6 +1855,32 @@ neither a build nor an install; its licence classes do.
     # count §2.5.1 and §2.5.2 print matches what the extracts give, exit 1 naming the
     # count that disagrees. The expected values are read out of this file.
 
+  # 5a. the directories the truth arms read, fetched and verified in one step.
+  #     `scripts/lgpl_upstream_archives.py` downloads the archives §2.5.1's
+  #     delivery entries name, checks each against the sha256 recorded here —
+  #     including the StdUtils tar, which it takes out of the release zip and
+  #     verifies against the tar's own hash — and unpacks the two 7-Zip
+  #     containers and the LZMA SDK archive into the extract tree. It needs a
+  #     `7z` on PATH (p7zip-full on Linux, 7-Zip on Windows) and outbound
+  #     network; it refuses to write inside the repository.
+  #
+  #     This is the step the CI shard jobs run: `python.yml` caches the
+  #     archives under the runner's temp with a key built from the hashes
+  #     below, so an upstream repackaging invalidates the cache by
+  #     construction. The two arms above then run with
+  #     LABCAIRN_LGPL_SOURCE_DIR pointing at the fetched archives and
+  #     LABCAIRN_LGPL_EXTRACT_DIR at the unpacked trees. The replaceability
+  #     arm stays machine-only: LABCAIRN_REPLACEABILITY_DIR holds the modified
+  #     plug-ins and observation files, and LABCAIRN_REPLACEABILITY_INSTALLERS
+  #     holds the installer build products, each built and run on the
+  #     development machine — third-party binary derivatives that are not
+  #     committed here — so those arms run on that machine only, and say so
+  #     where they skip.
+  python scripts/lgpl_upstream_archives.py <source-dir> <extract-dir> <scratch-dir>
+    # exit 0 when every archive matched the hash recorded here and the extracts
+    # are in place; exit 1 naming any archive that did not match, which was
+    # then not unpacked.
+
 **The web tree.**
 
   # 1. the surface, read out of the lock — no install, no network, fresh checkout

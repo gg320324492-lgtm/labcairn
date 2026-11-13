@@ -105,6 +105,44 @@ def browser_cache_dir() -> Path:
     return (Path(tempfile.gettempdir()) / "labcairn-ms-playwright").resolve()
 
 
+def channel_skip_reason(error: Exception) -> str | None:
+    r"""The skip reason when `error` is the driver refusing a missing channel.
+
+    **The launch is the criterion, and this reads its verdict.** Whether the
+    pinned channel (`BROWSER_CHANNEL` above) exists on a machine is decided by
+    Playwright's own registry at launch time: a channel the machine lacks makes
+    ``launch`` fail *before any process is spawned*, with a message that names
+    the channel and the path it looked at —
+
+        Chromium distribution 'msedge' is not found at /opt/microsoft/msedge/msedge
+        Chromium distribution 'msedge' is not found at C:\...\msedge.exe
+
+    (measured against the 1.65.1 driver's own ``_createChromiumChannel``, which
+    throws ``Chromium distribution '${name}' is not found${location}``; the
+    platform suffix is always present for ``msedge``, so the "unsupported on
+    this platform" arm is not reachable for this channel). A launch failure
+    that *is not* that message is a browser that exists but failed to start,
+    and this returns None so the caller keeps its "no browser to drive"
+    handling — a broken browser and an absent one are different facts, and
+    collapsing them would let a broken Windows browser hide behind "Ubuntu has
+    no Edge".
+
+    **No second criterion.** A platform check, or a hard-coded probe of the
+    standard install paths, would be a second answer that can drift from the
+    driver the launch actually uses. The driver's own error is the one
+    judgment this file consults, which is why the reason returned is the
+    driver's own words.
+    """
+    message = str(error)
+    if "is not found" in message and BROWSER_CHANNEL in message:
+        return (
+            f"the browser channel {BROWSER_CHANNEL!r} this run pins is not "
+            f"installed on this machine, so the file skips here rather than "
+            f"red elsewhere: {type(error).__name__}: {message[:400]}"
+        )
+    return None
+
+
 def pin_browser_cache() -> tuple[Path, str | None]:
     """Put the project's own cache in force, and report what the machine carried.
 
@@ -642,6 +680,7 @@ __all__ = [
     "ServedWorkbench",
     "StopOutcome",
     "browser_cache_dir",
+    "channel_skip_reason",
     "console_script",
     "free_loopback_port",
     "launch_workbench_browser",
