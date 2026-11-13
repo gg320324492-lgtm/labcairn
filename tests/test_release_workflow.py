@@ -3232,7 +3232,9 @@ def test_the_licences_readme_records_the_bytes_and_hash_of_every_text(repo_root:
             )
     extra = sorted(set(recorded) - set(on_disk) - {readme_name})
     if extra:
-        problems.append(f"the README records measurements for texts the directory does not hold: {extra}")
+        problems.append(
+            f"the README records measurements for texts the directory does not hold: {extra}"
+        )
     assert not problems, (
         f"the measurements {LICENCE_TEXT_DIRECTORY}/README.txt states do not match the files: "
         + "; ".join(problems)
@@ -3256,7 +3258,8 @@ def test_the_readme_and_notice_agree_on_the_readmes_own_hash(repo_root: Path) ->
 
     notice_text = _notice_text()
     stated = re.search(
-        r"the tree file now stands at (?P<size>[\d,]+) bytes, sha256\s*\n?\s*`(?P<sha256>[0-9a-f]{64})`",
+        r"the tree file now stands at (?P<size>[\d,]+) bytes,"
+        r"\s*sha256\s*\n?\s*`(?P<sha256>[0-9a-f]{64})`",
         notice_text,
     )
     assert stated is not None, (
@@ -3304,8 +3307,8 @@ def test_the_licences_readme_attributes_the_texts_the_way_notice_does(repo_root:
         "so the README's agreement with it can no longer be checked"
     )
     assert "the upstream NSIS bundle" not in readme_text, (
-        f"{LICENCE_TEXT_DIRECTORY}/README.txt attributes the texts to \"the upstream NSIS "
-        "bundle\", the attribution the measurements of 2026-11-13 overturned; the README "
+        f'{LICENCE_TEXT_DIRECTORY}/README.txt attributes the texts to "the upstream NSIS '
+        'bundle", the attribution the measurements of 2026-11-13 overturned; the README '
         "travels into the installer byte for byte, so the retracted sentence would ship"
     )
 
@@ -3335,7 +3338,9 @@ def test_the_licence_witness_catches_a_damaged_record(repo_root: Path, tmp_path:
     damaged_text = (
         readme_text[: section.start("body")]
         + section.group("body").replace(
-            hashlib.sha256(files[victim]).hexdigest(), damaged, 1,
+            hashlib.sha256(files[victim]).hexdigest(),
+            damaged,
+            1,
         )
         + readme_text[section.end("body") :]
     )
@@ -3354,8 +3359,7 @@ def test_the_licence_witness_catches_a_damaged_record(repo_root: Path, tmp_path:
     on_disk = {name: (len(data), hashlib.sha256(data).hexdigest()) for name, data in files.items()}
     stated_size, stated_digest = recorded[victim]
     assert stated_digest != on_disk[victim][1], (
-        "the control copied the real hash; the comparison below would be green for the "
-        "wrong reason"
+        "the control copied the real hash; the comparison below would be green for the wrong reason"
     )
     assert stated_digest == damaged, "the control did not find the damaged hash in the README"
     assert stated_size == on_disk[victim][0], "the control changed the recorded byte count"
