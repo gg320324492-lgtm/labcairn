@@ -1242,7 +1242,7 @@ test('the controls fail for the properties: a swapped binary, a drifted size, an
     'the §1 text-and-notice state was not read from its own bullet',
   )
   assert.equal(states.correspondingSource, true, 'the §4 PARTLY DONE state was not read')
-  assert.equal(states.replaceability, true, 'the §6(b) NOT MEASURED state was not read')
+  assert.equal(states.replaceability, true, 'the §6(b) replaceability state was not read (NOT MEASURED before 2026-11-13, MEASURED with its date since)')
   const statedTexts = licenceTextCountClaim(NOTICE_TEXT)
   assert.ok(statedTexts !== null, '§2.5.1\'s licence-text count was not read')
   assert.equal(
