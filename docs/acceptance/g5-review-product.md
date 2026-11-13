@@ -187,7 +187,7 @@ is watched. What is not watched is **the write**.
 
 **Why it matters, and why the counter cannot see it.** The matrix's evidence
 is `WriteCounter`, and `WriteCounter.calls` counts `effect.apply()`
-invocations only (`tests/test_recovery_support.py:109`). A recovery path that
+invocations only (`tests/recovery_support.py:109`). A recovery path that
 writes the file *directly* is invisible to it. AT5 is the case that should
 catch exactly this — it crashes *after the intent, before the write*, so the
 file must be absent, reconciliation must conclude `REPLAY_SAFE`, and the

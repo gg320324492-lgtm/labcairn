@@ -10,10 +10,16 @@
  * in a packaged configuration".
  */
 
+import fs from 'node:fs'
 import path from 'node:path'
+
+import { parseShellEnv, resolveShellEnvWorkspace } from './shell-env.mjs'
 
 /** The Vite origin the dev page is loaded from (§4.2). */
 export const DEV_PAGE_ORIGIN = 'http://127.0.0.1:5173'
+
+/** The configuration file a packaged build may carry beside its asar (T09). */
+export const SHELL_ENV_FILE = 'shell-env.json'
 
 function requireAbsolute(name, value) {
   if (typeof value !== 'string' || value.length === 0) return null
@@ -48,6 +54,44 @@ function packagedBundleDir(resourcesDir, packaged) {
 }
 
 /**
+ * Where a packaged build keeps its own configuration file.
+ *
+ * Same anchoring as the bundle: beside the asar, derived, not guessed. The
+ * file is optional — a null return means "the package carries none" and the
+ * caller keeps the environment-only behaviour.
+ */
+function packagedShellEnvPath(resourcesDir, packaged) {
+  if (!packaged || typeof resourcesDir !== 'string' || resourcesDir.length === 0) {
+    return null
+  }
+  return path.join(resourcesDir, SHELL_ENV_FILE)
+}
+
+/**
+ * Read the packaged configuration file, if this build carries one.
+ *
+ * The environment is the operator's word and wins; the file is the package's
+ * default. A file that exists but does not parse is a refusal — a package
+ * that carries a broken default is broken, and silence would turn it into a
+ * missing-variable error far from the cause.
+ *
+ * @param {string | null} shellEnvPath where the file would be
+ * @returns {{ cliPath?: string, workspace?: string, read: boolean }}
+ */
+function readPackagedShellEnv(shellEnvPath) {
+  if (shellEnvPath === null) return { read: false }
+  let text
+  try {
+    text = fs.readFileSync(shellEnvPath, 'utf8')
+  } catch {
+    // Absent is the normal case: the package ships the template commented
+    // out, or the operator chose the environment-only supply.
+    return { read: false }
+  }
+  return { ...parseShellEnv(text), read: true }
+}
+
+/**
  * Resolve the run configuration.
  *
  * @param env  the environment (pass `process.env` in main; a test passes its own)
@@ -78,17 +122,35 @@ export function resolveRunConfig(env, { packaged, resourcesDir = null }) {
     }
   }
 
-  const cliPath = requireAbsolute('LABCAIRN_SHELL_CLI', env.LABCAIRN_SHELL_CLI)
+  // T09's supply precedence: the environment names it, or the package's own
+  // `resources/shell-env.json` does. The file's `workspace` may be
+  // installation-relative; the environment only accepts absolute paths.
+  const fromFile = readPackagedShellEnv(packagedShellEnvPath(resourcesDir, packaged))
+
+  const cliPath =
+    requireAbsolute('LABCAIRN_SHELL_CLI', env.LABCAIRN_SHELL_CLI) ??
+    requireAbsolute('shell-env.json "cliPath"', fromFile.cliPath ?? null)
   if (cliPath === null) {
     throw new Error(
       'LABCAIRN_SHELL_CLI must name the labcairn entry point by absolute path ' +
-        '(in a dev checkout, the virtualenv\'s console script).',
+        '(in a dev checkout, the virtualenv\'s console script; in a packaged ' +
+        `build, the environment or ${SHELL_ENV_FILE}).`,
     )
   }
-  const workspace = requireAbsolute('LABCAIRN_SHELL_WORKSPACE', env.LABCAIRN_SHELL_WORKSPACE)
+
+  const workspaceEnv = requireAbsolute('LABCAIRN_SHELL_WORKSPACE', env.LABCAIRN_SHELL_WORKSPACE)
+  const workspace =
+    workspaceEnv ??
+    (fromFile.workspace !== undefined
+      ? resolveShellEnvWorkspace(fromFile.workspace, resourcesDir)
+      : null)
   if (workspace === null) {
-    throw new Error('LABCAIRN_SHELL_WORKSPACE must name the workspace by absolute path.')
+    throw new Error(
+      'LABCAIRN_SHELL_WORKSPACE must name the workspace by absolute path ' +
+        `(the environment, or ${SHELL_ENV_FILE}'s "workspace").`,
+    )
   }
+
   const staticDir =
     requireAbsolute('LABCAIRN_SHELL_STATIC_DIR', env.LABCAIRN_SHELL_STATIC_DIR) ??
     packagedBundleDir(resourcesDir, packaged)

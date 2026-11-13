@@ -220,7 +220,7 @@ below. Its other findings are recorded whether fixed or not.
 
 C-5 is one of the eight binding rulings and requires `.gitattributes`. The file did not
 exist, was not tracked, and was absent from the sdist. Three comments in the repository
-described it as non-existent, and `CONTRIBUTY.md:40` was among them. **This evidence
+described it as non-existent, and `CONTRIBUTING.md:40` was among them. **This evidence
 document previously concluded "acceptance clauses are met" without mentioning C-5** —
 the exact failure mode the project exists to prevent.
 

@@ -3056,3 +3056,310 @@ def test_the_replaceability_measurement_reds_when_any_part_of_its_proof_is_remov
     assert "each hashed to the sha256 its table row states" in installers_agreed.stdout, (
         f"the installer check passed without reporting what it hashed:\n{installers_agreed.stdout}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The installer's licence texts, watched from three sides.
+#
+# `shell/nsis/licenses.nsh` copies six texts out of `shell/licenses/` into the
+# installer, `shell/licenses/README.txt` records what each text is and the
+# bytes and sha256 it was measured at, and NOTICE \u00a72.5/\u00a72.5.2 records where the
+# texts came from and what the README itself hashes to. An independent review
+# found that no test read any of these files: changing a licence URL in the
+# README, or dropping a text from the include, left every test green. The three
+# directions below make the three records answerable to each other and to the
+# bytes in the tree.
+# ---------------------------------------------------------------------------
+
+
+#: The directory the texts live in, and the include that installs them.
+LICENCE_TEXT_DIRECTORY: Final[str] = "shell/licenses"
+LICENCE_TEXT_INCLUDE: Final[str] = "shell/nsis/licenses.nsh"
+
+#: The `File /oname=$PLUGINSDIR\licenses\NAME` line of the NSIS include. The
+#: target names are read out of the line itself, so a line whose target was
+#: edited -- or a line dropped, or a second line added for a text already
+#: carried -- is seen here as a change to the set, not as prose.
+_NSIS_FILE_LINE: Final[re.Pattern[str]] = re.compile(
+    r"^\s*File\s+/oname=\$PLUGINSDIR\\licenses\\(?P<target>[^\s]+)\s+"
+    r'"\$\{PROJECT_DIR\}\\licenses\\(?P<source>[^\s"]+)"\s*$',
+    re.MULTILINE,
+)
+
+#: A README measurement record: a byte count followed by the sha256 on this
+#: or a later line. The README's own records are inconsistent about thousands
+#: separators -- four state ``26,419``-style counts, one states ``476`` -- so
+#: the separator is optional here; what the pattern requires is the count, the
+#: word ``bytes``, and a sixty-four-digit sha256 in backticks.
+_README_MEASUREMENT: Final[re.Pattern[str]] = re.compile(
+    r"(?P<size>\d{1,3}(?:,\d{3})*) bytes,\s*sha256\s*\n?\s*`(?P<sha256>[0-9a-f]{64})`\.",
+)
+
+#: A sha256 of exactly sixty-four lowercase hex digits, anywhere.
+_SHA256: Final[re.Pattern[str]] = re.compile(r"\b[0-9a-f]{64}\b")
+
+
+def _licence_text_files(repo_root: Path) -> dict[str, bytes]:
+    """The bytes of every file in `shell/licenses/`, by name.
+
+    The README itself is included: it is one of the six texts the installer
+    carries, and its own hash is recorded in NOTICE \u00a72.5.2 rather than in
+    itself.
+    """
+    directory = repo_root / LICENCE_TEXT_DIRECTORY
+    if not directory.is_dir():
+        pytest.fail(f"{LICENCE_TEXT_DIRECTORY} is missing from the tree")
+    files = {path.name: path.read_bytes() for path in sorted(directory.iterdir()) if path.is_file()}
+    if not files:
+        pytest.fail(f"{LICENCE_TEXT_DIRECTORY} holds no files")
+    return files
+
+
+def _licence_include_text(repo_root: Path) -> str:
+    include = repo_root / LICENCE_TEXT_INCLUDE
+    if not include.is_file():
+        pytest.fail(f"{LICENCE_TEXT_INCLUDE} is missing from the tree")
+    return include.read_text(encoding="utf-8")
+
+
+def _licence_readme_text(repo_root: Path) -> str:
+    readme = repo_root / LICENCE_TEXT_DIRECTORY / "README.txt"
+    if not readme.is_file():
+        pytest.fail(f"{LICENCE_TEXT_DIRECTORY}/README.txt is missing from the tree")
+    return readme.read_text(encoding="utf-8")
+
+
+def _readme_measurements(readme_text: str) -> dict[str, tuple[int, str]]:
+    """The (byte count, sha256) each README section records, keyed by file name.
+
+    A section is introduced by the file's name in backticks on a line of its
+    own; the measurement follows somewhere inside the section. Keying by the
+    introduced name, rather than by position, is what lets a missing section be
+    named rather than inferred from a count.
+    """
+    sections = re.split(r"^`([^`\s]+)`\s*$", readme_text, flags=re.MULTILINE)
+    # re.split with a group yields: preamble, name, body, name, body, ...
+    measurements: dict[str, tuple[int, str]] = {}
+    for index in range(1, len(sections) - 1, 2):
+        name = sections[index]
+        body = sections[index + 1]
+        measured = _README_MEASUREMENT.search(body)
+        if measured is None:
+            pytest.fail(
+                f"the README's section for {name!r} states no byte count and sha256 in the "
+                "form this witness reads; if the record's wording changed, change this "
+                "pattern with it rather than loosening it"
+            )
+        measurements[name] = (
+            int(measured.group("size").replace(",", "")),
+            measured.group("sha256"),
+        )
+    return measurements
+
+
+def test_every_licence_text_the_include_installs_is_a_file_in_the_tree(repo_root: Path) -> None:
+    """`licenses.nsh`'s `File` lines and `shell/licenses/` name the same six texts.
+
+    **The property.** Every text the include writes into the installer exists in
+    the tree, every text in the tree is written by the include, and no line
+    writes the same target twice. A text the include names but the tree lost is
+    an installer that cannot build; a text the tree holds but the include never
+    writes is an obligation the installer claims to discharge without carrying
+    the words.
+
+    **Why one-to-one rather than a count.** Six on both sides stays true when
+    one side gained a text and the other lost one. The sets are compared by
+    name, and a target named twice -- which NSIS would compile but which makes
+    "the texts the installer carries" ambiguous -- is refused on its own.
+    """
+    include_text = _licence_include_text(repo_root)
+    carried: dict[str, str] = {}
+    for match in _NSIS_FILE_LINE.finditer(include_text):
+        target = match.group("target")
+        source = match.group("source")
+        assert target == source, (
+            f"{LICENCE_TEXT_INCLUDE} installs {source!r} under the target {target!r}; a "
+            "text renamed in flight is not the text the tree holds"
+        )
+        assert target not in carried, (
+            f"{LICENCE_TEXT_INCLUDE} installs {target!r} twice (also as {carried[target]!r})"
+        )
+        carried[target] = source
+    assert carried, f"{LICENCE_TEXT_INCLUDE} carries no licence text into the installer"
+
+    on_disk = set(_licence_text_files(repo_root))
+    assert set(carried) == on_disk, (
+        f"the texts {LICENCE_TEXT_INCLUDE} installs and the files in {LICENCE_TEXT_DIRECTORY} "
+        f"disagree; include-only: {sorted(set(carried) - on_disk)}, "
+        f"directory-only: {sorted(on_disk - set(carried))}"
+    )
+
+
+def test_the_licences_readme_records_the_bytes_and_hash_of_every_text(repo_root: Path) -> None:
+    """The README's byte counts and sha256s are the texts' actual bytes and hashes.
+
+    **The property.** For every text in `shell/licenses/` except the README
+    itself -- which cannot record its own hash, and whose hash NOTICE \u00a72.5.2
+    carries instead -- the README states a byte count and a sha256, and both are
+    the file's. The next test covers the README's own record.
+
+    **Why the failure names the file.** A record whose hashes are wrong is a
+    record that cannot be trusted for any file; the reader that finds one wrong
+    value has to be able to say which text it found it on, or the correction
+    starts from a search rather than from a name.
+    """
+    files = _licence_text_files(repo_root)
+    readme_text = _licence_readme_text(repo_root)
+    readme_name = "README.txt"
+    on_disk = {name: (len(data), hashlib.sha256(data).hexdigest()) for name, data in files.items()}
+    recorded = _readme_measurements(readme_text)
+
+    problems: list[str] = []
+    for name, (size, digest) in on_disk.items():
+        if name == readme_name:
+            continue
+        if name not in recorded:
+            problems.append(f"{name}: the README records no byte count and sha256 for it")
+            continue
+        stated_size, stated_digest = recorded[name]
+        if stated_size != size:
+            problems.append(
+                f"{name}: the README states {stated_size:,} bytes, the file holds {size:,}"
+            )
+        if stated_digest != digest:
+            problems.append(
+                f"{name}: the README states sha256 {stated_digest}, the file hashes to {digest}"
+            )
+    extra = sorted(set(recorded) - set(on_disk) - {readme_name})
+    if extra:
+        problems.append(
+            f"the README records measurements for texts the directory does not hold: {extra}"
+        )
+    assert not problems, (
+        f"the measurements {LICENCE_TEXT_DIRECTORY}/README.txt states do not match the files: "
+        + "; ".join(problems)
+    )
+
+
+def test_the_readme_and_notice_agree_on_the_readmes_own_hash(repo_root: Path) -> None:
+    """NOTICE \u00a72.5.2's record of the README's sha256 is the README's actual hash.
+
+    **The property.** The README cannot hold its own hash, so NOTICE \u00a72.5.2
+    carries it; that record is the third side of the agreement, and it is
+    measured here against the file. The byte count is recorded in the same
+    sentence and is read with the same strictness: a record that re-measures
+    "whenever the file changes" is a claim about the current bytes, not about a
+    past revision.
+    """
+    files = _licence_text_files(repo_root)
+    readme_bytes = files.get("README.txt")
+    assert readme_bytes is not None, "the licence README itself is not in the tree"
+    actual = (len(readme_bytes), hashlib.sha256(readme_bytes).hexdigest())
+
+    notice_text = _notice_text()
+    stated = re.search(
+        r"the tree file now stands at (?P<size>[\d,]+) bytes,"
+        r"\s*sha256\s*\n?\s*`(?P<sha256>[0-9a-f]{64})`",
+        notice_text,
+    )
+    assert stated is not None, (
+        "NOTICE \u00a72.5.2 does not state the licence README's current byte count and sha256 "
+        "in the form this witness reads; if the sentence moved or changed form, move this "
+        "pattern with it"
+    )
+    stated_size = int(stated.group("size").replace(",", ""))
+    assert (stated_size, stated.group("sha256")) == actual, (
+        f"NOTICE \u00a72.5.2 records the licence README as {stated_size:,} bytes, sha256 "
+        f"{stated.group('sha256')}; the file is {actual[0]:,} bytes, sha256 {actual[1]}. "
+        "The README changed without \u00a72.5.2 being re-measured."
+    )
+
+
+def test_the_licences_readme_attributes_the_texts_the_way_notice_does(repo_root: Path) -> None:
+    """The README's attribution sentences and NOTICE \u00a72.5 name the same source bundle.
+
+    **The property.** Both records attribute the plug-in licence documents to
+    electron-builder's `nsis-bundle-3.13.tar.gz` -- the bundle the measurements
+    in \u00a72.5 name -- and the README no longer carries the attribution the
+    measurements of 2026-11-13 overturned: that the texts came from "the
+    upstream NSIS bundle". A README that reverted would put a sentence the
+    record has retracted back into the installer, because the README travels
+    byte for byte.
+
+    **Why the bundle name, not the whole sentence.** The attribution is carried
+    by the bundle's name; the surrounding wording may legitimately change. The
+    corrected form is required to be present -- the absence of the old name
+    alone would also be satisfied by a README that had lost the attribution
+    entirely. The phrase "NSIS 3.13 release" does occur in the README's
+    "About this file" section, but only inside the correction's own negation
+    ("not an NSIS 3.13 release"), which is why the retracted attribution is
+    matched by its own historical wording rather than by the release name.
+    """
+    readme_text = _licence_readme_text(repo_root)
+    notice_text = _notice_text()
+    bundle = "nsis-bundle-3.13.tar.gz"
+    assert bundle in readme_text, (
+        f"{LICENCE_TEXT_DIRECTORY}/README.txt no longer attributes the texts to {bundle}, "
+        "the bundle NOTICE \u00a72.5 measures the plug-in documents against"
+    )
+    assert bundle in notice_text, (
+        f"NOTICE \u00a72.5 no longer attributes the plug-in licence documents to {bundle}, "
+        "so the README's agreement with it can no longer be checked"
+    )
+    assert "the upstream NSIS bundle" not in readme_text, (
+        f'{LICENCE_TEXT_DIRECTORY}/README.txt attributes the texts to "the upstream NSIS '
+        'bundle", the attribution the measurements of 2026-11-13 overturned; the README '
+        "travels into the installer byte for byte, so the retracted sentence would ship"
+    )
+
+
+def test_the_licence_witness_catches_a_damaged_record(repo_root: Path, tmp_path: Path) -> None:
+    """The README witness reddens, naming the file, when a recorded sha256 is wrong.
+
+    **Why this control is in the tree.** A witness that cannot fail is not a
+    witness. The measurement helpers above are run here over a copy of the
+    licence directory in which one recorded hash has been corrupted, and the
+    failure is required to name the file whose record was damaged -- the same
+    name-the-file contract the main test states.
+    """
+    files = _licence_text_files(repo_root)
+    victim = "LGPL-2.1.txt"
+    assert victim in files, f"the control expects {victim} to be in the tree"
+    damaged = "0" * 64
+    assert damaged != hashlib.sha256(files[victim]).hexdigest()
+
+    readme_text = _licence_readme_text(repo_root)
+    section = re.search(
+        r"^(?P<header>`LGPL-2\.1\.txt`)\s*$(?P<body>.*?)(?=^`[^\s`]+`\s*$|\Z)",
+        readme_text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert section is not None, "the README's section for LGPL-2.1.txt was not found"
+    damaged_text = (
+        readme_text[: section.start("body")]
+        + section.group("body").replace(
+            hashlib.sha256(files[victim]).hexdigest(),
+            damaged,
+            1,
+        )
+        + readme_text[section.end("body") :]
+    )
+    assert damaged in damaged_text, "the control's corruption did not land in the copied README"
+
+    # The helpers read paths, so the damaged copy is laid out as a tree and the
+    # helper that reads the README is pointed at it.
+    work = tmp_path / "shell" / "licenses"
+    work.mkdir(parents=True)
+    for name, data in files.items():
+        if name == "README.txt":
+            (work / name).write_text(damaged_text, encoding="utf-8")
+        else:
+            (work / name).write_bytes(data)
+    recorded = _readme_measurements(damaged_text)
+    on_disk = {name: (len(data), hashlib.sha256(data).hexdigest()) for name, data in files.items()}
+    stated_size, stated_digest = recorded[victim]
+    assert stated_digest != on_disk[victim][1], (
+        "the control copied the real hash; the comparison below would be green for the wrong reason"
+    )
+    assert stated_digest == damaged, "the control did not find the damaged hash in the README"
+    assert stated_size == on_disk[victim][0], "the control changed the recorded byte count"
