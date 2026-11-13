@@ -72,6 +72,17 @@ three shell witnesses `shell/test/installer-binaries.test.mjs`,
 The 838 figure is the one named above and is an earlier measurement, not the
 current total.
 
+**Read 2026-11-14 (after the browser re-run and the LGPL delivery landed):** at
+`39c53c793e62328e4d13782872032f3147eb38eb` the measurement prints
+**855 tracked files**: 486 `.py`, 196 `.md`, 39 `.mjs`, 29 `.json`, 26 `.tsx`,
+25 `.ts`, 13 `.csv`, 9 `.yml`, 6 `.txt`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The three new files since the reading
+above are the browser re-run's dated record
+(`docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md`) and the two LGPL
+delivery scripts (`scripts/lgpl_replaceability.py`,
+`scripts/lgpl_source_release.py`). The 852 figure is the one named above and is
+an earlier measurement, not the current total.
+
 ## 1. Classification measured on 2026-11-07
 
 The read-only scan measured **733 tracked files** at
