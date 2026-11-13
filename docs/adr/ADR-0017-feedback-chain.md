@@ -1,5 +1,5 @@
 # ADR-0017: The feedback chain — a comment, the change it prompted, and what decided it
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-30; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Accepted — implemented by LC-P2-09 (T00–T07), 2026-10-30.
 **Work order:** LC-P2-09.
 **Date:** 2026-10-30

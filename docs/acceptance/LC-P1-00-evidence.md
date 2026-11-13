@@ -1,5 +1,5 @@
 # LC-P1-00 — Acceptance Evidence
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-15; the tree has moved since. Follow the sentence, not the number.  
 **Work order:** LC-P1-00 — External Agent source study and design evidence (P0)
 **Gate fed:** G0 — Upstream study setup (`docs/PHASE_1_WORKORDERS.md:138`)
 **Evidence date:** 2026-10-15

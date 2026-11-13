@@ -1,5 +1,5 @@
 # G1 and G2 — the human independent review, as a checklist
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-29; the tree has moved since. Follow the sentence, not the number.  
 **Status:** prepared 2026-10-29. **Run 2026-11-05 and confirmed row by row
 by the owner** — see [`G1-G2-owner-review.md`](G1-G2-owner-review.md). That
 record states what this run does and does not discharge: the reviewer is the

@@ -1,5 +1,5 @@
 # LC-P1-13 — The competitor baseline: what was compared, and what was not
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-25; the tree has moved since. Follow the sentence, not the number.  
 **Work order:** LC-P1-13 (evaluation, fault injection and competitor
 baseline) · **Subtask:** T09 — the competitor baseline, at the scope
 [`docs/plans/LC-P1-13-14-task-breakdown.md`](../plans/LC-P1-13-14-task-breakdown.md)

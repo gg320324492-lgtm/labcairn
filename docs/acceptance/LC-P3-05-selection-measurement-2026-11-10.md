@@ -1,5 +1,5 @@
 # LC-P3-05 — the desktop shell candidates, measured before one is chosen
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-11-10; the tree has moved since. Follow the sentence, not the number.  
 **Date:** 2026-11-10. **Type:** dated selection-and-measurement record for the
 selection stage of `LC-P3-05` (`docs/plans/PHASE_3-work-orders.md` §10), Phase 3
 G3. It records what was measured, what each measurement showed, which option

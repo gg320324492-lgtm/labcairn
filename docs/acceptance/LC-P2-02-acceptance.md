@@ -1,5 +1,5 @@
 # LC-P2-02 — Restart-durable consent: acceptance
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-30; the tree has moved since. Follow the sentence, not the number.  
 **Work order:** LC-P2-02 (restart-durable consent) · **Subtasks:** T00–T05.
 **Task breakdown:** [`docs/plans/LC-P2-02-task-breakdown.md`](../plans/LC-P2-02-task-breakdown.md)
 **Status of the work order:** **implemented and measured**, and **not independently reviewed** — see §5.

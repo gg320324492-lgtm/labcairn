@@ -1,5 +1,5 @@
 # LC-P1-09 — Acceptance review
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-19; the tree has moved since. Follow the sentence, not the number.  
 **Work order:** LC-P1-09 (FTS5 retrieval and the evidence ledger)
 **Gate:** G3
 **Subject:** `main` @ `6834495`, with the findings below fixed on

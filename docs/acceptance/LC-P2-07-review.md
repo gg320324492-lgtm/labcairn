@@ -1,5 +1,5 @@
 # LC-P2-07 — independent review of the fidelity baseline and the reader
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood when it was written; the tree has moved since. Follow the sentence, not the number.  
 **Record reviewed:** `docs/acceptance/LC-P2-07-fidelity-baseline.md` (the DOCX
 revision-fidelity baseline, the reader `src/labcairn/material/ooxml.py`, the
 double-read fix of §5.6 and corpus fixture 30), as it stands in this branch.

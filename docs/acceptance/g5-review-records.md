@@ -1,5 +1,5 @@
 # G5 — Independent review of the documents, the claims and the release contents
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-25; the tree has moved since. Follow the sentence, not the number.  
 **Gate:** G5 — the public alpha · **Work orders:** LC-P1-13 (evaluation, fault
 injection and competitor baseline) and LC-P1-14 (public alpha handoff and
 review dossier).

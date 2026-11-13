@@ -1,5 +1,5 @@
 # LC-P1-01 — Acceptance evidence
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-15; the tree has moved since. Follow the sentence, not the number.  
 **Verdict requested:** `PASS` / `PASS WITH NOTES` / `BLOCKED` / `FAIL`  
 **Branch:** `feat/lc-p1-01-baseline` · **PR:** [#2](https://github.com/gg320324492-lgtm/labcairn/pull/2) — read the subject SHA from the PR itself  
 **Base:** `main` @ `b526749` · **Date:** 2026-10-15  

@@ -1,5 +1,5 @@
 # G2 — Formal acceptance
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-16; the tree has moved since. Follow the sentence, not the number.  
 **Gate:** G2 (Durable work)
 **Work orders:** LC-P1-05, LC-P1-06, LC-P1-07
 **Subject:** `main` @ `a361a7c` — 186 tracked files

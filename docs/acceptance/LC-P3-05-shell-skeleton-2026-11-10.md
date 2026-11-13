@@ -1,5 +1,5 @@
 # LC-P3-05 — the Electron shell skeleton: dev-build closure, the drain rule, and what is still open
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-11-10; the tree has moved since. Follow the sentence, not the number.  
 Anchors, printed live while this record was written (every value here was
 produced by the command named under it; none is carried from another record):
 

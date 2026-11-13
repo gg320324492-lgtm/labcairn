@@ -1,5 +1,5 @@
 # LC-P2-07 — DOCX revision fidelity: the baseline measurement, and the reader
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-29; the tree has moved since. Follow the sentence, not the number.  
 **Date:** 2026-10-29 · **Re-measured:** 2026-11-01 · **Base commit:**
 `66dde87` · **Measured by:** the executor, on the development machine
 

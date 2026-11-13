@@ -1,5 +1,5 @@
 # LC-P2-10 — independent review of the process-annotation and gold-set record
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood when it was written; the tree has moved since. Follow the sentence, not the number.  
 **Record reviewed:** `docs/acceptance/LC-P2-10-acceptance.md` (the label set,
 the guide, the agreement machinery, the synthetic corpus, and the ten items'
 two readings plus the arbiter's resolution), as it stands in this branch.

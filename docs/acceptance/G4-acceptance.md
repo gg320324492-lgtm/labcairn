@@ -1,5 +1,5 @@
 # G4 — Gate review
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood when it was written; the tree has moved since. Follow the sentence, not the number.  
 **Gate:** G4 — Usable application. Work orders **LC-P1-11** (report
 assembly, export and artefact versioning) and **LC-P1-12** (the Typer CLI
 and the local FastAPI + React workbench).
