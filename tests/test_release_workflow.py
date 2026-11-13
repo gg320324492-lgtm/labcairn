@@ -2545,6 +2545,93 @@ def _limits_reworded(notice_text: str) -> str:
     return damaged
 
 
+def _hashes_the_record_itself_prints(notice_text: str) -> list[str]:
+    """Every sha256 §2.5.1's replaceability item states, table rows included.
+
+    A control that retargets a prefix has to miss all of them, so it is written against the
+    record's own values rather than against a list held here — a list held here would go
+    stale against a record that gained an artefact.
+    """
+    watch = _replaceability_reader()
+    values: list[str] = [
+        claim.recorded_sha256
+        for claim in watch.variant_claims(notice_text) + watch.observation_claims(notice_text)
+        if claim.recorded_sha256 is not None
+    ]
+    values.extend(row.recorded_sha256 for row in watch.installer_rows(notice_text))
+    shipped = watch.shipped_plugin_sha256(notice_text)
+    if shipped is not None:
+        values.append(shipped)
+    assert values, f"§2.5.1 states no sha256 to retarget a prefix away from: {values}"
+    return values
+
+
+def _table_prefix_that_names_no_plug_in(notice_text: str) -> str:
+    """One installer row given a plug-in prefix no plug-in in the record hashes to.
+
+    The table names each plug-in by an eight-character prefix. A prefix that begins with
+    nothing the item names is the shape a row copied from another build leaves: the row
+    still states a plug-in, a byte count and two exit codes, and every field reads
+    well-formed. Only a comparison against the hashes the item itself prints can see that it
+    names none.
+    """
+    watch = _replaceability_reader()
+    rows = watch.installer_rows(notice_text)
+    assert len(rows) == REPLACEABILITY_INSTALLER_ROWS, (
+        f"§2.5.1's table reads as {len(rows)} rows, not {REPLACEABILITY_INSTALLER_ROWS}, so "
+        "there is no whole row to retarget"
+    )
+    hashes = _hashes_the_record_itself_prints(notice_text)
+    candidate = next(
+        (
+            f"{value:08x}"
+            for value in range(0x0100_0000, 0x0200_0000)
+            if not any(hash_value.startswith(f"{value:08x}") for hash_value in hashes)
+        ),
+        None,
+    )
+    assert candidate is not None, "every eight-character prefix in that range is used"
+
+    row = rows[1]
+    line_start = notice_text.index(f"| {row.label} |")
+    old_cell = f"| `{row.plugin_sha_prefix}…` |"
+    cell = notice_text.index(old_cell, line_start)
+    damaged = notice_text[:cell] + f"| `{candidate}…` |" + notice_text[cell + len(old_cell) :]
+    assert damaged != notice_text, "the control did not retarget a table row's plug-in prefix"
+    assert not any(hash_value.startswith(candidate) for hash_value in hashes), (
+        f"the retargeted prefix {candidate} is one the record already uses"
+    )
+    return damaged
+
+
+def _table_hex_value_one_character_short(notice_text: str) -> str:
+    """One installer row's sha256 with its last digit dropped and its backtick lost.
+
+    The shape a transcription error leaves, and the one every other check in the reader is
+    blind to by construction: the row's plug-in prefix, exit codes and file count are
+    untouched, and a field that requires exactly 64 hex digits simply stops matching, so a
+    reader that only looks at fields would report that the table has fewer rows — a different
+    claim — while the misprinted hash went unmentioned. What can report it is a reader that
+    looks at every hex value the section prints and asks whether each is the length it states.
+    """
+    watch = _replaceability_reader()
+    rows = watch.installer_rows(notice_text)
+    assert len(rows) == REPLACEABILITY_INSTALLER_ROWS, (
+        f"§2.5.1's table reads as {len(rows)} rows, not {REPLACEABILITY_INSTALLER_ROWS}, so "
+        "there is no whole hash to shorten"
+    )
+    row = rows[1]
+    line_start = notice_text.index(f"| {row.label} |")
+    old_cell = f"| `{row.recorded_sha256}` |"
+    cell = notice_text.index(old_cell, line_start)
+    damaged = (
+        notice_text[:cell] + f"| {row.recorded_sha256[:-1]}\n" + notice_text[cell + len(old_cell) :]
+    )
+    assert damaged != notice_text, "the control did not shorten a hash the table states"
+    assert row.recorded_sha256 not in damaged, "the control left the full hash in the record"
+    return damaged
+
+
 def _artefacts_at_recorded_sizes(notice_text: str, directory: Path) -> list[str]:
     """Files named for every artefact §2.5.1 names, each one the recorded byte count.
 
@@ -2726,6 +2813,10 @@ def test_the_replaceability_measurement_reds_when_any_part_of_its_proof_is_remov
         "no installer rows": _installers_dropped(notice_text),
         "an installer whose install run failed": _exit_made_nonzero(notice_text),
         "a limits heading reworded into a claim": _limits_reworded(notice_text),
+        "a table row naming a plug-in nothing hashes to": _table_prefix_that_names_no_plug_in(
+            notice_text
+        ),
+        "a table hash one character short": _table_hex_value_one_character_short(notice_text),
     }
 
     findings: dict[str, list[str]] = {}
@@ -2775,6 +2866,20 @@ def test_the_replaceability_measurement_reds_when_any_part_of_its_proof_is_remov
     ), (
         f"the reworded limits heading produced no finding naming it: "
         f"{findings['a limits heading reworded into a claim']}"
+    )
+    assert any(
+        "no plug-in the item names hashes to" in problem
+        for problem in findings["a table row naming a plug-in nothing hashes to"]
+    ), (
+        "a table row whose plug-in prefix nothing hashes to produced no finding naming the "
+        f"prefix: {findings['a table row naming a plug-in nothing hashes to']}"
+    )
+    assert any(
+        "63-character hex value" in problem
+        for problem in findings["a table hash one character short"]
+    ), (
+        "a table hash with one character dropped produced no finding naming the value and its "
+        f"length: {findings['a table hash one character short']}"
     )
 
     # The record as it stands produces no finding at all: the controls reddened because of
