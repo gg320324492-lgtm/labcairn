@@ -1805,3 +1805,564 @@ def test_the_delivery_reader_refuses_a_record_that_states_nothing() -> None:
     # The reader read something out of the real tree: the arms that ran are named.
     assert len(records) == 8, f"§2.5 read {len(records)} binaries; the record states eight"
     assert len(entries) >= 2, f"§2.5.1 read {len(entries)} delivery entries"
+
+
+# ---------------------------------------------------------------------------
+# Who decided how "corresponding source" is read, and the closure audit that
+# re-measures the numbers the record prints about it.
+#
+# §2.5.1 recorded two defensible readings of LGPL-2.1 §4's "complete corresponding
+# source code" for nsis7z.dll and put the choice to the owner; the owner decided it on
+# 2026-11-13 that the corresponding source is the conjunction of the plug-in's own
+# release archive and 7-Zip's source release. A decision that lives only in a chat log
+# is not a record: the reading a distribution actually conveys has to be readable from
+# the file that conveys it, and a record that still said "put to the owner" after the
+# owner answered would be a record that lags the thing it records. §2.5.2's closure
+# numbers are watched the same way -- by running the audit the record names, whose
+# expected values it reads out of the record itself.
+# ---------------------------------------------------------------------------
+
+
+#: §2.5.1's heading for the paragraph that states the reading, as the record prints it.
+DECIDED_HEADING: Final[str] = 'How "corresponding source" is read here, and who decided it.'
+
+#: §2.5.1's sentence that names the decision and its date.
+DECISION_SENTENCE: Final[str] = "**The owner decided this reading on 2026-11-13.**"
+
+#: The words §2.5.1 and §2.5.2 used while the reading was open. Where the record
+#: still uses them for the two matters the decision did not reach, they are correct;
+#: where they stand in the paragraph that records the reading, the record lags the
+#: decision it records. Hence the span check in `_reading_paragraph`, not a whole
+#: section: a whole-section ban reddens a record that is right.
+OPEN_READING_PHRASES: Final[tuple[str, ...]] = ("put to the owner", "not decided here")
+
+#: §2.5.2's sentence closing the item, and the phrase it must have replaced.
+DECIDED_ITEM: Final[str] = "**is no longer open: the owner decided it on 2026-11-13.**"
+
+#: The closure numbers §2.5.1 and §2.5.2 printed when this case was written, measured on
+#: the archives fetched 2026-11-13. Pinned as *observed* values, so a reader that bound a
+#: claim to the wrong sentence -- the 166/175 the 7-Zip archive supplies rather than the
+#: 166/176 absent from the plug-in archive -- reddens instead of agreeing with the record.
+OBSERVED_CLOSURE: Final[dict[str, int]] = {
+    "compiled_sources": 174,
+    "named_headers": 185,
+    "sources_absent_from_plugin": 166,
+    "headers_absent_from_plugin": 176,
+    "sources_supplied_by_sevenzip": 166,
+    "headers_supplied_by_sevenzip": 175,
+    "headers_in_neither": 1,
+    "compiled_naming_rar": 0,
+    "plugin_rar_files": 0,
+    "dll_token_occurrences": 0,
+    "sevenzip_rar_files": 9,
+    "unrar_notice_bytes": 1921,
+    "lzma_rar_files": 0,
+}
+
+#: The three extract directories `--audit-extracts` re-counts, under one variable.
+EXTRACT_SUBDIRS: Final[tuple[str, ...]] = ("nsis7z", "7z1900", "lzma1900")
+
+
+def _flat_section(watch: Any, notice_text: str, heading: str) -> str:
+    """One NOTICE subsection as one run of text, with its wraps collapsed.
+
+    The reader's own helper is used rather than a join written here: §2.5.1 and §2.5.2
+    wrap their sentences, and a claim reader that matched a different shape would be a
+    second reader that can disagree with the one the release runs.
+    """
+    return " ".join(watch._subsection(notice_text, heading).split())
+
+
+#: §2.5.1's paragraph stating the reading runs to the not-yet-done paragraph.
+DECISION_SPAN_START_251: Final[str] = 'How "corresponding source" is read here, and who decided it.'
+DECISION_SPAN_END_251: Final[str] = "**What is not yet done.**"
+DECISION_SPAN_START_252: Final[str] = "A third thing this section used to leave open"
+DECISION_SPAN_END_252: Final[str] = "What the decision did not reach"
+
+
+def _span(text: str, start: str, end: str, *, where: str) -> str:
+    """One paragraph span of a flattened section, naming what was not found.
+
+    The decision assertions are span assertions on purpose. §2.5.2 states, in the same
+    section, two matters that are genuinely still open, and a ban over the whole section
+    would redden a record that is correct. What has to be clean is the paragraph that
+    records the reading itself.
+    """
+    from_ = text.find(start)
+    if from_ < 0:
+        raise AssertionError(
+            f"{where} no longer carries {start!r}, so its wording is not locatable"
+        )
+    to = text.find(end, from_ + len(start))
+    if to < 0:
+        raise AssertionError(f"{where} no longer carries {end!r} after {start!r}")
+    return text[from_:to]
+
+
+#: §2.5.1's heading and §2.5.2's closing clause as they stood before the owner answered.
+BEFORE_HEADING_251: Final[str] = 'How "corresponding source" is being read here'
+BEFORE_CLOSE_252: Final[str] = "is a legal judgement §2.5.2 puts to the owner, not decided here"
+
+#: §2.5.1's paragraph on the reading as it stood while the choice was open, quoted from
+#: revision `1e59502` rather than paraphrased: the control has to be the wording the record
+#: actually had, not an approximation of it.
+OPEN_READING_PARAGRAPH: Final[str] = (
+    "The narrower reading, that the plug-in's own release archive is the corresponding source "
+    "because it is the upstream release the plug-in was taken from, is defensible too and is "
+    "what the delivery entries would look like if it were adopted. Which reading this "
+    "repository records is a legal judgement and is **put to the owner**, not decided here; "
+    "§2.5.2 names it as open."
+)
+
+
+def _decision_taken_back_out(notice_text: str) -> str:
+    """The whole revert: §2.5.1's heading, its decision sentence, §2.5.2's closing clause."""
+    reverted = notice_text.replace(DECISION_SENTENCE, OPEN_READING_PARAGRAPH, 1)
+    reverted = reverted.replace(DECIDED_HEADING, BEFORE_HEADING_251, 1)
+    reverted = reverted.replace(DECIDED_ITEM, BEFORE_CLOSE_252, 1)
+    assert reverted != notice_text, "the control changed nothing"
+    return reverted
+
+
+def _reading_reopened(notice_text: str) -> str:
+    """§2.5.1's decision sentence alone, back to the open wording, its heading intact."""
+    reopened = notice_text.replace(DECISION_SENTENCE, OPEN_READING_PARAGRAPH, 1)
+    assert reopened != notice_text and DECIDED_HEADING in reopened, (
+        "the control changed the wrong thing"
+    )
+    return reopened
+
+
+def _item_reopened(notice_text: str) -> str:
+    """§2.5.2's closing clause alone, back to the open wording."""
+    reopened = notice_text.replace(DECIDED_ITEM, BEFORE_CLOSE_252, 1)
+    assert reopened != notice_text, "the control changed nothing in §2.5.2"
+    return reopened
+
+
+def _everything_closed(notice_text: str) -> str:
+    """The record with the two genuinely open matters written as settled.
+
+    The opposite defect, and the one a wording witness invites: a section that closes
+    everything passes an "the reading is decided" check by erasing what is still
+    outstanding, so the section's ability to say something is open is itself watched.
+    """
+    closed = notice_text.replace("is likewise not decided here.", "is settled the same way.", 1)
+    closed = closed.replace("recorded below as **measured facts**", "recorded below as settled", 1)
+    closed = closed.replace("Recorded as measured fact since 2026-11-13; ", "", 1)
+    assert closed != notice_text, "the control changed nothing in the open items"
+    return closed
+
+
+def _decision_problems(watch: Any, notice_text: str) -> list[str]:
+    """What the record fails to state about the reading it keeps, one line per failure.
+
+    Each line names the section it is about, which is what makes the controls below a
+    demonstration of scope: reopening §2.5.1 must not report §2.5.2 as broken, and a
+    record that legitimately leaves two matters open must not be reddened for doing so.
+    """
+    section_251 = _flat_section(watch, notice_text, "2.5.1")
+    section_252 = _flat_section(watch, notice_text, "2.5.2")
+    problems: list[str] = []
+
+    try:
+        reading = _span(section_251, DECISION_SPAN_START_251, DECISION_SPAN_END_251, where="§2.5.1")
+    except AssertionError as error:
+        problems.append(str(error))
+        reading = ""
+    try:
+        closed = _span(section_252, DECISION_SPAN_START_252, DECISION_SPAN_END_252, where="§2.5.2")
+    except AssertionError as error:
+        problems.append(str(error))
+        closed = ""
+
+    if DECISION_SENTENCE not in reading:
+        problems.append(
+            f"§2.5.1 prints no {DECISION_SENTENCE!r} where it states the reading, so the "
+            "delivery entries carry a legal choice the record attributes to nobody"
+        )
+    if DECIDED_ITEM not in closed:
+        problems.append(
+            f"§2.5.2 prints no {DECIDED_ITEM!r}; the section that defers investigations still "
+            "presents the reading as one of the things it defers"
+        )
+    for phrase in OPEN_READING_PHRASES:
+        if phrase in reading:
+            problems.append(
+                f"§2.5.1's paragraph on the reading still says {phrase!r} although the owner "
+                "decided it on 2026-11-13; the record lags the decision it records"
+            )
+        if phrase in closed:
+            problems.append(
+                f"§2.5.2's paragraph closing the reading still says {phrase!r} although §2.5.1 "
+                "records the decision"
+            )
+    if "**not** the reading this repository records" not in reading:
+        problems.append(
+            "§2.5.1 does not say which reading it declined, so both remain available to "
+            "whoever prepares a release"
+        )
+    if "**not** the reading this repository keeps" not in closed:
+        problems.append(
+            "§2.5.2 names the alternative reading without saying the repository does not keep it"
+        )
+
+    # The two matters the decision did not reach have to stay stated as open, and anchored
+    # to the date they were measured on.
+    open_matters = section_252.split(DECISION_SPAN_END_252, 1)[-1]
+    if not any(phrase in open_matters for phrase in OPEN_READING_PHRASES):
+        problems.append(
+            "§2.5.2 no longer says the Rar consequence and the one-header gap are undecided; "
+            "a decision check is only trustworthy in a section that can still say something "
+            "is open"
+        )
+    if "recorded below as **measured facts**" not in open_matters:
+        problems.append(
+            "§2.5.2 no longer says which of its items are measurements, so a count printed "
+            "there is indistinguishable from an assertion"
+        )
+    if "Recorded as measured fact since 2026-11-13" not in open_matters:
+        problems.append(
+            "§2.5.2's one-header gap is no longer anchored to the date it was measured on, so "
+            "the next window cannot tell whether it still holds"
+        )
+    return problems
+
+
+def test_the_record_states_which_reading_of_corresponding_source_it_keeps() -> None:
+    """§2.5.1 names the reading it keeps and who decided it; §2.5.2 no longer defers it.
+
+    **The property.** LGPL-2.1 §4's "complete corresponding source code" has more than one
+    defensible reading for `nsis7z.dll`, and the two produce different release pages: one
+    archive, or two. The owner decided on 2026-11-13 that the corresponding source is the
+    conjunction -- `Nsis7z_19.00.7z` **and** `7z1900-src.7z` -- and the smaller choice inside
+    it, that a release carries 7-Zip's full source release rather than the LZMA SDK archive
+    the plug-in's own build note names. What is watched is that the record states that
+    decision where it states the reading, that the section which used to defer the reading no
+    longer defers it, and that the same section still says plainly which matters remain open.
+
+    **Why the wording is the thing under test.** Nothing else in the tree carries the
+    decision: no artefact exists yet, so there are no bytes to compare the record with, and
+    the delivery entries would look identical whether the record presented the reading as
+    decided or as outstanding. A record that says "put to the owner" after the owner answered
+    is a record that lags what it records, and the next window reading it puts the same
+    question again.
+
+    **Why the checks are per-paragraph.** §2.5.2 is the section that defers work, and two
+    matters it defers are genuinely still open. A ban on open-question wording over the whole
+    section would redden a record that is correct, and the tempting shortcut -- "no such
+    phrase anywhere in §2.5.2" -- is the kind of assertion that stays green only because it
+    mis-states what the record owes. So the span that records the decision is checked clean,
+    and the span that lists the open items is checked for still containing open wording.
+
+    **What this does not claim.** It does not say the reading is legally correct, and it does
+    not say the Rar consequence or the one-header gap is answered: those stay open by design,
+    and what is watched here is that they are recorded as measurements anchored to a date.
+    """
+    watch = _lgpl_delivery()
+    notice_text = _notice_text()
+
+    problems = _decision_problems(watch, notice_text)
+    assert problems == [], f"the record does not state the decision it is built on: {problems}"
+
+    # The reader read the record rather than a constant: the counts behind the open items.
+    claim = watch.closure_claims(notice_text)
+    assert claim.sevenzip_rar_files == OBSERVED_CLOSURE["sevenzip_rar_files"], (
+        "§2.5.2 no longer states the count of Rar handlers the delivered archive carries, and "
+        "that count is the fact the unRAR question is asked about"
+    )
+
+    # Control 1: the whole revert to the wording of revision 1e59502.
+    reverted = _decision_taken_back_out(notice_text)
+    reverted_problems = _decision_problems(watch, reverted)
+    assert reverted_problems, "the record as it stood before the owner answered read as decided"
+    assert any("§2.5.1" in problem for problem in reverted_problems), (
+        f"the pre-decision §2.5.1 produced no §2.5.1 finding: {reverted_problems}"
+    )
+    assert any("§2.5.2" in problem for problem in reverted_problems), (
+        f"the pre-decision §2.5.2 produced no §2.5.2 finding: {reverted_problems}"
+    )
+
+    # Control 2: only §2.5.1 reopened, so the finding is scoped to the right section.
+    reopened_251 = _decision_problems(watch, _reading_reopened(notice_text))
+    assert reopened_251 and all("§2.5.1" in problem for problem in reopened_251), (
+        f"reopening §2.5.1 alone produced: {reopened_251}"
+    )
+
+    # Control 3: only §2.5.2's closing clause reopened.
+    reopened_252 = _decision_problems(watch, _item_reopened(notice_text))
+    assert reopened_252 and all("§2.5.2" in problem for problem in reopened_252), (
+        f"reopening §2.5.2 alone produced: {reopened_252}"
+    )
+
+    # Control 4: the opposite defect -- a record that closes what is still open.
+    closed_problems = _decision_problems(watch, _everything_closed(notice_text))
+    assert any("undecided" in problem for problem in closed_problems), (
+        f"a §2.5.2 that wrote the two open matters as settled produced: {closed_problems}"
+    )
+    assert any("which of its items are measurements" in problem for problem in closed_problems), (
+        f"a §2.5.2 that stopped calling its items measurements produced: {closed_problems}"
+    )
+    assert any(
+        "anchored to the date it was measured on" in problem for problem in closed_problems
+    ), f"a §2.5.2 that dropped the gap's measurement date produced: {closed_problems}"
+
+
+def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
+    tmp_path: Path,
+) -> None:
+    """`--audit-extracts` reads the numbers it checks from NOTICE, and reddens on disagreement.
+
+    **The property.** §2.5.2 prints a closure record for `nsis7z.dll` -- 174 compiled
+    sources and 185 headers listed by the plug-in's own project file, 166 and 176 of them
+    absent from the plug-in's release archive, 166 and 175 supplied by 7-Zip's, one header
+    in neither, no compiled source naming a Rar file, nine handlers and a 1,921-byte notice
+    document in `7z1900-src.7z`, none in `lzma1900.7z`, and the shipped DLL carrying
+    `Rar`/`NRar`/`unrar` zero times each. Those numbers are measurements of archives that
+    are not in the checkout, so they rot the moment an upstream archive changes. The audit
+    §2.5.2 names re-counts them, and for the audit to be a comparison rather than a mirror
+    its expected values have to come from the record.
+
+    **Why the arms are arranged as they are.** Two arms run on synthetic bytes and need no
+    upstream archive, so a machine with none still sees the audit shown able to fail: a
+    planted project whose counts disagree with the record, and a record whose stated counts
+    are changed under a reader that reads them from the record's sentences. The arm that
+    re-counts the real archives is the one that needs them, and it names the variable when
+    they are not on hand instead of reporting counts it never took.
+    """
+    watch = _lgpl_delivery()
+    notice_text = _notice_text()
+
+    # (a) The reader read the record: every value it returns is the one printed.
+    claim = watch.closure_claims(notice_text)
+    for field, expected in OBSERVED_CLOSURE.items():
+        actual = getattr(claim, field)
+        assert actual == expected, (
+            f"closure_claims read {field} as {actual}; §2.5.1/§2.5.2 print {expected}, so the "
+            "reader is bound to some other sentence or a default is standing in for a claim"
+        )
+
+    # (b) The expected values come from the record: change a printed count and the reader
+    # follows the record, not a constant.
+    changed_record = notice_text.replace(
+        "the 174 sources the archive's own `Nsis7z.vcxproj` compiles, 166",
+        "the 174 sources the archive's own `Nsis7z.vcxproj` compiles, 167",
+        1,
+    ).replace(
+        "contains **all nine** files of `CPP/7zip/Archive/Rar/`",
+        "contains **all eight** files of `CPP/7zip/Archive/Rar/`",
+        1,
+    )
+    assert changed_record != notice_text, "the control did not change the printed counts"
+    re_read = watch.closure_claims(changed_record)
+    assert re_read.sources_absent_from_plugin == 167 and claim.sources_absent_from_plugin == 166, (
+        "the reader kept 166 after §2.5.1 was changed to 167: the audit would then compare the "
+        "archives with its own constants"
+    )
+    assert re_read.sevenzip_rar_files == 8 and claim.sevenzip_rar_files == 9, (
+        "the reader kept nine after §2.5.2 was changed to eight"
+    )
+
+    # (c) A record that stops stating a claim refuses rather than defaulting it.
+    silent = notice_text.replace(
+        "contains **all nine** files of `CPP/7zip/Archive/Rar/` and a\n    1,921-byte",
+        "contains the Rar handlers and a notice document,",
+        1,
+    )
+    assert silent != notice_text, "the control did not remove the Rar counts from §2.5.2"
+    try:
+        watch.closure_claims(silent)
+    except RuntimeError as error:
+        assert "Rar" in str(error), f"the refusal did not name what it could not read: {error}"
+    else:
+        raise AssertionError(
+            "closure_claims returned a count for a §2.5.2 that states none; a missing claim "
+            "would then be audited against a number nobody measured"
+        )
+
+    # (c2) A count written as a word the reader does not know: refuse, do not guess.
+    unparseable = notice_text.replace(
+        "the plug-in's own release archive contains **no file named\n    `*Rar*` at all**",
+        "the plug-in's own release archive contains **zero file named\n    `*Rar*` at all**",
+        1,
+    )
+    assert unparseable != notice_text, "the control did not change the plug-in archive's count word"
+    try:
+        watch.closure_claims(unparseable)
+    except RuntimeError as error:
+        assert "plug-in archive" in str(error), f"the refusal did not name the claim: {error}"
+    else:
+        raise AssertionError(
+            "closure_claims accepted a count word it does not know; an unparseable claim would "
+            "then be audited against whatever the reader defaulted to"
+        )
+
+    # (c3) And the count is read out of the sentence, not hard-coded from its shape: state a
+    # different number in the same sentence and the reader follows it.
+    stated = notice_text.replace(
+        "the plug-in's own release archive contains **no file named\n    `*Rar*` at all**",
+        "the plug-in's own release archive contains **three files named\n    `*Rar*` at all**",
+        1,
+    )
+    assert stated != notice_text, "the control did not state a count in the plug-in claim"
+    assert watch.closure_claims(stated).plugin_rar_files == 3, (
+        "the reader reported 0 for a §2.5.2 that states three: a hard-coded zero would keep "
+        "reporting the plug-in archive as Rar-free whatever the record said"
+    )
+
+    # (d) The comparison runs: a planted extract tree whose counts are the record's
+    # numbers is reported as a disagreement, and a tree with no shipped binary is reported
+    # as not measured rather than as a zero.
+    planted = tmp_path / "planted"
+    project_dir = planted / "Contrib" / "nsis7z" / "CPP" / "7zip" / "Bundles" / "Nsis7z"
+    project_dir.mkdir(parents=True)
+    project_dir.joinpath("Nsis7z.vcxproj").write_text(
+        "<Project><ItemGroup>"
+        '<ClCompile Include="..\\..\\..\\..\\C\\LzmaLib.cpp" />'
+        '<ClCompile Include="..\\..\\Archive\\SevenZip\\Nsis7z.cpp" />'
+        '<ClInclude Include="..\\..\\Common\\MyUnknown.h" />'
+        "</ItemGroup></Project>\n",
+        encoding="utf-8",
+    )
+    empty_sevenzip = tmp_path / "empty-sevenzip"
+    empty_sevenzip.mkdir()
+    lines, problems = watch.audit_extracts(
+        claim,
+        watch.binary_records(notice_text),
+        planted,
+        empty_sevenzip,
+        None,
+    )
+    assert problems, "the audit reported clean over an extract tree that lists two sources"
+    joined = "\n".join(problems)
+    assert "compiled sources the project lists" in joined and "174" in joined, (
+        f"the audit did not report the compiled-source census it was given: {problems}"
+    )
+    assert "files named *Rar* in lzma1900.7z" in joined, (
+        f"the audit did not report the LZMA SDK count it could not measure: {problems}"
+    )
+    assert "was not re-measured" in "\n".join(lines), (
+        f"the audit let an unmeasured count pass without saying so: {lines}"
+    )
+
+    missing_extract_lines, missing_extract_problems = watch.audit_extracts(
+        claim,
+        watch.binary_records(notice_text),
+        tmp_path / "no-such-extract",
+        empty_sevenzip,
+        None,
+    )
+    assert missing_extract_problems and "no directory" in "\n".join(missing_extract_problems), (
+        f"the audit accepted an extract directory that does not exist: {missing_extract_problems}"
+    )
+    assert missing_extract_lines == [], (
+        f"the audit printed counts for archives it never opened: {missing_extract_lines}"
+    )
+
+    # (d2) The command's own shape: the refusal that names the argument count. A CLI that
+    # accepted one directory, or four, would run the audit over the wrong pair of archives
+    # and report a comparison nobody asked for.
+    one_directory = subprocess.run(
+        [sys.executable, str(_lgpl_script_path()), "--audit-extracts", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    assert one_directory.returncode == 2, (
+        f"--audit-extracts with one directory exited {one_directory.returncode} instead of "
+        f"refusing:\n{one_directory.stdout}\n{one_directory.stderr}"
+    )
+    assert "takes two directories" in one_directory.stderr, (
+        f"the refusal did not say what it takes: {one_directory.stderr}"
+    )
+    four_directories = subprocess.run(
+        [
+            sys.executable,
+            str(_lgpl_script_path()),
+            "--audit-extracts",
+            str(tmp_path),
+            str(tmp_path),
+            str(tmp_path),
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    assert four_directories.returncode == 2, (
+        f"--audit-extracts with four directories exited {four_directories.returncode} "
+        f"instead of refusing:\n{four_directories.stderr}"
+    )
+
+    # (e) And the arm that needs the archives: the record against the bytes it describes.
+    extracts = _env_directory("LABCAIRN_LGPL_EXTRACT_DIR")
+    if extracts is None or not all((extracts / name).is_dir() for name in EXTRACT_SUBDIRS):
+        pytest.skip(
+            "LABCAIRN_LGPL_EXTRACT_DIR does not name a directory holding the unpacked "
+            f"{'/'.join(EXTRACT_SUBDIRS)} archives, so §2.5.2's closure numbers were not "
+            "re-counted against the upstream bytes here; arms (a)-(d) ran regardless"
+        )
+    script = _lgpl_script_path()
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--audit-extracts",
+            str(extracts / "nsis7z"),
+            str(extracts / "7z1900"),
+            str(extracts / "lzma1900"),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    assert run.returncode == 0, (
+        f"the closure audit against the real archives exited {run.returncode}:\n"
+        f"{run.stdout}\n{run.stderr}"
+    )
+    pairs = re.findall(r"record (\d+), measured (\d+)", run.stdout)
+    assert len(pairs) >= 12, (
+        f"the audit printed {len(pairs)} record/measured pairs; §2.5.2 prints twelve counts to "
+        f"re-measure:\n{run.stdout}"
+    )
+    assert all(recorded == measured for recorded, measured in pairs), (
+        f"the audit printed a pair it did not report as a disagreement: {pairs}"
+    )
+    assert "CPP/7zip/IMyUnknown.h" in run.stdout, (
+        f"the audit did not name the header §2.5.1 records as in neither archive:\n{run.stdout}"
+    )
+
+    # (f) The same audit over a record whose count no longer matches those bytes.
+    doctored = notice_text.replace(
+        "1,921-byte `DOC/unRarLicense.txt`", "1,920-byte `DOC/unRarLicense.txt`", 1
+    )
+    assert doctored != notice_text, "the control did not change the notice document's byte count"
+    doctored_notice = tmp_path / "NOTICE-doctored"
+    doctored_notice.write_text(doctored, encoding="utf-8")
+    red = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--notice",
+            str(doctored_notice),
+            "--audit-extracts",
+            str(extracts / "nsis7z"),
+            str(extracts / "7z1900"),
+            str(extracts / "lzma1900"),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    assert red.returncode == 1, (
+        f"an audit over a record whose unRarLicense byte count is wrong exited "
+        f"{red.returncode}; the record and the bytes were compared and nothing was "
+        f"reported:\n{red.stdout}\n{red.stderr}"
+    )
+    assert "unRarLicense" in red.stderr, (
+        f"the audit reddened without naming the count that disagrees: {red.stderr}"
+    )
