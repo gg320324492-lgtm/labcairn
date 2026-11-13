@@ -770,10 +770,31 @@ byte-identical to the NSIS 3.0.4.1 distribution the build downloads, whose own
 `3c8de989f6504d52f5f8dfafedb6668cd47201f5d01f1319570727c091425dd6`) licenses
 its plug-ins under the zlib/libpng licence. The other four come from
 `nsis-resources-3.4.1`, electron-builder's own bundle, which carries **no
-licence file at all** — so their terms are found upstream instead, in NSIS's own
-3.13 release bundle, which ships the same four plug-ins byte for byte together
-with a `LICENSES` tree attributing each one to the upstream release it came
-from.
+licence file at all** — so their terms are found in a bundle of electron-builder's
+instead: `nsis-bundle-3.13.tar.gz`, published by electron-userland's
+`electron-builder-binaries` repository at the tag `nsis@2.0.4`, which ships the
+same four plug-ins byte for byte together with a `LICENSES` tree attributing
+each one to the upstream release it came from. Measured 2026-11-13 (§5.4's step
+4b): 6,245,626 bytes, sha256
+`c18e9ad9684cf4c5bbd7b768cbf1b056d40771d7bd9ae1b513346452decf89d2`, and the four
+plug-ins under its `windows/Plugins/x86-unicode/` hash to §2.5's four values.
+
+That attribution is **corrected here, because the measurement says so**. The
+record of 2026-11-12 named this tree as upstream NSIS's own 3.13 release bundle.
+It is not. Re-fetched 2026-11-13, upstream NSIS 3.13's binary bundle
+(`nsis-3.13.zip`, 2,363,925 bytes, sha256
+`ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8`, 441 files),
+its source bundle (`nsis-3.13-src.tar.bz2`, 1,819,771 bytes, sha256
+`a8ffe024602d46b6d766f9e1ce30c324ad2a24daeacd3efc2642d436a0c157ac`, 915 entries)
+and its Subversion tree at the tag `v313` each contain **no `LICENSES` directory
+and none of the four plug-ins** — the trunk's top level is
+`.github .gitignore COPYING Contrib Docs Examples Include Menu README.md SCons
+SConstruct Scripts Source TODO.txt nsisconf.nsh`, and its `Contrib/` has 28
+subdirectories, none named `nsis7z`, `UAC`, `WinShell` or `StdUtils`. What those
+bundles do carry is the plug-in API header itself: `Examples/Plugin/nsis/api.h`,
+3,330 bytes, sha256 `7320b14365a8e4805dd03378d96c4298af4df12cb7ad4e94fbf133b93a1fe1dc`.
+The records below are re-pointed at the bundle that was measured to hold the
+tree, and the hashes they quote are the ones the tree really carries.
 
   StdUtils.dll — 102,400 bytes
     path     $PLUGINSDIR\StdUtils.dll
@@ -789,8 +810,8 @@ from.
   nsis7z.dll — 434,176 bytes
     path     $PLUGINSDIR\nsis7z.dll
     sha256   b393f05e8ff919ef071181050e1873c9a776e1a0ae8329aefff7007d0cadf592
-    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in upstream
-             NSIS's own 3.13 bundle, whose `LICENSES` tree attributes it to
+    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in
+             `nsis-bundle-3.13.tar.gz`, whose `LICENSES` tree attributes it to
              the LZMA SDK notice below
     licence  LGPL-2.1 — 7-Zip's terms, which cover the plug-in's sources as
              "the GNU LGPL" apart from the Rar* files, which carry the unRAR
@@ -798,49 +819,61 @@ from.
     holder   Igor Pavlov and the 7-Zip contributors
     where    the plug-in's own `Contrib/nsis7z/DOC/nsis7z.txt` says it "Uses
              7-Zip source code, (C) 1999-2015 Igor Pavlov" and that it was
-             rebuilt from 7-Zip's sources; upstream NSIS attributes the
-             byte-identical plug-in to the LZMA SDK's public-domain notice
-             (`Contrib/nsis7z/DOC/License.txt`, sha256 63fcfe54…, 476 bytes),
-             and both texts travel with the installer so that either reading
-             is covered; the Rar* handler is **not** compiled into this build
-             — the plug-in's source archive carries no `Compress/Rar*` file,
-             and the DLL's own bytes contain no `Rar`, `NRar` or `unrar`
-             string at all
+             rebuilt from 7-Zip's sources; `nsis-bundle-3.13.tar.gz`'s `LICENSES`
+             tree attributes the byte-identical plug-in to the LZMA SDK's
+             public-domain notice
+             (`LICENSES/nsis7z/Contrib/nsis7z/DOC/License.txt`, sha256
+             63fcfe54…, 476 bytes, fetched 2026-11-13), and both texts travel
+             with the installer so that either reading is covered; the Rar*
+             handler is **not** compiled into this build — the plug-in's own
+             source archive carries no `Compress/Rar*` file, its
+             `Nsis7z.vcxproj` compiles no Rar source, and the DLL's own bytes
+             contain no `Rar`, `NRar` or `unrar` string at all. The 7-Zip source
+             archive §2.5.1 delivers for this binary **does** carry 7-Zip's
+             `CPP/7zip/Archive/Rar/` files (9 of them), and §2.5.1 says what
+             that does and does not oblige
 
   UAC.dll — 14,848 bytes
     path     $PLUGINSDIR\UAC.dll
     sha256   2f7f8fc05dc4fd0d5cda501b47e4433357e887bbfed7292c028d99c73b52dc08
-    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in upstream
-             NSIS's own 3.13 bundle, whose `LICENSES` tree attributes it to
+    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in
+             `nsis-bundle-3.13.tar.gz`, whose `LICENSES` tree attributes it to
              the upstream UAC release below
     licence  zlib/libpng
     holder   Anders (the UAC plug-in's author)
     where    the bundle electron-builder downloads carries no licence document,
-             but the plug-in's own release does: upstream NSIS's `LICENSES`
-             tree records the source as
+             but the plug-in's own release does: `nsis-bundle-3.13.tar.gz`'s
+             `LICENSES` tree records the source as
              `https://nsis.sourceforge.io/mediawiki/images/8/8f/UAC.zip`
-             (sha256 20e3192a…), and that archive's `License.txt` is the
-             zlib/libpng text (sha256 997fd014…, 956 bytes) — the same text
-             the NSIS wiki's own plug-in page states ("License: zlib"); the
-             archive's `Plugins/x86-unicode/UAC.dll` is the shipped file byte
-             for byte
+             (sha256 20e3192a…, 52,034 bytes, re-fetched 2026-11-13), its
+             `License.txt` is the zlib/libpng text (sha256 997fd014…, 956
+             bytes) and the tree carries that text as
+             `LICENSES/UAC/License.txt` — the same text the NSIS wiki's own
+             plug-in page states ("License: zlib"); the archive's
+             `Plugins/x86-unicode/UAC.dll` is the shipped file byte for byte
 
   WinShell.dll — 3,072 bytes
     path     $PLUGINSDIR\WinShell.dll
     sha256   9be85b986ea66a6997dde658abe82b3147ed2a1a3dcb784bb5176f41d22815a6
-    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in upstream
-             NSIS's own 3.13 bundle
+    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in
+             `nsis-bundle-3.13.tar.gz`
     licence  zlib/libpng
     holder   Anders (the WinShell plug-in's author)
-    where    the same route as UAC.dll above: upstream NSIS's `LICENSES` tree
-             records the source as
+    where    the same route as UAC.dll above: `nsis-bundle-3.13.tar.gz`'s
+             `LICENSES` tree records the source as
              `https://nsis.sourceforge.io/mediawiki/images/5/54/WinShell.zip`
-             (sha256 34e111f8…), whose `Plugins/x86-unicode/WinShell.dll` is
-             the shipped file byte for byte; the archive carries no licence
-             file of its own, and upstream's `NOTICE-plugin-api.txt` records
-             why the terms are still determinate — the plug-in is built
-             against NSIS's plug-in API header `api.h`, which NSIS licenses
-             under the zlib/libpng terms (sha256 182d1d73…, 1,135 bytes)
+             (sha256 34e111f8…, 2,864 bytes, re-fetched 2026-11-13), whose
+             `Plugins/x86-unicode/WinShell.dll` is the shipped file byte for
+             byte; the archive carries no licence file of its own, and the
+             tree's `LICENSES/WinShell/NOTICE-plugin-api.txt` (sha256
+             182d1d73…, 1,135 bytes) records why the terms are still
+             determinate — the plug-in is built against NSIS's plug-in API
+             header `api.h`, which NSIS licenses under the zlib/libpng terms.
+             **Corrected 2026-11-13:** this record attached `182d1d73…` to
+             `api.h` itself; measured on that date the header is 3,330 bytes
+             and sha256
+             `7320b14365a8e4805dd03378d96c4298af4df12cb7ad4e94fbf133b93a1fe1dc`,
+             and `182d1d73…` is the notice document's own hash
 
   System.dll — 12,288 bytes
     path     $PLUGINSDIR\System.dll
@@ -975,37 +1008,104 @@ stands:
     binaries in the archive, not a replacement for anything inside them.
 
   * **The corresponding source (§4, §6(c)) — PARTLY DONE, NOT YET POINTED
-    AT.** The source for the shipped `StdUtils.dll` exists and is identified:
-    the upstream StdUtils 1.14 release archive `StdUtils.2018-10-27.zip`, at
-    `https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip`
-    (fetched 2026-11-12; the archive's own sha256 is
-    `3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c`),
-    carries `Contrib/StdUtils/StdUtils.2018-10-27.Sources.tar` — the complete
-    sources as 94 files in 18 folders, 972,800 bytes, sha256
-    `db9f98d7a947d5a6b7cd341e01edd412ea04510c5faee19a23b1e84582d86121` — and
-    the release build's `Plugins/Unicode/StdUtils.dll` is the shipped file byte
-    for byte.
+    AT.** Each of the two LGPL binaries has a corresponding source that is
+    identified, fetched and measured. What is not done is the offering: §4's
+    final paragraph is satisfied by "offering equivalent access to copy the
+    source code from the same place" — the same place the binary is obtained
+    from — and LabCairn has published nothing, so no place exists yet. The
+    owner's decision of 2026-11-12 fixes the channel: the first release carries
+    the source archives on its release page, next to the installer. That makes
+    each entry below a step a named release performs, and every value in it is
+    a byte count or a hash measured on 2026-11-13 (§5.4's step 4b prints the
+    fetches), not a value carried forward from 2026-11-12.
 
-    **The step that has to happen at release time.** §4's final paragraph is
-    satisfied by "offering equivalent access to copy the source code from the
-    same place" — the same place the binary is obtained from. LabCairn has no
-    release yet, so this is a precondition of the first release and not a fact
-    about the present tree: whoever cuts that release must attach
-    `StdUtils.2018-10-27.Sources.tar` (sha256 `db9f98d7…`) to the same release
-    page as the installer, and record that attachment where a user can find
-    it. Until that is done the obligation is not discharged, and no written
-    offer under §6(c) exists either.
+    Every binary §2.5 records under an LGPL-2.1 term has a delivery entry: the
+    file a release must carry, where that file came from, its byte count and
+    its sha256, and the point at which it is offered. `scripts/lgpl_source_release.py`
+    prints that checklist out of these entries and, given a directory holding
+    the archives, verifies the bytes against the hashes recorded here.
 
-    For `nsis7z.dll` the corresponding source is now located: the upstream
-    `Nsis7z_19.00.7z` release (sha256
-    `6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58`, fetched
-    2026-11-12 from
-    `https://nsis.sourceforge.io/mediawiki/images/6/69/Nsis7z_19.00.7z`) holds
-    the plug-in's own sources, `Contrib/nsis7z/CPP/7zip/{Bundles,UI}/NSIS/`,
-    which is where the DLL's 7-Zip-derived code comes from. It is a
-    release-time precondition in the same sense. Neither source is yet offered
-    from the place the binary is obtained, which is what §4's final paragraph
-    requires and what this distribution still owes.
+    Delivery entry — `StdUtils.dll`
+      artefact StdUtils.2018-10-27.Sources.tar — 972,800 bytes, sha256
+               db9f98d7a947d5a6b7cd341e01edd412ea04510c5faee19a23b1e84582d86121
+               (94 files in 18 folders)
+      taken    from the member list of the upstream StdUtils 1.14 release
+               archive `StdUtils.2018-10-27.zip` (391,785 bytes, sha256
+               3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c),
+               whose `Plugins/Unicode/StdUtils.dll` is the shipped file byte for
+               byte
+      fetched  https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip
+               on 2026-11-13
+      also     the same release page's source-package asset
+               `StdUtils.2018-10-27.sources.tbz2` (206,896 bytes, sha256
+               c5e3b1a66219bc9564c2ccc1702691327eecf044ad33404ac268d725d22dca49)
+               expands to a tar byte-identical to the artefact, and the two
+               trees are the same 94 files with the same hashes
+      at       the first release, attach the artefact to the release page that
+               offers the installer, name it and its sha256 there, and record
+               the attachment in the release notes
+
+    Delivery entry — `nsis7z.dll`, 1 of 2
+      artefact Nsis7z_19.00.7z — 461,078 bytes, sha256
+               6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58
+               (30 files; `Plugins/x86-unicode/nsis7z.dll` inside it is the
+               shipped file byte for byte)
+      taken    from the plug-in's own upstream release, which holds the
+               NSIS-side code — `Contrib/nsis7z/CPP/7zip/{Bundles,UI}/NSIS/` —
+               and the project file that builds the plug-in
+      fetched  https://nsis.sourceforge.io/mediawiki/images/6/69/Nsis7z_19.00.7z
+               on 2026-11-13
+      limit    on its own this is **not** the complete corresponding source: of
+               the 174 sources the archive's own `Nsis7z.vcxproj` compiles, 166
+               are not in it, and of the 185 headers it names, 176 are absent
+      at       the first release, attach it beside the installer on the release
+               page, named and with its sha256 stated
+
+    Delivery entry — `nsis7z.dll`, 2 of 2
+      artefact 7z1900-src.7z — 1,071,569 bytes, sha256
+               9ba70a5e8485cf9061b30a2a84fe741de5aeb8dd271aab8889da0e9b3bf1868e
+               (1,172 files)
+      taken    from 7-Zip's own source release, which supplies the 166 remaining
+               compiled sources and 175 of the 176 missing headers; rooted at
+               `Contrib/nsis7z/`, its `C/` and `CPP/` trees are exactly what the
+               project's `..\..\..\..\C\…` and `..\..\..\CPP\…` includes name
+      fetched  https://7-zip.org/a/7z1900-src.7z on 2026-11-13
+      also     the plug-in's own `Contrib/nsis7z/DOC/nsis7z.txt` names
+               `Extract C and CPP folders from lzma1900.7z to Contrib\nsis7z`
+               as how the plug-in is built, and the LZMA SDK archive it names
+               (1,082,692 bytes, sha256
+               00f569e624b3d9ed89cf8d40136662c4c5207eaceb92a70b1044c77f84234bad,
+               from `https://7-zip.org/a/lzma1900.7z`) closes the same list —
+               166 of 174 sources, 175 of 176 headers. Which of the two a
+               release carries is the owner's call; either completes the source.
+      gap      one header is in neither archive: the project lists
+               `CPP/7zip/IMyUnknown.h`, and both 7-Zip archives carry
+               `CPP/Common/MyUnknown.h` where that include points
+      at       the first release, attach it beside the installer on the release
+               page, named and with its sha256 stated, and state that it is the
+               completion of the entry above
+
+    **How "corresponding source" is being read here, and what that reading is
+    worth.** LGPL-2.1's own definition, in the copy this repository carries
+    (`shell/licenses/LGPL-2.1.txt`), is that for a library "complete source code
+    means all the source code for all modules it contains, plus any associated
+    interface definition files, plus the scripts used to control compilation and
+    installation of the library". Read against that clause, `nsis7z.dll`'s
+    corresponding source is the **conjunction** of the two archives above —
+    7-Zip's code is modules the Library contains, and `Nsis7z.vcxproj` is the
+    script that controls its compilation — which is why this section names two
+    artefacts where `StdUtils.dll` needs one. The narrower reading, that the
+    plug-in's own release archive is the corresponding source because it is the
+    upstream release the plug-in was taken from, is defensible too and is what
+    the delivery entries would look like if it were adopted. Which reading this
+    repository records is a legal judgement and is **put to the owner**, not
+    decided here; §2.5.2 names it as open.
+
+    **What is not yet done.** Neither artefact is offered from the place the
+    binaries are obtained, which is the requirement §4's final paragraph states
+    rather than a description of these entries. Until a release page carries
+    them the obligation is not discharged, and no written offer under §6(c)
+    exists either.
 
   * **Replaceability (§6(b), and §4's final paragraph for the §4 path) — NOT
     MEASURED.** The route LGPL-2.1 contemplates is a DLL loaded at runtime that
@@ -1030,8 +1130,8 @@ stands:
 2.5.2  What is deliberately not settled here
 ----------------------------------------------
 
-Two investigations were deferred by the owner on 2026-11-12 and are **not**
-attempted in this section:
+Three things are left open here. The first two are investigations the owner
+deferred on 2026-11-12 and are **not** attempted in this section:
 
   * a per-binary licence census of the installer binaries, witnessed by a
     test — the eight entries above were traced by sha256 to their source
@@ -1042,12 +1142,47 @@ attempted in this section:
     a 5,705,935-byte inventory of 500 components; §2.4.1 records that it
     travels, and nothing here says what each of its components obliges.
 
+The third is a legal judgement this repository does not make. §2.5.1's
+`nsis7z.dll` entries name **two** source archives because that is what the
+licence's own definition of "complete source code" asks for; the alternative
+reading — that the plug-in's own release archive is the corresponding source —
+is also defensible, and the two readings differ in what a release page has to
+carry. §2.5.1 states both and puts the choice to the owner, together with a
+second, smaller choice inside the wider reading: which 7-Zip archive a release
+carries, the full 7-Zip source release or the LZMA SDK archive the plug-in's
+own build note names. §2.5.1's delivery entries are written so that either
+answer can be recorded without re-measuring anything: the byte counts and
+hashes are the same on either side.
+
+Two further questions the same reading raises, stated rather than answered:
+
+  * the Rar* files. 7-Zip's terms exempt them from the LGPL grant and add the
+    unRAR restriction. The shipped DLL compiles none of them and carries no
+    such string, but the 7-Zip source archive §2.5.1 delivers carries all nine
+    of `CPP/7zip/Archive/Rar/` and a `DOC/unRarLicense.txt` beside them. Whether
+    conveying those files is what §4 requires, or whether the corresponding
+    source should be conveyed with the Rar* handlers removed, is the same kind
+    of judgement as the two above;
+  * the one header that is in neither 7-Zip archive — the project lists
+    `CPP/7zip/IMyUnknown.h`, both archives carry `CPP/Common/MyUnknown.h`.
+    Whether a source package with that gap is "complete", or whether the gap
+    must be closed before a release carries the archive, is not this
+    repository's call either.
+
 The owner's decision of 2026-11-12 was to keep the LGPL plug-in and discharge
 the obligations rather than remove or replace it, and to widen this file's
 scope to the toolchain binaries and the web tree. The two LGPL entries above
-now carry their licence text; the two entries whose terms this file records as
-unresolved, and the fact that no source is yet offered from the place the
-binaries are obtained, are the record of what that decision still leaves open.
+now carry their licence text and their corresponding-source entries. What that
+decision still leaves open is the offering itself — no source is yet available
+from the place the binaries are obtained — together with the three judgements
+above.
+
+**One stale sentence is corrected here.** This section used to record "the two
+entries whose terms this file records as unresolved". It no longer records any:
+measured at this revision, every one of §2.5's eight entries names a licence and
+a source for it, and §2.5's text contains no `unresolved` licence field. The two
+entries the sentence counted were resolved by the upstream-provenance work of
+2026-11-12; the sentence had not followed them.
 
 
 -------------------------------------------------------------------------------
@@ -1454,6 +1589,43 @@ neither a build nor an install; its licence classes do.
     # byte-identical to the first. The nsis-resources bundle carries no
     # licence file at all, which is why UAC.dll's and WinShell.dll's terms
     # are found upstream instead — see §2.5's two rows.
+
+  # 4b. the bundles and upstream archives §2.5's records and §2.5.1's delivery
+  #     entries name. Run outside the checkout, into a directory of its own; each
+  #     archive is untrusted until its sha256 below matches what it prints.
+  #     Measured 2026-11-13, every value read from the file the command wrote.
+  curl -fL -o nsis-bundle-3.13.tar.gz https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis%402.0.4/nsis-bundle-3.13.tar.gz
+  curl -fL -o nsis-3.13.zip       https://sourceforge.net/projects/nsis/files/NSIS%203/3.13/nsis-3.13.zip/download
+  curl -fL -o nsis-3.13-src.tar.bz2 https://sourceforge.net/projects/nsis/files/NSIS%203/3.13/nsis-3.13-src.tar.bz2/download
+    #   nsis-bundle-3.13.tar.gz   6,245,626  c18e9ad9684cf4c5bbd7b768cbf1b056d40771d7bd9ae1b513346452decf89d2
+    #   nsis-3.13.zip             2,363,925  ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8
+    #   nsis-3.13-src.tar.bz2     1,819,771  a8ffe024602d46b6d766f9e1ce30c324ad2a24daeacd3efc2642d436a0c157ac
+    # The bundle carries the `LICENSES` tree and the four plug-ins; the two NSIS
+    # archives carry neither. The record of 2026-11-12 attributed the tree to the
+    # second and third — see §2.5's correction.
+
+  curl -fL -o StdUtils.2018-10-27.zip        https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip
+  curl -fL -o StdUtils.2018-10-27.sources.tbz2 https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.sources.tbz2
+  curl -fL -o Nsis7z_19.00.7z               https://nsis.sourceforge.io/mediawiki/images/6/69/Nsis7z_19.00.7z
+  curl -fL -o 7z1900-src.7z                https://7-zip.org/a/7z1900-src.7z
+  curl -fL -o lzma1900.7z                  https://7-zip.org/a/lzma1900.7z
+  curl -fL -o UAC.zip                      https://nsis.sourceforge.io/mediawiki/images/8/8f/UAC.zip
+  curl -fL -o WinShell.zip                 https://nsis.sourceforge.io/mediawiki/images/5/54/WinShell.zip
+    #   StdUtils.2018-10-27.zip          391,785  3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c
+    #   StdUtils.2018-10-27.sources.tbz2 206,896  c5e3b1a66219bc9564c2ccc1702691327eecf044ad33404ac268d725d22dca49
+    #   Nsis7z_19.00.7z                  461,078  6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58
+    #   7z1900-src.7z                  1,071,569  9ba70a5e8485cf9061b30a2a84fe741de5aeb8dd271aab8889da0e9b3bf1868e
+    #   lzma1900.7z                    1,082,692  00f569e624b3d9ed89cf8d40136662c4c5207eaceb92a70b1044c77f84234bad
+    #   UAC.zip                           52,034  20e3192af5598568887c16d88de59a52c2ce4a26e42c5fb8bee8105dcbbd1760
+    #   WinShell.zip                       2,864  34e111f8aacf64c540d848fd06b9d6f3e2c10cb825ec9329a01d1141973e749b
+
+  # 5. §2.5.1's delivery entries: the checklist, and the bytes behind it
+  python scripts/lgpl_source_release.py            # prints what a release must carry
+  python scripts/lgpl_source_release.py --check <dir-holding-the-archives>
+    # exit 0 when every delivered file's sha256 matches §2.5.1, exit 1 naming each
+    # that does not. The two StdUtils readings are cross-checked by
+    # bunzip2 StdUtils.2018-10-27.sources.tbz2 | sha256sum, which must print
+    # db9f98d7… — the same tar the release archive carries as a member.
 
 **The web tree.**
 
