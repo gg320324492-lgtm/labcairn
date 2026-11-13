@@ -92,10 +92,20 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: LGPL licence texts were made to travel in the installer: the five new
 #: cases watch the mechanism that puts them there, and the mutation that
 #: removes the texts from the include so that the check sees the gap.
+#: `command-line.test.mjs`, `shell-env.test.mjs` and `update-path.test.mjs`
+#: arrived with T08's input policy, T09's two supply ways and T06's
+#: reinstall-only update path; their six, nine and six cases were measured
+#: from the tree at `0acd146` on Node v24.16.0. `config.test.mjs` rose from
+#: five to nine with T09's supply precedence (file, environment-wins,
+#: dev-reads-no-file, broken-file refusal), and `packaging-config.test.mjs`
+#: from fourteen to fifteen with the two supply templates' shipping watch.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
-    "config.test.mjs": 5,
+    "command-line.test.mjs": 6,
+    "config.test.mjs": 9,
+    "shell-env.test.mjs": 9,
+    "update-path.test.mjs": 6,
     "dependency-surface.test.mjs": 3,
     "drain-witness.test.mjs": 5,
     "installer-binaries.test.mjs": 9,
@@ -103,12 +113,12 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
     "notice-scope.test.mjs": 8,
-    "packaging-config.test.mjs": 14,
+    "packaging-config.test.mjs": 15,
     "shell-tree-terms.test.mjs": 7,
     "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "59f943eeeb125935486b265d1c8ba79e30f42e1e"
+CASE_FLOORS_MEASURED_AT: Final[str] = "0acd146d30b1b4b563ea047adbd2b8063ca19993"
 
 
 # --------------------------------------------------------------------------

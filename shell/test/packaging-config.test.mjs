@@ -253,6 +253,20 @@ test('the licence texts the include carries are the ones the repository holds', 
   }
 })
 
+test('the packaging config ships the two T09 supply templates into the package', () => {
+  // The templates travel so an installed shell can be told its backend and
+  // workspace either way: the launcher beside the exe, the JSON beside the
+  // asar. A template is not a default — nothing reads them until they exist
+  // under their live names — so shipping them is inert without an edit.
+  assert.match(config, /^  - from: shell-env\.template\.json\n    to: shell-env\.template\.json$/m)
+  assert.match(config, /^  - from: labcairn-shell\.cmd\n    to: labcairn-shell\.cmd$/m)
+  for (const name of ['shell-env.template.json', 'labcairn-shell.cmd']) {
+    assert.ok(fs.existsSync(path.join(SHELL_ROOT, name)), `${name} is declared for shipping but absent`)
+  }
+  // The live name must not ship: only the template does.
+  assert.ok(!/^  - from: shell-env\.json$/m.test(config), 'a live shell-env.json must not be shipped by the build')
+})
+
 test('a licence text the include does not name is a gap the mutation shows', () => {
   const include = fs.readFileSync(NSIS_INCLUDE_PATH, 'utf8')
   const commands = fileCommands(include)

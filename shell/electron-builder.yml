@@ -20,6 +20,14 @@ extraResources:
     to: web-dist
     filter:
       - '**/*'
+  # T09's two supply templates travel in the package. The JSON template becomes
+  # the package's own `resources/shell-env.json` only when the owner renames it;
+  # the launcher template is copied next to LabCairn.exe and edited. Neither is
+  # read until it exists under its live name — a template is not a default.
+  - from: shell-env.template.json
+    to: shell-env.template.json
+  - from: labcairn-shell.cmd
+    to: labcairn-shell.cmd
 # The packaged window loads the web bundle from `resources/web-dist`. When that
 # source directory is absent electron-builder warns -- one `file source doesn't
 # exist` line per missing path -- and keeps going, so an installer without the
