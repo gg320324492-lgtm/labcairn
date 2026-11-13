@@ -1284,23 +1284,23 @@ stands:
       on this machine and carried by this installer. What §6(b) obliges a distributor
       to make possible is the second question, and this section answers the first.
     * Whether the authored plug-in is a "modified version" in the sense the
-      §6(b) line above uses is **not decided here**. The question is about a
-      word in §6(b), not about the bytes: the plug-in was written from the
-      interface with no copy of the shipped file's contents in it, so whether it
-      is such a "modified version" depends on whether the phrase names a derived
-      work of the Library or the part a library plays at run time. The two
-      readings differ in what this section would have to carry. Read as naming a
-      derived work, the authored plug-in is outside §6(b) — the shipped file
-      remains replaceable, by the two byte patches, and the upstream
-      clarification quoted above is then the relevant text, since it says an
-      installer that uses the plug-in "strictly through the NSIS plug-in
-      interface" and carries "verbatim copies" of it is "a work that uses the
-      Library" and not a derivative. Read as naming the part played at run time,
-      the authored plug-in is inside §6(b), whose condition is then about what a
-      recipient can obtain — which is the thing the paragraph above says this
-      measurement does not show. Neither reading is taken here: this section
-      quotes §6 as the paragraph at the head of §2.5.1 states it, and the choice
-      between the two is the owner's.
+      §6(b) line above uses was **decided by the owner on 2026-11-13**. The
+      question is about a word in §6(b), not about the bytes: the plug-in was
+      written from the interface with no copy of the shipped file's contents in
+      it. The owner reads the phrase as naming a derived work of the Library,
+      so the authored plug-in is **outside** §6(b) and the two byte patches are
+      the modified versions this section measured — each is the shipped file's
+      own code with a change in it. The upstream clarification quoted above is
+      then the relevant text, since it says an installer that uses the plug-in
+      "strictly through the NSIS plug-in interface" and carries "verbatim
+      copies" of it is "a work that uses the Library" and not a derivative. The
+      narrower reading — that the phrase names the part a library plays at run
+      time, which would put the authored plug-in inside §6(b) and make its
+      condition one about what a recipient can obtain — is recorded here as the
+      alternative and is **not** the reading this file keeps. Under either
+      reading the paragraph above stands: this measurement shows the mechanism
+      works for this installer, not that a third party can obtain the means to
+      produce a replacement.
 
     **What is still not done.** The §6(b) mechanism is now shown to work for this
     installer; the corresponding source named by the delivery entries above is
