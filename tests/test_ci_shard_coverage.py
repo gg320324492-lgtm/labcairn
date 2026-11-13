@@ -44,6 +44,7 @@ import re
 import subprocess
 import sys
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Final
 
@@ -2367,6 +2368,113 @@ JOB_COUNT_CLAIMS: Final[dict[str, int]] = {
     "LC-P1-11-12-task-breakdown.md": 1,
 }
 
+#: **Why a record is outside the completeness rule, on the record's own terms.** An
+#: exemption nobody wrote down is indistinguishable from a forgotten record — the same
+#: shape as an unwatched claim, arrived at from the other side. Each rule names the class
+#: the tree itself uses for these files, and the reasons are the ones the tree already
+#: states: a *dated log* carries its counts inside dated entries, so a sentence that was
+#: true when written stays as written; a *dated record* keeps the wording of the decision
+#: it records; and the *mechanism* file is where the ruler itself lives, so its prose
+#: describes the shapes it reads rather than claiming today's figures.
+#:
+#: Measured 2026-11-13 at `ab0ba12`: the tree holds **11** files whose sentences the
+#: `_job_count_claims` ruler reads; the seven above are watched, and these rules remove
+#: the other four. `docs/changelog/phase-3.md` carries five claims, all inside dated
+#: entries — the *failed five shard jobs* of run `42733499009`, the *six shards* the
+#: 2026-11-08 correction quoted out of `CONTRIBUTING.md`'s earlier wording, and the
+#: *five shards* quoted as the defect that was fixed. `docs/acceptance/G5-acceptance.md`'s
+#: *Five shards* is the S3 decision of 2026-10-25, stated as the fix that was applied.
+#: `docs/adr/ADR-0022-…`'s *the two shards that carry the README-accuracy witness* counts
+#: **two shard jobs** — one per platform — and is not a shard-axis claim at all; the
+#: ruler's `N shards` shape reads it that way, which is the one known false positive, and
+#: it is watched by hand rather than by widening the shape to match it.
+_JOB_COUNT_EXEMPTIONS: Final[tuple[tuple[str, str], ...]] = (
+    (
+        "docs/changelog/phase-3.md",
+        "dated log: every job-count sentence sits inside a dated entry that was true when "
+        "written — the run that failed five shard jobs, the superseded six-shard wording "
+        "quoted as the defect, the correction that fixed it",
+    ),
+    (
+        "docs/acceptance/G5-acceptance.md",
+        "dated record: the S3 decision of 2026-10-25 that fixed five shards, kept as "
+        "written under the dated-snapshot rule",
+    ),
+    (
+        "docs/adr/ADR-0022-platform-conditional-code-keeps-one-reachable-body.md",
+        "dated record: 'the two shards that carry the README-accuracy witness' counts two "
+        "shard jobs, one per platform — not a shard-axis claim; the ruler's shape reads it "
+        "that way and the misreading is recorded here rather than shaped around",
+    ),
+    (
+        "tests/test_ci_shard_coverage.py",
+        "the mechanism itself: this file's numbered sentences state the shapes the ruler "
+        "reads ('if the matrix declares four shards and the file names three'), not "
+        "figures any workflow gives",
+    ),
+)
+
+
+def _job_count_exemption_reason(relative: str) -> str | None:
+    """Why this repository-relative path is outside the completeness rule, or None.
+
+    The rules are written with forward slashes; `PurePath.as_posix()` is what makes a
+    rule apply on both platforms, and a rule that matched nothing would be an exemption
+    that silently stopped working — the same wrong-green the list check exists to catch.
+    """
+    for pattern, reason in _JOB_COUNT_EXEMPTIONS:
+        if relative == pattern:
+            return reason
+    return None
+
+
+def _job_count_record_candidates(repo_root: Path) -> dict[str, int]:
+    """Every tracked text file whose sentences the job-count ruler reads, with its count.
+
+    **The same ruler that reads the listed records reads the whole tree.** The list
+    `JOB_COUNT_RECORDS` is hand-written, and a hand-written list drifts in both
+    directions: a record that gains a job-count sentence and is never added is a claim
+    no check reads, and a listed file whose claims have gone is coverage claimed over
+    nothing. So the candidate set is derived from the tree and compared with the list
+    both ways — the arrangement `test_the_live_document_list_covers_what_the_tree_contains`
+    uses for the anchor declarations, with this file's own ruler in place of that one's
+    citation reader.
+
+    A file `git ls-files` names but Python cannot decode is skipped rather than failed:
+    the ruler reads prose, and the tree's undecodable files are fixtures (measured
+    2026-11-13: three PDFs). A decode failure is not a record going unreadable; a
+    *readable* file gaining an unreadable claim is, and that is what the count pins.
+    """
+    return _derive_with_ruler(repo_root, _job_count_claims)
+
+
+def _derive_with_ruler(
+    repo_root: Path, ruler: Callable[[str], list[dict[str, Any]]]
+) -> dict[str, int]:
+    """The candidate derivation, with the ruler supplied: the seam the control below blinds."""
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    assert tracked.returncode == 0, (
+        "git ls-files failed, so the tree's records cannot be enumerated"
+    )
+    candidates: dict[str, int] = {}
+    for name in tracked.stdout.decode("utf-8").split("\0"):
+        if not name:
+            continue
+        path = repo_root / name
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        count = len(ruler(text))
+        if count:
+            candidates[name.replace("\\", "/")] = count
+    return candidates
+
 
 def _strip_markup(text: str) -> str:
     """Markdown emphasis, code spans and table pipes, replaced by spaces.
@@ -3160,6 +3268,104 @@ def test_the_live_pointers_job_counts_are_watched_too(repo_root: Path) -> None:
         assert (repo_root / relative).read_bytes() == original, (
             f"{relative} changed while it was being read"
         )
+
+
+def test_the_job_count_record_list_covers_what_the_tree_contains(repo_root: Path) -> None:
+    """The hand-written record list is checked against the tree it claims to describe, both ways.
+
+    **The hole this closes.** `JOB_COUNT_RECORDS` is written by hand, and deleting a real
+    record from it left the witnesses green — the main job-count witness reads the records
+    the list names, and a list that no longer names a record is a witness that reads one
+    file fewer without anything noticing. That is the defect the 2026-11-13 independent
+    review measured: removing `CI.md` from the list left every job-count check green.
+
+    **A list that is only enforced one direction is a list that drifts.** So the candidate
+    set is derived with the same ruler the list was built with — `_job_count_claims`, the
+    reader the main witness runs — and compared with the list **and** with the exemptions.
+    A file the tree carries that the list neither names nor exempts is a job-count claim
+    no check reads; a file the list names that the tree no longer supports is coverage
+    claimed over a record that states nothing.
+    """
+    derived = _job_count_record_candidates(repo_root)
+    listed = {relative.as_posix() for relative in JOB_COUNT_RECORDS}
+
+    omitted: list[str] = []
+    for name, count in sorted(derived.items()):
+        if name in listed:
+            continue
+        reason = _job_count_exemption_reason(name)
+        if reason is None:
+            omitted.append(
+                f"{name} ({count} job-count claim{'s' if count != 1 else ''}) is neither "
+                "listed in JOB_COUNT_RECORDS nor exempted by a stated rule"
+            )
+    assert not omitted, (
+        "the tree carries job-count sentences in records this file's list does not watch:\n  "
+        + "\n  ".join(omitted)
+        + "\n\nAdd the record to JOB_COUNT_RECORDS (and to JOB_COUNT_CLAIMS, with the "
+        "measurement that produced its count), or state why it is outside the rule in "
+        "_JOB_COUNT_EXEMPTIONS."
+    )
+
+    unsupported: list[str] = []
+    for name in sorted(listed):
+        if name not in derived:
+            unsupported.append(
+                f"{name} is listed as a watched record but carries no "
+                "job-count claim the ruler can read"
+            )
+    assert not unsupported, (
+        "JOB_COUNT_RECORDS names records the tree no longer supports:\n  "
+        + "\n  ".join(unsupported)
+        + "\n\nA listed record whose claims have gone is coverage claimed over nothing — "
+        "drop it from the list, or restore the wording the ruler reads."
+    )
+
+
+def test_the_job_count_record_derivation_fails_when_the_ruler_stops_reading(
+    repo_root: Path,
+) -> None:
+    """The derivation is seen to derive: a ruler that reads nothing turns the check red.
+
+    **Why the mechanism needs its own witness.** The list check above is only as good as
+    the derivation it compares with. A derivation that returned an empty dict — a ruler
+    switched off, a pattern that stopped matching, a file reader that swallowed every
+    record — would make the *omitted* half agree with whatever the list said, and the
+    only red left would be the unsupported half. So the ruler is blinded here and the
+    comparison is run against the blind output: every listed record must be named as
+    unsupported, which is the red that proves the derivation is the thing doing the
+    work. A check that stays green when its ruler stops reading is a check that has
+    already been turned off.
+    """
+    real = _job_count_record_candidates(repo_root)
+    watchable = [name for name in real if _job_count_exemption_reason(name) is None]
+    assert watchable, (
+        "the tree carries no watchable job-count record at all, so this control has "
+        "nothing to prove — re-point it at the records the ruler should read"
+    )
+
+    def _blind_candidates() -> dict[str, int]:
+        """The derivation with its ruler blinded: the walk runs, nothing is read."""
+        return _derive_with_ruler(repo_root, lambda _text: [])
+
+    blinded = _blind_candidates()
+    assert not blinded, "the blinded ruler is not blind"
+
+    # The comparison the list check runs, run against the blind output: every listed
+    # record has to land in the unsupported half, because the blind derivation sees
+    # nothing at all. That is the red which proves the real derivation is the thing
+    # doing the work.
+    listed = {relative.as_posix() for relative in JOB_COUNT_RECORDS}
+    unsupported = [name for name in sorted(listed) if name not in blinded]
+    assert unsupported == sorted(listed), (
+        f"a blinded ruler did not put every listed record beyond the derivation's sight: "
+        f"unsupported={unsupported}, listed={sorted(listed)}"
+    )
+    assert sorted(watchable) == sorted(name for name in real if name in listed), (
+        "the watchable records the ruler reads are not exactly the listed ones; the "
+        "omitted half of the list check is what catches a record that gains claims "
+        "outside this list, and its ruler has to be this one"
+    )
 
 
 #: What the property has held for across the workflow's own history, measured 2026-11-12 over
