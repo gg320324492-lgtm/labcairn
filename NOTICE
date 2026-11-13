@@ -1122,25 +1122,172 @@ stands:
     them the obligation is not discharged, and no written offer under §6(c)
     exists either.
 
-  * **Replaceability (§6(b), and §4's final paragraph for the §4 path) — NOT
-    MEASURED.** The route LGPL-2.1 contemplates is a DLL loaded at runtime that
-    "operat[es] properly with an interface-compatible modified version". What
-    was measured: `StdUtils.dll` is extracted to `$PLUGINSDIR` at install time
-    and is not installed as a file of its own, so the replacement route runs
-    through the installer archive — a build of StdUtils that keeps the
-    `StdUtils::TestParameter` export and its calling convention can be put in
-    `$PLUGINSDIR`'s place before the installer is run. What was **not**
-    measured: whether an installer carrying such a build still completes the
-    installation. No installer with a modified `StdUtils.dll` was built or
-    run, so this file records the route and not a tested result. The load is
-    narrow — resolving the include tree the generated installer pulls in shows
-    it calls **four** of the plug-in's exports, and no other: `TestParameter`
-    (seven call sites, through the flag macros `electron-builder` emits
-    unconditionally), `ExecShellAsUser` (the installer's start-application
-    step), `GetAllParameters` (reading the `/D=` switch) and `GetParentPath`
-    (copying the uninstaller) — against the 59 names `StdUtils.dll` exports.
-    A replacement therefore has to keep those four working, and "narrow" is
-    still not "verified".
+  * **Replaceability (§6(b), and §4's final paragraph for the §4 path) —
+    MEASURED 2026-11-13.** The route LGPL-2.1 contemplates is a DLL loaded at
+    runtime that "operat[es] properly with an interface-compatible modified
+    version". Three modified plug-ins were built, each was carried by a rebuilt
+    installer in the shipped file's place, and each installer completed a silent
+    install and was uninstalled. The work was done on a machine with no MSVC and
+    no Windows SDK, and the shape of what follows follows from that: the shipped
+    file was modified two ways, and a plug-in was written from the interface.
+
+    **The load, re-measured off the host rather than re-read from the script.**
+    Resolving the include tree the generated installer pulls in shows **four** of
+    the plug-in's exports called and no other: `TestParameter` (seven call sites,
+    through the flag macros `electron-builder` emits unconditionally),
+    `ExecShellAsUser` (the installer's start-application step), `GetAllParameters`
+    (reading the `/D=` switch) and `GetParentPath` (copying the uninstaller) —
+    against the 59 names `StdUtils.dll` exports. That was then measured against
+    the host instead of taken on faith: NSIS 3.13's `Source/exehead/exec.c`
+    resolves the name with `GetProcAddress` and calls it as
+    `void f(HWND, int, TCHAR*, stack_t**, extra_parameters*)` with a plain `ret`,
+    and the shipped plug-in — PE32, `IMAGE_FILE_MACHINE_I386`, 59 undecorated
+    exports — imports no host function at all: its import table names nine system
+    DLLs and nothing else, which is NSIS 3.13's `Contrib/ExDLL/pluginapi.c`
+    object code linked into the plug-in rather than an import of the installer.
+
+    **The three modified plug-ins, each hashed.** The shipped file is the §2.5
+    entry above: 102,400 bytes, sha256
+    `b72e9013a6204e9f01076dc38dabbf30870d44dfc66962adbf73619d4331601e`.
+
+    * `StdUtils.bytepatched.dll` — 102,400 bytes, sha256
+      `019f949cb7ba739994d8cd735753cf23f7d25d1e1a82ae3843728024f3f65875`. Nineteen
+      bytes differ, at file offset `0x13ce0`: the 44 bytes
+      `4f0063007400200032003700200032003000310038002c002000310038003a00300033003a00310039000000`
+      replaced by `50004100540043004800450044002d0032003000320036002d00310031002d00310033002d00780078000000`
+      — the UTF-16 string `Oct 27 2018, 18:03:19` replaced by
+      `PATCHED-2026-11-13-xx`, same length, and that string is what the plug-in's
+      `GetLibVersion` pushes. No branch of the plug-in reads it, so the change is
+      observable and behaviour-preserving.
+    * `StdUtils.flagpatched.dll` — 102,400 bytes, sha256
+      `5680de5cccd4889794259daef65f13543a7dce7d0bc6d89fee4b34e126b55885`. Two bytes
+      differ, at `0x137ac`: `74007200750065000000` replaced by
+      `74007200610070000000` — `true` replaced by `trap`, same length. This one is
+      the string `TestParameter` pushes when a flag is present, so it changes what
+      the installer compares its seven flag macros against.
+    * `StdUtils.authored.dll` — 11,046 bytes, sha256
+      `ae52d1946884164ccfd7d6abb860d5514ae6786d6babc14a28791080b5ef547c`. Not an
+      edit of the shipped file: written here from the plug-in interface, compiled
+      `gcc 15.2.0 -m32 -nostdlib` and linked `ld -m i386pe --shared` against
+      `C:/Windows/SysWOW64/kernel32.dll` and `shell32.dll`. PE32,
+      `IMAGE_FILE_MACHINE_I386`; exports exactly the four the installer calls plus
+      `GetLibVersion`, undecorated; imports `GetCommandLineW`, `GlobalAlloc`,
+      `GlobalFree` from `KERNEL32.dll` and `ShellExecuteW` from `SHELL32.dll`. It
+      builds the plug-in stack the way `pluginapi.c` does — `GlobalAlloc(GPTR,
+      sizeof(stack_t) + g_stringsize*sizeof(TCHAR))` linked through `*g_stacktop`
+      and freed with `GlobalFree` — because the host exports no stack functions a
+      plug-in could import.
+
+    **The installs, and what they showed.** Every installer below is
+    `electron-builder 26.18.0 --win` on the tree at commit `cc44727`, run with
+    `ELECTRON_BUILDER_CACHE` pointed outside the repository and
+    `LABCAIRN_SHELL_DIST_DIR` naming an output directory outside it, and with the
+    cached `nsis-resources-3.4.1` plug-in tree holding the modified file in
+    `StdUtils.dll`'s place; the build's own `StdUtils.nsh` and stub are
+    unmodified. Each installer was run `/S /D=<directory under E:/labcairn-local/>`
+    and then uninstalled with its own `Uninstall LabCairn.exe /S`. Exit codes were
+    read from each process, not from a pipe.
+
+    | installer | bytes | sha256 | `$PLUGINSDIR\StdUtils.dll` inside it | `/S` exit | files installed | uninstall exit |
+    |---|---|---|---|---|---|---|
+    | control, shipped bytes | 124,564,299 | `e0d33ba017a121844686462843e528904d4db2e09bf4a85bf1c99d05a79020b8` | `b72e9013…` | 0 | 91 | 0 |
+    | with `bytepatched` | 124,564,297 | `1f10ca85d9ac784444710bbe4b354d90e595b557795bb9f49087cfe6332243ec` | `019f949c…` | 0 | 91 | 0 |
+    | with `flagpatched` | 124,564,363 | `4968b051d66511ddc268a4561a02dd226f4657a0d69b6d2de5599e0c1b42ee42` | `5680de5c…` | 0 | 91 | 0 |
+    | with `authored` | 124,480,448 | `c854f3477616692c7b805a5998cf3fd428773f6cc41c150ea42356ac0939be18` | `ae52d194…` | 0 | 91 | 0 |
+
+    Every member of the control archive was hashed against every member of the
+    `bytepatched` archive: the sixteen member names match, and exactly two hashes
+    differ — `$PLUGINSDIR\StdUtils.dll`, and `$R0\Uninstall LabCairn.exe`, whose own
+    embedded `StdUtils.dll` is the same modified file, because the build runs
+    `makensis` twice and takes the plug-in from the same tree both times. All
+    fourteen others hash alike, the largest being `$PLUGINSDIR\app-64.7z` at
+    123,979,012 bytes, sha256
+    `d0cd1495b83d8581d2eea9e958504070ccf127ec8105095af4b980b85dd3190b`, identical in
+    both. The installer that carries the authored plug-in installs 91 files in 10.4
+    seconds against the control's 91 in 8.0, with the same top-level contents, the
+    same `LabCairn.exe`, and the same uninstall-removes-everything result: after
+    each uninstall the install directory, `HKCU\…\Uninstall`, the Desktop and the
+    Start Menu hold no LabCairn entry.
+
+    **The observed difference, in the installer's own output.** Four small
+    installers built from one NSIS script with the four plug-ins — the script
+    identical, only the plug-in directory differing — each wrote
+    `$INSTDIR\observations.txt` recording what its plug-in answered. Each was run
+    `/S --trapflag /D=<scratch directory>`. The four files are outside the
+    repository, under `E:/labcairn-local/lgpl6b-2026-11-13/delivered/`, and each
+    entry below states the file, its bytes, its sha256, which plug-in produced it
+    and what it reports:
+
+      * `observations-orig.txt` — 351 bytes, sha256
+        `2de9d5fd7ab7a5db67f87b17802abfc1b8ab50b526ca54284b9f1d21b0e1a03f`
+        shipped plug-in: `test_parameter_present=true`, `branch_taken=if`,
+        `getlibversion_second_pop=Oct 27 2018, 18:03:19`
+      * `observations-stamp.txt` — 353 bytes, sha256
+        `969fbcdcfd78aaf41626e51a2339d09026eab420956438a08fea9a4d47836dd9`
+        `bytepatched` plug-in: `test_parameter_present=true`, `branch_taken=if`,
+        `getlibversion_second_pop=PATCHED-2026-11-13-xx`
+      * `observations-flag.txt` — 353 bytes, sha256
+        `74b58796942a7da30b29caf92c5f4ffc4a0e60ffa9686aac4a98aaecaa4ca153`
+        `flagpatched` plug-in: `test_parameter_present=trap`, `branch_taken=else`,
+        and the file the `if` branch writes is **not** written
+      * `observations-replacement.txt` — 375 bytes, sha256
+        `6d85eb80ea3e8311ff8866b2847d73b9073eb20433fe27b6a4c8fed86c965ee8`
+        authored plug-in: `test_parameter_present=true`, `branch_taken=if`,
+        `getlibversion_second_pop=authored replacement 2026-11-13`
+
+    All four report the same `get_parent_path` shape, the same `all_parameters`
+    shape, and `exec_shell_as_user_empty=einval`. The `flagpatched` entry is the
+    one with legal weight: the modified plug-in reached the installer's decision,
+    and a product install run with `--no-desktop-shortcut` — a flag whose whole
+    purpose is to ask the plug-in that question — created `LabCairn.lnk` on the
+    Desktop under the `flagpatched` installer (`4968b051…`) and did not under the
+    control installer (`e0d33ba0…`). The flag was ignored, because the answer it is
+    matched against was changed.
+
+    **A bitness control, measured rather than assumed.** A 32-bit probe process
+    (PE32, `IMAGE_FILE_MACHINE_I386`, linked `-nostdlib` because no 32-bit C
+    runtime exists here) called `LoadLibraryW` then `GetProcAddress` on each
+    candidate. It loaded and resolved the shipped file, both byte patches and the
+    authored plug-in; it refused the same source compiled 64-bit —
+    `StdUtils.64bit.control.dll`, 10,727 bytes, sha256
+    `6215cba3bbb28effa2c538af9a5466b6b94bfad98a9380ccaaedb89e286bbb7b`, which is
+    `StdUtils.authored.dll` built from the same file with `-m32` dropped. The
+    installer stub is itself PE32/0x014C, so a 64-bit replacement is not a
+    replacement at all — which is why everything above is 32-bit.
+
+    **What this evidence does not show.** It is not a verification of
+    "interface-compatible" in the sense §6(b) uses, and the gap is stated in three
+    parts.
+
+    * No modified plug-in here is a build of StdUtils 1.14. The upstream project
+      is a Visual Studio solution (`Contrib/StdUtils/StdUtils.vcxproj`) that links
+      `nsis_pluginapi_unicode.lib` and `msvcrt_vc6.lib`, both MSVC-format, and this
+      machine has no MSVC and no Windows SDK: `gcc -m32` compiles i386 objects but
+      its linker reports `cannot find -lmingw32`, and nothing else on the machine
+      produces a 32-bit link. So the sources in the delivery entry above were not
+      compiled, and none of these plug-ins is the shipped code with a change in it.
+    * The authored plug-in covers five of the 59 exports. `GetLibVersion` returns
+      strings that identify it as a replacement rather than the shipped build, its
+      `ExecShellAsUser` is a direct `ShellExecuteW` where upstream reaches for a
+      COM dispatch and falls back, its `GetParentPath` reproduces the trailing-
+      component rule but not upstream's drive-root special case, and it registers
+      no unload callback, so it does not run upstream's `free_mainargs` cleanup.
+      The 54 exports it does not implement are unexercised: the generated installer
+      never asks for them, and this measurement therefore says nothing about a
+      different installer, a custom NSIS script, or a plug-in call added by a
+      future `electron-builder`.
+    * The installs were silent, into directories under `E:/labcairn-local/`,
+      per-user, and uninstalled afterwards. No upgrade path was exercised (the
+      `updated` branch was never taken by a real installer), the app was never
+      launched after installation, and nothing here shows that a *third party* can
+      obtain the means to produce such a replacement — only that one can be built
+      on this machine and carried by this installer. What §6(b) obliges a distributor
+      to make possible is the second question, and this section answers the first.
+
+    **What is still not done.** The §6(b) mechanism is now shown to work for this
+    installer; the corresponding source named by the delivery entries above is
+    still not offered from the place the binaries are obtained, and no written
+    offer under §6(c) exists. Neither is discharged by anything in this paragraph.
 
 2.5.2  What is deliberately not settled here
 ----------------------------------------------
