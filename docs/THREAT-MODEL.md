@@ -623,6 +623,44 @@ helper, a temporary workspace outside the repository, the browser cache pinned
 the driver resolved to the machine-wide cache of another project) — is
 witnessed by `tests/test_workbench_serve_helper.py`.
 
+**The run has been re-measured since, and the re-measurement is the current
+reading.** Measured 2026-11-13 on the same development machine
+(Windows 11 Pro 10.0.26300 x64): the driver is now Playwright **1.65.1**,
+installed in the project's own venv (`E:\LabCairn\.venv`, the Python-side
+carrier — the first recorded decision of §4.12), and the system-browser
+channel is Edge **157.0.4341.46**, measured by `msedge.exe --version` at
+`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`. The `msedge`
+channel resolves through `PLAYWRIGHT_BROWSERS_PATH` alone (no downloaded
+build is used, and none for 1.65.1 exists on this machine — the
+`E:\microbubble-agent\data\ms-playwright` cache holds only a
+`chromium-1234` build pinned by another project's driver). The browser cache
+this project owns lives at `E:\labcairn-local\tmp\labcairn-ms-playwright`,
+outside the repository. **All ten cases of the file ran and passed**
+(`10 passed` cases in 71 s locally), so the
+witnesses are no longer skip-by-default on a machine with the driver: they
+ran. The versions and the run are recorded in
+`docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md`.
+
+**The bounds are still: one machine, one run per record, one channel.** Both
+runs happened on the development machine, not on a runner; both drove the
+system Edge, not a downloaded build; and each asserts what its page did, not
+what every browser on every platform would do. A runner run of the same
+witnesses is the step that
+would widen it, and none has been authorised. The two supports the page's
+reads lean on — the socket-level origin guard and the build served from the
+service's own origin — are in `tests/test_workbench_serve_helper.py`, and they
+carry no browser at all. the declared reads of
+`web/src/api/paths.ts`, each answered 200; that **no request the page made
+left the loopback address**; the session read, with the token's file named by
+the page's own footer and the token itself kept off the screen; a selection
+made from the page and reported, field for field, by the CLI; an approval
+granted from the page, with a second grant refused; and a chain comment drawn
+under its key by the Trajectory panel. The arrangement the run must hold — a
+helper, a temporary workspace outside the repository, the browser cache pinned
+**before the driver starts** (with the pin applied after the driver's start,
+the driver resolved to the machine-wide cache of another project) — is
+witnessed by `tests/test_workbench_serve_helper.py`.
+
 **The bounds are: one machine, one run, one channel.** The run happened on the
 development machine, not on a runner; it drove the system Edge, not a
 downloaded build; and it asserts what that page did, not what every browser on
@@ -632,14 +670,20 @@ reads lean on — the socket-level origin guard and the build served from the
 service's own origin — are in `tests/test_workbench_serve_helper.py`, and they
 carry no browser at all.
 
-**Every web test still stops at the `fetch` boundary.** `web/src/test/fakeApi.ts`
+**The component tests still stop at the `fetch` boundary; the browser
+witnesses no longer have to.** `web/src/test/fakeApi.ts`
 is a fake that answers `fetch`, and the workbench's own tests stub the global
 (`web/src/app/workbench.test.tsx:25` — `vi.stubGlobal('fetch', fake.fetch)`, `web/src/api/client.test.ts:18` — `vi.stubGlobal('fetch', fake.fetch)`). The
 fake's own docstring says the point is that *the component, the client, the
 paths and the session scheme are all exercised exactly as they are in the
 browser* — which is true of the code between the screen and the wire, and
-**not** of the wire. That is still what CI runs, because the browser witnesses
-skip where no driver is installed, and a skip is not a pass.
+**not** of the wire. That is still what CI runs: the browser witnesses are
+not installed on a runner, so they skip there with the reason named
+(`playwright` absent) — and a skip is not a pass. What changed on
+2026-11-13 is that the driver is now a dependency of this project's own
+environment, so the witnesses run where the driver is installed instead of
+skipping everywhere the project is developed; the wire is still unmeasured on
+CI, and that remains the gap this row names.
 
 **The service itself has now been driven from outside the fake — measured
 2026-11-02.** `tests/test_workbench_live_service.py` builds the service with
@@ -692,7 +736,13 @@ alone shows up in the Events panel, with the connection's state beside it.
 `labcairn serve` builds the service without an event source, and the honest
 answer is a refusal: both `GET /events` and `GET /events/stream` answer `403`
 with `not_implemented`, asserted by
-`tests/test_workbench_serve_helper.py::test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts`.
+`tests/test_workbench_serve_helper.py::test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts`,
+and seen from the page itself — re-measured 2026-11-13 on Playwright 1.65.1 /
+Edge 157.0.4341.46: the browser read of `/events/stream` answers `403`, and
+the Events panel draws an interrupted or disconnected line rather than a live
+one (`tests/test_workbench_real_browser.py::test_the_events_panel_says_the_stream_was_refused_on_a_service_that_has_none`,
+green in the rerun recorded in
+`docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md`).
 
 **The gap this row carried is closed, and how it was closed.** Measured
 2026-11-08, the stream route raised the same refusal *after* its own `200` and
