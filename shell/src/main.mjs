@@ -35,6 +35,7 @@
 import path from 'node:path'
 import { app, BrowserWindow, ipcMain } from 'electron'
 
+import { classifyLaunchArguments, classifySecondInstanceArguments, refusalLine } from './command-line.mjs'
 import { resolveRunConfig } from './config.mjs'
 import { createGuardIpc } from './live-guard.mjs'
 import { ServiceSupervisor, defaultLogPath } from './service-supervisor.mjs'
@@ -226,10 +227,25 @@ process.on('unhandledRejection', (reason) => {
 // §4.3's second-instance row: the lock is taken before anything starts.
 const gotTheLock = app.requestSingleInstanceLock()
 
+// T08's input policy: the shell accepts no command-line input. On Windows a
+// path dragged onto the shortcut or a URL handed to the process arrives in
+// argv, and the second-instance event forwards it to the running shell. Both
+// are refused and printed — never interpreted, never loaded, never guessed at
+// (plan §5: no `file://` and no custom scheme is ever a page; §4.1: no path
+// is guessed from where the process was started).
+for (const argument of classifyLaunchArguments(process.argv, {
+  executableCount: app.isPackaged ? 1 : 2,
+}).refused) {
+  process.stdout.write(`${refusalLine('argv', argument)}\n`)
+}
+
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    for (const argument of classifySecondInstanceArguments(argv).refused) {
+      process.stdout.write(`${refusalLine('second-instance', argument)}\n`)
+    }
     if (state.window !== null && !state.window.isDestroyed()) {
       if (state.window.isMinimized()) state.window.restore()
       state.window.focus()

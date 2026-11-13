@@ -10,10 +10,12 @@
  */
 
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-import { resolveRunConfig, DEV_PAGE_ORIGIN } from '../src/config.mjs'
+import { resolveRunConfig, DEV_PAGE_ORIGIN, SHELL_ENV_FILE } from '../src/config.mjs'
 
 const BASE = {
   LABCAIRN_SHELL_CLI: 'E:\\LabCairn\\.venv\\Scripts\\labcairn.exe',
@@ -82,4 +84,92 @@ test('the entry point and the workspace are absolute paths, never names', () => 
     () => resolveRunConfig({ ...BASE, LABCAIRN_SHELL_PORT: '0' }, { packaged: true }),
     /not a port number/,
   )
+})
+
+// T09's supply precedence, witnessed at the pure layer. A packaged build with
+// neither variable set reads its own `resources/shell-env.json`; the
+// environment wins wherever it names a value; a dev build reads no file.
+
+test('a packaged build with no environment reads its own shell-env.json', () => {
+  const resources = fs.mkdtempSync(path.join(os.tmpdir(), 'lc-shell-env-'))
+  try {
+    const resourcesDir = path.join(resources, 'resources')
+    fs.mkdirSync(resourcesDir)
+    fs.writeFileSync(
+      path.join(resourcesDir, SHELL_ENV_FILE),
+      JSON.stringify({ cliPath: 'C:\\backend\\labcairn.exe', workspace: 'LabCairn-workspace' }),
+    )
+    const config = resolveRunConfig({}, { packaged: true, resourcesDir })
+    assert.equal(config.cliPath, 'C:\\backend\\labcairn.exe')
+    assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
+  } finally {
+    fs.rmSync(resources, { recursive: true, force: true })
+  }
+})
+
+test('the environment wins over the file for each variable independently', () => {
+  const resources = fs.mkdtempSync(path.join(os.tmpdir(), 'lc-shell-env-'))
+  try {
+    const resourcesDir = path.join(resources, 'resources')
+    fs.mkdirSync(resourcesDir)
+    fs.writeFileSync(
+      path.join(resourcesDir, SHELL_ENV_FILE),
+      JSON.stringify({ cliPath: 'C:\\backend\\from-file.exe', workspace: 'from-file-workspace' }),
+    )
+    const config = resolveRunConfig(
+      { LABCAIRN_SHELL_CLI: 'C:\\backend\\from-env.exe' },
+      { packaged: true, resourcesDir },
+    )
+    assert.equal(config.cliPath, 'C:\\backend\\from-env.exe', 'the environment CLI must win')
+    assert.equal(config.workspace, path.join(resourcesDir, '..', 'from-file-workspace'), 'the file workspace must survive')
+
+    const other = resolveRunConfig(
+      { LABCAIRN_SHELL_WORKSPACE: 'E:\\Labs\\pilot' },
+      { packaged: true, resourcesDir },
+    )
+    assert.equal(other.cliPath, 'C:\\backend\\from-file.exe', 'the file CLI must survive')
+    assert.equal(other.workspace, 'E:\\Labs\\pilot', 'the environment workspace must win')
+  } finally {
+    fs.rmSync(resources, { recursive: true, force: true })
+  }
+})
+
+test('a dev build reads no shell-env.json, and a packaged build with neither supply refuses', () => {
+  const resources = fs.mkdtempSync(path.join(os.tmpdir(), 'lc-shell-env-'))
+  try {
+    const resourcesDir = path.join(resources, 'resources')
+    fs.mkdirSync(resourcesDir)
+    fs.writeFileSync(
+      path.join(resourcesDir, SHELL_ENV_FILE),
+      JSON.stringify({ cliPath: 'C:\\backend\\labcairn.exe', workspace: 'ws' }),
+    )
+    // Dev keeps its own supply rule: the variables, never the file. An empty
+    // environment next to a populated shell-env.json must still refuse.
+    assert.throws(
+      () => resolveRunConfig({}, { packaged: false, resourcesDir }),
+      /LABCAIRN_SHELL_CLI/,
+    )
+    // No file and no environment is the packaged refusal, with both names.
+    assert.throws(
+      () => resolveRunConfig({}, { packaged: true, resourcesDir: path.join(resources, 'empty') }),
+      /LABCAIRN_SHELL_CLI/,
+    )
+  } finally {
+    fs.rmSync(resources, { recursive: true, force: true })
+  }
+})
+
+test('a packaged build with a broken shell-env.json refuses at startup, naming the file', () => {
+  const resources = fs.mkdtempSync(path.join(os.tmpdir(), 'lc-shell-env-'))
+  try {
+    const resourcesDir = path.join(resources, 'resources')
+    fs.mkdirSync(resourcesDir)
+    fs.writeFileSync(path.join(resourcesDir, SHELL_ENV_FILE), '{"cliPath": "labcairn.exe"}')
+    assert.throws(
+      () => resolveRunConfig({}, { packaged: true, resourcesDir }),
+      /"cliPath" must be an absolute path/,
+    )
+  } finally {
+    fs.rmSync(resources, { recursive: true, force: true })
+  }
 })
