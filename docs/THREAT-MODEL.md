@@ -649,17 +649,7 @@ witnesses is the step that
 would widen it, and none has been authorised. The two supports the page's
 reads lean on — the socket-level origin guard and the build served from the
 service's own origin — are in `tests/test_workbench_serve_helper.py`, and they
-carry no browser at all. the declared reads of
-`web/src/api/paths.ts`, each answered 200; that **no request the page made
-left the loopback address**; the session read, with the token's file named by
-the page's own footer and the token itself kept off the screen; a selection
-made from the page and reported, field for field, by the CLI; an approval
-granted from the page, with a second grant refused; and a chain comment drawn
-under its key by the Trajectory panel. The arrangement the run must hold — a
-helper, a temporary workspace outside the repository, the browser cache pinned
-**before the driver starts** (with the pin applied after the driver's start,
-the driver resolved to the machine-wide cache of another project) — is
-witnessed by `tests/test_workbench_serve_helper.py`.
+carry no browser at all.
 
 **The bounds are: one machine, one run, one channel.** The run happened on the
 development machine, not on a runner; it drove the system Edge, not a
