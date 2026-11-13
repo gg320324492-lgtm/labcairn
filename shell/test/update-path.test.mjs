@@ -75,10 +75,14 @@ test('the installer neither deletes nor resets userData on uninstall or upgrade'
 
 test('counter-mutations: an updater, a feed and a data wipe are each caught', () => {
   // The same reads, run against mutated trees, must each go red — the
-  // witness fails for the property, not for the file's existence.
+  // witness fails for the property, not for the file's existence. The
+  // planted text is a bare word, not an import form: the static reader that
+  // watches this directory's own imports must not read the mutation string
+  // as a package specifier.
+  const planted = '// autoUpdater, setFeedURL, checkForUpdates, electron-updater — planted'
   const withUpdater = runtimeSources().map((source) => ({
     ...source,
-    text: source.name === 'main.mjs' ? `${source.text}\n// import { autoUpdater } from 'electron'\n` : source.text,
+    text: source.name === 'main.mjs' ? `${source.text}\n${planted}\n` : source.text,
   }))
   const caught = withUpdater.some(({ name, text }) =>
     name === 'main.mjs' && ['autoUpdater', 'setFeedURL', 'checkForUpdates', 'electron-updater'].some((banned) => text.includes(banned)),
