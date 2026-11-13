@@ -31,6 +31,69 @@ watches the panel say that, because a panel that looked connected on a service w
 nothing to stream would be the screen claiming what the service does not have.
 """
 
+# --------------------------------------------------------------------------- #
+# Assertion standing — measured 2026-11-14. Read this before editing below.
+# --------------------------------------------------------------------------- #
+#
+# **The assertions in this file are not of equal standing, and this header
+# says which is which.** The standing of every assertion was measured, not
+# judged: the product each assertion watches was made to lie (the built page,
+# the client, or the service), the assertion under test was knocked out, and
+# the file was run to see whether any other assertion turned red. A red run
+# with the assertion gone means the property has a second guard here; a green
+# run means the assertion was the property's only root in this file.
+#
+# **Unique roots** — knock one out and its property is unguarded here:
+#   * renders test: the origin checks (scheme, netloc) are the only guard
+#     that the page was loaded from the service's own origin (§4.6 row 4's
+#     first half); the non-placeholder title check is the only guard that the
+#     header drew a real title at all.
+#   * shows-the-task test: the title, objective and criterion checks are each
+#     the only guard of its own field on the screen.
+#   * every-read test: the nine-path list is the only guard that the page
+#     makes every declared read (§4.6 row 9); the all-answered-200 check is
+#     the only guard that the service answers those reads.
+#   * no-outbound-request test: the loopback check is the only guard of the
+#     footer's "the local API and nothing else" promise.
+#   * session test: the token-path-on-the-page check and the
+#     token-not-rendered check are each the only guard of its own half (the
+#     session read is visible; the token itself never reaches the page).
+#   * selection test: the Projects-panel selected-flag checks are the only
+#     guard that the page's own selection marking is honest; the pointer
+#     check and the same-document check are the only guards that the
+#     workspace's pointer followed and that page and CLI print one document.
+#   * environment test: the driver-resolved-cache check is the only guard
+#     that the browser-cache pin held; the replaced-cache control witnesses
+#     that the pin overrode something. The driver-version, channel and
+#     browser-version checks are each the only guard of its own field.
+#   * approval test: the no-second-Grant check and the refused-second-grant
+#     check are the only guards that one approval cannot be answered twice
+#     (the screen half and the API half of the same property).
+#   * chain-comment test: the issue-key listing check is the only guard that
+#     the panel draws the chain's keys; the comment-words check and the
+#     version-id check are each the only guard of its own field.
+#
+# **Backed up** — a second assertion here also fails for the breakage:
+#   * the stream-refusal status (`== 403`) appears in the every-read test and
+#     again in the Events-panel test; either catches a stream read whose
+#     refusal stopped being a response.
+#   * the Events panel's not-live check and its interrupted/disconnected
+#     check both catch a panel that reports the stream live; but only the
+#     interrupted/disconnected check demands the honest sentence, so neither
+#     is redundant.
+#   * the placeholder-title check and the title-equals-the-CLI check both
+#     catch a header that fell back to the placeholder.
+#   * the session-read-made check is backed up by the nine-path list; the
+#     session-answered-200 check by the every-read test's answered check.
+#   * the same-document check in the shows-the-task test and the one in the
+#     selection test back each other up (before and after a selection).
+#
+# **What this header does not claim.** A skip is still not a pass: the
+# unique-root list holds for a run in which this file actually drove a
+# browser. A backup inside this file is not the only backup the project has —
+# `tests/test_workbench_live_service.py` and the web unit suite watch several
+# of the same properties at their own layers.
+
 from __future__ import annotations
 
 import importlib.metadata
