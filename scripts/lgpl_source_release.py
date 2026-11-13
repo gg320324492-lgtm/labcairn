@@ -6,9 +6,10 @@ fetched from, its byte count and its sha256, and the point at which it is offere
 LGPL-2.1 §4 obliges a distributor to convey the complete corresponding source with
 the object code, and its final paragraph allows that to happen by "offering
 equivalent access to copy the source code from the same place". This script turns
-that record into the two things a release actually needs: a checklist it can carry
-into the release, and a byte check that says whether the archives on hand are the
-archives the record names.
+that record into the three things a release actually needs: a checklist it can carry
+into the release, a byte check that says whether the archives on hand are the
+archives the record names, and a re-measurement of the closure §2.5.2 prints about
+the plug-in's compilation project.
 
 **What it refuses to do.** It never states that the obligation is discharged. As
 long as the record's own state is the one §2.5.1 prints -- PARTLY DONE, NOT YET
@@ -21,11 +22,17 @@ the file was not there.
 **Why it reads NOTICE rather than carrying its own list.** A second list of
 artefacts and hashes is a second place for the same values to go wrong. The record
 is the authority, and this script is a reader of it; where the record names a hash
-and the bytes disagree, the bytes win and the script exits 1 naming the entry.
+and the bytes disagree, the bytes win and the script exits 1 naming the entry. The
+same rule governs ``--audit-extracts``: the numbers it re-measures are the numbers
+§2.5.2 prints, read out of §2.5.2's own sentences, so an audit that drifted from the
+record it audits would report a mismatch rather than agree with itself.
 
 Run with no argument to print the checklist. Run with ``--check <dir>`` to hash the
 archives in ``<dir>`` against the hashes §2.5.1 records: exit 0 when every delivered
-file matches, exit 1 with one line per mismatch.
+file matches, exit 1 with one line per mismatch. Run with ``--audit-extracts
+<nsis7z-extract> <sevenzip-extract>`` -- two directories the archives were unpacked
+into -- to re-count the closure §2.5.2 states and report where the record and the
+extracts disagree.
 
 """
 
@@ -33,8 +40,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import posixpath
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -315,6 +324,394 @@ def check_against_directory(entries: list[DeliveryEntry], directory: Path) -> li
     return problems
 
 
+#: §2.5.1's `limit` label on the plug-in entry: how much of the project that
+#: archive does not supply. §2.5.2's closure audit re-measures it.
+#: Read as one run of text, because §2.5.1 wraps the label across lines and the
+#: audit joins the section's lines before matching.
+PLUGIN_LIMIT: Final[re.Pattern[str]] = re.compile(
+    r"of the (?P<sources>\d+) sources the archive's own `Nsis7z\.vcxproj` compiles, "
+    r"(?P<sources_absent>\d+) are not in it, and of the (?P<headers>\d+) headers it names, "
+    r"(?P<headers_absent>\d+) are absent"
+)
+
+#: §2.5.1's `taken` label on the 7-Zip entry: how much of that gap it closes.
+SEVENZIP_COVERAGE: Final[re.Pattern[str]] = re.compile(
+    r"supplies the (?P<sources>\d+) remaining compiled sources and "
+    r"(?P<headers>\d+) of the (?P<headers_absent>\d+) missing headers"
+)
+
+#: A header count written as a word: "one header is in neither archive".
+COUNT_WORD: Final[re.Pattern[str]] = re.compile(
+    r"(?P<count>none|one|two|three|four|five|six|seven|eight|nine|\d+) headers? (?:is|are) in "
+    r"neither (?:7-Zip )?archive"
+)
+
+#: §2.5.2's Rar item: the compiled-source census and how many of them name Rar.
+RAR_COMPILED_CLAIM: Final[re.Pattern[str]] = re.compile(
+    r"`Nsis7z\.vcxproj` lists \*\*(?P<compiled>\d+)\*\* compiled sources and "
+    r"\*\*(?P<rar_named>[a-z]+)\*\* of them names a Rar file"
+)
+
+#: §2.5.2's Rar item: how many files the plug-in's own archive carries. The record
+#: writes the count as a sentence ("no file named `*Rar*` at all"), so the word is
+#: captured rather than a zero hard-coded: a reader that matched the sentence and then
+#: read its own constant would print "measured 0" against a plug-in archive that
+#: carried nine.
+PLUGIN_RAR_CLAIM: Final[re.Pattern[str]] = re.compile(
+    r"the plug-in's own release archive contains \*\*(?P<count>[a-z]+|\d+) files? named "
+    r"`\*Rar\*` at all\*\*"
+)
+
+#: §2.5.2's Rar item: what the shipped binary's own bytes contain.
+DLL_TOKEN_CLAIM: Final[re.Pattern[str]] = re.compile(
+    r"the shipped DLL's bytes contain `Rar`, `NRar` and `unrar` \*\*(?P<count>\d+) times each\*\*"
+)
+
+#: §2.5.2's Rar item: the handlers the 7-Zip source release carries, and the notice
+#: document beside them.
+SEVENZIP_RAR_CLAIM: Final[re.Pattern[str]] = re.compile(
+    r"contains \*\*all (?P<files>[a-z]+|\d+)\*\* files of `CPP/7zip/Archive/Rar/` "
+    r"and a (?P<doc_bytes>[\d,]+)-byte `DOC/unRarLicense\.txt`"
+)
+
+#: §2.5.2's Rar item: the same count for the archive the plug-in's build note names.
+LZMA_RAR_CLAIM: Final[re.Pattern[str]] = re.compile(
+    r"The `lzma1900\.7z` archive the plug-in's build note names contains "
+    r"\*\*(?P<count>[a-z]+|\d+)\*\* of the nine"
+)
+
+#: Spelled-out counts, as §2.5.1 and §2.5.2 write a small count in words.
+WORD_COUNTS: Final[dict[str, int]] = {
+    "none": 0,
+    "no": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+}
+
+
+def _flat(notice_text: str, heading: str) -> str:
+    """One subsection as one run of text, with every wrap and its indentation collapsed.
+
+    §2.5.1 and §2.5.2 wrap their sentences, and a wrapped line carries its own
+    indentation, so a sentence spans several spaces in the middle. A claim reader
+    matches sentences, not lines, and matching a claim against a single space per
+    wrap is how a reader reports "NOTICE states nothing" about a record that states
+    it plainly.
+    """
+    return " ".join(_subsection(notice_text, heading).split())
+
+
+def _count(text: str, *, where: str) -> int:
+    """A count the record wrote as a digit or as a word."""
+    text = text.strip()
+    if text.isdigit():
+        return int(text)
+    if text.lower() in WORD_COUNTS:
+        return WORD_COUNTS[text.lower()]
+    raise RuntimeError(
+        f"NOTICE states {where} as {text!r}, which is not a count this reader parses"
+    )
+
+
+@dataclass
+class ClosureClaim:
+    """The closure numbers §2.5.1 and §2.5.2 print about the plug-in's project."""
+
+    compiled_sources: int
+    named_headers: int
+    sources_absent_from_plugin: int
+    headers_absent_from_plugin: int
+    sources_supplied_by_sevenzip: int
+    headers_supplied_by_sevenzip: int
+    headers_in_neither: int
+    compiled_naming_rar: int
+    plugin_rar_files: int
+    dll_token_occurrences: int
+    sevenzip_rar_files: int
+    unrar_notice_bytes: int
+    lzma_rar_files: int
+
+
+def closure_claims(notice_text: str) -> ClosureClaim:
+    """Read the closure numbers out of the record, or refuse naming none of them.
+
+    Every expected value here comes from NOTICE's own sentences. An audit that
+    carried its own copy of the numbers would only ever agree with itself, which is
+    the failure mode this whole file is written against.
+    """
+    section_251 = _flat(notice_text, "2.5.1")
+    section_252 = _flat(notice_text, "2.5.2")
+
+    def need(pattern: re.Pattern[str], text: str, where: str) -> re.Match[str]:
+        match = pattern.search(text)
+        if not match:
+            raise RuntimeError(f"NOTICE {where} states nothing this reader can match")
+        return match
+
+    limit = need(
+        PLUGIN_LIMIT, section_251, "§2.5.1's `limit` label on the nsis7z.dll plug-in entry"
+    )
+    coverage = need(
+        SEVENZIP_COVERAGE, section_251, "§2.5.1's `taken` label on the nsis7z.dll 7-Zip entry"
+    )
+    gap = need(COUNT_WORD, section_251, "§2.5.1's `gap` label on the nsis7z.dll 7-Zip entry")
+    rar_compiled = need(RAR_COMPILED_CLAIM, section_252, "§2.5.2's Rar item")
+    rar_dir = need(SEVENZIP_RAR_CLAIM, section_252, "§2.5.2's Rar item")
+    lzma = need(LZMA_RAR_CLAIM, section_252, "§2.5.2's Rar item")
+    dll = need(DLL_TOKEN_CLAIM, section_252, "§2.5.2's Rar item")
+
+    return ClosureClaim(
+        compiled_sources=int(limit.group("sources")),
+        named_headers=int(limit.group("headers")),
+        sources_absent_from_plugin=int(limit.group("sources_absent")),
+        headers_absent_from_plugin=int(limit.group("headers_absent")),
+        sources_supplied_by_sevenzip=int(coverage.group("sources")),
+        headers_supplied_by_sevenzip=int(coverage.group("headers")),
+        headers_in_neither=_count(gap.group("count"), where="§2.5.1's header gap"),
+        compiled_naming_rar=_count(
+            rar_compiled.group("rar_named"),
+            where="§2.5.2's count of compiled sources naming a Rar file",
+        ),
+        plugin_rar_files=_count(
+            need(
+                PLUGIN_RAR_CLAIM,
+                section_252,
+                "§2.5.2's claim about Rar files in the plug-in archive",
+            ).group("count"),
+            where="§2.5.2's count of Rar files in the plug-in archive",
+        ),
+        dll_token_occurrences=int(dll.group("count")),
+        sevenzip_rar_files=_count(rar_dir.group("files"), where="§2.5.2's count of Rar handlers"),
+        unrar_notice_bytes=int(rar_dir.group("doc_bytes").replace(",", "")),
+        lzma_rar_files=_count(
+            lzma.group("count"), where="§2.5.2's count of Rar files in lzma1900.7z"
+        ),
+    )
+
+
+#: The plug-in project, relative to the unpacked plug-in archive.
+PLUGIN_PROJECT: Final[Path] = Path("Contrib/nsis7z/CPP/7zip/Bundles/Nsis7z/Nsis7z.vcxproj")
+
+#: The includes the project lists, and the shape each one has in the archives.
+INCLUDE_ENTRY: Final[re.Pattern[str]] = re.compile(r'<(ClCompile|ClInclude) Include="([^"]+)"')
+
+#: Where the plug-in archive puts the binary §2.5 records.
+PLUGIN_DLL: Final[Path] = Path("Plugins/x86-unicode/nsis7z.dll")
+
+#: The unRAR-restricted handlers, and the notice document, inside the 7-Zip release.
+RAR_HANDLER_DIR: Final[Path] = Path("CPP/7zip/Archive/Rar")
+UNRAR_NOTICE: Final[Path] = Path("DOC/unRarLicense.txt")
+
+#: The strings §2.5.2 says the shipped binary's bytes do not contain.
+RAR_TOKENS: Final[tuple[bytes, ...]] = (b"Rar", b"NRar", b"unrar")
+
+#: What a count stands for when the archive it would be measured against was not given.
+NOT_MEASURED: Final[int] = -1
+
+
+def _project_includes(extract: Path) -> dict[str, list[str]]:
+    """The include entries the plug-in's own project file lists, by kind."""
+    project = extract / PLUGIN_PROJECT
+    if not project.is_file():
+        raise RuntimeError(f"{project} is no file, so the compiled-source list was not read")
+    text = project.read_text(encoding="utf-8", errors="replace")
+    kinds: dict[str, list[str]] = {"ClCompile": [], "ClInclude": []}
+    for kind, entry in INCLUDE_ENTRY.findall(text):
+        kinds[kind].append(entry.replace("\\", "/"))
+    return {kind: sorted(set(entries)) for kind, entries in kinds.items()}
+
+
+def _relative_to_extract(extract: Path, entry: str) -> Path:
+    r"""Where a project entry lands inside an unpacked archive.
+
+    The project lists its includes relative to its own directory, and many of them
+    walk out of it (`..\..\UI\Common\…`). Resolving the entry against the project
+    directory and then back against the extract root is how the archive's own layout
+    is read; matching the entry text against the tree instead would report a header
+    that is plainly present as being in neither archive.
+    """
+    project_dir = (extract / PLUGIN_PROJECT).parent
+    resolved = Path(posixpath.normpath(posixpath.join(project_dir.as_posix(), entry)))
+    try:
+        return resolved.relative_to(extract)
+    except ValueError:
+        return Path(posixpath.normpath(entry))
+
+
+def _archive_side(extract: Path, entry: str) -> Path:
+    """The path that same include has in an archive rooted at the plug-in's position.
+
+    The plug-in's build note describes putting an archive's `C/` and `CPP/` trees at
+    `Contrib/nsis7z/`, so an entry that resolves below that prefix resolves at the
+    root of such an archive.
+    """
+    parts = _relative_to_extract(extract, entry).parts
+    if parts[:2] == ("Contrib", "nsis7z"):
+        return Path(*parts[2:])
+    return Path(*parts)
+
+
+def _in_plugin_archive(extract: Path, entry: str) -> bool:
+    """Whether the plug-in's own release supplies this include."""
+    return (extract / _relative_to_extract(extract, entry)).is_file()
+
+
+def audit_extracts(
+    claim: ClosureClaim,
+    records: list[BinaryRecord],
+    nsis7z_extract: Path,
+    sevenzip_extract: Path,
+    lzma_extract: Path | None,
+) -> tuple[list[str], list[str]]:
+    """Re-count §2.5.2's closure numbers on the unpacked archives.
+
+    Returns the report lines and the problems. A problem is a number the record
+    prints that the extracts do not print, or an archive that was not there to be
+    counted at all. A count whose archive was not passed prints NOT_MEASURED rather
+    than a number, so "the audit ran" never looks like "the claim held".
+    """
+    lines: list[str] = []
+    problems: list[str] = []
+    given = [
+        ("@audit-extracts nsis7z", nsis7z_extract),
+        ("@audit-extracts sevenzip", sevenzip_extract),
+    ]
+    if lzma_extract is not None:
+        given.append(("@audit-extracts lzma", lzma_extract))
+    for name, directory in given:
+        if not directory.is_dir():
+            problems.append(f"{name}: {directory} is no directory, so nothing there was counted")
+    if problems:
+        return lines, problems
+
+    includes = _project_includes(nsis7z_extract)
+    compiled, headers = includes["ClCompile"], includes["ClInclude"]
+    compiled_missing = [e for e in compiled if not _in_plugin_archive(nsis7z_extract, e)]
+    headers_missing = [e for e in headers if not _in_plugin_archive(nsis7z_extract, e)]
+    headers_in_neither = [
+        e
+        for e in headers_missing
+        if not (sevenzip_extract / _archive_side(nsis7z_extract, e)).is_file()
+    ]
+
+    def compare(what: str, expected: int, actual: int) -> None:
+        lines.append(f"{what}: record {expected}, measured {actual}")
+        if expected != actual:
+            problems.append(f"{what}: §2.5.1/§2.5.2 print {expected}, the extracts give {actual}")
+
+    compare("compiled sources the project lists", claim.compiled_sources, len(compiled))
+    compare("headers the project lists", claim.named_headers, len(headers))
+    compare(
+        "compiled sources absent from the plug-in archive",
+        claim.sources_absent_from_plugin,
+        len(compiled_missing),
+    )
+    compare(
+        "headers absent from the plug-in archive",
+        claim.headers_absent_from_plugin,
+        len(headers_missing),
+    )
+    compare(
+        "compiled sources the 7-Zip archive supplies",
+        claim.sources_supplied_by_sevenzip,
+        sum(
+            1
+            for e in compiled_missing
+            if (sevenzip_extract / _archive_side(nsis7z_extract, e)).is_file()
+        ),
+    )
+    compare(
+        "headers the 7-Zip archive supplies",
+        claim.headers_supplied_by_sevenzip,
+        sum(
+            1
+            for e in headers_missing
+            if (sevenzip_extract / _archive_side(nsis7z_extract, e)).is_file()
+        ),
+    )
+    compare("headers in neither archive", claim.headers_in_neither, len(headers_in_neither))
+    for entry in headers_in_neither:
+        lines.append(f"  in neither archive: {_archive_side(nsis7z_extract, entry).as_posix()}")
+    compare(
+        "compiled sources naming a Rar file",
+        claim.compiled_naming_rar,
+        sum(1 for e in compiled if "Rar" in Path(e).name),
+    )
+    compare(
+        "files named *Rar* in the plug-in archive",
+        claim.plugin_rar_files,
+        sum(1 for p in nsis7z_extract.rglob("*") if "Rar" in p.name and p.is_file()),
+    )
+    rar_dir = sevenzip_extract / RAR_HANDLER_DIR
+    sevenzip_rar_files = (
+        sorted(p for p in rar_dir.rglob("*") if p.is_file()) if rar_dir.is_dir() else []
+    )
+    compare(
+        "files of CPP/7zip/Archive/Rar in the 7-Zip archive",
+        claim.sevenzip_rar_files,
+        len(sevenzip_rar_files),
+    )
+    unrar_notice = sevenzip_extract / UNRAR_NOTICE
+    compare(
+        "bytes of DOC/unRarLicense.txt",
+        claim.unrar_notice_bytes,
+        unrar_notice.stat().st_size if unrar_notice.is_file() else NOT_MEASURED,
+    )
+    compare(
+        "files named *Rar* in lzma1900.7z",
+        claim.lzma_rar_files,
+        NOT_MEASURED
+        if lzma_extract is None
+        else sum(1 for p in lzma_extract.rglob("*") if "Rar" in p.name and p.is_file()),
+    )
+    if lzma_extract is None:
+        lines.append(
+            "  lzma1900.7z was not passed, so §2.5.2's count of its Rar files was not re-measured"
+        )
+
+    dll = nsis7z_extract / PLUGIN_DLL
+    if not dll.is_file():
+        problems.append(
+            "@audit-extracts nsis7z: "
+            f"{dll} is no file, so §2.5.2's counts of the shipped binary's bytes "
+            "were not measured against any binary"
+        )
+        return lines, problems
+
+    shipped = next((record for record in records if record.name == "nsis7z.dll"), None)
+    recorded_sha = shipped.fields.get("sha256", "").strip() if shipped else ""
+    actual_sha = _sha256(dll)
+    if not recorded_sha:
+        problems.append(
+            "@audit-extracts nsis7z: §2.5 records no sha256 for nsis7z.dll to compare against"
+        )
+    elif actual_sha != recorded_sha:
+        problems.append(
+            f"@audit-extracts nsis7z: §2.5 records nsis7z.dll as sha256 {recorded_sha}; "
+            f"{dll} is {actual_sha}, so the binary counted here is not the binary §2.5 records"
+        )
+    data = dll.read_bytes()
+    counts = {token.decode(): data.count(token) for token in RAR_TOKENS}
+    lines.append(
+        "shipped binary's bytes: "
+        + ", ".join(f"{token}={count}" for token, count in counts.items())
+    )
+    for token, count in counts.items():
+        if count != claim.dll_token_occurrences:
+            problems.append(
+                f"@audit-extracts nsis7z: §2.5.2 prints {token!r} "
+                f"{claim.dll_token_occurrences} times in nsis7z.dll; measured {count}"
+            )
+    return lines, problems
+
+
 def render_checklist(records: list[BinaryRecord], entries: list[DeliveryEntry], state: str) -> str:
     """The checklist a release performs, printed from the record rather than restated in code."""
     # Whether these are future steps is §2.5.1's own statement, not this script's.
@@ -368,6 +765,16 @@ def main(argv: list[str]) -> int:
         default=str(NOTICE_PATH),
         help="the NOTICE to read (default: this repository's)",
     )
+    parser.add_argument(
+        "--audit-extracts",
+        nargs="+",
+        metavar="DIR",
+        help=(
+            "directories the plug-in archive, the 7-Zip source archive and (optionally) the "
+            "LZMA SDK archive were unpacked into; re-counts §2.5.2's closure numbers "
+            "against what §2.5.1 and §2.5.2 print"
+        ),
+    )
     arguments = parser.parse_args(argv)
 
     notice_path = Path(arguments.notice)
@@ -399,6 +806,41 @@ def main(argv: list[str]) -> int:
             return 1
         measured = ", ".join(entry.artefact_name() for entry in entries)
         print(f"measured: {measured} — each hashed to the sha256 §2.5.1 records")
+
+    if arguments.audit_extracts:
+        extracts = [Path(directory) for directory in arguments.audit_extracts]
+        if len(extracts) == 3:
+            lzma_extract: Path | None = extracts[2]
+        elif len(extracts) == 2:
+            lzma_extract = None
+        else:
+            print(
+                "--audit-extracts takes two directories (the plug-in archive, the 7-Zip source "
+                "archive) or three (with the LZMA SDK archive); "
+                f"{len(extracts)} were given",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            claim = closure_claims(notice_text)
+        except RuntimeError as error:
+            print(f"the closure claims could not be read: {error}", file=sys.stderr)
+            return 1
+        print("§2.5.2's closure numbers, re-measured on the unpacked archives:")
+        audit_lines, audit_problems = audit_extracts(
+            claim, records, extracts[0], extracts[1], lzma_extract
+        )
+        for line in audit_lines:
+            print(f"  {line}")
+        if audit_problems:
+            print("the closure record and the extracts disagree:", file=sys.stderr)
+            for problem in audit_problems:
+                print(f"  {problem}", file=sys.stderr)
+            return 1
+        print(
+            "each number §2.5.1 and §2.5.2 print about the plug-in's project was re-counted "
+            "from the archives and matched"
+        )
 
     lgpl_count = sum(1 for record in records if record.is_lgpl)
     print(f"§2.5 records {len(records)} binaries, {lgpl_count} under an LGPL term;")
