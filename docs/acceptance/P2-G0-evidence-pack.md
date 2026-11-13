@@ -37,11 +37,11 @@ are untouched, their numbering is untouched, and the new tickets start at
 The reuse matrix's most important finding is that the vocabulary for the
 phase's central scientific claim **already exists and has never been used**:
 
-- `EvidenceCreator.MODEL_PROPOSAL` (`evidence/states.py:112`) — declared,
+- `EvidenceCreator.MODEL_PROPOSAL` (`src/labcairn/evidence/states.py:112`) — declared,
   with a comment saying it "exists so a future proposal path is expressible"
   and never exercised. **A grep finds two hits: the declaration and the
   comment.**
-- `EventType.OUTBOUND_CONSENT_REQUESTED` (`runtime/event.py:76`) —
+- `EventType.OUTBOUND_CONSENT_REQUESTED` (`src/labcairn/runtime/event.py:76`) —
   declared, never emitted.
 - `VerificationStatus` is a **six**-state machine, not three, and its three
   negative states — `user_attested`, `conflicted`, `unsupported` — are
@@ -60,9 +60,9 @@ and left the slot empty.
 
 | Gap | Where | Consequence |
 |---|---|---|
-| `SourceKind` has **no DOCX** | `sources/source.py:88` | a Word file can be hashed but **not cited** |
-| `LocatorKind` covers four kinds | `sources/locators.py:65` | a revision's anchor is a character range in a paragraph, which is none of them |
-| `ApprovalRow` has no policy digest and no bound-source column | `db/models.py:415` | `consume` takes both **as arguments** (`recovery/approvals.py:216`), so a restart cannot check them from the row |
+| `SourceKind` has **no DOCX** | `src/labcairn/sources/source.py:88` | a Word file can be hashed but **not cited** |
+| `LocatorKind` covers four kinds | `src/labcairn/sources/locators.py:65` | a revision's anchor is a character range in a paragraph, which is none of them |
+| `ApprovalRow` has no policy digest and no bound-source column | `src/labcairn/db/models.py:415` | `consume` takes both **as arguments** (`src/labcairn/recovery/approvals.py:216`), so a restart cannot check them from the row |
 | `ArtifactLedger` is in memory | carried limitation | a rule a restart forgets is not a rule |
 | the retrieval corpus is **three papers** | `tests/fixtures/retrieval/ground_truth.json` | `evidence-locator-validity` is `NOT MEASURED`, so LC-P2-11 has no measurement to be measured against |
 

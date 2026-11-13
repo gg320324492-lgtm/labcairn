@@ -20,7 +20,7 @@ Four facts in the tree shape what is possible, and two of them are gaps.
 
 **First: the advisor's comments are already read.** LC-P2-07's OOXML reader
 finds `w:commentRangeStart`/`w:commentRangeEnd` and returns a
-`CommentEvent` (`material/ooxml.py:210`) carrying Word's own `comment_id`,
+`CommentEvent` (`src/labcairn/material/ooxml.py:210`) carrying Word's own `comment_id`,
 the author, the date, the body, the anchored text's hash, and **two**
 addresses: `locator` — a `DocxLocator` into `word/comments.xml`, naming
 the comment element itself — and `anchor`, a body-side coordinate of

@@ -72,7 +72,7 @@ its baselines are larger. Nothing in this review depends on that difference.)
      `issueKeysPath` (`:143`), and its drift check compares them with routes
      the service declares.
    - The panel keeps no order of its own: it draws `answer.issue_keys` as it
-     arrived (`src/views/TrajectoryView.tsx:359`) and sorts only the
+     arrived (`web/src/views/TrajectoryView.tsx:359`) and sorts only the
      *versions* (`:441`), which is what the record says.
    - The layer's sorting, blank-key exclusion, project filtering and the two
      refusals are in `read_issue_keys` (`src/labcairn/application/chain.py:367-427`)

@@ -192,7 +192,7 @@ development toolchain is.
 | installed product footprint | `site-packages` **514,074 KB** (venv 542,381 KB) |
 | clean install | `uv venv --python 3.12` + `uv pip install <wheel>`: **exit 0, 10 s**, resulting venv 424,791 KB, `labcairn.exe` console script present, `import labcairn` resolving to the **installed** package rather than the source tree |
 | clean uninstall | exit 0, and the import afterwards raises `ModuleNotFoundError` |
-| the service serving the workbench | `labcairn serve --static-dir web/dist` exists and mounts the built bundle at the service's own origin (`app.py:448`); the rendered start-up panel prints the allow-list rather than burying it |
+| the service serving the workbench | `labcairn serve --static-dir web/dist` exists and mounts the built bundle at the service's own origin (`src/labcairn/api/app.py:448`); the rendered start-up panel prints the allow-list rather than burying it |
 | the runtime requirement | `requires-python = ">=3.12,<3.13"`; the project venv is 3.12.13; the **bare** system `python` on this machine is 3.10.11 and cannot import the product at all |
 
 That last row matters for the no-shell candidate: "just install the wheel"
@@ -393,7 +393,7 @@ connection still succeeds in 16 ms and the process is alive, but `GET /health`,
 product's guards nor its store. So uvicorn is accepting connections and the ASGI
 application has stopped serving requests. The service's second traceback passes
 through `starlette/middleware/base.py:149` → `:208 raise app_exc`
-(`BaseHTTPMiddleware`); the service installs one at `app.py:389`
+(`BaseHTTPMiddleware`); the service installs one at `src/labcairn/api/app.py:389`
 (`@app.middleware("http")`, `_guards`, which calls `call_next`), and the first
 traceback is the streaming response's collapsing task group raising
 `RuntimeError: Caught handled exception, but response already started.` after

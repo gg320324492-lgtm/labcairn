@@ -22,7 +22,7 @@ is the **only** `CapabilityId` with `Effect.NETWORK`
 whose capabilities have not been **probed**
 (`providers/adapter.py:452-461`: *"no capability probe has run for this
 provider"* → unverified → blocked). There is a budget with a preflight
-(`providers/budget.py:369`), a transcript, a usage capture, a redaction pass,
+(`src/labcairn/providers/budget.py:369`), a transcript, a usage capture, a redaction pass,
 a credential store, a cancellation path, and an `ExchangeRecord` that
 carries what went out and what came back.
 
