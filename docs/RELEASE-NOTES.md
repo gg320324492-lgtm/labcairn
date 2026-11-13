@@ -316,7 +316,14 @@ credential can turn on.
 [evaluation protocol §"Mandatory automated gates"](EVALUATION.md) ·
 [the gate's exit-test table](acceptance/G5-acceptance.md).
 
-### 2.8 The competitor baseline has not been run
+### 2.8 The competitor baseline's protocol comparison has not been made
+
+**Read 2026-11-04:** both sides ran for real — the pinned competitor and this
+product, through one task package — and the run is recorded in
+[`acceptance/LC-P2-18-live-run.md`](acceptance/LC-P2-18-live-run.md). What that
+run deliberately does not produce is the comparison §2.8 was written about:
+no like-for-like aggregate, no confidence interval, no winner's language. The
+paragraph below stands as the protocol's standing rule.
 
 The protocol permits a comparison only on like-for-like matched tasks with
 verified capabilities and documented confidence intervals. **No comparison has
@@ -732,9 +739,11 @@ command lines, exit codes and seconds.
 discharged. Both are true, and the difference is the owner's to settle.**
 G5's exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and
 real-provider smoke"*; **four of the five are delivered and watched**, and the
-real-provider smoke (§2.7) and the competitor baseline (§2.8) have not run.
+real-provider smoke (§2.7) and the competitor baseline (§2.8) had not run.
 **This paragraph was written at `dd08573` (2026-10-25), when the gate was still
-open.** The closure landed two days later at `ff9afc5` (PR #118), on two
+open.** (The smoke has run since — twice on 2026-10-28, §2.7 — and both sides of
+the competitor comparison ran for real on 2026-11-04, §2.8; neither run is one
+of the gate's required checks, and neither changes this gate record.) The closure landed two days later at `ff9afc5` (PR #118), on two
 independent reviews that wrote none of the gate's fixes, verdict **PASS WITH
 NOTES** — the notes being exactly §2.7 and §2.8, and the four owner decisions
 in [`acceptance/G5-acceptance.md`](acceptance/G5-acceptance.md).

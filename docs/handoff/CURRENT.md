@@ -19,8 +19,10 @@ installed build and the trial) is complete. NOTICE records the full
 packages, none of them copyleft), witnessed by
 `shell/test/notice-licences.test.mjs`. On 2026-11-12 the owner widened its
 scope to the two surfaces it had left out: `NOTICE` §2.5 records the eight
-binaries the NSIS installer distributes (two LGPL-2.1, two with no findable
-terms) and §2.6 records the web tree's 266 lock keys (12 MPL-2.0, one
+binaries the NSIS installer distributes (two LGPL-2.1; every entry names a
+licence and a source after the upstream-provenance work of 2026-11-12 — the
+"two with no findable terms" this sentence first printed named entries that
+work resolved) and §2.6 records the web tree's 266 lock keys (12 MPL-2.0, one
 CC-BY-4.0); §0.1 names the four surfaces a distribution carries, and
 `shell/test/notice-scope.test.mjs` watches the scope against them. The
 LGPL-2.1 plug-in is kept and its obligations are to be discharged, not
@@ -38,8 +40,11 @@ carried by the balance witness's slack rule until the next runner re-measure.
 The shell batch's 17 independent-critique findings stay named gaps for G4, the
 44-row dual-host checklist is 4/44 completed; the owner's later dialog
 narrows its personal verification to WPS, while Word 2010 rows stay
-`PENDING-HUMAN` until that host is installed and observed with the same
-screenshot mode. The owner-picked sample's 42-arm machine loop landed on
+`PENDING-HUMAN` — the host is installed (`C:\Program Files
+(x86)\office2010\Office14\WINWORD.EXE`, file version 14.0.7252.5000, the
+version the ledger names, verified 2026-11-13), so its rows are open for the
+owner to observe with the same screenshot mode rather than waiting for an
+installation. The owner-picked sample's 42-arm machine loop landed on
 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
 dual-host reopen half stays `NOT RUN`, with the 16-row reopen ledger 16/16
 `PENDING-HUMAN` and its observation SOP ready for the owner, and no gate row

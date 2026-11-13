@@ -5,6 +5,14 @@ P1 baseline. The harness reports `NOT RUN` and exits 2 for that class; no
 session has spent a provider request as part of this closeout. This document
 records the owner-side setup, not a credential and not a run.
 
+**Read 2026-11-14:** the smoke has run since this was written — three times on
+2026-10-28 against `MiniMax-M3.1-Flash` over an Anthropic-protocol endpoint
+(twice locally, once on GitHub; `docs/THREAT-MODEL.md` §6.7 and
+`docs/RELEASE-NOTES.md` §2.7), and the scheduled
+`provider-smoke.yml` job has run green on the default branch since 2026-11-11.
+The frozen P1 baseline keeps `real_model_smoke = NOT RUN` as its dated value;
+these runs do not rewrite it.
+
 **Why the required checks stay green.** `provider-smoke.yml` is deliberately
 not a required `pull_request` check: it spends the owner's money and its
 secret is not available to every actor. It runs on a schedule and by manual

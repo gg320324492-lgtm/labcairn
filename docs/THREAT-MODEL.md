@@ -920,7 +920,7 @@ capability is still unmeasured, not absent.
 **Phase 1 is local single-user.** The service binds loopback, which keeps a
 network peer out — it does not keep a **local process** out. The workspace
 files, the session token file, and the SQLite database are readable by
-whatever runs as the same user. `docs/PHASE_1_WORKORDERS.md:177` — `User-level identity and future multiuser scope explicit, though Phase 1 is local single user.` records that
+whatever runs as the same user. `docs/PHASE_1_WORKORDERS.md:183` — `User-level identity and future multiuser scope explicit, though Phase 1 is local single user.` records that
 user-level identity and future multiuser scope are explicit, and Phase 1 is
 local single user.
 
