@@ -1184,6 +1184,22 @@ a source for it, and §2.5's text contains no `unresolved` licence field. The tw
 entries the sentence counted were resolved by the upstream-provenance work of
 2026-11-12; the sentence had not followed them.
 
+**One stale sentence could not be corrected here, and the reason is a witness.**
+`shell/licenses/README.txt` attributes `NSIS7Z-LICENSE.txt` and 7-Zip's licence to
+"the upstream NSIS bundle" — the same misattribution §2.5 carried, and now
+corrected there. That file's bytes could not be edited in place: the installer
+built on 2026-11-12 carries `shell/licenses/README.txt` itself as
+`$PLUGINSDIR\licenses\README.txt`, 4,971 bytes, sha256
+`14f4341f7d7073033631217f09668a64ef75eb7827ca0bd18033ac4ae2e6cf7d`, and a witness
+requires the text travelling with the installer to be the text this tree holds
+byte for byte. Editing the sentence and nothing else reddened it — the attempted
+edit produced a tree file of sha256 `e33091a43e2c9199…` against a carried
+`14f4341f7d707303…` — and the edit was reverted rather than leaving a record whose
+bytes the artefact no longer matches. The correction therefore has to land with a
+rebuild: change the sentence, rebuild the installer, and let that witness compare
+the new pair. Until then the misattribution stands in that file, and this
+paragraph is where a reader finds out.
+
 
 -------------------------------------------------------------------------------
 2.6  The web tree
