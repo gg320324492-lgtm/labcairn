@@ -22,7 +22,7 @@ needs and where LC-P2-01's unknown-state rule begins.
 
 **The consent was in memory.** `ApprovalLedger` held the grant in a dict and its
 own docstring said so: it was the mechanism *for one process*. Every surface
-built a fresh one (`cli/workspace.py:636`), so a restart emptied it and the
+built a fresh one (`src/labcairn/cli/workspace.py:636`), so a restart emptied it and the
 spend failed closed with `APPROVAL_MISSING` — safe, and not what a consent is
 for: a person told "approved" had to ask again because a process restarted.
 

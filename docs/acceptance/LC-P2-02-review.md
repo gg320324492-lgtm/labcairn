@@ -31,7 +31,7 @@ ran, and the file was restored with `git checkout -- <file>` afterwards, with
 | 2 | the conditional `UPDATE` loses its `WHERE state = 'granted'` | `src/labcairn/db/repository.py:1775` (`.where(ApprovalRow.state == ApprovalState.GRANTED.value)` deleted) | all of `tests/test_approval_binding.py` + `tests/test_approval_crash_matrix.py` | **Survived** — 10 passed. Matches the record, which reports this survivor rather than hiding it. |
 
 The record's stated reason for mutation 2's survival was verified against the
-code: the Python guard at `repository.py:1741` (`row.state == CONSUMED` →
+code: the Python guard at `src/labcairn/db/repository.py:1741` (`row.state == CONSUMED` →
 `NoSuchApprovalError`) runs before the write, so every witness the suite has
 is refused before the conditional write is reached. The record's further claim
 — that **no witness covers the two-connection interleaving window** — was
@@ -88,7 +88,7 @@ still open, and the record says so.
 
 ## 5. Findings
 
-1. **(Note) The record's §1 line reference `cli/workspace.py:636` has drifted.**
+1. **(Note) The record's §1 line reference `src/labcairn/cli/workspace.py:636` has drifted.**
    In this tree that line is inside the context builder that now yields
    `StoredApprovalLedger(session)` — the *fixed* state, not the in-memory
    ledger the sentence describes. The sentence describes the gap as it was,

@@ -57,7 +57,7 @@ guards: the bind address, the origin check, and the session token
 
 The workbench already runs against those guards in the shape that makes the
 origin check mean something: in production the service serves the built bundle
-from its own origin, so page and API share one origin (`app.py:448`,
+from its own origin, so page and API share one origin (`src/labcairn/api/app.py:448`,
 `web/src/api/base.ts`), and the only arrangement the service is *told* about is
 the development server's (`extra_origins`, `cli/commands.py:2358-2398`). A
 desktop shell is the first client that would keep the workbench open
@@ -271,7 +271,7 @@ for the owner's approval before any manifest is edited.
   with no browser and no shell answers 6/6 before a stream, 0/6 during it, and
   **0/6 even after its side of the stream is closed**. So the failure is
   **service-side**, not a property of Electron, Chromium or the workbench bundle.
-  `LC-P3-01`'s row 1 and `test_workbench_serve_helper.py:386` already record the
+  `LC-P3-01`'s row 1 and `tests/test_workbench_serve_helper.py:386` already record the
   adjacent defect (`UnwiredEventSource` refusing after the stream's headers are
   sent); this window's runs reproduce its `RuntimeError: Caught handled
   exception, but response already started.` in the service's own output.
@@ -293,7 +293,7 @@ for the owner's approval before any manifest is edited.
   `/openapi.json` all time out — the last two touch neither the guards nor the
   store — so the failure sits in the ASGI application. Its second traceback
   passes through `starlette/middleware/base.py:149→:208`
-  (`BaseHTTPMiddleware`, installed at `app.py:389`); the first is the streaming
+  (`BaseHTTPMiddleware`, installed at `src/labcairn/api/app.py:389`); the first is the streaming
   response's collapsing task group raising `RuntimeError: Caught handled
   exception, but response already started.` **No causal claim is made, the
   mechanism is not identified, and no product code was changed.**
