@@ -51,8 +51,8 @@ What each file is, and where it came from
     `Contrib/nsis7z/DOC/License.txt`: the LZMA SDK's public-domain dedication.
     476 bytes, sha256
     `63fcfe54826809b5a9f9df8a8ff53c04330122319ec67a2dd815085586adaf0e`.
-    The upstream NSIS bundle attributes its byte-identical `nsis7z.dll` to
-    this same file.
+    electron-builder's `nsis-bundle-3.13.tar.gz` attributes its
+    byte-identical `nsis7z.dll` to this same file.
 
 `7ZIP-LICENSE.txt`
     7-Zip's own licence text, as published by 7-Zip itself. Fetched on
@@ -63,9 +63,10 @@ What each file is, and where it came from
     6,031 bytes, sha256
     `3a184aa13dc8ad30734e28ff901b478ccbcb5b41be52427a5e7609c8fd9e5ddb`.
 
-    It is here because the upstream NSIS bundle records that `nsis7z.dll`
-    derives from 7-Zip's source, and 7-Zip's terms say which of its files
-    carry the unRAR restriction. This document states that split, so a reader
+    It is here because electron-builder's `nsis-bundle-3.13.tar.gz` records
+    that `nsis7z.dll` derives from 7-Zip's source, and 7-Zip's terms say
+    which of its files carry the unRAR restriction. This document states
+    that split, so a reader
     of the installer can see it without going back to 7-Zip.
 
 What this directory does not contain, and why
@@ -80,9 +81,10 @@ with electron-builder's toolset download rather than with this repository.
 `NOTICE` §2.5 records where that document is and what its sha256 is.
 
 The same is true of the notices that belong to the plug-ins themselves rather
-than to the licence of the whole distribution: the upstream NSIS bundle ships
-`LICENSES/UAC/License.txt` and `LICENSES/WinShell/NOTICE-plugin-api.txt` for
-the `UAC.dll` and `WinShell.dll` that this installer also carries.
+than to the licence of the whole distribution: electron-builder's
+`nsis-bundle-3.13.tar.gz` ships `LICENSES/UAC/License.txt` and
+`LICENSES/WinShell/NOTICE-plugin-api.txt` for the `UAC.dll` and
+`WinShell.dll` that this installer also carries.
 `NOTICE` §2.5 records each one's provenance and sha256.
 
 Neither is copied here, because neither is a condition of the obligations
@@ -99,3 +101,18 @@ the `StdUtils.dll` this installer carries is upstream's own
 `StdUtils.2018-10-27.Sources.tar`, inside the upstream
 `StdUtils.2018-10-27.zip` release archive. `NOTICE` §2.5.1 records the URL,
 the sha256, and the state of that obligation.
+
+About this file
+---------------
+
+Written for this repository; the attribution sentences above were corrected
+on 2026-11-13 to name the bundle the measurements in `NOTICE` §2.5 name:
+electron-builder's `nsis-bundle-3.13.tar.gz` (6,245,626 bytes, sha256
+`c18e9ad9684cf4c5bbd7b768cbf1b056d40771d7bd9ae1b513346452decf89d2`), not an
+NSIS 3.13 release. This file travels in the installer byte for byte
+(`$PLUGINSDIR\licenses\README.txt`, by `shell/nsis/licenses.nsh`); the copy
+inside the installer built on 2026-11-12 still carries the earlier wording
+(4,971 bytes, sha256
+`14f4341f7d7073033631217f09668a64ef75eb7827ca0bd18033ac4ae2e6cf7d`) until the
+next rebuild. This copy: 5,812 bytes; its sha256 is printed in `NOTICE` §2.5.2,
+which re-measures it whenever the file changes.
