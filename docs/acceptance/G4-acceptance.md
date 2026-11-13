@@ -868,7 +868,7 @@ tracked PDF fixtures and the repo-root guard; and its own first attempt under
 the machine's system Python (3.10), where `datetime.UTC` does not exist, so
 it died with an `ImportError` before measuring anything.
 
-**The two refusals at `application/reports.py:725` and `:733` are still
+**The two refusals at `src/labcairn/application/reports.py:725` and `:733` are still
 unreachable at `25bad72`, and the fix did not change them** — the fix touched
 only test files, so `reports.py` is byte-identical. **"Byte-identical" is an
 argument, so the measurement was repeated by two independent methods:**
@@ -1036,7 +1036,7 @@ the whole suite run — had 504/516/556/579/790 **fire**, and **725 and 733
 never become true**. **Neither of the two refusals is witnessed.** The phrase *"is not the
 artefact the ledger recorded"* **does** appear in the test tree, at
 `tests/test_analysis_report_checks.py:1547` — but it witnesses **the manifest
-artefact's refusal at `application/reports.py:504`**, a different guard with a
+artefact's refusal at `src/labcairn/application/reports.py:504`**, a different guard with a
 different condition. **The shared phrase is not what makes a guard
 watched.** They are defence in depth with no test, and they cannot be reached
 by the tree as it stands.
@@ -1492,7 +1492,7 @@ def post_approval_grant(
 ```
 
 so `grant_approval` falls back to `datetime.now(UTC)`
-(`application/approvals.py:199`), and `granted_at` is the **real wall clock**.
+(`src/labcairn/application/approvals.py:199`), and `granted_at` is the **real wall clock**.
 The ledger's own constraint is `"granted_at IS NULL OR expires_at > granted_at"`
 (`ck_approvals_expiry_after_grant`), so a grant made after 13:00 is refused by
 the database — **correctly**, and the demonstration dies:
@@ -2098,13 +2098,13 @@ baseline's exact numbers (**3244 passed, 3 skipped, 0 failed**):
 
 | id | the refusal | where | what it would have let through |
 |---|---|---|---|
-| **X1** | a configuration that is not one this build understands | `cli/workspace.py:242` | **exit 0.** `doctor` reports the workspace as initialised with **`source_dirs: []`** — the operator's source roots and current task are dropped and the run continues against **a different workspace than the one on disk**, saying nothing |
-| **X2** | a policy rule that could not be read | `cli/workspace.py:355` | exit 3, but **`permission_denied`** instead of `workspace_unusable` — a rule meant to ALLOW is read as a blanket DENY, and *"your policy file is broken"* becomes *"denied"* |
-| **X3** | `bind_workspace`'s *"the workspace at X could not be bound: …"* | `cli/workspace.py:427` | **the layer's error escapes and the CLI prints a traceback instead of a refusal** — this is F54, and it is the worst of them |
-| **X5** | the providers file cannot be read as JSON | `cli/commands.py:596` | **exit 0.** `doctor` reports **no providers** — the operator's configured model providers silently disappear |
-| **X6** | the providers file holds no `"providers"` object | `cli/commands.py:598` | **exit 0.** Same |
-| **X7** | the **command's** own source root outside the workspace | `cli/commands.py:838` | exit 3, but **`workspace_unusable`** instead of `invalid_arguments` — the same sentence, but the **module's** refusal answers instead of the command's. The state is still refused; **a client branching on the reason sees a different answer** |
-| **X8** | a source root that is not a directory | `cli/commands.py:846` | **exit 0.** The task is created and the non-directory source root is **silently dropped** |
+| **X1** | a configuration that is not one this build understands | `src/labcairn/cli/workspace.py:242` | **exit 0.** `doctor` reports the workspace as initialised with **`source_dirs: []`** — the operator's source roots and current task are dropped and the run continues against **a different workspace than the one on disk**, saying nothing |
+| **X2** | a policy rule that could not be read | `src/labcairn/cli/workspace.py:355` | exit 3, but **`permission_denied`** instead of `workspace_unusable` — a rule meant to ALLOW is read as a blanket DENY, and *"your policy file is broken"* becomes *"denied"* |
+| **X3** | `bind_workspace`'s *"the workspace at X could not be bound: …"* | `src/labcairn/cli/workspace.py:427` | **the layer's error escapes and the CLI prints a traceback instead of a refusal** — this is F54, and it is the worst of them |
+| **X5** | the providers file cannot be read as JSON | `src/labcairn/cli/commands.py:596` | **exit 0.** `doctor` reports **no providers** — the operator's configured model providers silently disappear |
+| **X6** | the providers file holds no `"providers"` object | `src/labcairn/cli/commands.py:598` | **exit 0.** Same |
+| **X7** | the **command's** own source root outside the workspace | `src/labcairn/cli/commands.py:838` | exit 3, but **`workspace_unusable`** instead of `invalid_arguments` — the same sentence, but the **module's** refusal answers instead of the command's. The state is still refused; **a client branching on the reason sees a different answer** |
+| **X8** | a source root that is not a directory | `src/labcairn/cli/commands.py:846` | **exit 0.** The task is created and the non-directory source root is **silently dropped** |
 
 (X4, the eighth, is the API's unknown-capability refusal, and it is caught by
 `test_an_unknown_assumed_capability_is_refused`.)
@@ -2343,12 +2343,12 @@ of them:
 
 | the refusal | the clean tree says | with that refusal removed |
 |---|---|---|
-| `_check_origin` (`commands.py:1488`) | *"An origin is a scheme, a host and a port"* | the **neighbouring** refusal answers: *"An origin carries no path, no query and no fragment"* — the same reason, a different sentence, and the witness passed |
-| `_resolve_static_dir` (`commands.py:1518`) | *"is not a directory, so there is no built workbench there to serve"* | the **bind** refusal answers — *"the service could not bind 127.0.0.1:8000 …"* — the same reason again, and the witness passed |
+| `_check_origin` (`src/labcairn/cli/commands.py:1488`) | *"An origin is a scheme, a host and a port"* | the **neighbouring** refusal answers: *"An origin carries no path, no query and no fragment"* — the same reason, a different sentence, and the witness passed |
+| `_resolve_static_dir` (`src/labcairn/cli/commands.py:1518`) | *"is not a directory, so there is no built workbench there to serve"* | the **bind** refusal answers — *"the service could not bind 127.0.0.1:8000 …"* — the same reason again, and the witness passed |
 
 **And one of them is machine-dependent**, which is a finding about the method
 as much as about the product: the second `_check_origin` refusal
-(`commands.py:1495`) survived on the reviewer's machine only because **port
+(`src/labcairn/cli/commands.py:1495`) survived on the reviewer's machine only because **port
 8000 was busy**, so the bind refusal answered instead. **Re-measured on a
 free port, the CLI starts the service and publishes the path-carrying origin
 in its own allow-list**, and the test would then fail by **hanging** rather
@@ -2475,7 +2475,7 @@ service could not bind. **With the refusal removed, the whole suite was
 green.**
 
 **And the fix the review suggested is in the tree's own vocabulary.** The
-sibling branch (`commands.py:1592`, the `except SystemExit` handler) is watched
+sibling branch (`src/labcairn/cli/commands.py:1592`, the `except SystemExit` handler) is watched
 by `test_the_failures_that_cannot_happen_are_still_there`, because `SystemExit`
 is in the enumeration's `UNREACHABLE_FAILURES`. **`BindRefusedError` is not in
 it**, so the refusal that carries the layer's words is the one the enumeration
@@ -2494,8 +2494,8 @@ test — and this one was watched by nothing at all.**
 | `UNREACHABLE_FAILURES` + `"BindRefusedError"`, and the refusal at 1590 deleted | **SURVIVED — 32 passed, 211.72 s** |
 
 **Because that list keeps its books by the failure's *name*, and
-`BindRefusedError` has two sites** — `commands.py:1454`, which is reachable
-and has its own test, and `commands.py:1590`, which is not. The name is still
+`BindRefusedError` has two sites** — `src/labcairn/cli/commands.py:1454`, which is reachable
+and has its own test, and `src/labcairn/cli/commands.py:1590`, which is not. The name is still
 handled at 1454, so the staleness check cannot see the removal at 1590.
 **A name is not a site.** (For contrast: the same one-line fix *does* catch a
 removal at **1454**, because then the name is handled nowhere at all.)
@@ -2506,9 +2506,9 @@ the CLI asks it the same question about the same address three times:
 
 | # | where | the guard is asked |
 |---|---|---|
-| 1 | `commands.py:1452` — `_check_host` | the address the operator named |
-| 2 | `api/app.py:270` — `create_app` | the same address |
-| 3 | `api/app.py:325` — `serve` | the same address — **the call the handler wraps** |
+| 1 | `src/labcairn/cli/commands.py:1452` — `_check_host` | the address the operator named |
+| 2 | `src/labcairn/api/app.py:270` — `create_app` | the same address |
+| 3 | `src/labcairn/api/app.py:325` — `serve` | the same address — **the call the handler wraps** |
 
 **A routable address is refused at the first question** — the address check's
 own refusal answers, the service is never started, and the 1590 site is never
@@ -2559,8 +2559,8 @@ finds it by what it says rather than by where it is.**
 **And a coverage claim the record was carrying is now false.** *"Of the
 eighteen `_refuse` sites the enumeration covers fourteen … and this one is
 watched by nothing at all"* — **the enumeration now covers fifteen of the
-eighteen**, and the three it still declines are `commands.py:365` and
-`commands.py:1606` (the failures-cannot-happen list) and `commands.py:1450`
+eighteen**, and the three it still declines are `src/labcairn/cli/commands.py:365` and
+`src/labcairn/cli/commands.py:1606` (the failures-cannot-happen list) and `src/labcairn/cli/commands.py:1450`
 (the address check's own test).
 
 #### F65 — "a witness of its own" was false for five of the thirty-three, and the pairing was unwatched
@@ -2622,8 +2622,8 @@ value, 4 by the record.**
 | how the pairing was decided | how many | which |
 |---|---|---|
 | exactly one candidate | **27** | — |
-| by the value the refusal names | **3** | `workspace.py:236`, `workspace.py:315`, `commands.py:665` — the three that say *"could not be read as JSON"* |
-| by the record | **4** | `commands.py:923`, `workspace.py:343`, `workspace.py:535`, `workspace.py:547` |
+| by the value the refusal names | **3** | `src/labcairn/cli/workspace.py:236`, `src/labcairn/cli/workspace.py:315`, `src/labcairn/cli/commands.py:665` — the three that say *"could not be read as JSON"* |
+| by the record | **4** | `src/labcairn/cli/commands.py:923`, `src/labcairn/cli/workspace.py:343`, `src/labcairn/cli/workspace.py:535`, `src/labcairn/cli/workspace.py:547` |
 
 **And the fix's own report said 26 and 33. Those numbers were right on the
 branch they were measured on — where the refusal at 1590 was still not
@@ -3231,7 +3231,7 @@ caught), and the Markdown's `- ` and the DOCX's "List Bullet" are free,
 deliberately. And the claim that *"neither message appears in any test file"*
 is now precise: the phrase *"is not the artefact the ledger recorded"* **does**
 appear, at `tests/test_analysis_report_checks.py:1547` — but it witnesses **the
-manifest artefact's refusal at `application/reports.py:504`**, a different
+manifest artefact's refusal at `src/labcairn/application/reports.py:504`**, a different
 guard with a different condition.
 
 **The head's movement, measured rather than reasoned.** `86e0226 → 15cd63d`
@@ -3468,8 +3468,8 @@ implementation and watching that test fail.
 | **F61** | **`doctor` still called a workspace fine that no command can use** — a source root outside the workspace drew no warning at all, and a source root that is a file was reported as *missing* while the refusal said *not a directory* | the field became **`unusable_source_roots`**: one entry per root, **with the way it is unusable**, computed by the same function the refusals use — *missing*, *not a directory*, *outside the workspace*, or *unusable name*. The prose names the root and the way: *"(initialised, but a source root cannot be used), … unusable: '../outside' (outside the workspace)"*. **And the count the gate turns on moved 18 → 19, because the spelling refusal is a new site** — it was written down rather than adjusted quietly | `test_doctor_names_a_source_root_that_is_a_file_as_not_a_directory`, `…_outside_the_workspace`, `…_whose_name_cannot_be_spoken`, and the rewritten `test_doctor_does_not_call_a_workspace_with_a_missing_source_root_fine` |
 | **F62** | **the source root's name was checked by the filesystem before the spelling guard** — a name the product cannot speak reached `stat` and came back a `ValueError`, with a traceback | the order is now **spelling guard → resolve → inside-the-workspace → `exists()` → `is_dir()`**, in one shared function, asked through a new public `labcairn.security.paths.check_spelling`. **The module's route and the command's `--source-dir` route ask the same question.** Before: `source_dirs=["materials\0"]` → `ValueError: stat: embedded null character in path`, exit 1 and a traceback. After: exit 3, *"the source directory 'materials\x00' is not a name this build can use: nul_byte"*. **The missing-root case is unchanged: exit 3, no traceback** | `test_a_configured_source_directory_that_is_missing_is_refused` and the spelling witnesses beside it |
 | **F63** | **the rule that does the watching was not itself watched** — the shared module `tests/refusal_witnesses.py`, which reads a witness's **compared** words, had no witness of its own: neutered to *"mentions"* it left **the whole suite green — 3276 passed, 3 skipped**, and neutered together with a witness that stops comparing it, green again | **one new file — `tests/test_refusal_witnesses.py`, nine tests — and `tests/refusal_witnesses.py` is byte-for-byte unchanged** (`sha256 a1c16386f9ceb4b4ffc5dc4aed1afaf66afb2c1860d0299378c28d70179ff7e1`): **the rule is not changed, it is watched.** The neutering is now **CAUGHT — 3 failed, 6 passed, 0.17 s** — *`test_a_phrase_the_witness_only_holds_is_not_read`*, *`test_a_witness_that_compares_and_one_that_only_holds_are_read_differently`* and *`test_a_witness_that_stops_comparing_is_not_read_as_comparing`* go red, and they name the property: *"A rule that reads a mention would read them the same way"*. **And a witness that stops comparing is caught twice over** — by the two enumerations while the rule is intact, and by the rule's own file once it is neutered — so the mutation that used to green the whole suite has nowhere to go, and the two together are **CAUGHT — 3 failed, 40 passed, 139.48 s** | `tests/test_refusal_witnesses.py` — the three above, and `test_both_enumerations_read_the_shared_rule_and_not_a_copy_of_it`, which fails if either enumeration stops importing the shared rule |
-| **F64** | **one command-level refusal was watched by nothing** — `src/labcairn/cli/commands.py:1590`, the `except BindRefusedError` handler whose whole message was `str(error)`; **with the refusal removed the whole suite was green**. And the one-line fix the review suggested — `BindRefusedError` into `UNREACHABLE_FAILURES` — **SURVIVED — 32 passed, 211.72 s**, because that list keeps its books **by the failure's name** and the name has two sites: **a name is not a site** | **the refusal now carries the command's own sentence** — *"the service's own guard refused the bind: {error}"* — and **the witness injects the layer's refusal where the layer raises it**: the command's `run_service` is replaced with one that asks the layer to serve `0.0.0.0`, an address the command never checked, so **the layer's own guard refuses it**. **The reachability was measured first**: the guard is asked the same question about the same address three times (`commands.py:1452`, `api/app.py:270`, `api/app.py:325`), a routable address is refused at the first question and the service is never started, so **the branch cannot be reached through the CLI's own path** — and the fix is therefore at the site, not at the name. **CAUGHT — 1 failed, 66 passed, 443.04 s** — *"the command exited 1 rather than refusing; the exception was BindRefusedError(…)"*. **And the coverage claim changed with it: the enumeration now covers fifteen of the eighteen `_refuse` sites, and this one is watched** | `tests/test_cli_serve_bind_refusal.py::test_the_command_refuses_a_bind_the_service_would_not_make` — and the enumeration holds the pairing too, so deleting the file turns `test_every_refusal_the_cli_raises_has_a_witness_of_its_own` red |
-| **F65** | **"a witness of its own" was false for five of the thirty-three, and the pairing was unwatched** — two groups hold more than one refusal, so the phrase a group owns cannot tell its members apart, and the witnesses' **values** — the very thing that distinguishes them — were thrown away; deleting the command's own witness left **the whole suite green — 3275 passed, 3 skipped** | **a witness is bound to a refusal by the value that refusal names** — the configuration's path, the policy's path, the providers file's path — and **where the value cannot decide, the pairing is written down in `WATCHED_BY` and checked**: every name must exist in the suite, must compare a phrase its refusal says, and every witness the derivation offers must be written down. **The product's wording did not change by one word** (`src/` untouched). **The enumeration's own numbers, read out of the tree: 37 refusals, 34 watchable, 34 paired, 0 unpaired, 33 groups, 102 witnesses read** — and the thirty-four fall **27 by exactly one candidate**, **3 by the value** (`workspace.py:236`, `workspace.py:315`, `commands.py:665`), **4 by the record** (`commands.py:923`, `workspace.py:343`, `workspace.py:535`, `workspace.py:547`). **The fix's own report said 26 and 33; those were right on the branch they were measured on and are wrong after the composition, so they were recomputed.** **And the record's own sentences are watched**, because a hand-written table is wrong the moment the code moves: **RECORD-1 — 3 failed, 31 passed, 180.20 s**; **RECORD-2 — 2 failed, 32 passed, 194.08 s**. The deletions that used to green the tree are now **CAUGHT** — the command's own witness: **2 failed, 41 passed, 162.37 s** narrow, and **3 failed, 3287 passed, 3 skipped, 1972.48 s** at the whole-suite width; the module's source-dir witness: **1 failed, 99 passed, 843.77 s**; the doctor's source-root witness: **2 failed, 97 passed, 703.46 s** | `tests/test_cli_refusal_enumeration.py::test_the_witnesses_that_are_recorded_are_in_the_suite` and `…::test_the_two_enumerations_watch_the_same_refusals_the_same_way`, beside `…::test_every_refusal_the_cli_raises_has_a_witness_of_its_own` and the ledger's `test_every_refusal_site_in_the_cli_is_watched` |
+| **F64** | **one command-level refusal was watched by nothing** — `src/labcairn/cli/commands.py:1590`, the `except BindRefusedError` handler whose whole message was `str(error)`; **with the refusal removed the whole suite was green**. And the one-line fix the review suggested — `BindRefusedError` into `UNREACHABLE_FAILURES` — **SURVIVED — 32 passed, 211.72 s**, because that list keeps its books **by the failure's name** and the name has two sites: **a name is not a site** | **the refusal now carries the command's own sentence** — *"the service's own guard refused the bind: {error}"* — and **the witness injects the layer's refusal where the layer raises it**: the command's `run_service` is replaced with one that asks the layer to serve `0.0.0.0`, an address the command never checked, so **the layer's own guard refuses it**. **The reachability was measured first**: the guard is asked the same question about the same address three times (`src/labcairn/cli/commands.py:1452`, `src/labcairn/api/app.py:270`, `src/labcairn/api/app.py:325`), a routable address is refused at the first question and the service is never started, so **the branch cannot be reached through the CLI's own path** — and the fix is therefore at the site, not at the name. **CAUGHT — 1 failed, 66 passed, 443.04 s** — *"the command exited 1 rather than refusing; the exception was BindRefusedError(…)"*. **And the coverage claim changed with it: the enumeration now covers fifteen of the eighteen `_refuse` sites, and this one is watched** | `tests/test_cli_serve_bind_refusal.py::test_the_command_refuses_a_bind_the_service_would_not_make` — and the enumeration holds the pairing too, so deleting the file turns `test_every_refusal_the_cli_raises_has_a_witness_of_its_own` red |
+| **F65** | **"a witness of its own" was false for five of the thirty-three, and the pairing was unwatched** — two groups hold more than one refusal, so the phrase a group owns cannot tell its members apart, and the witnesses' **values** — the very thing that distinguishes them — were thrown away; deleting the command's own witness left **the whole suite green — 3275 passed, 3 skipped** | **a witness is bound to a refusal by the value that refusal names** — the configuration's path, the policy's path, the providers file's path — and **where the value cannot decide, the pairing is written down in `WATCHED_BY` and checked**: every name must exist in the suite, must compare a phrase its refusal says, and every witness the derivation offers must be written down. **The product's wording did not change by one word** (`src/` untouched). **The enumeration's own numbers, read out of the tree: 37 refusals, 34 watchable, 34 paired, 0 unpaired, 33 groups, 102 witnesses read** — and the thirty-four fall **27 by exactly one candidate**, **3 by the value** (`src/labcairn/cli/workspace.py:236`, `src/labcairn/cli/workspace.py:315`, `src/labcairn/cli/commands.py:665`), **4 by the record** (`src/labcairn/cli/commands.py:923`, `src/labcairn/cli/workspace.py:343`, `src/labcairn/cli/workspace.py:535`, `src/labcairn/cli/workspace.py:547`). **The fix's own report said 26 and 33; those were right on the branch they were measured on and are wrong after the composition, so they were recomputed.** **And the record's own sentences are watched**, because a hand-written table is wrong the moment the code moves: **RECORD-1 — 3 failed, 31 passed, 180.20 s**; **RECORD-2 — 2 failed, 32 passed, 194.08 s**. The deletions that used to green the tree are now **CAUGHT** — the command's own witness: **2 failed, 41 passed, 162.37 s** narrow, and **3 failed, 3287 passed, 3 skipped, 1972.48 s** at the whole-suite width; the module's source-dir witness: **1 failed, 99 passed, 843.77 s**; the doctor's source-root witness: **2 failed, 97 passed, 703.46 s** | `tests/test_cli_refusal_enumeration.py::test_the_witnesses_that_are_recorded_are_in_the_suite` and `…::test_the_two_enumerations_watch_the_same_refusals_the_same_way`, beside `…::test_every_refusal_the_cli_raises_has_a_witness_of_its_own` and the ledger's `test_every_refusal_site_in_the_cli_is_watched` |
 | **F66** | **the crash fix's two `PathRefusedError` catches were load-bearing and unwatched** — with the catch a refusal, without it a crash, and **the whole suite was green without them**; and the catches could not be reached through the CLI's own path, so **there was nothing for a witness to drive** | **the layer's own root binder is substituted with one that raises the layer's own exception and the layer's own reason code** (`PathRejection.CANONICALISATION_FAILED`) — **the product's code path is not bypassed, only the layer's leaf function is replaced**, and everything above it runs unmodified — and **the two catches are told apart by the product's own words**: *"the workspace at <root> could not be bound: …"* against *"the workspace could not be bound: …"*, a phrase **written inside the `except` clause**, so the test cannot have gone around it. **CRASH-10 — CAUGHT: 1 failed, 102 passed, 617.83 s** — *"the layer's refusal escaped the command as a crash: PathRefusedError(…)"*. **And the two witnesses are deliberately narrow**: a witness that held both paths could not say which catch was broken, so one broken catch leaves the other witness green by construction | `tests/test_cli_path_refused_catch.py::test_a_refusal_the_workspace_binds_is_answered_with_the_root_named` (the catch in `bind_workspace`) and `…::test_a_refusal_that_skips_the_workspace_is_answered_by_the_cli` (the catch in the CLI's refusal handler) — the F54 row's witness column names both |
 
 **And the reviewer's own ledger is part of the record, because the result is

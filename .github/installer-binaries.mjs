@@ -753,7 +753,8 @@ export function listedSizeProblems(members, recorded) {
  *
  * The section does **not** have one state. It has three, and they are deliberately
  * different: the §1 text-and-notice obligation is DONE, the §4 corresponding-source
- * route is PARTLY DONE / NOT YET POINTED AT, and replaceability is NOT MEASURED. A
+ * route is PARTLY DONE / NOT YET POINTED AT, and replaceability carries a dated
+ * measurement (NOT MEASURED before 2026-11-13, MEASURED with its date since). A
  * reader that scanned the whole section for `DONE` or `NOT DONE` would let one
  * bullet's word decide the whole record, and the word appears in all three. The
  * text-and-notice bullet is identified by its own heading, and the other two are
@@ -763,7 +764,7 @@ export function obligationStates(noticeText) {
   const section = noticeSubsection(noticeText, '2.5.1').join(' ')
   const textAndNotice = /\*\*The licence text and the notice \(§1, §6\) — (DONE|NOT DONE)\.\*\*/.exec(section)
   const correspondingSource = /\*\*The corresponding source \(§4, §6\(c\)\) — PARTLY DONE/.test(section)
-  const replaceability = /\*\*Replaceability \(§6\(b\)[^*]*— NOT\s+MEASURED\.\*\*/.test(section)
+  const replaceability = /\*\*Replaceability \(§6\(b\)[^*]*—\s+(NOT\s+MEASURED|MEASURED \d{4}-\d{2}-\d{2})\.\*\*/.test(section)
   return {
     textAndNotice: textAndNotice ? textAndNotice[1] : null,
     correspondingSource,

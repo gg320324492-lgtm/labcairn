@@ -41,7 +41,7 @@ data held without a recorded basis.**
 Phase 1 has exactly one kind of authorisation: the **operation approval**.
 An `ApprovalRow` says *"this capability may run once, on these arguments,
 now, until this time"*, and the single-use guarantee is one conditional
-`UPDATE` (`recovery/approvals.py:328`).
+`UPDATE` (`src/labcairn/recovery/approvals.py:328`).
 
 The design requires **four independent permissions**, and they are not
 variants of each other:
@@ -99,7 +99,7 @@ material-scoped, standing and revocable. Putting the second in the first
 means every query that asks "may I send this to a model?" has to reconstruct
 a permission from rows that were never designed to hold one, and the default
 becomes "the absence of a refusal is a permission" — which is exactly the
-failure mode the project already refuses elsewhere (`sources/source.py:91`:
+failure mode the project already refuses elsewhere (`src/labcairn/sources/source.py:91`:
 *"`OTHER` is for files LC-P1-08 ingests but Phase 1 cannot address"* — an
 explicit state, not a silent default).
 

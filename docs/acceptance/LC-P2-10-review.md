@@ -37,7 +37,7 @@ effective form is stated.
 | M4, M5 | red | `frozenset(f)` over an existing `frozenset` **returns the same object** in CPython, so the naive "copy" spelling survives; the real copy (`frozenset(sorted(f))`) reddens the identity witness. The record's "copied instead of imported" needs that spelling. |
 | M6 | red, exactly its witness | |
 | M7, M8 | red | |
-| M9 | red | The witness is the `LabelAgreement.rate` property (`gold_manifest.py:206`); a mutation at `agreement()`'s own empty-manifest raise does not reach it. Effective form: `rate` returns `0.0` on a zero denominator. |
+| M9 | red | The witness is the `LabelAgreement.rate` property (`src/labcairn/papers/gold_manifest.py:206`); a mutation at `agreement()`'s own empty-manifest raise does not reach it. Effective form: `rate` returns `0.0` on a zero denominator. |
 | M10, M11 | red | M11's witness watches the **parse layer** (`_item`); folding the resolution into `annotations[1]` there reddens it. The same intent spelled inside `agreement()` leaves the witness green, because the witness never calls `agreement()`. |
 | M12-M16 | red, exactly their witnesses | |
 | M17-M19 | red, exactly their witness | |

@@ -182,7 +182,7 @@ A `w:ins` with no `w:author` yields `author_raw_private = None` and
 
 This extends the project's existing discipline rather than inventing one:
 `SourceReadability` already separates "we could not look" from "there was
-nothing there" (`sources/source.py:104`), and `CheckOutcome.INDETERMINATE`
+nothing there" (`src/labcairn/sources/source.py:104`), and `CheckOutcome.INDETERMINATE`
 already exists so that "I don't know" is not coerced into a boolean
 (`evidence/states.py:174-192`, whose docstring warns that `outcome != FAIL`
 turns "I don't know" into "yes").
@@ -254,7 +254,7 @@ reported as stale rather than silently re-pointed. This is ADR-0009's
 mechanism applied one level down.
 
 **`parser_version` is derived from the parser's own source**, exactly as
-`material/version.py:78` `derive_extraction_version` does — so changing the
+`src/labcairn/material/version.py:78` `derive_extraction_version` does — so changing the
 parser changes the version without anyone remembering to bump a constant, and
 a re-parse of unchanged bytes under an unchanged parser is provably the same
 parse.
@@ -277,8 +277,8 @@ an original is the failure mode**, not a feature.
 `SourceKind` gains `DOCX`; `LocatorKind` gains a kind addressed by part,
 element path and character range.
 
-Both enumerations are closed by design (`sources/source.py:88`,
-`sources/locators.py:65`), and Phase 2 adds members rather than widening
+Both enumerations are closed by design (`src/labcairn/sources/source.py:88`,
+`src/labcairn/sources/locators.py:65`), and Phase 2 adds members rather than widening
 them, so the CHECK constraint on `source_anchors.locator_key` keeps meaning
 "this locator names something that can exist".
 

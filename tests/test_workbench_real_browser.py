@@ -17,9 +17,13 @@ what a person would see.
 
 **Where it skips, and why that is not a pass.** Playwright is not a declared dependency
 of the product and the built workbench is git-ignored, so on a tree where neither is
-present these tests skip and name the missing piece. A skip is not a discharged row:
-the environment record (named by §4.3) is where the run that *did* launch a browser
-says what it launched, and the run that skipped says it skipped.
+present these tests skip and name the missing piece. The browser channel is judged the
+same way, by the launch the driver performs: a machine without the pinned channel (an
+Ubuntu runner carries no Edge) makes the launch fail before any process is spawned,
+with a message that names the channel, and that failure is this file's skip reason. A
+skip is not a discharged row: the environment record (named by §4.3) is where the run
+that *did* launch a browser says what it launched, and the run that skipped says it
+skipped.
 
 **The gap this run found is asserted, not glossed.** The service `labcairn serve`
 builds has no event source, so the Events panel cannot be live on it. One test below
@@ -48,6 +52,7 @@ from workbench_serve_support import (
     CliResult,
     ServedWorkbench,
     browser_cache_dir,
+    channel_skip_reason,
     run_cli,
     start_served_workbench,
 )
@@ -188,6 +193,15 @@ def workbench(tmp_path_factory: pytest.TempPathFactory) -> Iterator[WorkbenchRun
             playwright.stop()
         if served is not None:
             served.stop()
+        # **The channel's absence is the driver's own verdict.** A machine
+        # without the pinned channel (an Ubuntu runner carries no Edge) fails
+        # the launch above before any process is spawned, with a message that
+        # names the channel. That failure is this file's skip reason, so the
+        # run on such a machine is a named skip and not a red; any other launch
+        # failure keeps its own "no browser to drive" report.
+        missing_channel = channel_skip_reason(error)
+        if missing_channel is not None:
+            pytest.skip(missing_channel)
         pytest.skip(f"no browser to drive: {type(error).__name__}: {str(error)[:400]}")
     try:
         yield WorkbenchRun(served=served, browser=browser, facts=facts, workspace=workspace)

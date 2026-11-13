@@ -61,7 +61,11 @@ no host result is claimed here. The form and the evidence directory are in
 `G1-ENV-EVIDENCE-PREP-2026-11-08.md`; the rows were held open pending the
 owner's execution. **Read 2026-11-10:** the later 44-row checklist has 4/44
 completed rows, remaining WPS rows are observed by screenshot, and Word 2010
-rows stay `PENDING-HUMAN` until that host is installed and observed with the
-same mode. The 42-arm machine half is recorded in
+rows stay `PENDING-HUMAN` — the host is installed (`C:\Program Files
+(x86)\office2010\Office14\WINWORD.EXE`, file version 14.0.7252.5000, the
+version the ledger names, verified 2026-11-13), so its rows are open to be
+observed with the same mode. **Read 2026-11-13** in
+[`PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)'s open-gaps table.
+The 42-arm machine half is recorded in
 [`LC-P3-02-real-sample-2026-11-10.md`](LC-P3-02-real-sample-2026-11-10.md);
 it does not close the human half.

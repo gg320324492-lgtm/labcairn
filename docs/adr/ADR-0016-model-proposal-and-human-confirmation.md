@@ -36,14 +36,14 @@ And the third member's comment is the phase's thesis in one line:
 The application's own comment says the same thing from the other side:
 
 > *"`model_proposal` exists so a future proposal path is expressible; it is
-> not [yet exercised]."* (`application/evidence.py:44`)
+> not [yet exercised]."* (`src/labcairn/application/evidence.py:44`)
 
 A grep for `MODEL_PROPOSAL` across `src/` returns exactly two hits: the
 declaration and that comment. **Phase 1 carved the slot out and left it
 empty.**
 
 **Second: the outbound consent vocabulary exists and has never been emitted.**
-`EventType.OUTBOUND_CONSENT_REQUESTED` (`runtime/event.py:76`) is declared
+`EventType.OUTBOUND_CONSENT_REQUESTED` (`src/labcairn/runtime/event.py:76`) is declared
 and grouped with the annotation events. The grep returns two hits, both in
 `runtime/event.py`. Phase 1's own carried limitation says the same thing
 from the other side: *"ADR-0006's outbound-consent bridge is not built — both
@@ -398,7 +398,7 @@ Phase 1 exactly as it is.
 | # | Contract | Witness |
 |---|---|---|
 | C1 | A record created by a model has `creator = model_proposal` and is **not citable** | to be written at LC-P2-01 |
-| C2 | A model proposal **cannot** reach `user_attested` — the record model's constructor refuses it, and Phase 2's path cannot bypass the refusal by writing the creator field itself | constructor check: **already implemented** (`evidence/record.py:363`); Phase 2 path: to be written at LC-P2-01 |
+| C2 | A model proposal **cannot** reach `user_attested` — the record model's constructor refuses it, and Phase 2's path cannot bypass the refusal by writing the creator field itself | constructor check: **already implemented** (`src/labcairn/evidence/record.py:363`); Phase 2 path: to be written at LC-P2-01 |
 | C3 | A model proposal with no rule and no human attestation is refused by the evidence gate, and the refusal names the missing promotion | to be written at LC-P2-01 |
 | C4 | A model's response that does not parse against the repository-side schema is refused with a reason, and no partial record is written | to be written at LC-P2-01 |
 | C5 | A field the model cannot fill is `UNKNOWN`, and no other field is affected | to be written at LC-P2-01 |

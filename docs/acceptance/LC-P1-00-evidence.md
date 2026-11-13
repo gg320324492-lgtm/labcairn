@@ -162,7 +162,7 @@ statement of the same acceptance.
 
 ### 2.1 Reference clones are located outside tracked source
 
-**Requirement (`UPSTREAM_REFERENCES.md:172`):** "References are outside tracked
+**Requirement (`docs/UPSTREAM_REFERENCES.md:172`):** "References are outside tracked
 LabCairn source, or ignored and independently verified as untracked."
 
 **Evidence [repo].** Three separate mechanisms, each independently checkable:
@@ -236,20 +236,20 @@ Actual output — five SHAs, no strays:
 ```
 
 The four `not cloned` projects (`opencode`, `gpt-researcher`, `storm`,
-`ai-scientist-v2`) deliberately carry **no SHA** — `UPSTREAM_REFERENCES.md:46` states
+`ai-scientist-v2`) deliberately carry **no SHA** — `docs/UPSTREAM_REFERENCES.md:46` states
 that an invented or guessed SHA "is worse than a blank, because it looks verifiable."
 That is the correct call and is recorded here as evidence of intent, not as a gap.
 
 The licenses were opened at the pinned SHA rather than read off GitHub metadata —
-`UPSTREAM_REFERENCES.md:30` says so explicitly and §3.2 demonstrates one case.
+`docs/UPSTREAM_REFERENCES.md:30` says so explicitly and §3.2 demonstrates one case.
 
 **Verdict: PASS.**
 
 ### 2.3 Two architecture ADRs before G1, one provenance ADR before G3
 
-**Requirement (`PHASE_1_WORKORDERS.md:34,36`; `UPSTREAM_REFERENCES.md:175`):** "at
+**Requirement (`PHASE_1_WORKORDERS.md:34,36`; `docs/UPSTREAM_REFERENCES.md:175`):** "at
 least 2 concise architecture ADRs precede G1; at least 1 provenance/evidence ADR
-precedes G3." The gate table at `PHASE_1_WORKORDERS.md:139` requires ">=2
+precedes G3." The gate table at `docs/PHASE_1_WORKORDERS.md:139` requires ">=2
 architecture comparison ADRs" at G1 and an "evidence design ADR" at G3.
 
 **Evidence [repo].**
@@ -325,7 +325,7 @@ behalf; a reviewer may disagree.
 
 ### 2.4 Upstream instructions are not treated as trusted commands
 
-**Requirement (`UPSTREAM_REFERENCES.md:176`):** "Upstream instructions are not treated
+**Requirement (`docs/UPSTREAM_REFERENCES.md:176`):** "Upstream instructions are not treated
 as trusted commands or executable requirements."
 
 **Evidence — the exposure is measured, not assumed [upstream].** The count of
@@ -353,7 +353,7 @@ paperspine  AGENTS.md=0  CLAUDE.md=1  SKILL.md=7  TOTAL=8
 139
 ```
 
-**139 total**, matching `UPSTREAM_REFERENCES.md:138` exactly. See §3.4 for why this
+**139 total**, matching `docs/UPSTREAM_REFERENCES.md:138` exactly. See §3.4 for why this
 number matters.
 
 **Evidence — the sharpest instance is real [upstream].** `paperspine`'s four
@@ -399,7 +399,7 @@ checklist plus human review, and it is **not yet executable** (§3.5).
 
 ### 2.5 No hard runtime or CI dependency on reference clones
 
-**Requirement (`UPSTREAM_REFERENCES.md:177`; `PHASE_1_WORKORDERS.md:38`):** "No hard
+**Requirement (`docs/UPSTREAM_REFERENCES.md:177`; `docs/PHASE_1_WORKORDERS.md:38`):** "No hard
 runtime/CI dependency on reference clones; external contributor can build without
 them"; "do not block an external contributor who hasn't cloned them."
 
@@ -464,7 +464,7 @@ as the presence of a guarantee.
 
 ### 2.6 Copied or adapted source has a per-file license review
 
-**Requirement (`UPSTREAM_REFERENCES.md:178`):** "Any copied/adapted source has a
+**Requirement (`docs/UPSTREAM_REFERENCES.md:178`):** "Any copied/adapted source has a
 per-file license/notice review; custom-license material is not copied by default."
 
 **Evidence [upstream].** LICENSE files were enumerated per clone, not read off a
@@ -494,20 +494,20 @@ root-level license check would have missed entirely.
 **Verdict: PASS for the *research* phase; formally N/A for the *reuse* clause.**
 No upstream source has been copied into LabCairn — §1.2's inventory proves that —
 so the per-file notice obligation has not yet been triggered. The obligation is
-pre-registered rather than discharged: `UPSTREAM_REFERENCES.md:71` states that
+pre-registered rather than discharged: `docs/UPSTREAM_REFERENCES.md:71` states that
 `paper-qa-pymupdf` is "study-only ... unless a deliberate license decision is
 recorded", and `:44` marks AI Scientist v2 "no copying by default". The G5
-attribution check (`PHASE_1_WORKORDERS.md:36`) is where this becomes a real
+attribution check (`docs/PHASE_1_WORKORDERS.md:36`) is where this becomes a real
 obligation; §4.2 records that it has not been performed.
 
 ### 2.7 P1 review dossier — **DEFERRED, not done**
 
-**Requirement (`UPSTREAM_REFERENCES.md:179`):** "P1 review dossier names relevant
+**Requirement (`docs/UPSTREAM_REFERENCES.md:179`):** "P1 review dossier names relevant
 upstream designs and clearly identifies LabCairn's independent implementation and
 its tests."
 
 **Verdict: NOT MET / NOT APPLICABLE TO LC-P1-00.** The checklist item is checked
-`- [ ]` (unchecked) at `UPSTREAM_REFERENCES.md:179`, and it is left unchecked. The
+`- [ ]` (unchecked) at `docs/UPSTREAM_REFERENCES.md:179`, and it is left unchecked. The
 reason is structural, not an omission in the record: a *review dossier* is an
 end-of-phase artifact. It cannot be written at LC-P1-00 because at LC-P1-00 there is
 no LabCairn implementation and no LabCairn test to distinguish from upstream. The
@@ -515,7 +515,7 @@ no LabCairn implementation and no LabCairn test to distinguish from upstream. Th
 unwritable until LC-P1-02 through LC-P1-13 exist.
 
 This item belongs to **LC-P1-14** (the G5 row, "outsider fresh install, 3 fixtures,
-fault injection, docs and real-provider smoke", `PHASE_1_WORKORDERS.md:143`). It is
+fault injection, docs and real-provider smoke", `docs/PHASE_1_WORKORDERS.md:143`). It is
 carried forward, not passed.
 
 ---
@@ -527,7 +527,7 @@ output.
 
 ### 3.1 `scripts/checkout_upstreams.py` silently erased earlier SHA records
 
-**The defect.** The study workflow is explicitly batched — `UPSTREAM_REFERENCES.md:88`
+**The defect.** The study workflow is explicitly batched — `docs/UPSTREAM_REFERENCES.md:88`
 says "Start with" the must-study clones, `:97` says "Add as needed" `opencode`, and
 the helper's own docstring says "Study clones arrive in batches (`--group essential`,
 then `--repo opencode`)". The pre-fix script began every run from an **empty**
@@ -740,7 +740,7 @@ adapting `paper-qa-pymupdf`. The obligation is recorded at
 decision is recorded, and "do not let the AGPL subpackage contaminate the otherwise
 permissive analysis of the rest."
 
-The generalizable lesson, stated at `UPSTREAM_REFERENCES.md:52`: **a repository-level
+The generalizable lesson, stated at `docs/UPSTREAM_REFERENCES.md:52`: **a repository-level
 license badge is a root-directory statement, and a root statement is not a repository
 statement.**
 
@@ -868,9 +868,9 @@ Actual output (truncated at the commit link for width):
 So commit `9340518` **deliberately removed** it in v0.7.0, the repo's own test suite
 asserts its absence (`tests/unit_tests/test_graph.py:2909`), and the docstring has
 never been corrected. The catalog correction is recorded at
-`UPSTREAM_REFERENCES.md:48`.
+`docs/UPSTREAM_REFERENCES.md:48`.
 
-**The rule adopted, which outlasts this finding** — stated at `UPSTREAM_REFERENCES.md:48`:
+**The rule adopted, which outlasts this finding** — stated at `docs/UPSTREAM_REFERENCES.md:48`:
 
 > a README, docstring or architecture overview is a claim, not evidence — a
 > capability counts only when a code path constructs it.
@@ -887,7 +887,7 @@ The distribution is the finding. `SKILL.md` is **an entire file format whose pur
 is to instruct an agent**, and three of the five repos ship 21–26 of them each. The
 exposure is not one file per repository; it is a corpus large enough that "remember
 that `AGENTS.md` files exist" is not a control. Recorded at
-`UPSTREAM_REFERENCES.md:138` as needing exclusion **by name, by directory and by
+`docs/UPSTREAM_REFERENCES.md:138` as needing exclusion **by name, by directory and by
 ingestion root**.
 
 `paperspine` is the sharpest instance: `CLAUDE.md` and `INSTALL.md` sit at the top
@@ -917,7 +917,7 @@ ls: cannot access 'pyproject.toml': No such file or directory
 ls: cannot access '.github/workflows': No such file or directory
 ```
 
-`UPSTREAM_REFERENCES.md:148` already says this in its own words — "The exclusion
+`docs/UPSTREAM_REFERENCES.md:148` already says this in its own words — "The exclusion
 promise stated above is currently **unenforceable slogan**" — and this document
 corroborates it rather than restating it. Of the three promises, exactly two are in
 force today:
@@ -1001,17 +1001,17 @@ guarantee about the future.
 | Item | Status | Where |
 |---|---|---|
 | The five pinned SHAs on GitHub | **Unverified, and unverifiable from here.** They exist only in this machine's shallow object store; a fresh clone will not reproduce them. | `UPSTREAM_REFERENCES.md:32,108` |
-| Case-sensitive ignore behaviour on a Linux CI runner | **Unverified.** Observed only under this machine's `core.ignorecase=true` (§3.5). | `UPSTREAM_REFERENCES.md:168` |
-| The `git init` incident scenario for `E:/` | **Unverified — deliberately so.** Not reproduced, because reproducing it would mean creating exactly the condition being warned about. | `UPSTREAM_REFERENCES.md:167` |
-| Current PyMuPDF licensing terms | **Unverified.** The subpackage's dependency declaration is evidence of a constraint, not a reading of PyMuPDF's own license. | `UPSTREAM_REFERENCES.md:73` |
-| The license labels as a legal assessment | **Explicitly not one.** The labels are file-reading results; transitive dependencies may carry other licenses. | `UPSTREAM_REFERENCES.md:30` |
+| Case-sensitive ignore behaviour on a Linux CI runner | **Unverified.** Observed only under this machine's `core.ignorecase=true` (§3.5). | `docs/UPSTREAM_REFERENCES.md:168` |
+| The `git init` incident scenario for `E:/` | **Unverified — deliberately so.** Not reproduced, because reproducing it would mean creating exactly the condition being warned about. | `docs/UPSTREAM_REFERENCES.md:167` |
+| Current PyMuPDF licensing terms | **Unverified.** The subpackage's dependency declaration is evidence of a constraint, not a reading of PyMuPDF's own license. | `docs/UPSTREAM_REFERENCES.md:73` |
+| The license labels as a legal assessment | **Explicitly not one.** The labels are file-reading results; transitive dependencies may carry other licenses. | `docs/UPSTREAM_REFERENCES.md:30` |
 | AI Scientist v2's custom license terms | **Not read** — repo not cloned. Must be read before any use beyond study. | `UPSTREAM_REFERENCES.md:44,83` |
 | "External contributor can build without clones" | **Untestable** — there is nothing to build (§2.5). | — |
 | The pre-fix source of `checkout_upstreams.py` | **Unrecoverable** from this repository; §3.1 reproduces the mechanism, not a recovered artifact. | — |
 
 ### 4.3 One measured number did not reproduce
 
-`UPSTREAM_REFERENCES.md:106` records a footprint of **693 MB** (`pydantic-ai` 421 MB,
+`docs/UPSTREAM_REFERENCES.md:106` records a footprint of **693 MB** (`pydantic-ai` 421 MB,
 `paperspine` 94 MB, `deepagents` 88 MB, `paper-qa` 60 MB, `openhands-sdk` 32 MB).
 Re-measured during this evidence round on the same machine:
 
@@ -1040,7 +1040,7 @@ tight — is unaffected. The discrepancy is recorded rather than corrected here 
 this document does not edit other documents, and because a ~1% drift between two
 measurements of the same tree is exactly the kind of thing a reviewer should see.
 
-**Resolved before the first commit.** `UPSTREAM_REFERENCES.md:106` was subsequently
+**Resolved before the first commit.** `docs/UPSTREAM_REFERENCES.md:106` was subsequently
 corrected by the maintainer to "approximately 700 MB (re-measure locally; block
 allocation and Git packing shift this)", with `deepagents` at 94 MB and the
 `pydantic-ai` share stated as 60%. The drift is therefore a measurement artefact, not a
@@ -1052,7 +1052,7 @@ block size and whether `.git` is included.
 
 `opencode`, `gpt-researcher`, `storm` and `ai-scientist-v2` were **not cloned** and
 carry no SHA. OpenCode was to be read "by targeted subsystem"
-(`PHASE_1_WORKORDERS.md:31`) — that targeted read has not happened. The work order
+(`docs/PHASE_1_WORKORDERS.md:31`) — that targeted read has not happened. The work order
 also allows that a third-party project need not be benchmarked end-to-end
 (`:34`); no upstream benchmark was run, so no claim about upstream *behaviour*
 under load is made anywhere. Every mechanism comparison in the ADRs is grounded in
@@ -1095,7 +1095,7 @@ offline.
 
 Everything in §2.4 and §3.2–§3.4 depends on the study clones. Cloning them is your
 own decision: it costs ~700 MB, and — read this before you do — **cloning is safe,
-executing is not.** Per `UPSTREAM_REFERENCES.md:140`, do not `pip install`, do not
+executing is not.** Per `docs/UPSTREAM_REFERENCES.md:140`, do not `pip install`, do not
 run install/build/test scripts, do not run Docker Compose, and do not load bundled
 skills. Everything in §3.2–§3.4 is pure read-only inspection: `find`, `grep`,
 `sed`, `git rev-parse`, `ls`.
@@ -1110,7 +1110,7 @@ If you clone, expect **different SHAs**. Then:
 - §3.3 (`deepagents`) and every line-number citation in the ADRs reproduce **only**
   if you land on `825acb3c…`. You probably will not; treat a mismatch as expected
   rather than as a falsification, and check whether the docstring has since been
-  fixed — that would be a meaningful update to `UPSTREAM_REFERENCES.md:48`.
+  fixed — that would be a meaningful update to `docs/UPSTREAM_REFERENCES.md:48`.
 
 ### 5.3 One command worth running first
 

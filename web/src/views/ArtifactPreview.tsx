@@ -39,6 +39,15 @@ import { artifactContentPath } from '../api/paths'
 interface ArtifactPreviewProps {
   /** The artefact to preview. */
   readonly receipt: ArtifactReceipt
+  /**
+   * How to name the frame, when the default name would collide.
+   *
+   * Two previews of one artefact on one page would be two elements with the
+   * same accessible name, and a reader asking for "the report's preview"
+   * would get two answers. The version panel therefore names its frames for
+   * the revision they show.
+   */
+  readonly label?: string
 }
 
 /** The media type the receipt declares, or the empty string when it declares none. */
@@ -46,11 +55,12 @@ function mediaTypeOf(receipt: ArtifactReceipt): string {
   return receipt.media_type ?? ''
 }
 
-export function ArtifactPreview({ receipt }: ArtifactPreviewProps): JSX.Element {
+export function ArtifactPreview({ receipt, label }: ArtifactPreviewProps): JSX.Element {
   const mediaType = mediaTypeOf(receipt)
   // The service's own path, mounted the way this bundle was built: at the
   // root in production, behind the development proxy otherwise.
   const source = apiUrl(artifactContentPath(receipt.receipt_id))
+  const name = label ?? `Preview of ${receipt.relative_path}`
 
   if (mediaType === 'text/html') {
     return (
@@ -59,7 +69,7 @@ export function ArtifactPreview({ receipt }: ArtifactPreviewProps): JSX.Element 
         src={source}
         sandbox=""
         referrerPolicy="no-referrer"
-        title={`Preview of ${receipt.relative_path}`}
+        title={name}
       />
     )
   }
@@ -69,7 +79,7 @@ export function ArtifactPreview({ receipt }: ArtifactPreviewProps): JSX.Element 
       <img
         className="preview preview--image"
         src={source}
-        alt={`Preview of ${receipt.relative_path}`}
+        alt={name}
         referrerPolicy="no-referrer"
       />
     )

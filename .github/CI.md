@@ -394,3 +394,62 @@ Ubuntu file improves the Ubuntu balance and does not shorten the run.
 **What was not done.** No change was made to `tests/test_cli.py` in this
 piece. Every direction above either changes a measured property or needs a
 runner measurement first, and the owner decides.
+
+## 2026-11-13 — the shard jobs gain the browser driver and the LGPL upstream archives
+
+**What changed.** `python.yml`'s shard jobs each gained three steps; no job was
+added, no workflow was added. The change-set covers two coverage gaps that the
+2026-11-13 review closed (`docs/plans/PHASE_3-work-orders.md` §17's two rows).
+
+1. **The real-browser driver is installed, pinned, and downloads no browser.**
+   `uv pip install --python <venv python> "playwright==1.65.1"` (the Linux and
+   Windows steps differ only in the venv path). The driver stays **out of
+   `pyproject.toml`** — the decision recorded in
+   [`LC-P3-01-browser-rerun-2026-11-13.md`](../acceptance/LC-P3-01-browser-rerun-2026-11-13.md)
+   §1: an environment capability a run installs and records, not a product
+   dependency — so `uv sync --frozen` alone leaves the browser file skipping.
+   **There is no `playwright install` step anywhere in the workflow**: the file
+   drives the pinned system channel `msedge` (`tests/workbench_serve_support.py`'s
+   `BROWSER_CHANNEL`), which resolves to the browser the runner image carries, so
+   nothing is downloaded. The Windows legs carry Edge and run all ten of
+   `tests/test_workbench_real_browser.py`'s cases; the Ubuntu legs carry none, and
+   the file skips there **with the driver's own reason** — the launch fails before
+   any process is spawned with `Chromium distribution 'msedge' is not found at …`,
+   and `tests/test_workbench_real_browser.py`'s fixture turns exactly that
+   failure into a named skip (`workbench_serve_support.channel_skip_reason`).
+   The skip is not a discharged row: the Windows legs' pass is the coverage.
+
+2. **The LGPL truth arms' directories are fetched, verified and cached.**
+   `scripts/lgpl_upstream_archives.py` downloads the archives NOTICE §2.5.1's
+   delivery entries name, verifies each sha256 against the hash recorded there
+   (the StdUtils tar is taken out of its release zip and verified against the
+   tar's own hash), and unpacks the trees `--audit-extracts` re-counts. The
+   `actions/cache@v4` step caches them under `runner_temp/lgpl-upstream-archives`
+   — the runner's temp, outside the checkout — with a key built from the recorded
+   hashes, so an upstream repackaging invalidates the cache by construction.
+   The pytest step then runs with `LABCAIRN_LGPL_SOURCE_DIR` and
+   `LABCAIRN_LGPL_EXTRACT_DIR` set, so the delivery arm
+   (`test_the_delivery_record_is_measured_against_the_upstream_bytes_where_they_are`)
+   and the closure-audit arm
+   (`test_the_closure_audit_reads_its_expected_values_out_of_the_record`'s
+   real-archive arm) run on every shard leg instead of skipping.
+
+3. **The replaceability arm is machine-only, and says so.**
+   `LABCAIRN_REPLACEABILITY_DIR` holds the four modified plug-ins and the
+   observation files the replaceability arm hashes, and
+   `LABCAIRN_REPLACEABILITY_INSTALLERS` holds the installer build products its
+   table hashes. Those are third-party binary derivatives built and run on the
+   development machine; committing them to this public repository would be a
+   licence question as well as a provenance question, so no workflow provides
+   either directory. That arm's CI skips are the honest statement that the
+   comparison did not run here, and its controls (the synthetic mismatch arms)
+   still run everywhere. NOTICE §5.4's step 5a documents the fetch step the
+   workflow runs, and `docs/plans/PHASE_3-work-orders.md` §17's row records the
+   same split.
+
+**What did not change.** The job names, the matrix, the triggers (still unfiltered
+on `pull_request`, per C-1), the shard partition, the evaluation job and every
+other step are untouched. The two new steps sit between `uv sync --frozen` and the
+shard's echo step; the pytest step's `env:` gained the two directory declarations
+the workflow's own variable witness requires
+(`tests/test_release_workflow.py::test_no_workflow_step_reads_a_variable_nothing_declared`).

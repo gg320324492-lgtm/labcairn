@@ -19,8 +19,10 @@ installed build and the trial) is complete. NOTICE records the full
 packages, none of them copyleft), witnessed by
 `shell/test/notice-licences.test.mjs`. On 2026-11-12 the owner widened its
 scope to the two surfaces it had left out: `NOTICE` §2.5 records the eight
-binaries the NSIS installer distributes (two LGPL-2.1, two with no findable
-terms) and §2.6 records the web tree's 266 lock keys (12 MPL-2.0, one
+binaries the NSIS installer distributes (two LGPL-2.1; every entry names a
+licence and a source after the upstream-provenance work of 2026-11-12 — the
+"two with no findable terms" this sentence first printed named entries that
+work resolved) and §2.6 records the web tree's 266 lock keys (12 MPL-2.0, one
 CC-BY-4.0); §0.1 names the four surfaces a distribution carries, and
 `shell/test/notice-scope.test.mjs` watches the scope against them. The
 LGPL-2.1 plug-in is kept and its obligations are to be discharged, not
@@ -38,8 +40,11 @@ carried by the balance witness's slack rule until the next runner re-measure.
 The shell batch's 17 independent-critique findings stay named gaps for G4, the
 44-row dual-host checklist is 4/44 completed; the owner's later dialog
 narrows its personal verification to WPS, while Word 2010 rows stay
-`PENDING-HUMAN` until that host is installed and observed with the same
-screenshot mode. The owner-picked sample's 42-arm machine loop landed on
+`PENDING-HUMAN` — the host is installed (`C:\Program Files
+(x86)\office2010\Office14\WINWORD.EXE`, file version 14.0.7252.5000, the
+version the ledger names, verified 2026-11-13), so its rows are open for the
+owner to observe with the same screenshot mode rather than waiting for an
+installation. The owner-picked sample's 42-arm machine loop landed on
 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
 dual-host reopen half stays `NOT RUN`, with the 16-row reopen ledger 16/16
 `PENDING-HUMAN` and its observation SOP ready for the owner, and no gate row
@@ -1676,7 +1681,7 @@ CI runs in six shards per platform (34.5 minutes → 7.3).
 | Gate | Status |
 |---|---|
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
-| G1 | **closed** — LC-P1-01, LC-P1-02, LC-P1-03 and LC-P1-04 all PASS WITH NOTES (the board and `G1-evidence.md:9` agree; LC-P1-02/04 were corrected from a bare `PASS` on 2026-10-28 to match their own evidence) |
+| G1 | **closed** — LC-P1-01, LC-P1-02, LC-P1-03 and LC-P1-04 all PASS WITH NOTES (the board and `docs/acceptance/G1-evidence.md:9` agree; LC-P1-02/04 were corrected from a bare `PASS` on 2026-10-28 to match their own evidence) |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
 | **G3** | **closed** — LC-P1-08, LC-P1-09 and LC-P1-10 all PASS WITH NOTES, and the gate closed on an **independent review** at `d114810` (verdict PASS WITH NOTES; every one of the gate's fourteen fixes broken, no mutation survived). [Acceptance](../acceptance/G3-acceptance.md) |
 | **G5** | **closed** — LC-P1-13 and LC-P1-14 both `PASS WITH NOTES`, and the gate closed on **two independent reviews** that wrote **none** of its fixes: the product-and-measurement scope's first verdict was **FAIL** on a clean property table, and after its findings were fixed **it re-ran its own eleven mutations against the fixed code and passed**; the documents-and-release scope's verdict is **PASS WITH NOTES**, with every one of its fourteen re-run by the reviewer that wrote them. **Twenty-four findings between them, all fixed.** The gate also found six of its own, and its own end-to-end test found one more — the surfaces never run the recovery pass — which is **handed over rather than fixed**. **Closed since the gate**, in the section below. [G5 acceptance](../acceptance/G5-acceptance.md) · [the first review](../acceptance/g5-review-product.md) · [the second](../acceptance/g5-review-records.md) |

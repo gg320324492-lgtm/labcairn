@@ -265,6 +265,20 @@ body {
   margin-bottom: 0.5rem;
 }
 
+/* The version-selection surface: the list of revisions, and the chosen
+ * revision's own forms beneath it. */
+.record--version {
+  align-items: baseline;
+}
+
+.version__preview {
+  margin-top: 0.75rem;
+}
+
+.version__form {
+  margin-bottom: 0.9rem;
+}
+
 /* The proposals panel: the model's answer and the person's verdict, side by
  * side, each labelled with whose words it is. */
 .proposals__pair {

@@ -238,6 +238,109 @@ jobs:
       # silently rewriting it. Lockfile drift is reported by `lockfiles.yml`.
       - run: uv sync --frozen
 
+      # =========================================================================
+      # THE REAL-BROWSER DRIVER — installed here, not declared by the product
+      # =========================================================================
+      #
+      # `tests/test_workbench_real_browser.py` drives the workbench through
+      # Playwright, pinned to the system Edge channel (`msedge`, the owner's
+      # decision of 2026-11-08, measured on 2026-11-13 as Edge
+      # 157.0.4341.46 against Playwright 1.65.1 —
+      # `docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md`). The driver is
+      # deliberately NOT in `pyproject.toml`'s dependency groups: it is an
+      # environment capability a run installs and records, not a product
+      # dependency, and `uv sync --frozen` alone would leave it absent and the
+      # browser file skipping on every runner.
+      #
+      # **The version is pinned, and pinned here rather than "latest".** An
+      # unpinned driver is exactly the drift the project pins everything else
+      # against: the browser facts a run records (driver version, channel,
+      # cache) would change under a green test, and a re-run would not be
+      # comparable with the baseline. 1.65.1 is the version the 2026-11-13
+      # re-run measured; when it moves, the record moves with it.
+      #
+      # **No browser download.** A system channel is used precisely so no
+      # browser is downloaded: there is no `playwright install` step anywhere
+      # in this workflow, and none may be added — the pinned `msedge` channel
+      # resolves to the browser the runner image carries (Windows images ship
+      # Edge; `docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md` §2 records
+      # the resolution), and the file skips, with the driver's own reason,
+      # where the channel is absent (Ubuntu images carry none).
+      - name: install the pinned Playwright driver (no browser download)
+        run: uv pip install --python .venv/bin/python "playwright==1.65.1"
+        if: ${{ runner.os == 'Linux' }}
+      - name: install the pinned Playwright driver (no browser download)
+        run: uv pip install --python .venv/Scripts/python.exe "playwright==1.65.1"
+        if: ${{ runner.os == 'Windows' }}
+
+      # =========================================================================
+      # THE LGPL UPSTREAM ARCHIVES — the truth arms' directories, cached by
+      # the hashes they must match
+      # =========================================================================
+      #
+      # `tests/test_release_workflow.py`'s LGPL truth arms compare the hashes
+      # NOTICE §2.5.1 records against the upstream bytes. They need two
+      # directories this job now provides (the third — the modified plug-ins
+      # — is a development-machine derivative that must not be committed, and
+      # its arm still skips on CI; see `.github/CI.md`):
+      #
+      #   * LABCAIRN_LGPL_SOURCE_DIR — the archives themselves, hashed by the
+      #     delivery arm against §2.5.1's recorded sha256 values;
+      #   * LABCAIRN_LGPL_EXTRACT_DIR — the unpacked trees the closure audit
+      #     (`--audit-extracts`) re-counts §2.5.2's numbers from.
+      #
+      # `scripts/lgpl_upstream_archives.py` fetches each archive from the URL
+      # §2.5.1 records, verifies its sha256 against the recorded hash, and
+      # unpacks the trees. The cache below is keyed on those recorded hashes,
+      # so an upstream repackaging — the thing this arm exists to notice —
+      # invalidates the cache by construction: the key changes, the old cache
+      # cannot be restored, and the fresh download is verified against the
+      # record before anything is unpacked from it.
+      #
+      # **The paths stay clear of the reference families.** The cache lives
+      # under `$RUNNER_TEMP` — the runner's own temp directory, not a path
+      # under the checkout — so `actions/cache`'s `path:` cannot capture
+      # reference-study trees; the names carry no
+      # `_references`/`.upstreams`/`labcairn-upstreams` prefix. `RUNNER_TEMP`
+      # is spelled in `env:` because the `path:` field takes no expression
+      # context for it (the same spelling `provider-smoke.yml` uses).
+      - uses: actions/cache@v4
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        with:
+          path: ${{ env.RUNNER_TEMP }}/lgpl-upstream-archives
+          key: >
+            lgpl-upstream-${{ matrix.os }}-v1-sources-db9f98d7a947d5a6b7cd341e01edd412ea04510c5faee19a23b1e84582d86121-nsis7z-6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58-7z1900-9ba70a5e8485cf9061b30a2a84fe741de5aeb8dd271aab8889da0e9b3bf1868e-lzma-00f569e624b3d9ed89cf8d40136662c4c5207eaceb92a70b1044c77f84234bad
+
+      - name: fetch and verify the LGPL upstream archives
+        shell: bash
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+          LABCAIRN_LGPL_SOURCE_DIR: ${{ runner.temp }}/lgpl-upstream-archives
+          LABCAIRN_LGPL_EXTRACT_DIR: ${{ runner.temp }}/lgpl-upstream-extracts
+        run: |
+          set -euo pipefail
+          if ! command -v 7z >/dev/null 2>&1 && ! command -v 7zz >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq p7zip-full
+            else
+              echo "no 7z/7zz on PATH and no apt-get to install one" >&2
+              exit 1
+            fi
+          fi
+          # The archives are cached under the runner's temp, and the fetch
+          # step fills that same directory, so a restored cache is used in
+          # place and a cold run downloads and verifies once. The extracts
+          # land beside the archives, under the runner's temp as well: the
+          # script refuses to write inside the checkout, and these are
+          # third-party trees.
+          mkdir -p "$RUNNER_TEMP/lgpl-upstream-archives"
+          python scripts/lgpl_upstream_archives.py \
+            "$RUNNER_TEMP/lgpl-upstream-archives" \
+            "$LABCAIRN_LGPL_EXTRACT_DIR" \
+            "$RUNNER_TEMP/lgpl-upstream-scratch"
+
       # Lint and type checking run once, in the `lint` job above. They used
       # to be repeated here, in all ten shard jobs: one lint error turned
       # ten checks red, and the same three commands were paid for ten times.
@@ -279,6 +382,11 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
           PLATFORM: ${{ matrix.os }}
+          # The LGPL truth arms read the directories the fetch step above
+          # filled — under the runner's temp, not under the checkout, because
+          # the fetch script refuses to write inside the repository.
+          LABCAIRN_LGPL_SOURCE_DIR: ${{ runner.temp }}/lgpl-upstream-archives
+          LABCAIRN_LGPL_EXTRACT_DIR: ${{ runner.temp }}/lgpl-upstream-extracts
         run: |
           files="$(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][os.environ['PLATFORM']][int(os.environ['SHARD'])]))")"
           uv run pytest $files --durations=0
