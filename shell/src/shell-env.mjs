@@ -104,5 +104,10 @@ export function resolveShellEnvWorkspace(value, resourcesDir) {
         'directory is known to anchor it to the installation.',
     )
   }
-  return path.resolve(resourcesDir, '..', value)
+  // Anchor to the installation root with the path module matching the
+  // resources directory's own form: a Windows path resolves as a Windows
+  // path even if this code ever runs where `path` is POSIX, so the
+  // installation-relative form means the same thing on both.
+  const anchor = /^[A-Za-z]:[\\/]/.test(resourcesDir) ? path.win32 : path
+  return anchor.resolve(resourcesDir, '..', value)
 }
