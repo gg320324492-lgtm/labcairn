@@ -21,7 +21,6 @@ drills the OS-level lock half on real files.
 
 from __future__ import annotations
 
-import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -56,7 +55,7 @@ def _open_exclusive(path: Path) -> Any:
     import fcntl  # pragma: no cover - POSIX branch
 
     handle = __import__("os").open(str(path), __import__("os").O_RDWR)
-    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined]
     return handle
 
 
@@ -75,9 +74,10 @@ def test_a_locked_original_fails_the_copy_with_the_os_error_surfaced(
     """
     import os
 
+    from drill_support import MOMENT, grant_copy
+
     from labcairn.application.refusal import ApplicationRefusedError
     from labcairn.application.revision_loop import stage_copy
-    from drill_support import MOMENT, grant_copy
 
     approval_id = grant_copy(rig)
     lock = _open_exclusive(rig.original_path)
@@ -116,9 +116,10 @@ def test_a_locked_copy_target_fails_the_write_and_lands_no_receipt(
     """
     import os
 
+    from drill_support import MOMENT, grant_copy
+
     from labcairn.application.refusal import ApplicationRefusedError
     from labcairn.application.revision_loop import stage_copy
-    from drill_support import MOMENT, grant_copy
 
     approval_id = grant_copy(rig)
     # The copy is written through TaskOutputArea's temp-then-replace; holding
@@ -141,7 +142,5 @@ def test_a_locked_copy_target_fails_the_write_and_lands_no_receipt(
     )
     # No receipt for a file that does not exist: the copy's bytes are still
     # the placeholder, not the original.
-    assert rig.copy_path().read_bytes() == b"", (
-        "the locked copy target was not overwritten"
-    )
+    assert rig.copy_path().read_bytes() == b"", "the locked copy target was not overwritten"
     assert rig.manifest_path().exists(), "the import receipt stays put"

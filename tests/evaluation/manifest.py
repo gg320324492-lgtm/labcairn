@@ -449,6 +449,17 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # spends one digest-bound approval per request (approvals).
     "test_provider_deidentification.py": ("unit", "provider-redaction"),
     "test_provider_bounded_rehearsal.py": ("integration", "approvals"),
+    # LC-P3-07: the fault-drill batch. The diagnostics package's absence
+    # claims are provider-redaction's shape at package scale; the provider
+    # fault drills walk the same ladder (approvals); the locked-file and
+    # interrupted-write drills are the path and crash clauses; the
+    # backup/rollback and recovery drills are restart recovery.
+    "test_diagnostics_package.py": ("integration", "provider-redaction"),
+    "test_drill_provider_faults.py": ("integration", "approvals"),
+    "test_drill_locked_files.py": ("integration", "path-traversal"),
+    "test_drill_backup_rollback.py": ("integration", "restart-recovery"),
+    "test_drill_known_errors_recovery.py": ("integration", "restart-recovery"),
+    "test_drill_interrupted_writes.py": ("e2e", "cli-task"),
     # LC-P3-04: the binding loop's witnesses; its refusals are negative.
     "test_binding_loop.py": ("integration", "approvals"),
     "test_binding_loop_refusals.py": ("negative", "missing-material"),

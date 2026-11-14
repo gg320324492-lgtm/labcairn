@@ -30,8 +30,6 @@ from typing import Any
 import pytest
 from store_support import env as _shared_env
 
-env = _shared_env
-
 from labcairn.application import ApplicationContext, create_task
 from labcairn.diagnostics import (
     DiagnosticsPackage,
@@ -44,6 +42,8 @@ from labcairn.providers.errors import FailureKind, ProviderFailure
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
+
+env = _shared_env
 
 pytestmark = pytest.mark.integration
 
@@ -251,7 +251,7 @@ def test_a_long_han_run_in_any_field_is_refused(context: ApplicationContext) -> 
         collect_diagnostics(
             context,
             material_texts=(MATERIAL,),
-            refusals=(("provider_transient", f"上游返回：{han_run}"),),
+            refusals=(("provider_transient", f"上游返回: {han_run}"),),
         )
     assert "Han run" in str(raised.value)
 
@@ -327,9 +327,7 @@ def test_run_counts_are_counts_only(context: ApplicationContext) -> None:
         cases_completed=1,
         stop_loss=StopLossVerdict.HOLD,
     )
-    package = collect_diagnostics(
-        context, material_texts=(MATERIAL,), run_record=record
-    )
+    package = collect_diagnostics(context, material_texts=(MATERIAL,), run_record=record)
     assert package.run_counts == {
         "requests_made": 2,
         "requests_refused": 1,

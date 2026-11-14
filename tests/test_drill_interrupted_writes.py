@@ -78,11 +78,15 @@ elif WINDOW == "after_temp_fsync":
     _os.fsync = fsync_patch
 
 elif WINDOW == "after_replace":
+    # The copy's replace also goes through Path.replace; the sentinel only
+    # fires when the replace's target is the publication's own name, so the
+    # kill lands in the publication's window and not the copy's.
     _original_replace = pathlib.Path.replace
 
     def replace_patch(self, target):
         _original_replace(self, target)
-        reach()
+        if pathlib.Path(target).name == "published.bin":
+            reach()
 
     pathlib.Path.replace = replace_patch
 
@@ -215,8 +219,12 @@ def _wait_for(child: subprocess.Popen[str], marker: str) -> str:
         line = child.stdout.readline()
         if not line:
             raise AssertionError(
-                "the child produced no " + marker + " line:\n" + "\n".join(lines)
-                + "\nstderr:\n" + (child.stderr.read() if child.stderr else "")
+                "the child produced no "
+                + marker
+                + " line:\n"
+                + "\n".join(lines)
+                + "\nstderr:\n"
+                + (child.stderr.read() if child.stderr else "")
             )
         if line.startswith(marker):
             return line

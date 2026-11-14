@@ -38,15 +38,9 @@ MOMENT: datetime = datetime(2026, 11, 14, 9, 0, tzinfo=UTC)
 WINDOW_END: datetime = MOMENT + timedelta(hours=1)
 
 ORIGINAL_BYTES: bytes = (
-    b"drill original line one\n"
-    b"drill original line two\n"
-    b"drill original line three\n"
+    b"drill original line one\ndrill original line two\ndrill original line three\n"
 )
-EDITED_BYTES: bytes = (
-    b"drill original line one\n"
-    b"drill edited line two\n"
-    b"drill original line three\n"
-)
+EDITED_BYTES: bytes = b"drill original line one\ndrill edited line two\ndrill original line three\n"
 
 
 def allow_all() -> PermissionPolicy:
@@ -163,9 +157,7 @@ def grant_publication(rig: DrillRig) -> ApprovalId:
 
 def run_loop_to_publication(rig: DrillRig, *, edited: bytes = EDITED_BYTES) -> None:
     """Copy, edit, publish: the loop's happy path, with both consents granted."""
-    stage_copy(
-        rig.context, rig.loop, approval_id=grant_copy(rig), now=MOMENT
-    )
+    stage_copy(rig.context, rig.loop, approval_id=grant_copy(rig), now=MOMENT)
     rig.copy_path().write_bytes(edited)
     publish_revision(
         rig.context,

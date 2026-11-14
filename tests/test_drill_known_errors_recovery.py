@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 from typing import Any
+from uuid import UUID
 
 import pytest
 from sqlalchemy import update
@@ -52,11 +53,14 @@ def interrupted_rig(env: Any, tmp_path: Any) -> Any:
     """
     from drill_support import (
         EDITED_BYTES as DRILL_EDITED,
+    )
+    from drill_support import (
         MOMENT,
         build_rig,
         grant_copy,
         grant_publication,
     )
+
     from labcairn.application.revision_loop import publish_revision, stage_copy
 
     rig = build_rig(env.store(), tmp_path / "workspace")
@@ -127,7 +131,7 @@ def test_resolve_with_the_predicted_hash_confirms_the_landed_effect(
     _enter_uncertain(interrupted_rig)
     outcome = resolve_abandoned(
         interrupted_rig.context,
-        OperationId(str(interrupted_rig.published.operation.operation_id)),
+        OperationId(UUID(str(interrupted_rig.published.operation.operation_id))),
         expected_sha256=interrupted_rig.published.publication_sha256,
     )
     assert outcome.resulting_state is OperationState.CONFIRMED
@@ -148,12 +152,12 @@ def test_resolve_with_a_wrong_hash_is_a_conflict_that_stays_blocked(
     with pytest.raises(ApplicationRefusedError) as raised:
         resolve_abandoned(
             interrupted_rig.context,
-            OperationId(str(interrupted_rig.published.operation.operation_id)),
+            OperationId(UUID(str(interrupted_rig.published.operation.operation_id))),
             expected_sha256=wrong,
         )
-    assert "conflict" in str(raised.value).lower() or "did not predict" in str(
-        raised.value
-    ), f"the conflict is named for a human: {raised.value}"
+    assert "conflict" in str(raised.value).lower() or "did not predict" in str(raised.value), (
+        f"the conflict is named for a human: {raised.value}"
+    )
 
 
 def test_a_confirmed_operation_is_not_reconciled_again(interrupted_rig: Any) -> None:
@@ -165,14 +169,14 @@ def test_a_confirmed_operation_is_not_reconciled_again(interrupted_rig: Any) -> 
     _enter_uncertain(interrupted_rig)
     resolved = resolve_abandoned(
         interrupted_rig.context,
-        OperationId(str(interrupted_rig.published.operation.operation_id)),
+        OperationId(UUID(str(interrupted_rig.published.operation.operation_id))),
         expected_sha256=interrupted_rig.published.publication_sha256,
     )
     assert resolved.resulting_state is OperationState.CONFIRMED
     with pytest.raises(ApplicationRefusedError) as raised:
         resolve_abandoned(
             interrupted_rig.context,
-            OperationId(str(interrupted_rig.published.operation.operation_id)),
+            OperationId(UUID(str(interrupted_rig.published.operation.operation_id))),
             expected_sha256=interrupted_rig.published.publication_sha256,
         )
     assert "not uncertain" in str(raised.value).lower()

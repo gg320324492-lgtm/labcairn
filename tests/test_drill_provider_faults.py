@@ -1,7 +1,7 @@
 """Network-loss, model-timeout and known-error drills against the substitute.
 
 Drill classes 3, 4 and 5 of work orders §12 §5.1, designed at
-``docs/plans/LC-P3-07-drill-matrix-design.md`` §§2.3–2.5. The endpoint is the
+``docs/plans/LC-P3-07-drill-matrix-design.md`` §§2.3-2.5. The endpoint is the
 repository's own ``FakeEndpoint`` — no socket, no credential, no spend; the
 *real-model* timeout row stays an owner addition (§12 §5.3, §14 item 7) and is
 deliberately absent here.
@@ -24,7 +24,6 @@ What each class proves:
 from __future__ import annotations
 
 import hashlib
-import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -43,9 +42,9 @@ from labcairn.application.outbound import OutboundApproval
 from labcairn.core.ids import ApprovalId
 from labcairn.core.providers.usage import Known
 from labcairn.providers.bounded_run import (
+    PRE_WIRE_KINDS,
     BoundedRun,
     CompoundStopLoss,
-    PRE_WIRE_KINDS,
     RunRequestRefusedError,
     StopLossTriggeredError,
     StopLossVerdict,
@@ -53,17 +52,13 @@ from labcairn.providers.bounded_run import (
 from labcairn.providers.budget import RunBudget
 from labcairn.providers.capabilities import (
     ALL_CAPABILITIES,
-    Capability,
     CapabilityOutcome,
     ProviderCapabilities,
 )
 from labcairn.providers.deidentify import DeidentificationPipeline, SampleClass
 from labcairn.providers.errors import (
     FailureKind,
-    OutboundRefusedError,
-    ProviderError,
     ProviderFailure,
-    ProviderTimeoutError,
 )
 from labcairn.providers.ledger import RunLedger
 from labcairn.runtime.lifecycle import TaskGoal
@@ -85,9 +80,7 @@ CLEAN_RENDERING = (
     "Assay S-1 was run on three occasions; luminance held fixed. Its trace "
     "diverges from a prior reference trace across the dilution series."
 )
-OK_REPLY = Reply(
-    name="ok", text="the answer", usage_body={"input_tokens": 40, "output_tokens": 12}
-)
+OK_REPLY = Reply(name="ok", text="the answer", usage_body={"input_tokens": 40, "output_tokens": 12})
 
 
 @pytest.fixture()
@@ -287,7 +280,9 @@ def test_a_landed_publication_survives_a_later_network_loss(
     so a failure after a success leaves the success's record and receipt in
     place.
     """
-    endpoint = FakeEndpoint(replies=(OK_REPLY, Reply(name="down", raises=ConnectionError("route down"))))
+    endpoint = FakeEndpoint(
+        replies=(OK_REPLY, Reply(name="down", raises=ConnectionError("route down")))
+    )
     case = _case()
     run = _run(endpoint)
     # A case whose first request lands and whose excerpt request meets the
@@ -298,9 +293,7 @@ def test_a_landed_publication_survives_a_later_network_loss(
     with pytest.raises(_Refused):
         run.submit_case(case, consents=_ports(context, case.excerpt_digests))
     record = run.record()
-    assert record.requests[0].outcome == "sent", (
-        "the first request's success stays recorded"
-    )
+    assert record.requests[0].outcome == "sent", "the first request's success stays recorded"
     assert record.requests[1].outcome == "failed"
     assert record.requests[1].kind == "provider_transient"
     assert len(run.exchanges()) == 1, (
@@ -382,28 +375,28 @@ def test_each_named_refusal_surfaces_with_its_name_and_remedy(
     # the hash step, and the OS error is the named fact. The layer surfaces it
     # as a stage failure rather than inventing a softer class — an absent
     # original is an OS fact before it is a policy question.
-    with pytest.raises(OSError) as raised:
+    with pytest.raises(OSError) as os_raised:
         open_loop(
             context,
             source_root_id="source:0",
             source_key="absent.bin",
             now=MOMENT,
         )
-    assert "absent.bin" in str(raised.value)
+    assert "absent.bin" in str(os_raised.value)
 
 
-def test_the_loop_duplicate_publication_refusal_names_the_remedy(
-    env: Any, tmp_path: Any
-) -> None:
+def test_the_loop_duplicate_publication_refusal_names_the_remedy(env: Any, tmp_path: Any) -> None:
     """``loop_already_published`` arrives with the remedy in its message.
 
     The remedy is the design's own sentence: import the new bytes as a new
     loop. The drill asserts the message says so, because a refusal without
     its remedy is the "dead end" the known-error drill exists to catch.
     """
-    from drill_support import EDITED_BYTES, MOMENT as DRILL_MOMENT, build_rig, grant_copy, grant_publication
-    from labcairn.application.revision_loop import publish_revision, stage_copy
+    from drill_support import EDITED_BYTES, build_rig, grant_copy, grant_publication
+    from drill_support import MOMENT as DRILL_MOMENT
+
     from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+    from labcairn.application.revision_loop import publish_revision, stage_copy
 
     rig = build_rig(env.store(), tmp_path / "workspace")
     stage_copy(rig.context, rig.loop, approval_id=grant_copy(rig), now=DRILL_MOMENT)
@@ -436,9 +429,10 @@ def test_source_drifted_refusal_names_the_comparison(context: ApplicationContext
     because the remedy is a comparison a person runs, and a refusal that
     hides the numbers is a dead end.
     """
-    from drill_support import MOMENT as DRILL_MOMENT, build_rig
-    from labcairn.application.revision_loop import verify_original
+    from drill_support import build_rig
+
     from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+    from labcairn.application.revision_loop import verify_original
 
     rig = build_rig(context.store, context.workspace.selected_root)
     rig.original_path.write_bytes(b"moved on\n")

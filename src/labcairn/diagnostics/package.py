@@ -32,14 +32,12 @@ from __future__ import annotations
 
 import platform
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
-from labcairn.core.ids import TaskId
 from labcairn.providers.deidentify import (
     GRAM_WINDOW,
     HAN_RUN_CEILING,
-    DeidentificationRefusedError,
     DeidentificationPipeline,
 )
 
@@ -48,8 +46,6 @@ if TYPE_CHECKING:
     from labcairn.db.repository import TaskStore
     from labcairn.providers.bounded_run import RunRecord
     from labcairn.providers.errors import ProviderFailure
-    from labcairn.runtime.event import Event
-    from labcairn.runtime.operation import Operation
     from labcairn.reports.receipt import ArtifactReceipt
 
 __all__ = [
@@ -301,7 +297,7 @@ def collect_diagnostics(
     """
     from labcairn.db.repository import events_after, list_artifacts, list_operations
 
-    moment = now if now is not None else datetime.now(timezone.utc)
+    moment = now if now is not None else datetime.now(UTC)
     label = f"diagnostics for task {context.task_id}"
 
     # -- collect ------------------------------------------------------------- #
@@ -324,10 +320,8 @@ def collect_diagnostics(
         EventFact(
             seq=event.seq,
             type=event.type.value,
-            occurred_at=event.occurred_at.astimezone(timezone.utc).isoformat(),
-            from_state=(
-                event.transition.from_state if event.transition is not None else None
-            ),
+            occurred_at=event.occurred_at.astimezone(UTC).isoformat(),
+            from_state=(event.transition.from_state if event.transition is not None else None),
             to_state=(event.transition.to_state if event.transition is not None else None),
         )
         for event in events_after(with_store, context.task_id)
@@ -361,9 +355,7 @@ def collect_diagnostics(
         for kind, message in refusals
     )
 
-    counts: MappingCounts = (
-        dict(run_record.to_counts()) if run_record is not None else {}
-    )
+    counts: MappingCounts = dict(run_record.to_counts()) if run_record is not None else {}
 
     # -- verify before minting ---------------------------------------------- #
     from labcairn.providers.deidentify import _word_grams
@@ -392,7 +384,7 @@ def collect_diagnostics(
 
     return DiagnosticsPackage(
         format_version=DIAGNOSTICS_FORMAT_VERSION,
-        created_at=moment.astimezone(timezone.utc).isoformat(),
+        created_at=moment.astimezone(UTC).isoformat(),
         product_version=_product_version(),
         schema_revision=_schema_revision(with_store),
         platform_name=platform.platform(),
