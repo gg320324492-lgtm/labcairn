@@ -6,6 +6,35 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The installed-shell drill runs end to end on this machine (2026-11-14)
+
+- **Install → launch → uninstall → reinstall, measured on the real NSIS
+  install.** The `dist3` installer (sha256 `9805be54…55c4`, hash re-verified
+  before the drill) installed silently per-user to
+  `C:\Users\pc\AppData\Local\Programs\LabCairn` with the frozen backend,
+  web bundle and both supply templates in `resources/` — and **did not
+  start as-installed**: with no supply named, the shell refuses in ~1.1 s
+  with the designed `LABCAIRN_SHELL_CLI` refusal, because the installer
+  ships `shell-env.template.json` but no live `shell-env.json` for the
+  resolver to read. Both supply ways then passed on the installed package —
+  way 1 (launcher-template environment values) and way 2 (the template
+  materialized as the live file, environment cleared) each reached
+  **connected → loaded → granted** (ServiceStarting 2.3 s / 3.2 s,
+  `/health` 200, page 200, `POST /task/select` 200), with the child's
+  command line naming the resolved installation-relative paths. The
+  uninstaller removed the directory and its registry entry and kept
+  `%APPDATA%\@labcairn\shell` byte-for-byte (no `deleteAppDataOnUninstall`);
+  the reinstall landed a byte-identical tree (4,077 entries, empty diff)
+  and relaunched green. **Two findings for the owner:** the installed
+  package needs one supply action before its first launch (the live-file
+  question stays open); and with the installation-relative workspace the
+  workspace lives inside the install tree, so uninstall/reinstall resets it
+  (`workspace_not_initialised` until `init` runs again) even though Electron
+  userData survives. The record is
+  [`LC-P3-05-install-drill-2026-11-14.md`](../acceptance/LC-P3-05-install-drill-2026-11-14.md).
+  Docs only; no product source, test or workflow file changed. No CI run,
+  no pull request, no push.
+
 ### The second blind-rating round closes (2026-11-14)
 
 - **LC-P2-14's rating half ran a second round, both raters agents again.**
