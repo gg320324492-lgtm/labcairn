@@ -1,5 +1,89 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-14 · **Six parallel windows have landed on top of the four
+delivery PRs; the delivery PR [PR
+#165](https://github.com/gg320324492-lgtm/labcairn/pull/165) is open and its
+CI was in flight at writing time; no Phase 3 gate is closed.** Local `main`
+stands at `3649a3fb9db650953276bf35e177e92ea1523d31`, ten commits ahead of
+`origin/main` (`6ba6fa82caffd8a9ba78ab9ae9b7ea1b45c1f1e3`, the PR #164 merge)
+— the ten are unpushed and travel inside #165's branch
+`delivery/six-windows-2026-11-14`. What the six windows carried: **the
+version-panel real-browser witness** (`ab168d6`, then `c29d4b2`) merged the
+assertion written in the version-select record's §5 into
+`tests/test_workbench_real_browser.py` (11 cases, measured 81.82 s against a
+real Edge tab; the panel shows the newest revision by default, and previews
+are located by their subtitle because the service sends
+`text/html; charset=utf-8` where the panel's media-type gate asks for exactly
+`text/html`, so every preview lands on the link branch — a panel gap recorded
+for the owner, not patched in the test batch); **the live-record sweep**
+(`8db6ca5`) aligned the five documents still speaking of the pre-merge state
+— the work orders' §17 version-switching and environment-supply rows, the
+LC-P3-05 board row, this handoff, `docs/README.md`'s current-phase row, and
+the repository map's 870-file reading at `6ba6fa8`; **the review fixes**
+(`1c65421`) gave the 2026-11-14 independent review's defences their witnesses
+— the required-check count is now held against the marked block in both
+directions (`tests/test_ci_shard_coverage.py:4030` — every stated count must
+equal the block's line count, and the block's lines must equal the names the
+workflows' own shape derives), the job-name uniqueness witnesses were
+re-verified against the literal `(matrix.os)` shape, and
+`workbench_serve_support.channel_skip_reason` gained three direct witnesses in
+`tests/test_workbench_serve_helper.py:441`; **the T09/O3 landing** (`4a7b189`,
+`ca59cc2`) records the owner's two decisions and builds the frozen backend
+(see below). The witness ledger across the ten commits reports `LOST -- none`
+(3660 test functions before and after); the reviewed gates stay closed and no
+gate row has moved.
+
+**The owner decided the two open questions on 2026-11-14.** **T09's supply is
+mixed**: the package's `resources/shell-env.json` carries `workspace` in its
+installation-relative form and the launcher carries `cliPath` until the
+packaged backend exists — the shipped template is now exactly
+`{"workspace": "LabCairn-workspace"}` (`shell/shell-env.template.json`), with
+`cliPath` absent rather than `null`, because the parser refuses unknown fields
+and an absent name is the honest "nothing names this yet". **O3's backend is a
+frozen service**: `labcairn.cli:main` frozen with PyInstaller into a onedir
+`labcairn.exe` carried in `extraResources` (`shell/scripts/build-backend-
+freeze.mjs`), chosen over the bundled interpreter because every existing
+argument shape keeps working, and over the sidecar because the sidecar is
+today's failing state — the installer carries no Python. Both are measured:
+the onedir bundle is 226,263,914 B (~216 MB), the supply drill grew to 8
+scenarios including a live frozen-service leg (connected → loaded → granted
+through the frozen exe), and the full shell Node suite is 107/107. The record
+is `docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md` §3.1–§3.2; the
+decision brief lives outside the repository. What the landing also recorded as
+found: inside a frozen exe the migrations tree must sit beside the exe (the
+freeze tool copies it; the refusal text names `LC_MIGRATIONS_DIR`, which no
+product code reads — a backend-side gap, named in the record).
+
+**The same day's independent witness review** (a third reader, not this
+batch's author; full report outside the repository at
+`E:\labcairn-local\phase3-g1-evidence\witness-review-2026-11-14.md`) measured
+the batch's four new witnesses as holding — every targeted mutation reddened
+for its property and restored green — and found five gaps, of which the six
+windows closed what was theirs: the duplicated §6.1 passage the browser
+record left in `docs/THREAT-MODEL.md` is removed (`8a74ee6`, merged in #162's
+chain); the required-check counts, job names and channel skip got their
+witnesses (`1c65421`); and the installer's licence texts are watched from
+three sides (`87c764f` — `shell/licenses/`, `shell/nsis/licenses.nsh` and the
+README's byte-and-sha256 records must now agree, with a control proving the
+README witness reddens). Still open from that review, by the owner's call:
+the replaceability witnesses' conjunction assertions each die alone without
+reddening (accepted as-is, to be noted in their docstrings), the three LGPL
+truth arms still skip on every runner for want of the archive directories
+(#162's cache-and-fetch steps are the fix in flight), and the low-priority
+browser-witness redundancy notes. **Next, in order:** when #165's checks are
+green, merge it (one delivery PR, the owner's batching rule) and delete the
+branch; if the shard-cost witness reddens, re-measure with
+`python .github/remeasure_shards.py <run-id>` from the delivery run's log
+(the six windows added and grew test files, so a re-measure is expected
+rather than exceptional — it is already the shard-remeasure window's brief);
+then the owner's human tasks continue from `E:\labcairn-local\HUMAN-TASKS.md`
+(the 16-row dual-host reopen ledger's screenshots, the citation sample's 45
+judgements, the 44-row fifth-version checklist, the blind ratings and their
+arbiter, G1/G2's independent human review, the MiniMax bill check). The
+installer carrying the frozen output — wiring `extraResources` to the freeze
+tool's bundle — is the next independent piece of work; today's landing stops
+at the measured freeze and its drill.
+
 **Date:** 2026-11-14 · **Phase 3's four delivery PRs (#161–#164) are merged
 into local `main`; no Phase 3 gate is closed.** Local `main` stands at
 `6ba6fa82caffd8a9ba78ab9ae9b7ea1b45c1f1e3` (merge [PR
