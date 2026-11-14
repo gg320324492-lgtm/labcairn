@@ -115,8 +115,8 @@ _RELEASES = {
     "win32": _release_windows,
     "posix": _release_posix,
 }
-_OPEN_EXCLUSIVE = _OPENERS[sys.platform]
-_RELEASE = _RELEASES[sys.platform]
+_OPEN_EXCLUSIVE = _OPENERS["win32" if sys.platform == "win32" else "posix"]
+_RELEASE = _RELEASES["win32" if sys.platform == "win32" else "posix"]
 
 
 def _open_exclusive(path: Path) -> Any:
