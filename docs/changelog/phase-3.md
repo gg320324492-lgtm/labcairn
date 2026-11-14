@@ -6,6 +6,39 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The four delivery pull requests merge (2026-11-14)
+
+- **PRs #161–#164 merged into `main`; `origin/main` stands at
+  `6ba6fa82caffd8a9ba78ab9ae9b7ea1b45c1f1e3`.** #161 (`ef30823`) converted the
+  live documents' pointers to wording anchors and gave the job-count witness
+  its record list; #162 (`6186fff`) brought the pinned browser driver and the
+  LGPL truth-arm archives into `python.yml`'s shard jobs, closed §17's
+  version-selection gap at the wire and in jsdom (record
+  [`LC-P3-01-version-select-2026-11-14.md`](../acceptance/LC-P3-01-version-select-2026-11-14.md)),
+  and corrected the records a 2026-11-14 sweep measured as misleading; #163
+  (`7ccc5c0`) closed the shell's T08 input policy, T06 update path and T09 two
+  supply ways (record
+  [`LC-P3-05-input-update-supply-2026-11-14.md`](../acceptance/LC-P3-05-input-update-supply-2026-11-14.md))
+  and gave the installer's licence census its three-sided witness; #164
+  (`6ba6fa8`) recorded the real-browser witnesses' measured standing and fixed
+  the Windows leg's path.
+- **What this follow-up sweep measured and did.** The anchor-completeness
+  witness passes (463 cases); every live document's declared anchor count
+  matches its reader; the three new dated records carry the dated-reading
+  note and name no `file:line` pointer; GitHub's required-check set re-read
+  2026-11-14 is still the fifteen CI.md records. §17's version-switching and
+  environment-supply rows were still saying what the tree had stopped saying,
+  so they were corrected to the landed state; `docs/handoff/CURRENT.md`,
+  `docs/README.md`'s current-phase row and this archive gained the four merges.
+  The repository map gained the `6ba6fa8` file-count reading (870 tracked
+  files). No historical dated record was rewritten; no push started a CI run.
+- **Still open, unchanged in kind.** The version panel's real-browser
+  assertion is written in the version-select record's §5 and awaits the
+  `tests/test_workbench_real_browser.py` window; O3's backend arrangement,
+  AC-6's clean-Windows drill and the human dual-host reopen rows stay owner
+  work; `LC-P3-07`/`LC-P3-08` stay blocked on `LC-P3-05`'s installed build; no
+  gate row has moved.
+
 ### The push's job count, counted again (2026-11-12)
 
 - **The defect.** `CLAUDE.md` and `CONTRIBUTING.md` both said "the suite is
