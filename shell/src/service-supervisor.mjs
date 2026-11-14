@@ -209,29 +209,25 @@ function spawnChild(command, args, options, sink, drain) {
 }
 
 /**
- * The child environment the supervisor spawns with: the caller's environment
- * plus the one flag the frozen backend needs. `PYDANTIC_DISABLE_PLUGINS=1`
- * is measured, not defensive: without it the frozen `labcairn.exe` dies at
- * import — logfire's pydantic plugin (a transitive of `pydantic-ai`'s
- * `logfire` extra; no product file imports logfire) reads its target's source
- * text at import time (`inspect.getsource`), and a frozen application carries
- * no source text, so the child exits before it reports (`OSError: could not
- * get source code`, measured 2026-11-14 in the packaged-run drill). The flag
- * is set here, at the one spawn path, so every run mode — dev console
- * script, frozen exe, packaged backend — inherits it and no launcher has to
- * remember it. Setting it unconditionally also covers the dev console script,
- * where the same plugin machinery exists but source text is available; the
- * flag only disables third-party plugins, never pydantic's own validation.
- */
-function childEnv(env) {
-  return { ...env, PYDANTIC_DISABLE_PLUGINS: '1' }
-}
-
-/**
  * The service supervisor: one child `labcairn serve`, its drain, its
  * readiness, its stop. The session token never passes through this module —
  * `ServiceStarting.token_path` names a file the page reads, and the
  * supervisor neither reads it nor copies it.
+ *
+ * **The one environment flag the child always carries.** The spawn below
+ * sets `PYDANTIC_DISABLE_PLUGINS=1` on the child's environment. It is
+ * measured, not defensive: without it the frozen `labcairn.exe` dies at
+ * import — logfire's pydantic plugin (a transitive of `pydantic-ai`'s
+ * `logfire` extra; no product file imports logfire) reads its target's
+ * source text at import time (`inspect.getsource`), and a frozen application
+ * carries no source text, so the child exits before it reports
+ * (`OSError: could not get source code`, measured 2026-11-14 in the
+ * packaged-run drill). The flag rides the one spawn path, so every run mode
+ * — dev console script, frozen exe, packaged backend — inherits it and no
+ * launcher has to remember it. Setting it unconditionally also covers the
+ * dev console script, where the same plugin machinery exists but source text
+ * is available; the flag only disables third-party plugins, never pydantic's
+ * own validation.
  */
 export class ServiceSupervisor {
   /**
@@ -294,7 +290,7 @@ export class ServiceSupervisor {
     const { child, pipeErrors, spawnError } = spawnChild(
       commandOverride ?? this.command,
       args,
-      { cwd: this.cwd, env: childEnv(this.env) },
+      { cwd: this.cwd, env: { ...this.env, PYDANTIC_DISABLE_PLUGINS: '1' } },
       this.sink,
       drain,
     )
