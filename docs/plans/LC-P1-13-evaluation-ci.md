@@ -123,24 +123,24 @@ on `main` is the measurement.
 ## 3. What a CI job costs
 
 The per-file costs in `.github/ci-shards.json` are runner measurements,
-anchored at `6b66e9487dd4dd349f529c096b2bfdad2dbde3c1`. Summed over the
+anchored at `a7cde5999a9db1524e2ec5514685b449e43de4b1`. Summed over the
 five offline classes:
 
 | platform | unit | integration | negative | e2e | repository | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| ubuntu-latest | 160.2 s | 558.0 s | 125.6 s | 582.5 s | 118.7 s | **1544.9 s ≈ 25.7 min** |
-| windows-latest | 390.8 s | 2945.7 s | 379.1 s | 995.1 s | 165.0 s | **4875.8 s ≈ 81.3 min** |
+| ubuntu-latest | 259.0 s | 1341.1 s | 69.6 s | 613.0 s | 97.3 s | **2380.0 s ≈ 39.7 min** |
+| windows-latest | 440.1 s | 2784.5 s | 324.7 s | 1086.9 s | 165.6 s | **4801.8 s ≈ 80.0 min** |
 
-The current pull-request wall clock is set by the slowest shard: about 975 s
-on Windows (16.3 min); on Ubuntu the slowest shard is `test_cli.py` alone at
-386.6 s. A job that runs all five offline classes **on Ubuntu** would
-therefore become the new bottleneck at about 26 minutes — roughly a
-twelve-minute increase on every pull request, and another full run of the
-suite on top of the ten shard jobs. On Windows it would be about 81 minutes,
+The current pull-request wall clock is set by the slowest shard: about 960 s
+on Windows (16.0 min); on Ubuntu the slowest shard is `test_cli.py` alone at
+350.6 s. A job that runs all five offline classes **on Ubuntu** would
+therefore become the new bottleneck at about 40 minutes — roughly a
+twenty-five-minute increase on every pull request, and another full run of the
+suite on top of the ten shard jobs. On Windows it would be about 80 minutes,
 which is not a candidate.
 
 That cost is the reason for the trigger choices below: the job is valuable
-as a report, but it is not worth adding twelve minutes to every pull request
+as a report, but it is not worth adding twenty-five minutes to every pull request
 while the shard jobs already run the same files.
 
 ## 4. The options
