@@ -72,7 +72,11 @@ elif WINDOW == "after_temp_fsync":
 
     def fsync_patch(fd):
         result = _original_fsync(fd)
-        reach()
+        # Armed only once the copy has landed: the rig's own assembly and the
+        # copy stage fsync too, and a kill before the publication stage would
+        # land outside the window this drill names.
+        if _os.environ.get("DRILL_ARMED") == "1":
+            reach()
         return result
 
     _os.fsync = fsync_patch
@@ -103,6 +107,7 @@ elif WINDOW == "after_publish_landed":
 '''
 
 _CHILD_SCRIPT = """\
+import os
 import sys
 from pathlib import Path
 
@@ -126,6 +131,9 @@ rig = build_rig(env.store(), root / "workspace")
 print("RIG", rig.loop.import_receipt.receipt_id, flush=True)
 stage_copy(rig.context, rig.loop, approval_id=grant_copy(rig), now=MOMENT)
 rig.copy_path().write_bytes(EDITED_BYTES)
+# Arm the fsync window only now: the kill must land inside the
+# publication's write, not in the rig's own assembly or the copy stage.
+os.environ["DRILL_ARMED"] = "1"
 publish_revision(
     rig.context, rig.loop,
     approval_id=grant_publication(rig), edited_bytes=EDITED_BYTES, now=MOMENT,
@@ -276,22 +284,27 @@ def test_a_kill_between_the_temp_write_and_the_replace_leaves_old_or_new(
     # recovery pass reads — never a confirmed completion the disk cannot show.
     from sqlalchemy import select
 
-    from labcairn.db.models import OperationRow
+    from labcairn.db.models import OperationRow, StageRow
     from labcairn.db.session import create_db_engine, create_session_factory
 
     db = tmp_path / "labcairn.db"
     engine = create_db_engine(db)
     session = create_session_factory(engine)()
     try:
+        publication_stage_ids = set(
+            session.execute(
+                select(StageRow.stage_id).where(StageRow.name == "revision-publication")
+            ).scalars()
+        )
         rows = session.execute(select(OperationRow)).scalars()
-        states = {row.state for row in rows}
+        states = {row.state for row in rows if row.stage_id in publication_stage_ids}
     finally:
         session.close()
         engine.dispose()
     assert db.exists(), "the drill child never created the store"
     assert states <= {"attempting", "authorized"}, (
-        f"the crash left operation states {states}; a kill during the write "
-        "window must not leave a confirmed or failed completion"
+        f"the crash left the publication operation in states {states}; a kill "
+        "during the write window must not leave a confirmed or failed completion"
     )
     assert "attempting" in states, (
         "the operation whose write was in flight is ATTEMPTING on disk — the "
