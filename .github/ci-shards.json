@@ -34,7 +34,13 @@
         "tests/test_material_adapters.py",
         "tests/test_provider_adapter.py",
         "tests/test_intake_guards.py",
-        "tests/test_security_injection.py"
+        "tests/test_security_injection.py",
+        "tests/test_diagnostics_package.py",
+        "tests/test_drill_backup_rollback.py",
+        "tests/test_drill_interrupted_writes.py",
+        "tests/test_drill_known_errors_recovery.py",
+        "tests/test_drill_locked_files.py",
+        "tests/test_drill_provider_faults.py"
       ],
       [
         "tests/test_cli.py",
@@ -221,7 +227,13 @@
         "tests/test_docx_fixture_corpus.py",
         "tests/test_provider_adapter.py",
         "tests/test_material_regressions.py",
-        "tests/test_workspace_path_length.py"
+        "tests/test_workspace_path_length.py",
+        "tests/test_diagnostics_package.py",
+        "tests/test_drill_backup_rollback.py",
+        "tests/test_drill_interrupted_writes.py",
+        "tests/test_drill_known_errors_recovery.py",
+        "tests/test_drill_locked_files.py",
+        "tests/test_drill_provider_faults.py"
       ],
       [
         "tests/test_api.py",
@@ -552,7 +564,13 @@
       "test_workbench_real_browser.py": 0.27,
       "test_workbench_serve_helper.py": 20.99,
       "test_workspace_boundaries.py": 0.69,
-      "test_workspace_path_length.py": 0.22
+      "test_workspace_path_length.py": 0.22,
+      "test_drill_known_errors_recovery.py": 0.0,
+      "test_diagnostics_package.py": 0.0,
+      "test_drill_interrupted_writes.py": 0.0,
+      "test_drill_provider_faults.py": 0.0,
+      "test_drill_locked_files.py": 0.0,
+      "test_drill_backup_rollback.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 2.69,
@@ -729,7 +747,13 @@
       "test_workbench_real_browser.py": 0.87,
       "test_workbench_serve_helper.py": 52.07,
       "test_workspace_boundaries.py": 1.05,
-      "test_workspace_path_length.py": 0.02
+      "test_workspace_path_length.py": 0.02,
+      "test_drill_known_errors_recovery.py": 0.0,
+      "test_diagnostics_package.py": 0.0,
+      "test_drill_interrupted_writes.py": 0.0,
+      "test_drill_provider_faults.py": 0.0,
+      "test_drill_locked_files.py": 0.0,
+      "test_drill_backup_rollback.py": 0.0
     }
   }
 }
