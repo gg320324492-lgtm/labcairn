@@ -20,7 +20,8 @@ const SHELL_ROOT = path.resolve(HERE, '..')
 const CONFIG_PATH = path.join(SHELL_ROOT, 'electron-builder.yml')
 const MANIFEST_PATH = path.join(SHELL_ROOT, 'package.json')
 const LOCK_PATH = path.join(SHELL_ROOT, 'pnpm-lock.yaml')
-const GUARD_PATH = path.join(SHELL_ROOT, 'scripts', 'require-web-dist.mjs')
+const GUARD_PATH = path.join(SHELL_ROOT, 'scripts', 'require-package-inputs.mjs')
+const FREEZE_DIR = path.join(SHELL_ROOT, 'build', 'backend-freeze', 'labcairn')
 const LICENCES_PATH = path.join(SHELL_ROOT, 'licenses')
 const NSIS_INCLUDE_PATH = path.join(SHELL_ROOT, 'nsis', 'licenses.nsh')
 
@@ -57,6 +58,35 @@ function outputOutsideTrackedTree(text) {
   return /^directories:\n  output: \$\{env\.LABCAIRN_SHELL_DIST_DIR\}$/m.test(text)
 }
 
+/**
+ * The extraResources entries as (from, to) pairs, read from the YAML text.
+ * A dedicated reader rather than `list()`: the entries carry prose comments
+ * and nested `filter` lists, and the property under test is which sources
+ * the package carries and where they land.
+ */
+function extraResourcePairs(text) {
+  const lines = text.split(/\r?\n/)
+  const start = lines.findIndex((line) => /^extraResources:\s*$/.test(line))
+  assert.ok(start >= 0, 'extraResources is missing from electron-builder.yml')
+  const pairs = []
+  let current = null
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break
+    const from = line.match(/^\s+- from: (.+)$/)
+    if (from) {
+      current = { from: from[1].trim() }
+      pairs.push(current)
+      continue
+    }
+    const to = line.match(/^\s+to: (.+)$/)
+    if (to && current) {
+      current.to = to[1].trim()
+      current = null
+    }
+  }
+  return pairs
+}
+
 /** Signing keys that W28 owns; a comment about their absence is not a setting. */
 function signingSettingsIn(text) {
   return [...text.matchAll(/^\s*(sign|signing|certificateFile|certificatePassword|signtoolOptions)\b/gm)].map((match) => match[1])
@@ -77,7 +107,16 @@ test('the packaging config ships the main process, preload, manifest and web dis
   for (const file of ['src/main.mjs', 'src/preload.cjs', 'package.json']) {
     assert.ok(fs.existsSync(path.join(SHELL_ROOT, file)), `${file} is declared but absent for packaging`)
   }
-  assert.match(config, /^extraResources:\n  - from: \.\.\/web\/dist\n    to: web-dist\n    filter:\n      - '\*\*\/\*'$/m)
+  // The extraResources list is read structurally (not by one anchored regex)
+  // because its entries carry prose comments: the web bundle, the frozen
+  // backend (O3, wired 2026-11-14) and the two supply templates.
+  assert.deepEqual(extraResourcePairs(config), [
+    { from: '../web/dist', to: 'web-dist' },
+    { from: 'build/backend-freeze/labcairn', to: 'backend/labcairn' },
+    { from: 'shell-env.template.json', to: 'shell-env.template.json' },
+    { from: 'labcairn-shell.cmd', to: 'labcairn-shell.cmd' },
+  ])
+  assert.ok(fs.existsSync(FREEZE_DIR) || !process.env.CI, 'the frozen backend the config ships is absent — run shell/scripts/build-backend-freeze.mjs first')
   assert.ok(!/service-runtime|to: service/.test(config), 'the minimal configuration does not claim an unmeasured O3 runtime arrangement')
 })
 
@@ -103,9 +142,9 @@ test('mutations of signing, target and output are visible to the same reads', ()
   assert.equal(outputOutsideTrackedTree(movedOutput), false)
 })
 
-/** Run the packaging guard against a bundle directory and return its result. */
-function guardAgainst(directory) {
-  return spawnSync(process.execPath, [GUARD_PATH, directory], { encoding: 'utf8' })
+/** Run the packaging guard against a bundle directory and a backend directory. */
+function guardAgainst(directory, backend = FREEZE_DIR) {
+  return spawnSync(process.execPath, [GUARD_PATH, directory, backend], { encoding: 'utf8' })
 }
 
 /** A temporary directory outside the tree, removed when the work is done. */
@@ -113,29 +152,30 @@ function temporaryDirectory(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
 }
 
-test('the packaging config runs the bundle guard before it packages', () => {
-  assert.match(config, /^beforeBuild: scripts\/require-web-dist\.mjs$/m)
+test('the packaging config runs the input guard before it packages', () => {
+  assert.match(config, /^beforeBuild: scripts\/require-package-inputs\.mjs$/m)
   assert.ok(fs.existsSync(GUARD_PATH), 'the configuration names a guard script that is absent')
 })
 
 test('the guard is shaped the way electron-builder calls it', async () => {
-  const guard = await import('../scripts/require-web-dist.mjs')
+  const guard = await import('../scripts/require-package-inputs.mjs')
   assert.equal(typeof guard.default, 'function', 'electron-builder resolves the hook as the default export')
   assert.equal(typeof guard.bundleProblem, 'function')
+  assert.equal(typeof guard.backendProblem, 'function')
   assert.equal(typeof guard.makeGuard, 'function')
   assert.ok(fs.existsSync(GUARD_PATH), 'the guard script is absent')
 })
 
 test('the hook electron-builder calls throws on a missing bundle and returns true on a good one', async () => {
-  const guard = await import('../scripts/require-web-dist.mjs')
+  const guard = await import('../scripts/require-package-inputs.mjs')
   const absent = temporaryDirectory('labcairn-hook-absent-')
   fs.rmSync(absent, { recursive: true, force: true })
-  await assert.rejects(() => guard.makeGuard(absent)(), /absent/)
+  await assert.rejects(() => guard.makeGuard(absent, FREEZE_DIR)(), /absent/)
 
   const complete = temporaryDirectory('labcairn-hook-complete-')
   try {
     fs.writeFileSync(path.join(complete, 'index.html'), '<!doctype html><title>LabCairn</title>')
-    const result = await guard.makeGuard(complete)()
+    const result = await guard.makeGuard(complete, FREEZE_DIR)()
     assert.equal(result, true, 'the hook must return true so electron-builder still rebuilds the dependencies')
   } finally {
     fs.rmSync(complete, { recursive: true, force: true })
@@ -167,6 +207,48 @@ test('the bundle guard refuses an empty bundle and accepts one with the entry do
     assert.equal(result.status, 0, `the guard refused a complete bundle: ${result.stderr}`)
   } finally {
     fs.rmSync(complete, { recursive: true, force: true })
+  }
+})
+
+test('the packaging guard refuses a build with no frozen backend and names the freeze script', () => {
+  // O3's frozen service (2026-11-14) is the second input a package needs: the
+  // package's own shell-env.json names `backend/labcairn`, and electron-builder
+  // would silently ship a package without it. The refusal names the tool that
+  // produces the missing directory. A synthetic web bundle keeps the web input
+  // out of the assertion; the backend input is the one under test.
+  const webBundle = temporaryDirectory('labcairn-web-dist-guard-')
+  const absent = temporaryDirectory('labcairn-freeze-absent-')
+  fs.rmSync(absent, { recursive: true, force: true })
+  try {
+    fs.writeFileSync(path.join(webBundle, 'index.html'), '<!doctype html>')
+    const result = guardAgainst(webBundle, absent)
+    assert.notEqual(result.status, 0, 'the guard accepted a build with no frozen backend')
+    assert.match(result.stderr, /frozen backend directory is absent/)
+    assert.match(result.stderr, /build-backend-freeze\.mjs/)
+  } finally {
+    fs.rmSync(webBundle, { recursive: true, force: true })
+  }
+})
+
+test('the packaging guard refuses a frozen backend without its entry binary or migrations', () => {
+  const webBundle = temporaryDirectory('labcairn-web-dist-guard2-')
+  const hollow = temporaryDirectory('labcairn-freeze-hollow-')
+  try {
+    fs.writeFileSync(path.join(webBundle, 'index.html'), '<!doctype html>')
+    fs.mkdirSync(path.join(hollow, 'migrations'), { recursive: true })
+    fs.writeFileSync(path.join(hollow, 'migrations', 'alembic.ini'), '[alembic]\n')
+    const noExe = guardAgainst(webBundle, hollow)
+    assert.notEqual(noExe.status, 0, 'the guard accepted a backend with no entry binary')
+    assert.match(noExe.stderr, /labcairn\.exe/)
+
+    fs.mkdirSync(path.join(hollow, 'labcairn.exe'), { recursive: true })
+    fs.rmSync(path.join(hollow, 'migrations'), { recursive: true, force: true })
+    const noMigrations = guardAgainst(webBundle, hollow)
+    assert.notEqual(noMigrations.status, 0, 'the guard accepted a backend with no migrations')
+    assert.match(noMigrations.stderr, /migrations\/alembic\.ini/)
+  } finally {
+    fs.rmSync(webBundle, { recursive: true, force: true })
+    fs.rmSync(hollow, { recursive: true, force: true })
   }
 })
 

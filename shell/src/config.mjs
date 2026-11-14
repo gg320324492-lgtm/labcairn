@@ -13,7 +13,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { parseShellEnv, resolveShellEnvWorkspace } from './shell-env.mjs'
+import { parseShellEnv, resolveShellEnvCliPath, resolveShellEnvWorkspace } from './shell-env.mjs'
 
 /** The Vite origin the dev page is loaded from (§4.2). */
 export const DEV_PAGE_ORIGIN = 'http://127.0.0.1:5173'
@@ -123,18 +123,22 @@ export function resolveRunConfig(env, { packaged, resourcesDir = null }) {
   }
 
   // T09's supply precedence: the environment names it, or the package's own
-  // `resources/shell-env.json` does. The file's `workspace` may be
-  // installation-relative; the environment only accepts absolute paths.
+  // `resources/shell-env.json` does. The file's `workspace` and, since the
+  // frozen backend ships in the package (O3, 2026-11-14), its `cliPath` may
+  // be installation-relative; the environment only accepts absolute paths.
   const fromFile = readPackagedShellEnv(packagedShellEnvPath(resourcesDir, packaged))
 
   const cliPath =
     requireAbsolute('LABCAIRN_SHELL_CLI', env.LABCAIRN_SHELL_CLI) ??
-    requireAbsolute('shell-env.json "cliPath"', fromFile.cliPath ?? null)
+    (fromFile.cliPath !== undefined
+      ? resolveShellEnvCliPath(fromFile.cliPath, resourcesDir)
+      : null)
   if (cliPath === null) {
     throw new Error(
       'LABCAIRN_SHELL_CLI must name the labcairn entry point by absolute path ' +
-        '(in a dev checkout, the virtualenv\'s console script; in a packaged ' +
-        `build, the environment or ${SHELL_ENV_FILE}).`,
+        `(in a dev checkout, the virtualenv's console script; in a packaged ` +
+        `build, the environment or ${SHELL_ENV_FILE}'s "cliPath", absolute or ` +
+        'installation-relative such as "backend/labcairn").',
     )
   }
 

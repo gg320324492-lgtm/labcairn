@@ -13,16 +13,25 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { parseShellEnv, resolveShellEnvWorkspace } from '../src/shell-env.mjs'
+import { parseShellEnv, resolveShellEnvCliPath, resolveShellEnvWorkspace } from '../src/shell-env.mjs'
 
-test('the template form parses: an installation-relative workspace and no CLI yet', () => {
-  // The shipped template carries only the workspace: O3's supply decision
-  // (2026-11-14) keeps `cliPath` out of the file until the frozen backend is
-  // packaged, so the template's own shape is workspace-only.
+test('the template form parses: the frozen exe and workspace, both installation-relative', () => {
+  // The template carried only the workspace while the backend's arrangement
+  // was undecided; since the frozen backend ships in the package the template
+  // names it too — the exe inside the bundle directory, not the directory
+  // itself, because the supervisor spawns a file.
   const parsed = parseShellEnv(JSON.stringify({
     workspace: 'LabCairn-workspace',
   }))
   assert.deepEqual(parsed, { workspace: 'LabCairn-workspace' })
+  const withCli = parseShellEnv(JSON.stringify({
+    cliPath: 'backend/labcairn/labcairn.exe',
+    workspace: 'LabCairn-workspace',
+  }))
+  assert.deepEqual(withCli, {
+    cliPath: 'backend/labcairn/labcairn.exe',
+    workspace: 'LabCairn-workspace',
+  })
 })
 
 test('an unknown field in the template is a refusal — including a comment field', () => {
@@ -55,9 +64,47 @@ test('an unknown field is a refusal, not a silent default', () => {
 })
 
 test('a relative CLI path is a refusal: no cwd guessing, from a file either way', () => {
+  // A bare exe name is a PATH lookup, which is §4.1's cwd guess; only the
+  // installation-relative form ("backend/labcairn") is allowed to be relative,
+  // because it anchors to where the package lives, not to the cwd.
   assert.throws(
     () => parseShellEnv('{"cliPath":"labcairn.exe"}'),
-    /"cliPath" must be an absolute path/,
+    /"cliPath" must be an absolute path or an installation-relative path/,
+  )
+})
+
+test('the installation-relative CLI form is accepted and resolves under resources', () => {
+  const parsed = parseShellEnv('{"cliPath":"backend/labcairn"}')
+  assert.deepEqual(parsed, { cliPath: 'backend/labcairn' })
+  assert.equal(
+    resolveShellEnvCliPath(parsed.cliPath, 'C:\\Program Files\\LabCairn\\resources'),
+    'C:\\Program Files\\LabCairn\\resources\\backend\\labcairn',
+  )
+  // A Windows separator in the file is the same installation-relative form.
+  assert.equal(
+    resolveShellEnvCliPath('backend\\labcairn', 'C:\\Program Files\\LabCairn\\resources'),
+    'C:\\Program Files\\LabCairn\\resources\\backend\\labcairn',
+  )
+})
+
+test('an absolute CLI path in the file passes through untouched', () => {
+  assert.equal(
+    resolveShellEnvCliPath('D:\\Labs\\freeze\\labcairn.exe', 'C:\\Program Files\\LabCairn\\resources'),
+    'D:\\Labs\\freeze\\labcairn.exe',
+  )
+})
+
+test('an installation-relative CLI with no resources directory to anchor to is a refusal', () => {
+  assert.throws(
+    () => resolveShellEnvCliPath('backend/labcairn', null),
+    /no resources directory is known/,
+  )
+})
+
+test('a CLI path that escapes the installation is a refusal, not a resolved escape', () => {
+  assert.throws(
+    () => parseShellEnv('{"cliPath":"../elsewhere/labcairn.exe"}'),
+    /installation-relative/,
   )
 })
 

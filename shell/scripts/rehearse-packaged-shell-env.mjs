@@ -131,32 +131,32 @@ check('refusal — a broken shell-env.json is a startup refusal naming the field
     resolveRunConfig({}, { packaged: true, resourcesDir })
     assert.fail('the resolve had to refuse')
   } catch (error) {
-    assert.match(error.message, /"cliPath" must be an absolute path/)
+    assert.match(error.message, /"cliPath" must be an absolute path or an installation-relative path/)
     process.stdout.write(`  refusal: ${error.message.split('\n')[0]}\n`)
   }
 })
 
 // O3's frozen service, at the supply layer: the package now carries the
-// frozen backend, so the file names the frozen exe by absolute path and the
-// environment names nothing. The parse-and-precedence machinery is the
-// machinery above — the frozen exe is only a different absolute value — so
-// this scenario must run whether or not a freeze exists on this machine.
-// When a real freeze is present, the scenario points at the real artifact.
+// frozen backend at `resources/backend/labcairn`, and the file names it in
+// its installation-relative form (`"cliPath": "backend/labcairn"`) while the
+// environment names nothing. The resolver anchors the relative name under the
+// resources directory — the anchoring the installation-relative workspace
+// already uses — so the drill's assertion is the resolved absolute path, not
+// the file's spelling.
 const frozenExe = path.join(here, '..', 'build', 'backend-freeze', 'labcairn',
   process.platform === 'win32' ? 'labcairn.exe' : 'labcairn')
-const frozenCliPath = fs.existsSync(frozenExe) ? frozenExe : 'C:\\Program Files\\LabCairn\\resources\\labcairn\\labcairn.exe'
 if (!fs.existsSync(frozenExe)) {
-  process.stdout.write('SKIP-INPUT no frozen backend on this machine — the scenario runs on the packaged absolute-path form\n')
+  process.stdout.write('SKIP-INPUT no frozen backend on this machine — the live scenario is skipped; the parse-level scenarios still run\n')
 }
-check('way 2 + O3 — the file names the frozen backend exe, and the run resolves it', () => {
+check('way 2 + O3 — the file names the frozen backend installation-relatively, and the run resolves it under resources', () => {
   const resourcesDir = packagedResources({
     withFile: true,
-    file: JSON.stringify({ cliPath: frozenCliPath, workspace: 'LabCairn-workspace' }),
+    file: JSON.stringify({ cliPath: 'backend/labcairn/labcairn.exe', workspace: 'LabCairn-workspace' }),
   })
   const config = resolveRunConfig({}, { packaged: true, resourcesDir })
-  assert.equal(config.cliPath, frozenCliPath)
+  assert.equal(config.cliPath, path.join(resourcesDir, 'backend', 'labcairn', 'labcairn.exe'))
   assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
-  assert.ok(path.isAbsolute(config.cliPath), 'the frozen exe must be named by absolute path')
+  assert.ok(path.isAbsolute(config.cliPath), 'the resolved entry point must be absolute')
 })
 
 // The environment still wins per variable, even against a file that names a
@@ -164,7 +164,7 @@ check('way 2 + O3 — the file names the frozen backend exe, and the run resolve
 check('way 1 + O3 — the environment overrides a file that names the frozen exe', () => {
   const resourcesDir = packagedResources({
     withFile: true,
-    file: JSON.stringify({ cliPath: frozenCliPath, workspace: 'LabCairn-workspace' }),
+    file: JSON.stringify({ cliPath: 'backend/labcairn/labcairn.exe', workspace: 'LabCairn-workspace' }),
   })
   const config = resolveRunConfig(
     { LABCAIRN_SHELL_CLI: CLI, LABCAIRN_SHELL_WORKSPACE: 'E:\\Labs\\drill-ws' },

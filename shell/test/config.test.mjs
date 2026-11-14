@@ -14,6 +14,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import { resolveRunConfig, DEV_PAGE_ORIGIN, SHELL_ENV_FILE } from '../src/config.mjs'
 
@@ -167,8 +168,29 @@ test('a packaged build with a broken shell-env.json refuses at startup, naming t
     fs.writeFileSync(path.join(resourcesDir, SHELL_ENV_FILE), '{"cliPath": "labcairn.exe"}')
     assert.throws(
       () => resolveRunConfig({}, { packaged: true, resourcesDir }),
-      /"cliPath" must be an absolute path/,
+      /"cliPath" must be an absolute path or an installation-relative path/,
     )
+  } finally {
+    fs.rmSync(resources, { recursive: true, force: true })
+  }
+})
+
+test('the shipped template shape resolves: the frozen backend named installation-relatively', () => {
+  // O3's wired supply (2026-11-14): the package's own file names the frozen
+  // backend as `backend/labcairn` — the place extraResources carries it — and
+  // the workspace in its installation-relative form. The environment names
+  // nothing; the package says where its own backend lives.
+  const resources = fs.mkdtempSync(path.join(os.tmpdir(), 'lc-shell-env-'))
+  try {
+    const resourcesDir = path.join(resources, 'resources')
+    fs.mkdirSync(resourcesDir)
+    fs.writeFileSync(
+      path.join(resourcesDir, SHELL_ENV_FILE),
+      fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'shell-env.template.json'), 'utf8'),
+    )
+    const config = resolveRunConfig({}, { packaged: true, resourcesDir })
+    assert.equal(config.cliPath, path.join(resourcesDir, 'backend', 'labcairn', 'labcairn.exe'))
+    assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
   } finally {
     fs.rmSync(resources, { recursive: true, force: true })
   }
