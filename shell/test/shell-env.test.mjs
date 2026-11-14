@@ -15,19 +15,23 @@ import test from 'node:test'
 
 import { parseShellEnv, resolveShellEnvCliPath, resolveShellEnvWorkspace } from '../src/shell-env.mjs'
 
-test('the template form parses: an installation-relative workspace and no CLI yet', () => {
+test('the template form parses: the frozen exe and workspace, both installation-relative', () => {
   // The template carried only the workspace while the backend's arrangement
   // was undecided; since the frozen backend ships in the package the template
-  // names it too. The parser accepts both shapes.
+  // names it too — the exe inside the bundle directory, not the directory
+  // itself, because the supervisor spawns a file.
   const parsed = parseShellEnv(JSON.stringify({
     workspace: 'LabCairn-workspace',
   }))
   assert.deepEqual(parsed, { workspace: 'LabCairn-workspace' })
   const withCli = parseShellEnv(JSON.stringify({
-    cliPath: 'backend/labcairn',
+    cliPath: 'backend/labcairn/labcairn.exe',
     workspace: 'LabCairn-workspace',
   }))
-  assert.deepEqual(withCli, { cliPath: 'backend/labcairn', workspace: 'LabCairn-workspace' })
+  assert.deepEqual(withCli, {
+    cliPath: 'backend/labcairn/labcairn.exe',
+    workspace: 'LabCairn-workspace',
+  })
 })
 
 test('an unknown field in the template is a refusal — including a comment field', () => {

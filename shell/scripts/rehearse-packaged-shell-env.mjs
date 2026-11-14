@@ -151,10 +151,10 @@ if (!fs.existsSync(frozenExe)) {
 check('way 2 + O3 — the file names the frozen backend installation-relatively, and the run resolves it under resources', () => {
   const resourcesDir = packagedResources({
     withFile: true,
-    file: JSON.stringify({ cliPath: 'backend/labcairn', workspace: 'LabCairn-workspace' }),
+    file: JSON.stringify({ cliPath: 'backend/labcairn/labcairn.exe', workspace: 'LabCairn-workspace' }),
   })
   const config = resolveRunConfig({}, { packaged: true, resourcesDir })
-  assert.equal(config.cliPath, path.join(resourcesDir, 'backend', 'labcairn'))
+  assert.equal(config.cliPath, path.join(resourcesDir, 'backend', 'labcairn', 'labcairn.exe'))
   assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
   assert.ok(path.isAbsolute(config.cliPath), 'the resolved entry point must be absolute')
 })
@@ -164,7 +164,7 @@ check('way 2 + O3 — the file names the frozen backend installation-relatively,
 check('way 1 + O3 — the environment overrides a file that names the frozen exe', () => {
   const resourcesDir = packagedResources({
     withFile: true,
-    file: JSON.stringify({ cliPath: 'backend/labcairn', workspace: 'LabCairn-workspace' }),
+    file: JSON.stringify({ cliPath: 'backend/labcairn/labcairn.exe', workspace: 'LabCairn-workspace' }),
   })
   const config = resolveRunConfig(
     { LABCAIRN_SHELL_CLI: CLI, LABCAIRN_SHELL_WORKSPACE: 'E:\\Labs\\drill-ws' },

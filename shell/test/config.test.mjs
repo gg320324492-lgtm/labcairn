@@ -189,7 +189,7 @@ test('the shipped template shape resolves: the frozen backend named installation
       fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'shell-env.template.json'), 'utf8'),
     )
     const config = resolveRunConfig({}, { packaged: true, resourcesDir })
-    assert.equal(config.cliPath, path.join(resourcesDir, 'backend', 'labcairn'))
+    assert.equal(config.cliPath, path.join(resourcesDir, 'backend', 'labcairn', 'labcairn.exe'))
     assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
   } finally {
     fs.rmSync(resources, { recursive: true, force: true })

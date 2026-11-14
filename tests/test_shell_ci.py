@@ -128,7 +128,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "PLACEHOLDER_SET_AFTER_COMMIT"
+CASE_FLOORS_MEASURED_AT: Final[str] = "49a0d20f9cf3f9463745ba41967519bc26d41354"
 
 
 # --------------------------------------------------------------------------
