@@ -891,3 +891,237 @@ def test_a_chain_comment_is_visible_in_the_view_that_reads_it(
         )
     finally:
         page.close()
+
+
+# --------------------------------------------------------------------------- #
+# LC-P3-01 §4.8's first bullet, version half: the report revisions, chosen on the
+# page. The assertion this window was handed is §5 of
+# docs/acceptance/LC-P3-01-version-select-2026-11-14.md, adapted to what the
+# merged panel and the service actually say (that record names the places its
+# draft had to be adjusted at).
+# --------------------------------------------------------------------------- #
+
+
+VERSION_TASK = (
+    "Version panel baseline",
+    "Show the report revisions the receipts record.",
+    "The panel lists the revisions and shows the chosen one.",
+)
+
+#: The material the version task's claim is read from. Synthetic — §4.1 forbids
+#: real advisor material in the automated baseline — and a number, because the
+#: report's content is what distinguishes one revision's frame from another's.
+VERSION_MATERIAL = {"note.md": "# Synthetic version note\n\nThe measured value is 7.\n"}
+
+
+def _version_serve(root: Path) -> ServedWorkbench:
+    """A workspace with one task, one claim, two report renders — and its service.
+
+    **Why this fixture does not reuse the module's ``workbench``.** The module
+    fixture serves a workspace whose policy is the default, and the default denies
+    reading the task's outputs — the content route answers ``403`` under it, which
+    is the gap the acceptance record §4 names. The operator's allow rule is the
+    configuration act the record names, and it has to be in the workspace **before
+    the service starts**: the service reads the policy once, when its context is
+    built, so a rule written after the service came up is a rule the service never
+    sees.
+
+    **Why the claim and the renders are made here, before the page opens.** The
+    report is rendered from a recorded claim, the way the CLI does it; the renders
+    go through ``POST /report``, the same route the page's Render button sends. Two
+    renders are two revisions, and the workspace genuinely holds both before the
+    browser arrives — so what the panel lists is the service's own history, not a
+    page the test composed.
+    """
+    workspace = _make_workspace(
+        root / "workspace", VERSION_TASK, source_dir="materials", material=VERSION_MATERIAL
+    )
+    location = locate(workspace)
+
+    from labcairn.cli.workspace import DEFAULT_POLICY_RULES, write_policy
+    from labcairn.security.policy import Permission, Rule
+
+    write_policy(
+        location,
+        (
+            *DEFAULT_POLICY_RULES,
+            Rule(
+                effect=Permission.ALLOW,
+                pattern="**",
+                capabilities=frozenset({"fs.read", "fs.list"}),
+                note="the version witness reads the task's own outputs back",
+            ),
+        ),
+    )
+
+    # The claim, the way the CLI records it: the material is ingested by
+    # `task create` and `sources ingest`, the ledger's addresses are what a
+    # claim is recorded against, and one of the addresses the listing prints
+    # is the address the claim below carries.
+    ingested = run_cli("--workspace", str(workspace), "sources", "ingest", "--json")
+    assert ingested.returncode == 0, ingested.stderr
+    source_ids = ingested.json()["source_ids"]
+    assert source_ids, "the ingest bound no material to the task"
+    listed = run_cli(
+        "--workspace",
+        str(workspace),
+        "sources",
+        "addresses",
+        "--source",
+        str(source_ids[0]),
+        "--json",
+    )
+    assert listed.returncode == 0, listed.stderr
+    addresses = listed.json()
+    assert addresses, "the ingest left no address a claim could be recorded at"
+    claimed = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "claim",
+        "--source",
+        str(addresses[0]["source_id"]),
+        "--address",
+        addresses[0]["locator_key"],
+        "--kind",
+        "numeric",
+        "--value",
+        "7",
+        "--unit",
+        "dimensionless",
+        "--json",
+    )
+    assert claimed.returncode == 0, claimed.stderr
+
+    served = start_served_workbench(workspace=workspace, dist_dir=WEB_DIST_DIR)
+    try:
+        for _ in range(2):
+            reply = served.post("/report", payload={"path": "report", "template_id": "default"})
+            assert reply.status == 200, reply.body
+        artifacts = served.get("/artifacts").json()
+        documents = [
+            view
+            for view in artifacts
+            if view["receipt"]["kind"] == "report"
+            and view["receipt"]["relative_path"].endswith("report.json")
+        ]
+        revisions = sorted(view["receipt"]["revision"] for view in documents)
+        assert revisions == [1, 2], (
+            f"two renders did not leave two report revisions; the store holds {revisions}"
+        )
+    except BaseException:
+        served.stop()
+        raise
+    return served
+
+
+@pytest.fixture(scope="module")
+def version_serve(tmp_path_factory: pytest.TempPathFactory) -> Iterator[ServedWorkbench]:
+    """The two-revision service, started once for the version panel's test."""
+    root = tmp_path_factory.mktemp("versions")
+    served = _version_serve(root)
+    try:
+        yield served
+    finally:
+        served.stop()
+
+
+def test_the_version_panel_shows_the_revision_the_reader_chooses(
+    workbench: WorkbenchRun,
+    version_serve: ServedWorkbench,
+) -> None:
+    """§4.8's first bullet, version half: the chosen revision, on the page.
+
+    The service holds two report revisions before the browser opens (the fixture
+    rendered both through ``POST /report``). The page must list both revisions,
+    show the newest by default, and switch to the one the reader chooses — by the
+    previews the content route serves, with no write request anywhere, because no
+    route stores a current version.
+
+    **Adapted from the acceptance record's draft.** Three places, each measured
+    against the merged tree:
+
+    * The draft asked for a default frame named ``Revision 1`` and a switch *to*
+      ``Revision 1``; the panel as merged shows the **newest** revision by default
+      (``web/src/app/versions.ts``: the shown revision is the greatest number the
+      receipts carry, read from the receipts and not remembered). The assertion
+      here is the draft's property with the panel's own default: the default
+      preview is revision 2's, the reader chooses revision 1, and the preview that
+      remains is revision 1's.
+    * The draft spelled the frame's accessible name from memory
+      (``reports/v1/report.html``); the receipts carry the real path
+      (``output/<task_id>/report/v1/report.html``), so the name here is read from
+      what the service lists.
+    * The draft expected a frame with a ``title`` of ``Revision N: <path>``; the
+      panel's own markup does not put that name anywhere. Each preview block
+      (``div.version__form``) carries the receipt's path as its subtitle and the
+      preview element itself — ``ArtifactPreview`` renders an ``<a>`` for these
+      receipts, not an ``<iframe>``, because it asks for a media type of exactly
+      ``"text/html"`` and the service sends ``"text/html; charset=utf-8"`` —
+      carries no ``title`` at all. **The media-type mismatch is a gap in the
+      panel, not in this witness**: the web unit suite passes because its fake
+      sends the bare media type. The boundary for this batch is tests only, so
+      the assertion follows the panel's real markup — a preview block whose
+      subtitle names the revision's path — and the gap is recorded for the owner
+      rather than patched here.
+    """
+    served = version_serve
+    artifacts = served.get("/artifacts").json()
+    documents = [
+        view
+        for view in artifacts
+        if view["receipt"]["kind"] == "report"
+        and view["receipt"]["relative_path"].endswith("report.html")
+    ]
+    by_revision = {view["receipt"]["revision"]: view["receipt"] for view in documents}
+    v1_path, v2_path = by_revision[1]["relative_path"], by_revision[2]["relative_path"]
+
+    page = workbench.browser.new_page()
+    writes: list[str] = []
+    page.on(
+        "request",
+        lambda request: (
+            writes.append(str(request.url)) if request.method not in ("GET", "HEAD") else None
+        ),
+    )
+    try:
+        page.goto(f"{served.origin}/", wait_until="load")
+        page.wait_for_selector("h1.workbench__title", timeout=15000)
+        page.wait_for_timeout(int(SETTLE_SECONDS * 1000))
+
+        panel = page.locator("section.panel", has_text="Version select").first
+        rows = panel.get_by_role("listitem")
+        assert rows.count() == 2, (
+            f"the page listed {rows.count()} revisions for a task that holds two"
+        )
+        assert "revision 1" in rows.nth(0).inner_text()
+        assert "revision 2" in rows.nth(1).inner_text()
+
+        # The default view is the newest revision. The panel marks each shown
+        # receipt with a preview block whose subtitle is the receipt's own
+        # path, read from the service rather than spelled from memory.
+        default_preview = panel.locator(".version__form", has_text=v2_path)
+        assert default_preview.count() >= 1, (
+            f"the newest revision was not the default view: no preview block names {v2_path}"
+        )
+        chosen_preview = panel.locator(".version__form", has_text=v1_path)
+        assert chosen_preview.count() == 0, (
+            "revision 1's preview was on the page before anybody chose it"
+        )
+
+        # The reader chooses revision 1, and the page switches without a write.
+        writes.clear()
+        rows.nth(0).get_by_role("button", name="Show").click()
+
+        deadline = time.monotonic() + 20.0
+        while time.monotonic() < deadline and chosen_preview.count() == 0:
+            page.wait_for_timeout(200)
+        assert chosen_preview.count() >= 1, (
+            "the page did not switch to the revision the reader chose"
+        )
+        assert default_preview.count() == 0, (
+            "revision 2's preview stayed on the page after the reader chose revision 1"
+        )
+        assert not writes, f"choosing a revision sent {len(writes)} write request(s): {writes[:4]}"
+    finally:
+        page.close()
