@@ -15,11 +15,25 @@ import test from 'node:test'
 
 import { parseShellEnv, resolveShellEnvWorkspace } from '../src/shell-env.mjs'
 
-test('the template form parses: an absolute CLI and an installation-relative workspace', () => {
+test('the template form parses: an installation-relative workspace and no CLI yet', () => {
+  // The shipped template carries only the workspace: O3's supply decision
+  // (2026-11-14) keeps `cliPath` out of the file until the frozen backend is
+  // packaged, so the template's own shape is workspace-only.
   const parsed = parseShellEnv(JSON.stringify({
     workspace: 'LabCairn-workspace',
   }))
   assert.deepEqual(parsed, { workspace: 'LabCairn-workspace' })
+})
+
+test('an unknown field in the template is a refusal — including a comment field', () => {
+  // The template once carried a `_comment` field for humans. The parser
+  // refuses any unknown field, so a renamed template with that comment would
+  // have refused to start the shell; the comment is gone from the template,
+  // and this case holds the rule that let the removal matter.
+  assert.throws(
+    () => parseShellEnv('{"_comment":"why","workspace":"LabCairn-workspace"}'),
+    /unknown field "_comment"/,
+  )
 })
 
 test('absolute values pass through untouched', () => {

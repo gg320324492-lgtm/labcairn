@@ -31,7 +31,9 @@
  */
 
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -133,6 +135,94 @@ check('refusal — a broken shell-env.json is a startup refusal naming the field
     process.stdout.write(`  refusal: ${error.message.split('\n')[0]}\n`)
   }
 })
+
+// O3's frozen service, at the supply layer: the package now carries the
+// frozen backend, so the file names the frozen exe by absolute path and the
+// environment names nothing. The parse-and-precedence machinery is the
+// machinery above — the frozen exe is only a different absolute value — so
+// this scenario must run whether or not a freeze exists on this machine.
+// When a real freeze is present, the scenario points at the real artifact.
+const frozenExe = path.join(here, '..', 'build', 'backend-freeze', 'labcairn',
+  process.platform === 'win32' ? 'labcairn.exe' : 'labcairn')
+const frozenCliPath = fs.existsSync(frozenExe) ? frozenExe : 'C:\\Program Files\\LabCairn\\resources\\labcairn\\labcairn.exe'
+if (!fs.existsSync(frozenExe)) {
+  process.stdout.write('SKIP-INPUT no frozen backend on this machine — the scenario runs on the packaged absolute-path form\n')
+}
+check('way 2 + O3 — the file names the frozen backend exe, and the run resolves it', () => {
+  const resourcesDir = packagedResources({
+    withFile: true,
+    file: JSON.stringify({ cliPath: frozenCliPath, workspace: 'LabCairn-workspace' }),
+  })
+  const config = resolveRunConfig({}, { packaged: true, resourcesDir })
+  assert.equal(config.cliPath, frozenCliPath)
+  assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
+  assert.ok(path.isAbsolute(config.cliPath), 'the frozen exe must be named by absolute path')
+})
+
+// The environment still wins per variable, even against a file that names a
+// real frozen backend: the launcher remains the operator override.
+check('way 1 + O3 — the environment overrides a file that names the frozen exe', () => {
+  const resourcesDir = packagedResources({
+    withFile: true,
+    file: JSON.stringify({ cliPath: frozenCliPath, workspace: 'LabCairn-workspace' }),
+  })
+  const config = resolveRunConfig(
+    { LABCAIRN_SHELL_CLI: CLI, LABCAIRN_SHELL_WORKSPACE: 'E:\\Labs\\drill-ws' },
+    { packaged: true, resourcesDir },
+  )
+  assert.equal(config.cliPath, CLI, 'the environment must still win for cliPath')
+  assert.equal(config.workspace, 'E:\\Labs\\drill-ws')
+})
+
+// When the frozen exe really exists, a live drill proves the frozen entry
+// starts and serves: connected -> loaded -> granted. Parse-only otherwise.
+if (fs.existsSync(frozenExe)) {
+  check('live — the frozen backend starts, serves, and grants the page its probe', async () => {
+    const { spawn } = await import('node:child_process')
+    const { once } = await import('node:events')
+    const workspace = path.join(scratchRoot, 'frozen-ws')
+    fs.rmSync(workspace, { recursive: true, force: true })
+    const env = { ...process.env, COLUMNS: '200', PYTHONIOENCODING: 'utf-8' }
+    for (const args of [
+      ['--workspace', workspace, 'init'],
+      ['--workspace', workspace, 'task', 'create', '--title', 'frozen drill', '--objective', 'the frozen entry starts', '--criterion', 'connected then granted', '--json'],
+    ]) {
+      const done = spawnSync(frozenExe, args, { encoding: 'utf8', env })
+      assert.equal(done.status, 0, `the frozen exe refused ${args[2]}: ${done.stderr}`)
+    }
+    const port = await new Promise((resolve, reject) => {
+      const server = net.createServer()
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => {
+        const { port: free } = server.address()
+        server.close(() => resolve(free))
+      })
+    })
+    const service = spawn(frozenExe, [
+      '--workspace', workspace, 'serve', '--host', '127.0.0.1', '--port', String(port), '--json',
+    ], { env, windowsHide: true })
+    try {
+      const starting = await once(service.stdout, 'data')
+      assert.match(String(starting), /ServiceStarting|origin/, 'the frozen exe did not print the service start line')
+      const health = await fetch(`http://127.0.0.1:${port}/health`)
+      assert.equal(health.status, 200, 'the frozen service did not answer /health')
+      process.stdout.write(`  frozen exe served on 127.0.0.1:${port} (connected)\n`)
+      const token = JSON.parse(fs.readFileSync(path.join(workspace, 'session-token'), 'utf8'))
+      const probe = await fetch(`http://127.0.0.1:${port}/task/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ task_id: null }),
+      })
+      process.stdout.write(`  granted probe answered ${probe.status}\n`)
+      assert.notEqual(probe.status, 404, 'the frozen service does not route the granted mutation')
+    } finally {
+      if (service.exitCode === null && service.signalCode === null) {
+        if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(service.pid), '/T', '/F'], { stdio: 'ignore' })
+        else service.kill('SIGKILL')
+      }
+    }
+  })
+}
 
 fs.rmSync(scratchRoot, { recursive: true, force: true })
 process.stdout.write(`\n${passed} passed, ${failed} failed\n`)

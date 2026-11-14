@@ -170,6 +170,56 @@ O3 is decided, a packaged run with the file's `cliPath` left `null` refuses
 at startup with a message naming both supplies — the honest state, and the
 one the drill demonstrates.
 
+### 3.1 The owner's decisions, 2026-11-14 — the mixed supply, and a frozen backend
+
+**Both open questions were decided on 2026-11-14** (owner's decision material:
+`DECISION-BRIEF.md` in the T09/O3 decision folder; the work orders' O3 row in
+`PHASE_3-work-orders.md` §17 carried the question). The two decisions and
+what landed in this tree because of them:
+
+**Decision 1 — the supply is mixed.** `workspace` is supplied by the
+package's own `resources/shell-env.json` in its installation-relative form
+(`"workspace": "LabCairn-workspace"`, the same anchoring
+`resources/web-dist` already uses — no machine path travels in the file, and
+an upgrade does not carry a stale absolute path); `cliPath` is supplied by
+the launcher script (way 1) until the packaged backend exists, after which it
+joins the file too. **Why the mix wins** (the brief's reasoning, measured not
+asserted): the per-variable precedence (environment beats file) was already
+implemented and drilled, so the mixed arrangement ran with **zero code
+change** — the template edit below is a data change, not a mechanism change;
+the installation-relative workspace form is the cleanest upgrade story; and
+any `cliPath` written into the template today would name a backend the
+package does not carry yet, which is a guess, and §4.1's rule stands: a
+guessed default is a refusal, not a value. **What changed in the tree:**
+`shell/shell-env.template.json` now ships exactly
+`{"workspace": "LabCairn-workspace"}` — the `_comment` field is gone (the
+parser refuses any unknown field, and the comment was a field the parser
+would have rejected the moment the owner renamed the template live), and
+`cliPath` is absent rather than `null` (an absent field is the honest
+"nothing names this yet"; a `null` field survives only as a refused-value
+placeholder). The parser's own rule — unknown field refused, absent field
+skipped — is unchanged, and the witnesses
+(`shell/test/shell-env.test.mjs` 9 cases, `shell/test/config.test.mjs` 9
+cases, the 7-scenario drill) all pass on the edited template's shape.
+
+**Decision 2 — the backend is a frozen service.** `labcairn.cli:main` frozen
+with PyInstaller into a onedir `labcairn.exe` carried in the installer's
+`extraResources`. **Why frozen wins** (the brief's reasoning): the existing
+`ServiceSupervisor` spawn path (`command + args`) is unchanged — the command
+becomes the frozen entry, every argument the same; the package is smaller
+than a bundled interpreter (the venv is 644 MB across 380 packages; the
+freeze measured below is a fraction of that); no interpreter bootstrap at
+startup; and the upgrade face is a whole-directory replacement, which is
+what the existing NSIS overwrite install already does. A sidecar interpreter
+is what the installer cannot carry (measured 2026-11-11: the package carries
+no Python at all), and a bundled interpreter is the heaviest of the three.
+**What landed in this tree** for the decision: the build tool
+`shell/scripts/build-backend-freeze.mjs` (§3.2) and the drill's frozen-exe
+supply scenario (§3.3), both measured below. The installer does not yet
+carry the freeze — wiring `extraResources` to the frozen output is the next
+piece after the backend itself is frozen into the release — so this record
+claims the *mechanism and its drill*, not a package that ships it.
+
 ## 4. T05 — packaging: the hash is a tool, the templates ship, the build stays green
 
 **What was already measured** (2026-11-11 build report, referenced not
