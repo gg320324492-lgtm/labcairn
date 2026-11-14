@@ -263,7 +263,7 @@ test('the packaging guard refuses a frozen backend without its entry binary or m
     assert.notEqual(noExe.status, 0, 'the guard accepted a backend with no entry binary')
     assert.match(noExe.stderr, new RegExp(entryBinary.replace('.', '\\.')))
 
-    fs.mkdirSync(path.join(hollow, 'labcairn.exe'), { recursive: true })
+    fs.mkdirSync(path.join(hollow, entryBinary), { recursive: true })
     fs.rmSync(path.join(hollow, 'migrations'), { recursive: true, force: true })
     const noMigrations = guardAgainst(webBundle, hollow)
     assert.notEqual(noMigrations.status, 0, 'the guard accepted a backend with no migrations')
