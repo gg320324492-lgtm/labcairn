@@ -25,7 +25,7 @@ import os
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from store_support import env as _shared_env
@@ -64,12 +64,22 @@ def _fcntl() -> Any:
     return fcntl
 
 
+#: The Windows locking primitives, resolved once. Reached through
+#: ``getattr`` because the Ubuntu runner's mypy reads POSIX stubs, where
+#: ``import msvcrt`` followed by an attribute read is attr-defined red; mypy
+#: does not check a ``getattr`` on a module object, and on Windows these are
+#: the real functions. The ``cast`` states what the platform guarantees: on
+#: Windows the symbols exist, on POSIX they are never called.
+_MSVCRT_MODULE = __import__("msvcrt") if sys.platform == "win32" else None
+_MSVCRT_LOCKING = cast(Any, getattr(_MSVCRT_MODULE, "locking", None))
+_MSVCRT_LK_NBLCK = cast(Any, getattr(_MSVCRT_MODULE, "LK_NBLCK", 0))
+_MSVCRT_LK_UNLCK = cast(Any, getattr(_MSVCRT_MODULE, "LK_UNLCK", 0))
+
+
 def _open_exclusive_windows(path: Path) -> Any:
     """Windows: an open handle with no sharing flags — no other handle can open the file."""
     handle = os.open(str(path), os.O_RDWR)
-    import msvcrt
-
-    msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
+    _MSVCRT_LOCKING(handle, _MSVCRT_LK_NBLCK, 1)
     return handle
 
 
@@ -84,9 +94,7 @@ def _open_exclusive_posix(path: Path) -> Any:
 
 def _release_windows(handle: int, path: Path) -> None:
     """Release the Windows exclusive handle."""
-    import msvcrt
-
-    msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
+    _MSVCRT_LOCKING(handle, _MSVCRT_LK_UNLCK, 1)
     os.close(handle)
 
 
