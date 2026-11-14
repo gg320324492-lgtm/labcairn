@@ -135,6 +135,19 @@ if (!fs.existsSync(exePath)) {
   fail(`the build reported success but ${exePath} is absent`)
 }
 
+// The frozen code finds its schema migrations beside itself: inside the
+// bundle, `labcairn.db.migrations` resolves its repository root to the bundle
+// directory, so the migrations tree must live at `<bundle>/migrations/` the
+// same way it lives at `<checkout>/migrations/` in a development run. A
+// frozen exe without it refuses `init` ("no Alembic configuration"). Copying
+// it here is also exactly what the installer's extraResources wiring will do,
+// so the drill measures the arrangement the package will ship.
+const migrationsSource = path.join(REPO_ROOT, 'migrations')
+if (!fs.existsSync(path.join(migrationsSource, 'alembic.ini'))) {
+  fail(`the checkout's migrations tree is missing ${migrationsSource}`)
+}
+fs.cpSync(migrationsSource, path.join(bundleDir, 'migrations'), { recursive: true })
+
 /** The whole onedir tree's size, in bytes (directories + files). */
 function treeBytes(root) {
   let total = 0

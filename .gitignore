@@ -46,6 +46,10 @@ web/dist/
 # `git add -A` must never be able to stage a wheel.
 dist/
 build/
+# The shell's own build products: the backend freeze (O3's frozen service)
+# lives under shell/build/backend-freeze/, reproducible with
+# shell/scripts/build-backend-freeze.mjs.
+shell/build/
 *.egg-info/
 archive/
 .wheel-check/

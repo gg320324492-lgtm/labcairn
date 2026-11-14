@@ -182,7 +182,16 @@ if (fs.existsSync(frozenExe)) {
     const { once } = await import('node:events')
     const workspace = path.join(scratchRoot, 'frozen-ws')
     fs.rmSync(workspace, { recursive: true, force: true })
-    const env = { ...process.env, COLUMNS: '200', PYTHONIOENCODING: 'utf-8' }
+    // The same measured flag the freeze tool sets: logfire's pydantic plugin
+    // reads source text a frozen exe does not carry. The migrations tree is
+    // copied into the bundle by the freeze tool (what the installer will do
+    // too), so the frozen init finds it beside the exe, as in a checkout.
+    const env = {
+      ...process.env,
+      COLUMNS: '200',
+      PYTHONIOENCODING: 'utf-8',
+      PYDANTIC_DISABLE_PLUGINS: '1',
+    }
     for (const args of [
       ['--workspace', workspace, 'init'],
       ['--workspace', workspace, 'task', 'create', '--title', 'frozen drill', '--objective', 'the frozen entry starts', '--criterion', 'connected then granted', '--json'],
@@ -202,12 +211,25 @@ if (fs.existsSync(frozenExe)) {
       '--workspace', workspace, 'serve', '--host', '127.0.0.1', '--port', String(port), '--json',
     ], { env, windowsHide: true })
     try {
+      // Readiness is the service's own start line AND a /health answer, the
+      // same two-surface shape the shell's supervisor requires (a port
+      // answering is not readiness).
       const starting = await once(service.stdout, 'data')
       assert.match(String(starting), /ServiceStarting|origin/, 'the frozen exe did not print the service start line')
-      const health = await fetch(`http://127.0.0.1:${port}/health`)
+      let health = null
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        try {
+          health = await fetch(`http://127.0.0.1:${port}/health`)
+          break
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+      }
+      assert.ok(health !== null, 'the frozen service never answered /health')
       assert.equal(health.status, 200, 'the frozen service did not answer /health')
       process.stdout.write(`  frozen exe served on 127.0.0.1:${port} (connected)\n`)
-      const token = JSON.parse(fs.readFileSync(path.join(workspace, 'session-token'), 'utf8'))
+      // The token lives at <workspace>/.labcairn/session-token as plain text.
+      const token = fs.readFileSync(path.join(workspace, '.labcairn', 'session-token'), 'utf8').trim()
       const probe = await fetch(`http://127.0.0.1:${port}/task/select`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
