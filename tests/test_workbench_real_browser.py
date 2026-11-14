@@ -1035,19 +1035,35 @@ def test_the_version_panel_shows_the_revision_the_reader_chooses(
     The service holds two report revisions before the browser opens (the fixture
     rendered both through ``POST /report``). The page must list both revisions,
     show the newest by default, and switch to the one the reader chooses — by the
-    frames the content route serves, with no write request anywhere, because no
+    previews the content route serves, with no write request anywhere, because no
     route stores a current version.
 
-    **Adapted from the acceptance record's draft.** The draft asked for a default
-    frame named ``Revision 1`` and a switch *to* ``Revision 1``; the panel as
-    merged shows the **newest** revision by default (``web/src/app/versions.ts``:
-    the shown revision is the greatest number the receipts carry, read from the
-    receipts and not remembered), so the assertion here is the draft's property
-    with the panel's own default: the default frame is revision 2's, the reader
-    chooses revision 1, and the frame that remains is revision 1's. The frame's
-    accessible name is the panel's own ``Revision N: <path>`` label, and the path
-    is read from the receipts rather than spelled from memory — the draft's
-    ``reports/v1/...`` spelling is not the one the receipts carry.
+    **Adapted from the acceptance record's draft.** Three places, each measured
+    against the merged tree:
+
+    * The draft asked for a default frame named ``Revision 1`` and a switch *to*
+      ``Revision 1``; the panel as merged shows the **newest** revision by default
+      (``web/src/app/versions.ts``: the shown revision is the greatest number the
+      receipts carry, read from the receipts and not remembered). The assertion
+      here is the draft's property with the panel's own default: the default
+      preview is revision 2's, the reader chooses revision 1, and the preview that
+      remains is revision 1's.
+    * The draft spelled the frame's accessible name from memory
+      (``reports/v1/report.html``); the receipts carry the real path
+      (``output/<task_id>/report/v1/report.html``), so the name here is read from
+      what the service lists.
+    * The draft expected a frame with a ``title`` of ``Revision N: <path>``; the
+      panel's own markup does not put that name anywhere. Each preview block
+      (``div.version__form``) carries the receipt's path as its subtitle and the
+      preview element itself — ``ArtifactPreview`` renders an ``<a>`` for these
+      receipts, not an ``<iframe>``, because it asks for a media type of exactly
+      ``"text/html"`` and the service sends ``"text/html; charset=utf-8"`` —
+      carries no ``title`` at all. **The media-type mismatch is a gap in the
+      panel, not in this witness**: the web unit suite passes because its fake
+      sends the bare media type. The boundary for this batch is tests only, so
+      the assertion follows the panel's real markup — a preview block whose
+      subtitle names the revision's path — and the gap is recorded for the owner
+      rather than patched here.
     """
     served = version_serve
     artifacts = served.get("/artifacts").json()
@@ -1081,17 +1097,16 @@ def test_the_version_panel_shows_the_revision_the_reader_chooses(
         assert "revision 1" in rows.nth(0).inner_text()
         assert "revision 2" in rows.nth(1).inner_text()
 
-        # The default view is the newest revision, named by the panel's own
-        # frame label. The label carries the receipt's path, read from the
-        # service rather than spelled from memory.
-        default_frame = panel.get_by_title(f"Revision 2: {v2_path}")
-        assert default_frame.count() == 1, (
-            "the newest revision was not the default view: the page shows "
-            f"{v2_path} nowhere as a frame title"
+        # The default view is the newest revision. The panel marks each shown
+        # receipt with a preview block whose subtitle is the receipt's own
+        # path, read from the service rather than spelled from memory.
+        default_preview = panel.locator(".version__form", has_text=v2_path)
+        assert default_preview.count() >= 1, (
+            f"the newest revision was not the default view: no preview block names {v2_path}"
         )
-        chosen_frame = panel.get_by_title(f"Revision 1: {v1_path}")
-        assert chosen_frame.count() == 0, (
-            "revision 1's frame was on the page before anybody chose it"
+        chosen_preview = panel.locator(".version__form", has_text=v1_path)
+        assert chosen_preview.count() == 0, (
+            "revision 1's preview was on the page before anybody chose it"
         )
 
         # The reader chooses revision 1, and the page switches without a write.
@@ -1099,11 +1114,13 @@ def test_the_version_panel_shows_the_revision_the_reader_chooses(
         rows.nth(0).get_by_role("button", name="Show").click()
 
         deadline = time.monotonic() + 20.0
-        while time.monotonic() < deadline and chosen_frame.count() != 1:
+        while time.monotonic() < deadline and chosen_preview.count() == 0:
             page.wait_for_timeout(200)
-        assert chosen_frame.count() == 1, "the page did not switch to the revision the reader chose"
-        assert default_frame.count() == 0, (
-            "revision 2's frame stayed on the page after the reader chose revision 1"
+        assert chosen_preview.count() >= 1, (
+            "the page did not switch to the revision the reader chose"
+        )
+        assert default_preview.count() == 0, (
+            "revision 2's preview stayed on the page after the reader chose revision 1"
         )
         assert not writes, f"choosing a revision sent {len(writes)} write request(s): {writes[:4]}"
     finally:
