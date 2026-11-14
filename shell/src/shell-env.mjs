@@ -32,6 +32,18 @@
  * not a working-directory guess: it is anchored to the package's own known
  * location, the same anchoring `resources/web-dist` already uses. In the
  * environment, only absolute paths are accepted.
+ *
+ * **Unknown fields are a refusal, not a silent drop.** `parseShellEnv`
+ * rejects any field outside the two-name allowlist, and the refusal is
+ * deliberate: a mistyped field name (`"cliPath"` spelled `"clipath"`, or a
+ * human-note field like the template's former `_comment`) would otherwise
+ * be silently ignored, and a packaged run would start with the operator's
+ * intended value missing and nothing saying so. Refusing at startup makes
+ * the mistake visible where it can be fixed; this is the same
+ * "no guessed defaults" posture the rest of the file holds (§4.1). Measured
+ * 2026-11-14: `shell-env.template.json` carrying a `_comment` field, if
+ * renamed and used as-is, fails startup with `unknown field "_comment"`;
+ * the comment was removed from the template the same day.
  */
 
 import path from 'node:path'
