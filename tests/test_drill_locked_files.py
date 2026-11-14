@@ -52,9 +52,6 @@ def rig(env: Any, tmp_path: Path) -> Any:
 #: (the other platform reports it unused). A named indirection keeps the
 #: drill's own assertions platform-honest — the lock semantics each branch
 #: exercises are the ones the drill record describes.
-IS_WINDOWS = sys.platform == "win32"
-
-
 def _fcntl() -> Any:
     """The POSIX ``fcntl`` module, imported only where it exists.
 
