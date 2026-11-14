@@ -2364,7 +2364,7 @@ JOB_COUNT_CLAIMS: Final[dict[str, int]] = {
     "LC-P1-13-evaluation-ci.md": 4,
     "CLAUDE.md": 6,
     "CONTRIBUTING.md": 3,
-    "CURRENT.md": 6,
+    "CURRENT.md": 8,
     "LC-P1-11-12-task-breakdown.md": 1,
 }
 
