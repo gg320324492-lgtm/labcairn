@@ -56,10 +56,13 @@ IS_WINDOWS = sys.platform == "win32"
 
 
 def _fcntl() -> Any:
-    """The POSIX ``fcntl`` module, imported only where it exists."""
-    if IS_WINDOWS:
-        return None
-    import fcntl  # pragma: no cover - POSIX branch
+    """The POSIX ``fcntl`` module, imported only where it exists.
+
+    Imported through this door so each platform's mypy view stays clean: the
+    module itself always imports (mypy does not refuse an import), and the
+    caller's attribute reads go through the ``Any`` return.
+    """
+    import fcntl
 
     return fcntl
 
@@ -67,7 +70,7 @@ def _fcntl() -> Any:
 def _open_exclusive(path: Path) -> Any:
     """A handle that denies everyone else every access, on this platform."""
     handle = os.open(str(path), os.O_RDWR)
-    if IS_WINDOWS:
+    if sys.platform == "win32":
         import msvcrt
 
         msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
@@ -79,7 +82,7 @@ def _open_exclusive(path: Path) -> Any:
 
 def _release(handle: int) -> None:
     """Release an exclusive handle, on this platform."""
-    if IS_WINDOWS:
+    if sys.platform == "win32":
         import msvcrt
 
         msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
