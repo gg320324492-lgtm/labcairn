@@ -143,13 +143,30 @@ test('mutations of signing, target and output are visible to the same reads', ()
 })
 
 /** Run the packaging guard against a bundle directory and a backend directory. */
-function guardAgainst(directory, backend = FREEZE_DIR) {
+function guardAgainst(directory, backend = syntheticFreeze()) {
   return spawnSync(process.execPath, [GUARD_PATH, directory, backend], { encoding: 'utf8' })
 }
 
 /** A temporary directory outside the tree, removed when the work is done. */
 function temporaryDirectory(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+}
+
+/**
+ * A synthetic frozen-backend tree with the minimum the guard inspects.
+ *
+ * The real freeze output (`shell/build/backend-freeze/labcairn/`) exists only
+ * where the freeze script has run, and it is a build product: a runner has
+ * neither. The guard's contract is about the *shape* — the entry binary per
+ * platform and `migrations/alembic.ini` — so the witnesses assert that shape
+ * against a synthetic tree and leave the real artifact out of the loop.
+ */
+function syntheticFreeze() {
+  const directory = temporaryDirectory('labcairn-freeze-synthetic-')
+  fs.mkdirSync(path.join(directory, 'migrations'), { recursive: true })
+  fs.writeFileSync(path.join(directory, process.platform === 'win32' ? 'labcairn.exe' : 'labcairn'), '')
+  fs.writeFileSync(path.join(directory, 'migrations', 'alembic.ini'), '[alembic]\n')
+  return directory
 }
 
 test('the packaging config runs the input guard before it packages', () => {
@@ -170,15 +187,17 @@ test('the hook electron-builder calls throws on a missing bundle and returns tru
   const guard = await import('../scripts/require-package-inputs.mjs')
   const absent = temporaryDirectory('labcairn-hook-absent-')
   fs.rmSync(absent, { recursive: true, force: true })
-  await assert.rejects(() => guard.makeGuard(absent, FREEZE_DIR)(), /absent/)
+  const freeze = syntheticFreeze()
+  await assert.rejects(() => guard.makeGuard(absent, freeze)(), /absent/)
 
   const complete = temporaryDirectory('labcairn-hook-complete-')
   try {
     fs.writeFileSync(path.join(complete, 'index.html'), '<!doctype html><title>LabCairn</title>')
-    const result = await guard.makeGuard(complete, FREEZE_DIR)()
+    const result = await guard.makeGuard(complete, freeze)()
     assert.equal(result, true, 'the hook must return true so electron-builder still rebuilds the dependencies')
   } finally {
     fs.rmSync(complete, { recursive: true, force: true })
+    fs.rmSync(freeze, { recursive: true, force: true })
   }
 })
 
