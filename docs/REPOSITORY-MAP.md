@@ -83,6 +83,25 @@ delivery scripts (`scripts/lgpl_replaceability.py`,
 `scripts/lgpl_source_release.py`). The 852 figure is the one named above and is
 an earlier measurement, not the current total.
 
+**Read 2026-11-14 (after PRs #162–#164 merged):** at
+`6ba6fa82caffd8a9ba78ab9ae9b7ea1b45c1f1e3` the measurement prints
+**870 tracked files**: 487 `.py`, 198 `.md`, 46 `.mjs`, 30 `.json`, 28 `.tsx`,
+26 `.ts`, 13 `.csv`, 9 `.yml`, 6 `.txt`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The fifteen new files since the
+reading above are the version-selection surface (`web/src/app/versions.ts`,
+`web/src/views/VersionSelect.tsx`, `web/src/views/VersionSelect.test.tsx`), the
+two dated acceptance records
+(`docs/acceptance/LC-P3-01-version-select-2026-11-14.md`,
+`docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md`), the LGPL
+archive-fetch script (`scripts/lgpl_upstream_archives.py`), and the shell's
+supply-and-policy files (`shell/src/command-line.mjs`,
+`shell/src/shell-env.mjs`, `shell/labcairn-shell.cmd`,
+`shell/shell-env.template.json`, `shell/scripts/installer-hash.mjs`,
+`shell/scripts/rehearse-packaged-shell-env.mjs`,
+`shell/test/command-line.test.mjs`, `shell/test/shell-env.test.mjs`,
+`shell/test/update-path.test.mjs`). The 855 figure is the one named above and
+is an earlier measurement, not the current total.
+
 ## 1. Classification measured on 2026-11-07
 
 The read-only scan measured **733 tracked files** at

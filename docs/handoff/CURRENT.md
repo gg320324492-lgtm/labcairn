@@ -1,5 +1,28 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-14 · **Phase 3's four delivery PRs (#161–#164) are merged
+into local `main`; no Phase 3 gate is closed.** Local `main` stands at
+`6ba6fa82caffd8a9ba78ab9ae9b7ea1b45c1f1e3` (merge [PR
+#164](https://github.com/gg320324492-lgtm/labcairn/pull/164)), with
+`origin/main` at the same commit — nothing is unpushed. What the four merges
+carried: **#161** (`ef30823`) converted the live documents' pointers to
+wording anchors and extended the job-count witness; **#162** (`6186fff`)
+brought the browser driver and the LGPL truth-arm archives into
+`python.yml`'s shard jobs, closed §17's version-selection gap at the wire and
+in jsdom ([`../acceptance/LC-P3-01-version-select-2026-11-14.md`](../acceptance/LC-P3-01-version-select-2026-11-14.md);
+the real-browser half of that assertion is written in the record's §5, not
+yet merged into `tests/test_workbench_real_browser.py`), and corrected the
+records a 2026-11-14 sweep measured as misleading; **#163** (`7ccc5c0`) closed
+T08's input policy, T06's update path and T09's two supply ways
+([`../acceptance/LC-P3-05-input-update-supply-2026-11-14.md`](../acceptance/LC-P3-05-input-update-supply-2026-11-14.md))
+and gave the installer's licence census its three-sided witness; **#164**
+(`6ba6fa8`) recorded the real-browser witnesses' measured standing and fixed
+the Windows leg's path. Open owner work is unchanged in kind: O3's backend
+arrangement stays unmeasured, AC-6's clean-Windows drill and the human
+dual-host reopen rows stay the owner's, `LC-P3-07`/`LC-P3-08` stay blocked on
+`LC-P3-05`'s installed build, and no gate row has moved. No push started a CI
+run for these merges; the next runner pass is the owner's.
+
 **Date:** 2026-11-12 · **Phase 3 implementation is delivered; no
 Phase 3 gate is closed.** The accumulated batch was delivered in
 [PR #156](https://github.com/gg320324492-lgtm/labcairn/pull/156) and merged
