@@ -85,11 +85,27 @@ def _open_exclusive_windows(path: Path) -> Any:
 
 def _open_exclusive_posix(path: Path) -> Any:
     """POSIX: ``flock`` does not stop a plain ``open`` for reading, so the
-    drill removes the file's read permission instead — the OS-level "no one
-    may read this" the loop's re-hash then trips over. The runner runs
-    unprivileged, so its own chmod binds."""
+    source-side drill removes the file's read permission instead — the
+    OS-level "no one may read this" the loop's re-hash then trips over. The
+    runner runs unprivileged, so its own chmod binds. The copy-target drill
+    denies the *directory* the write bit: the loop's write is
+    temp-then-replace, and ``os.replace`` needs the directory's write bit,
+    not the target file's."""
     path.chmod(path.stat().st_mode & ~0o444)
     return -1
+
+
+def _open_exclusive_posix_directory(path: Path) -> Any:
+    """POSIX: deny the directory holding *path* its write bit."""
+    directory = path.parent
+    directory.chmod(directory.stat().st_mode & ~0o222)
+    return -1
+
+
+def _release_posix_directory(handle: int, path: Path) -> None:
+    """Restore the directory's write bit."""
+    directory = path.parent
+    directory.chmod(directory.stat().st_mode | 0o222)
 
 
 def _release_windows(handle: int, path: Path) -> None:
@@ -115,6 +131,14 @@ _RELEASES = {
     "win32": _release_windows,
     "posix": _release_posix,
 }
+_OPENERS_DIRECTORY = {
+    "win32": _open_exclusive_windows,
+    "posix": _open_exclusive_posix_directory,
+}
+_RELEASES_DIRECTORY = {
+    "win32": _release_windows,
+    "posix": _release_posix_directory,
+}
 _OPEN_EXCLUSIVE = _OPENERS["win32" if sys.platform == "win32" else "posix"]
 _RELEASE = _RELEASES["win32" if sys.platform == "win32" else "posix"]
 
@@ -124,9 +148,19 @@ def _open_exclusive(path: Path) -> Any:
     return _OPEN_EXCLUSIVE(path)
 
 
+def _open_exclusive_directory(path: Path) -> Any:
+    """Deny the directory holding *path* its write bit, on this platform."""
+    return _OPENERS_DIRECTORY["win32" if sys.platform == "win32" else "posix"](path)
+
+
 def _release(handle: int, path: Path) -> None:
     """Release what :func:`_open_exclusive` took, on this platform."""
     _RELEASE(handle, path)
+
+
+def _release_directory(handle: int, path: Path) -> None:
+    """Release what :func:`_open_exclusive_directory` took, on this platform."""
+    _RELEASES_DIRECTORY["win32" if sys.platform == "win32" else "posix"](handle, path)
 
 
 def test_a_locked_original_fails_the_copy_with_the_os_error_surfaced(
@@ -192,12 +226,12 @@ def test_a_locked_copy_target_fails_the_write_and_lands_no_receipt(
     rig.loop_dir().mkdir(parents=True, exist_ok=True)
     target = rig.copy_path()
     target.write_bytes(b"")  # the replace must overwrite this
-    lock = _open_exclusive(target)
+    lock = _open_exclusive_directory(target)
     try:
         with pytest.raises(ApplicationRefusedError) as raised:
             stage_copy(rig.context, rig.loop, approval_id=approval_id, now=MOMENT)
     finally:
-        _release(lock, target)
+        _release_directory(lock, target)
 
     assert raised.value.reason.value == "stage_failed", (
         "the OS lock on the copy target surfaces as a failed stage"
