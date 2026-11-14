@@ -173,6 +173,7 @@ itself. Their historical-looking names are not permission to prune them.
 | `docs/acceptance/` | Named-commit acceptance reports, measured gate verdicts and dated owner decision records. Do not rewrite a frozen verdict to make it look current; add a dated current pointer instead. |
 | `docs/research/`, `docs/UPSTREAM_REFERENCES.md` | Upstream source study and binding exclusion checklist. |
 | `docs/EVALUATION.md`, `docs/THREAT-MODEL.md`, `docs/RELEASE-NOTES.md`, `docs/REVIEW-DOSSIER.md` | Evaluation protocol, threat model, release record and review dossier. |
+| `docs/review-checklist-2026-11-14.md` | The review checklist distilled from the 2026-11-14 multi-round review: six checkable rules (R1–R6) for every gate's review window, each anchored to the day's red run or review catch and its repair commit. |
 
 A stale sentence in a dated acceptance snapshot is a historical fact. A stale
 sentence in a current pointer is a defect. The two cases are handled

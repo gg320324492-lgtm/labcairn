@@ -41,7 +41,10 @@ never force-push to `main`.
 2. **They do not open pull requests, and they do not push to start a run.**
 3. **The work is reviewed and merged into `main` locally**, and the review
    is the gate: the claims are measured, the witnesses are mutation-checked,
-   and the pieces that turned out to be one piece are one piece.
+   and the pieces that turned out to be one piece are one piece. The review
+   window works through the standing checklist at
+   `docs/review-checklist-2026-11-14.md` (R1–R6) in addition to the
+   gate's own criteria.
 4. **Then one pull request and one run**, for everything — and every branch
    the work was carried on, the delivery branch included, is deleted once the
    merge lands.
