@@ -73,9 +73,9 @@ on:
     branches: [main]
   pull_request:
   # The evaluation harness runs on a schedule, not on every pull request.
-  # A full offline run costs about 27 minutes on an Ubuntu runner (measured
+  # A full offline run costs about 26 minutes on an Ubuntu runner (measured
   # per-file costs in `.github/ci-shards.json`, anchored at
-  # 46e2c21918286a723f9d07d5409d0e52e7551a85), and
+  # 6b66e9487dd4dd349f529c096b2bfdad2dbde3c1), and
   # the ten shard jobs already run the same files; adding it to
   # `pull_request` would make it the wall-clock bottleneck for a report that
   # can be produced periodically instead. The job is `evaluation`, below.
@@ -183,9 +183,9 @@ jobs:
         # check would stay green while it went.
         #
         # **Five, and not six, and the reason is the floor.** One file is
-        # the floor: `tests/test_cli.py` costs 752.96 seconds on the Windows
-        # runner and 391.79 on Ubuntu (`.github/ci-shards.json`, measured at
-        # 46e2c21918286a723f9d07d5409d0e52e7551a85, the commit this workflow's
+        # the floor: `tests/test_cli.py` costs 547.99 seconds on the Windows
+        # runner and 386.58 on Ubuntu (`.github/ci-shards.json`, measured at
+        # 6b66e9487dd4dd349f529c096b2bfdad2dbde3c1, the commit this workflow's
         # cost anchors name), and no arrangement of the other files makes the
         # shard it is in any shorter. So the wall clock is that file plus the
         # setup, and a sixth shard does not shorten it -- it only adds a job.
@@ -403,9 +403,9 @@ jobs:
   #
   # `python -m tests.evaluation` runs the protocol's gate classes and writes
   # the Phase 1 blocker table with its denominators. It is not on
-  # `pull_request` because a full offline run costs about 27 minutes on an
+  # `pull_request` because a full offline run costs about 26 minutes on an
   # Ubuntu runner (the measured per-file costs in `.github/ci-shards.json`,
-  # anchored at 46e2c21918286a723f9d07d5409d0e52e7551a85, sum to 1622.3 s
+  # anchored at 6b66e9487dd4dd349f529c096b2bfdad2dbde3c1, sum to 1544.9 s
   # over the five offline classes), and
   # the ten shard jobs already run the same files. A pull-request job would
   # become the wall-clock bottleneck for a report that can be produced

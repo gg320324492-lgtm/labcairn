@@ -197,10 +197,10 @@ carry the same sentence and are corrected with it.
 
 **Why not on pull requests.** The harness runs the same test files the ten
 shard jobs already run, and its measured cost on an Ubuntu runner is
-1622.3 s (about 27 minutes) over the five offline classes — the per-file
+1544.9 s (about 26 minutes) over the five offline classes — the per-file
 costs in `.github/ci-shards.json`, anchored at
-`46e2c21918286a723f9d07d5409d0e52e7551a85`. On a pull request it would add
-about twelve minutes to the wall clock and become the new bottleneck. A
+`6b66e9487dd4dd349f529c096b2bfdad2dbde3c1`. On a pull request it would add
+about eleven minutes to the wall clock and become the new bottleneck. A
 schedule produces the report without touching that clock.
 
 **Why exactly five classes.** A Phase 1 blocker is held only when every one
@@ -339,9 +339,9 @@ denominators, and the record named the one no witness reads.
 
 **The same quantity today, re-measured rather than carried.** At the costs
 `ci-shards.json` records at
-`46e2c21918286a723f9d07d5409d0e52e7551a85`, Ubuntu's shards are 391.8s against
-307.6s — `max / min` **1.2735**, floor against mean 1.2075 — and Windows is
-895.7s against 895.7s, **1.0000**. `tests/test_cli.py` is the Ubuntu floor there
+`6b66e9487dd4dd349f529c096b2bfdad2dbde3c1`, Ubuntu's shards are 386.6s against
+289.6s — `max / min` **1.3349**, floor against mean 1.1447 — and Windows is
+975.2s against 975.2s, **1.0000**. `tests/test_cli.py` is the Ubuntu floor there
 as well, and the 1.6 limit is unchanged.
 
 **Why it is slow.** It is an end-to-end subprocess file, on purpose: every
