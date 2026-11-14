@@ -209,7 +209,8 @@ so the first post-reinstall launch refused with `workspace_not_initialised`
 until `init` ran again. That is the same finding as §4, seen from the
 rollback direction: with an installation-relative workspace, "reinstall
 preserves user data" is true for `%APPDATA%` and false for the workspace.
-The checklist's D17 wording ("`userData` 与 workspace 完好") is only
+The checklist's D17 wording — "`userData` and the workspace stay intact"
+(the row's own words, measured 2026-11-11) — is only
 satisfiable together when the workspace lives outside the install tree —
 the owner's supply decision owns that placement.
 
