@@ -116,7 +116,9 @@ test('the packaging config ships the main process, preload, manifest and web dis
     { from: 'shell-env.template.json', to: 'shell-env.template.json' },
     { from: 'labcairn-shell.cmd', to: 'labcairn-shell.cmd' },
   ])
-  assert.ok(fs.existsSync(FREEZE_DIR) || !process.env.CI, 'the frozen backend the config ships is absent — run shell/scripts/build-backend-freeze.mjs first')
+  // The freeze output itself is a build product a runner does not have; its
+  // presence is the guard witnesses' subject (they build a synthetic tree),
+  // so this configuration witness asserts only what the config names.
   assert.ok(!/service-runtime|to: service/.test(config), 'the minimal configuration does not claim an unmeasured O3 runtime arrangement')
 })
 
@@ -252,13 +254,14 @@ test('the packaging guard refuses a build with no frozen backend and names the f
 test('the packaging guard refuses a frozen backend without its entry binary or migrations', () => {
   const webBundle = temporaryDirectory('labcairn-web-dist-guard2-')
   const hollow = temporaryDirectory('labcairn-freeze-hollow-')
+  const entryBinary = process.platform === 'win32' ? 'labcairn.exe' : 'labcairn'
   try {
     fs.writeFileSync(path.join(webBundle, 'index.html'), '<!doctype html>')
     fs.mkdirSync(path.join(hollow, 'migrations'), { recursive: true })
     fs.writeFileSync(path.join(hollow, 'migrations', 'alembic.ini'), '[alembic]\n')
     const noExe = guardAgainst(webBundle, hollow)
     assert.notEqual(noExe.status, 0, 'the guard accepted a backend with no entry binary')
-    assert.match(noExe.stderr, /labcairn\.exe/)
+    assert.match(noExe.stderr, new RegExp(entryBinary.replace('.', '\\.')))
 
     fs.mkdirSync(path.join(hollow, 'labcairn.exe'), { recursive: true })
     fs.rmSync(path.join(hollow, 'migrations'), { recursive: true, force: true })
