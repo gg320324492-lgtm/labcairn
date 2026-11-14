@@ -6,6 +6,22 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The second blind-rating round closes (2026-11-14)
+
+- **LC-P2-14's rating half ran a second round, both raters agents again.**
+  Two fresh agent sessions rated each unseen paper's blind sheet
+  independently; a third session arbitrated every disagreement. Agreement
+  rose over the first round on both papers — paper 1 **395/420 (0.9405)**,
+  paper 2 **451/455 (0.9912)** — and every disagreement in the round fell
+  in the `advisor_comprehension` dimension. All 15 contrasts per paper
+  (three contrasts × five dimensions) are **NOT SIGNIFICANT**. The record
+  states the two rounds' figures and draws no quality conclusion from them;
+  no capability claim is made, and Phase 2's closed gate stays closed.
+  Evidence lives outside the repository, under
+  `E:\labcairn-local\blind-rating-agent-run\`; the record is
+  [`LC-P2-14-second-blind-round-2026-11-14.md`](../acceptance/LC-P2-14-second-blind-round-2026-11-14.md).
+  No product source, test or workflow file changed.
+
 ### The owner's T09/O3 decisions land (2026-11-14)
 
 - **O3 decided: a frozen service; T09's supply decided: mixed.** The owner
