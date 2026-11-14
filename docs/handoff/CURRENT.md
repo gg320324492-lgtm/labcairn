@@ -1,5 +1,15 @@
 # LabCairn — Current handoff
 
+
+## 2026-11-14（下午）— G4 双窗 + G2/G3 评审窗派发与回收
+
+- **LC-P3-08 substitute-first 三件套已合并 main**（merge `814689c`，witness ledger LOST none / 3660=3660）：trial protocol（7 项 PENDING-OWNER 注册表）、mapping dry-run（9 行可判定）、reviewer form（披露句逐字节）。分支 claude/silly-margulis-65e484 已删，worktree 已清。
+- **G2/G3 独立评审窗完成**（只读）：R1–R6 全过，34+116+129+45 见证复跑，6 次变异复验；报告 `E:\labcairn-localeview-g2g3-2026-11-14\REPORT.md`（含披露句）。发现 F-A（revision loop 的 source_drifted 无见证）、F-B（pipe-error 臂仍开口子，已披露）、F-C（LC-P3-06 分片成本锚点配错对）、F-D（LC-P3-04 合并点台账 LOST 1/ADDED 52 未记录）、F-E（快照数字，无需动）。
+- **F-A/F-C/F-D 已修**：两个新见证进 `tests/test_revision_loop_refusals.py`（G2 四文件 36 绿；变异×3 全红）；三份记录补句；changelog 与工单板 07/08 行更新。
+- **LC-P3-07 演练窗仍在跑**（worktree trusting-mendeleev-cb2485）：诊断面+五类 drill+counter-mutation 8/8 已过，等中断写入终验后收尾。
+- **人工任务清单**已更新：`E:\labcairn-local\OWNER-HUMAN-TASKS-2026-11-14.md`（9 项）。
+- 本地 main 领先 origin 若干提交，照例攒批；push/PR 等 owner 授权。
+
 **Date:** 2026-11-14 · **Six parallel windows have landed on top of the four
 delivery PRs; the delivery PR [PR
 #165](https://github.com/gg320324492-lgtm/labcairn/pull/165) is open and its
