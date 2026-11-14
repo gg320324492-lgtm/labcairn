@@ -64,29 +64,61 @@ def _fcntl() -> Any:
     return fcntl
 
 
-def _open_exclusive(path: Path) -> Any:
-    """A handle that denies everyone else every access, on this platform."""
+def _open_exclusive_windows(path: Path) -> Any:
+    """Windows: an open handle with no sharing flags — no other handle can open the file."""
     handle = os.open(str(path), os.O_RDWR)
-    if sys.platform == "win32":
-        import msvcrt
+    import msvcrt
 
-        msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
-    else:
-        module = _fcntl()
-        module.flock(handle, module.LOCK_EX | module.LOCK_NB)
+    msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
     return handle
 
 
-def _release(handle: int) -> None:
-    """Release an exclusive handle, on this platform."""
-    if sys.platform == "win32":
-        import msvcrt
+def _open_exclusive_posix(path: Path) -> Any:
+    """POSIX: ``flock`` does not stop a plain ``open`` for reading, so the
+    drill removes the file's read permission instead — the OS-level "no one
+    may read this" the loop's re-hash then trips over. The runner runs
+    unprivileged, so its own chmod binds."""
+    path.chmod(path.stat().st_mode & ~0o444)
+    return -1
 
-        msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
-    else:
-        module = _fcntl()
-        module.flock(handle, module.LOCK_UN)
+
+def _release_windows(handle: int, path: Path) -> None:
+    """Release the Windows exclusive handle."""
+    import msvcrt
+
+    msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
     os.close(handle)
+
+
+def _release_posix(handle: int, path: Path) -> None:
+    """Release the POSIX drill's permission denial."""
+    path.chmod(path.stat().st_mode | 0o444)
+
+
+#: The platform doors, resolved once. Reached through a mapping rather than
+#: an ``if sys.platform`` chain so each platform's mypy view stays clean: a
+#: literal comparison narrows and marks the other platform's branch
+#: unreachable, which this project treats as an error.
+_OPENERS = {
+    "win32": _open_exclusive_windows,
+    "posix": _open_exclusive_posix,
+}
+_RELEASES = {
+    "win32": _release_windows,
+    "posix": _release_posix,
+}
+_OPEN_EXCLUSIVE = _OPENERS[sys.platform]
+_RELEASE = _RELEASES[sys.platform]
+
+
+def _open_exclusive(path: Path) -> Any:
+    """Deny everyone else every access to *path*, on this platform."""
+    return _OPEN_EXCLUSIVE(path)
+
+
+def _release(handle: int, path: Path) -> None:
+    """Release what :func:`_open_exclusive` took, on this platform."""
+    _RELEASE(handle, path)
 
 
 def test_a_locked_original_fails_the_copy_with_the_os_error_surfaced(
@@ -114,7 +146,7 @@ def test_a_locked_original_fails_the_copy_with_the_os_error_surfaced(
         with pytest.raises(ApplicationRefusedError) as raised:
             stage_copy(rig.context, rig.loop, approval_id=approval_id, now=MOMENT)
     finally:
-        _release(lock)
+        _release(lock, rig.original_path)
 
     assert raised.value.reason.value in ("approval_refused", "stage_failed"), (
         f"the lock surfaces as a named refusal, not silence: {raised.value}"
@@ -157,7 +189,7 @@ def test_a_locked_copy_target_fails_the_write_and_lands_no_receipt(
         with pytest.raises(ApplicationRefusedError) as raised:
             stage_copy(rig.context, rig.loop, approval_id=approval_id, now=MOMENT)
     finally:
-        _release(lock)
+        _release(lock, target)
 
     assert raised.value.reason.value == "stage_failed", (
         "the OS lock on the copy target surfaces as a failed stage"
