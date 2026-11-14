@@ -108,6 +108,31 @@ test('a CLI path that escapes the installation is a refusal, not a resolved esca
   )
 })
 
+test('a workspace that escapes the installation is a refusal, in both separators', () => {
+  // The installation-relative form is one rule for both fields: the header's
+  // "never an escape (`..`)" is a property of the file's relative forms, not
+  // of the CLI path alone. A workspace of `..\\..\\elsewhere` parses to an
+  // absolute path outside the installation — a resolution step could only
+  // confirm the escape, so the parse refuses it. The workspace may still be
+  // a single step ("LabCairn-workspace", beside the resources directory), so
+  // the check is the climb, not the step count.
+  assert.throws(
+    () => parseShellEnv(JSON.stringify({ workspace: '..\\..\\elsewhere' })),
+    /must not climb out of the installation/,
+  )
+  assert.throws(
+    () => parseShellEnv('{"workspace":"../elsewhere"}'),
+    /must not climb out of the installation/,
+  )
+  // A name with a `..` in the middle climbs too.
+  assert.throws(
+    () => parseShellEnv(JSON.stringify({ workspace: 'workspaces\\..\\elsewhere' })),
+    /must not climb out of the installation/,
+  )
+  // And the resolved value never existed to begin with: there is no
+  // resolveShellEnvWorkspace call to make on an escaped value.
+})
+
 test('a non-string workspace is refused; the file may still name the relative form', () => {
   assert.throws(
     () => parseShellEnv('{"workspace":42}'),

@@ -125,6 +125,19 @@ export function parseShellEnv(text) {
           `got ${JSON.stringify(parsed[field])}.`,
       )
     }
+    // The installation-relative form is one rule for both fields: a workspace
+    // that climbs out of the installation (`..`) is the same escape the CLI
+    // path refuses, and it is refused here — at the parse every packaged run
+    // goes through — rather than at a resolution step a caller could bypass.
+    // A single-step name ("LabCairn-workspace") stays legal: the workspace
+    // sits beside the resources directory, so it need not name a file.
+    if (field === 'workspace' && typeof parsed[field] === 'string'
+      && !isAbsolutePath(parsed[field]) && parsed[field].split(/[\\/]/).includes('..')) {
+      throw new Error(
+        `shell-env.json's "workspace" must not climb out of the installation ` +
+          `with ".."; got ${JSON.stringify(parsed[field])}.`,
+      )
+    }
   }
   const result = {}
   for (const field of ALLOWED_FIELDS) {
