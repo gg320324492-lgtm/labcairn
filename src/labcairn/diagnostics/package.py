@@ -235,7 +235,7 @@ def _long_han_runs(text: str) -> list[str]:
     runs: list[str] = []
     current: list[str] = []
     for character in text:
-        if "一" <= character <= "鿿":
+        if "\u4e00" <= character <= "\u9fff":
             current.append(character)
         else:
             if len(current) >= HAN_RUN_CEILING:

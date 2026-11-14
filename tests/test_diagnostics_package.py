@@ -246,12 +246,12 @@ def test_a_refusal_message_carrying_a_named_secret_is_refused(
 
 def test_a_long_han_run_in_any_field_is_refused(context: ApplicationContext) -> None:
     """The Han-run ceiling applies to the package's own fields too."""
-    han_run = "实验结果与文献曲线不一致" * 3
+    han_run = "\u5b9e\u9a8c\u7ed3\u679c\u4e0e\u6587\u732e\u66f2\u7ebf\u4e0d\u4e00\u81f4" * 3
     with pytest.raises(DiagnosticsRefusedError) as raised:
         collect_diagnostics(
             context,
             material_texts=(MATERIAL,),
-            refusals=(("provider_transient", f"上游返回: {han_run}"),),
+            refusals=(("provider_transient", f"\u4e0a\u6e38\u8fd4\u56de: {han_run}"),),
         )
     assert "Han run" in str(raised.value)
 

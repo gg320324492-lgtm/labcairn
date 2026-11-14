@@ -21,10 +21,13 @@
   `tests/test_revision_loop_refusals.py` (the G2 four files 36 green; three
   mutations all red); three records amended; the changelog and the board's
   LC-P3-07/08 rows updated.
-- **The LC-P3-07 drill window is still running** (worktree
-  `trusting-mendeleev-cb2485`): the diagnostics surface, the five drill
-  classes and counter-mutations 8/8 are done; the interrupted-write final run
-  is outstanding.
+- **The LC-P3-07 drill window is merged** (merge `9db4b31`, ledger LOST
+  none, 3662 -> 3694 = +32): the diagnostics package (allowlist, verified
+  before minting), the five drill classes (32 witnesses green on the
+  merged tree), the installed-build drill (defect D-07-01 filed to
+  LC-P3-05: the frozen build refuses every `.txt` material), the operator
+  manual and the known-limits record. The six new test files sit in shard
+  0 with placeholder 0.0 costs pending the batch's runner re-measurement.
 - **The owner's human-task list is updated**:
   `E:/labcairn-local/OWNER-HUMAN-TASKS-2026-11-14.md` (9 items).
 - Local `main` is ahead of `origin/main` by several commits, batching as
