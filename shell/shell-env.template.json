@@ -1,5 +1,3 @@
 {
-  "_comment": "T09 supply, way 2: the packaged shell reads resources/shell-env.json when the environment names neither LABCAIRN_SHELL_CLI nor LABCAIRN_SHELL_WORKSPACE. Rename this template to shell-env.json and edit the values before (or after) installing; the environment always wins over this file. cliPath must be an absolute path to the labcairn entry point the installation actually carries (the O3 runtime arrangement decides what that is; this template deliberately ships none so an unmeasured arrangement is a refusal at startup, not a guessed default). workspace may be installation-relative: a bare name means 'beside the resources directory, inside the installation'.",
-  "cliPath": null,
   "workspace": "LabCairn-workspace"
 }

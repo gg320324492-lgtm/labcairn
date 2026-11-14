@@ -170,6 +170,126 @@ O3 is decided, a packaged run with the file's `cliPath` left `null` refuses
 at startup with a message naming both supplies — the honest state, and the
 one the drill demonstrates.
 
+### 3.1 The owner's decisions, 2026-11-14 — the mixed supply, and a frozen backend
+
+**Both open questions were decided on 2026-11-14** (owner's decision material:
+`DECISION-BRIEF.md` in the T09/O3 decision folder; the work orders' O3 row in
+`PHASE_3-work-orders.md` §17 carried the question). The two decisions and
+what landed in this tree because of them:
+
+**Decision 1 — the supply is mixed.** `workspace` is supplied by the
+package's own `resources/shell-env.json` in its installation-relative form
+(`"workspace": "LabCairn-workspace"`, the same anchoring
+`resources/web-dist` already uses — no machine path travels in the file, and
+an upgrade does not carry a stale absolute path); `cliPath` is supplied by
+the launcher script (way 1) until the packaged backend exists, after which it
+joins the file too. **Why the mix wins** (the brief's reasoning, measured not
+asserted): the per-variable precedence (environment beats file) was already
+implemented and drilled, so the mixed arrangement ran with **zero code
+change** — the template edit below is a data change, not a mechanism change;
+the installation-relative workspace form is the cleanest upgrade story; and
+any `cliPath` written into the template today would name a backend the
+package does not carry yet, which is a guess, and §4.1's rule stands: a
+guessed default is a refusal, not a value. **What changed in the tree:**
+`shell/shell-env.template.json` now ships exactly
+`{"workspace": "LabCairn-workspace"}` — the `_comment` field is gone (the
+parser refuses any unknown field, and the comment was a field the parser
+would have rejected the moment the owner renamed the template live), and
+`cliPath` is absent rather than `null` (an absent field is the honest
+"nothing names this yet"; a `null` field survives only as a refused-value
+placeholder). The parser's own rule — unknown field refused, absent field
+skipped — is unchanged, and the witnesses
+(`shell/test/shell-env.test.mjs` 9 cases, `shell/test/config.test.mjs` 9
+cases, the 7-scenario drill) all pass on the edited template's shape.
+
+**Decision 2 — the backend is a frozen service.** `labcairn.cli:main` frozen
+with PyInstaller into a onedir `labcairn.exe` carried in the installer's
+`extraResources`. **Why frozen wins** (the brief's reasoning): the existing
+`ServiceSupervisor` spawn path (`command + args`) is unchanged — the command
+becomes the frozen entry, every argument the same; the package is smaller
+than a bundled interpreter (the venv is 644 MB across 380 packages; the
+freeze measured below is a fraction of that); no interpreter bootstrap at
+startup; and the upgrade face is a whole-directory replacement, which is
+what the existing NSIS overwrite install already does. A sidecar interpreter
+is what the installer cannot carry (measured 2026-11-11: the package carries
+no Python at all), and a bundled interpreter is the heaviest of the three.
+**What landed in this tree** for the decision: the build tool
+`shell/scripts/build-backend-freeze.mjs` (§3.2) and the drill's frozen-exe
+supply scenario (§3.3), both measured below. The installer does not yet
+carry the freeze — wiring `extraResources` to the frozen output is the next
+piece after the backend itself is frozen into the release — so this record
+claims the *mechanism and its drill*, not a package that ships it.
+
+### 3.2 The frozen service, measured on this machine
+
+**The build tool** (`shell/scripts/build-backend-freeze.mjs`, new): freezes
+`labcairn.cli:main` — the exact function `pyproject.toml`'s console script
+names — with PyInstaller into `shell/build/backend-freeze/labcairn/`
+(onedir; `.gitignore` excludes `shell/build/`, so the product is
+reproducible from the tree and never tracked). The tool refuses to run
+without PyInstaller importable from the project virtualenv (it is a
+freeze-time tool, installed with `uv pip install pyinstaller`, not a
+runtime dependency in `pyproject.toml`), and it sets
+`PYDANTIC_DISABLE_PLUGINS=1` for the freeze and the frozen run — the
+measured reason is below. It also copies the checkout's `migrations/` tree
+into the bundle: inside a frozen exe, `labcairn.db.migrations` resolves its
+repository root to the bundle directory, so the schema must live at
+`<bundle>/migrations/` exactly as it lives at `<checkout>/migrations/` in a
+development run — the same copy the installer's `extraResources` wiring
+will make. One measured gap surfaced here and is recorded as found: the
+refusal text says "point `LC_MIGRATIONS_DIR` at one", but **no product code
+reads `LC_MIGRATIONS_DIR`** (grep across `src/` finds the name only in that
+error string) — a named override that does not exist, now visible because
+the frozen run genuinely needs an override. Fixing the message or wiring
+the variable is backend-side work outside this shell batch; the freeze
+tool's bundle copy is what makes the frozen exe work without it.
+
+**The freeze, measured 2026-11-14 on this machine** (PyInstaller 6.22.3,
+Node v24.16.0, the project venv's Python 3.12): build exit 0 in **88.3 s**;
+the onedir bundle is **226,263,914 B (~216 MB)**, the frozen `labcairn.exe`
+itself **45,344,524 B (~43 MB)**; the exact bytes are printed by the tool's
+summary line (`bundle`, `exe`, `bytes`, `seconds`), so the next re-measure
+reads them from the tool rather than from this sentence.
+
+**The one flag the freeze needs, and why.** Without
+`PYDANTIC_DISABLE_PLUGINS=1` the frozen exe dies at import:
+`labcairn.api.app` → `fastapi.exceptions` (module-level `create_model`) →
+pydantic's plugin machinery → `logfire.integrations.pydantic`
+(`_patch_PluggableSchemaValidator`, line 460) → `inspect.getsource` →
+`OSError: could not get source code`. A frozen application carries no
+source text, and logfire's pydantic plugin — a transitive of
+`pydantic-ai`'s `logfire` extra; no product file imports logfire — reads
+its target's source text at import time to patch a known pydantic bug.
+With the flag set, the same frozen tree prints `frozen import ok: True`
+and exits 0. This reproduces, on this tree, the failure the 2026-11-11
+selection measurement found (its §5); the flag is now carried by the build
+tool so the drill and any later installer work inherit it. **Open, named:**
+whether the shipped build should instead drop the `logfire` extra from the
+dependency graph (the product never imports logfire) is a dependency
+decision that belongs to the owner; the flag is the honest state until
+then.
+
+**The frozen exe as `cliPath`, measured.** With a real freeze present, the
+drill's live leg drives the frozen exe end to end: `labcairn init`,
+`task create`, then `serve --host 127.0.0.1 --port <free> --json` from the
+frozen exe — the same spawn shape `ServiceSupervisor` uses. The service
+prints its start line, `GET /health` answers 200 (**connected** — the
+state `main.mjs` reports as `sendStatus('connected', …)`), the shell would
+load the served origin (**loaded** — the `loaded <url>` line `main.mjs`
+prints after `loadURL`), and the page's guard probe is **granted** by
+sender origin (`guard-request granted origin`, the line `live-guard.mjs`
+prints and the live-guard drill reads). The frozen exe's session token is
+minted to the workspace like any run's
+(`<workspace>/.labcairn/session-token`), and a token-carrying
+`POST /task/select` is routed by the real API surface — measured
+**422** (the route's own validation answer for a request without a
+selectable task, not 401 and not 404), which is the frozen entry proving
+it *is* the product's service and not a stub: the route exists, the guard
+admitted the token, and the contract layer answered. On a machine with no
+freeze, the two parse-level frozen-exe scenarios still run (on the
+packaged absolute-path form) and the live leg is skipped with the reason
+printed — the supply machinery is witnessed either way.
+
 ## 4. T05 — packaging: the hash is a tool, the templates ship, the build stays green
 
 **What was already measured** (2026-11-11 build report, referenced not

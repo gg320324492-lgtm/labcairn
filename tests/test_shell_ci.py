@@ -99,12 +99,15 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: five to nine with T09's supply precedence (file, environment-wins,
 #: dev-reads-no-file, broken-file refusal), and `packaging-config.test.mjs`
 #: from fourteen to fifteen with the two supply templates' shipping watch.
+#: `shell-env.test.mjs` rose from nine to ten when O3's 2026-11-14 decision
+#: removed the template's `_comment` field (the parser refuses unknown
+#: fields, so the template's own shape changed and the refusal gained a case).
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "command-line.test.mjs": 6,
     "config.test.mjs": 9,
-    "shell-env.test.mjs": 9,
+    "shell-env.test.mjs": 10,
     "update-path.test.mjs": 6,
     "dependency-surface.test.mjs": 3,
     "drain-witness.test.mjs": 5,
@@ -118,7 +121,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "0acd146d30b1b4b563ea047adbd2b8063ca19993"
+CASE_FLOORS_MEASURED_AT: Final[str] = "4a7b1894a00c1c009ab500c878816418beb312c1"
 
 
 # --------------------------------------------------------------------------

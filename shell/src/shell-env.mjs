@@ -15,8 +15,10 @@
  * - **The package's own `resources/shell-env.json`** — a file the installer
  *   ships beside the asar, read when the environment names nothing. The
  *   template travels with the build (`shell-env.template.json`); the owner
- *   decides the installed values (O3 is still unmeasured, so `cliPath` is
- *   deliberately absent from the template — an absent field is a refusal at
+ *   decides the installed values (O3's own supply decision, 2026-11-14, is
+ *   the mixed form: the file carries `workspace` in its installation-relative
+ *   form, and `cliPath` joins the file only once the frozen backend is
+ *   packaged — until then the field is absent, which is a refusal at
  *   startup, not a guessed default).
  *
  * **Precedence is explicit wins.** An environment variable beats the file:
