@@ -235,11 +235,10 @@ blocker table from existing only on one developer's machine.
   and the weekly cadence are deliberate);
 - `lint` and `python-quality` carry `if: ${{ github.event_name != 'schedule' }}`,
   so the schedule run spends one job, not the thirteen a pull-request event
-  spends (`lint` plus `python-quality`'s 2 platforms × 6 shards; the plan's
-  first draft of this line said *thirteen* for a different reason — five
-  shards plus the evaluator's own two legs, the matrix as it stood at
-  6cdd89d95ba20f6611fcfa2fc79ee37c35f2dc1c — and six was rejected on
-  2026-10-25 on the costs of that tree; the matrix became six shards on
+  spends (`lint` plus `python-quality`'s 2 platforms × 6 shards; this plan's
+  first draft said *eleven* — five shards plus `lint`, the matrix as it
+  stood at 6cdd89d95ba20f6611fcfa2fc79ee37c35f2dc1c — and six was rejected
+  on 2026-10-25 on the costs of that tree; the matrix became six shards on
   2026-11-15);
 - a new job `evaluation`, `name: evaluation`, `runs-on: ubuntu-latest`, no
   matrix, gated on `github.event_name == 'schedule'`. It checks out, sets up

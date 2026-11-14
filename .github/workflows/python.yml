@@ -107,12 +107,12 @@ jobs:
     # pull-request event spends (this `lint` job plus the twelve shard legs:
     # 2 platforms × 6 shards). Without this guard, every scheduled run
     # would also repeat the static checks and all twelve shards. The figure
-    # this comment printed until 2026-11-12 was "thirteen", which is what a
-    # six-shard matrix would give; six was rejected on 2026-10-25 at
-    # `5a4d8e9` on the costs of that tree, and the matrix stayed
-    # `[0, 1, 2, 3, 4]` until 2026-11-15, when the `test_cli.py` split made
-    # a six-shard partition balance (1.03 Ubuntu / 1.00 Windows) and the
-    # matrix became `[0, 1, 2, 3, 4, 5]`.
+    # this comment printed before 2026-11-15 was "eleven" (five shards plus
+    # `lint`); six was rejected on 2026-10-25 at `5a4d8e9` on the costs of
+    # that tree, and the matrix stayed `[0, 1, 2, 3, 4]` until 2026-11-15,
+    # when the `test_cli.py` split made a six-shard partition balance
+    # (1.03 Ubuntu / 1.00 Windows) and the matrix became
+    # `[0, 1, 2, 3, 4, 5]`.
     # `.github/CI.md`, "2026-11-03 — the evaluation harness on a schedule",
     # carries the measurement.
     if: ${{ github.event_name != 'schedule' }}

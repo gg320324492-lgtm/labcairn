@@ -193,15 +193,15 @@ as the thirteenth; `evaluation` is gated to the schedule and is not among them.
 `evaluation` — which is what `tests/test_ci_shard_coverage.py`'s
 name-uniqueness check sees (`workflow_job_names.rendered_job_names` returns
 fourteen for this file), and **thirteen** is what a single pull-request run
-spends. What this sentence printed until 2026-11-12 was **thirteen** for a
-different reason — `2 platforms × 5 shards = 10` plus `lint` and the
-evaluator's own two legs — and it became true again on 2026-11-15 for the
-current reason: the matrix has been `[0, 1, 2, 3, 4, 5]` since 2026-11-15,
-when the `test_cli.py` split made a six-shard partition balance. As
-history: the six-shard matrix `d8f5788` (2026-10-24) tried reported **12** shard jobs
+spends. What this sentence printed before 2026-11-15 was **eleven** —
+`2 platforms × 5 shards = 10` plus `lint` — and it became **thirteen** on
+2026-11-15, when the `test_cli.py` split made a six-shard partition balance
+and the matrix became `[0, 1, 2, 3, 4, 5]`. As history:
+the six-shard matrix `d8f5788` (2026-10-24) tried reported **12** shard jobs
 with no `lint` job (`lint` was split out on 2026-11-02), and with five
-shards and `lint` the count was **11** at `6cdd89d` (2026-11-03, the commit
-that wrote this section) and stayed **11** until the split.
+shards and
+`lint` the count was **11** at `6cdd89d` (2026-11-03, the commit that wrote
+this section) and stayed **11** until the split.
 `python.yml`'s `lint` comment and `docs/plans/LC-P1-13-evaluation-ci.md` §5
 carry the same sentence and are corrected with it.
 

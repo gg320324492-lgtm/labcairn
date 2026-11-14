@@ -22,6 +22,7 @@ Three rings, each named in the design's §4:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import fields as dataclass_fields
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -284,7 +285,13 @@ def test_material_text_appears_nowhere_in_a_clean_package(
     for word in MATERIAL.lower().split():
         if word in ("the", "and", "was", "at", "of", "a", "in", "to", "under"):
             continue  # function words are not the material's identity
-        assert word not in rendered, f"the material's word {word!r} reached the package"
+        # **A whole-word check, not a substring.** `with` is a substring of the
+        # material's own `without`, and the rendered form carries `without` in
+        # a refusal message's prose — a check that matched substrings would
+        # report the package as leaking a word it never collected.
+        assert not re.search(rf"{re.escape(word)}", rendered), (
+            f"the material's word {word!r} reached the package"
+        )
     # The de-identified rendering is allowed to echo (it is what the pipeline
     # minted), but the package carries no case text at all unless the caller
     # put it in a field.

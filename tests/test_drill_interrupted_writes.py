@@ -288,6 +288,18 @@ def test_a_kill_between_the_temp_write_and_the_replace_leaves_old_or_new(
     finally:
         session.close()
         engine.dispose()
+    # The child ran in WAL mode, and a hard kill leaves the last writes in the
+    # ``-wal`` sidecar with no checkpoint. A fresh engine recovers the WAL on
+    # first open — but only if the sidecar is beside the database file it
+    # belongs to. (Measured 2026-11-15: reading the main file alone returned
+    # an empty store on the runner, because the writes were still in the WAL.)
+    wal = tmp_path / "labcairn.db-wal"
+    assert db.exists(), "the drill child never created the store"
+    assert wal.exists(), (
+        "the store's WAL sidecar is absent after a hard kill — either the child "
+        "checkpointed (a completed write, not a crash) or the drill read the "
+        "wrong path"
+    )
     assert states <= {"attempting", "authorized"}, (
         f"the crash left operation states {states}; a kill during the write "
         "window must not leave a confirmed or failed completion"

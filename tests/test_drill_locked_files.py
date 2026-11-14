@@ -21,6 +21,8 @@ drills the OS-level lock half on real files.
 
 from __future__ import annotations
 
+import os
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -43,20 +45,48 @@ def rig(env: Any, tmp_path: Path) -> Any:
     return build_rig(env.store(), tmp_path / "workspace")
 
 
-def _open_exclusive(path: Path) -> Any:
-    """A handle that denies everyone else every access, on this platform."""
-    if hasattr(__import__("os"), "O_EXCL") and hasattr(__import__("os"), "O_RDWR"):
-        # Windows: no sharing flags means no other handle can open the file.
-        import msvcrt
+#: This platform's file-locking door. The POSIX symbols are reached through
+#: ``getattr`` because mypy checks a Windows checkout against Windows stubs and
+#: an Ubuntu runner against POSIX stubs: a direct ``fcntl.flock`` is
+#: attr-defined red on one of them no matter where the ``type: ignore`` sits
+#: (the other platform reports it unused). A named indirection keeps the
+#: drill's own assertions platform-honest — the lock semantics each branch
+#: exercises are the ones the drill record describes.
+IS_WINDOWS = sys.platform == "win32"
 
-        handle = __import__("os").open(str(path), __import__("os").O_RDWR)
-        msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
-        return handle
+
+def _fcntl() -> Any:
+    """The POSIX ``fcntl`` module, imported only where it exists."""
+    if IS_WINDOWS:
+        return None
     import fcntl  # pragma: no cover - POSIX branch
 
-    handle = __import__("os").open(str(path), __import__("os").O_RDWR)
-    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined]
+    return fcntl
+
+
+def _open_exclusive(path: Path) -> Any:
+    """A handle that denies everyone else every access, on this platform."""
+    handle = os.open(str(path), os.O_RDWR)
+    if IS_WINDOWS:
+        import msvcrt
+
+        msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
+    else:
+        module = _fcntl()
+        module.flock(handle, module.LOCK_EX | module.LOCK_NB)
     return handle
+
+
+def _release(handle: int) -> None:
+    """Release an exclusive handle, on this platform."""
+    if IS_WINDOWS:
+        import msvcrt
+
+        msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
+    else:
+        module = _fcntl()
+        module.flock(handle, module.LOCK_UN)
+    os.close(handle)
 
 
 def test_a_locked_original_fails_the_copy_with_the_os_error_surfaced(
@@ -72,7 +102,6 @@ def test_a_locked_original_fails_the_copy_with_the_os_error_surfaced(
     them, and the operator answers the loop after releasing the lock instead
     of re-importing.
     """
-    import os
 
     from drill_support import MOMENT, grant_copy
 
@@ -85,10 +114,7 @@ def test_a_locked_original_fails_the_copy_with_the_os_error_surfaced(
         with pytest.raises(ApplicationRefusedError) as raised:
             stage_copy(rig.context, rig.loop, approval_id=approval_id, now=MOMENT)
     finally:
-        import msvcrt
-
-        msvcrt.locking(lock, msvcrt.LK_UNLCK, 1)
-        os.close(lock)
+        _release(lock)
 
     assert raised.value.reason.value in ("approval_refused", "stage_failed"), (
         f"the lock surfaces as a named refusal, not silence: {raised.value}"
@@ -114,7 +140,6 @@ def test_a_locked_copy_target_fails_the_write_and_lands_no_receipt(
     original's artefact row in the ledger. The operator releases the lock and
     re-runs the copy; the loop is not re-imported.
     """
-    import os
 
     from drill_support import MOMENT, grant_copy
 
@@ -132,10 +157,7 @@ def test_a_locked_copy_target_fails_the_write_and_lands_no_receipt(
         with pytest.raises(ApplicationRefusedError) as raised:
             stage_copy(rig.context, rig.loop, approval_id=approval_id, now=MOMENT)
     finally:
-        import msvcrt
-
-        msvcrt.locking(lock, msvcrt.LK_UNLCK, 1)
-        os.close(lock)
+        _release(lock)
 
     assert raised.value.reason.value == "stage_failed", (
         "the OS lock on the copy target surfaces as a failed stage"

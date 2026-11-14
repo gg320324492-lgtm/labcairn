@@ -3417,22 +3417,24 @@ _THIRTEEN_JOBS: Final[int] = 13
 def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
     repo_root: Path,
 ) -> None:
-    """The corrected figure was not just wrong today — it was never true of any tree.
+    """The pairing thirteen counts exists only at the revision the records date it to.
 
     **Why the history is watched rather than written as prose.** "Thirteen was not the count
-    at any revision" is a claim about every revision of `python.yml`, and it is the sentence
-    that decides whether a *thirteen* found somewhere is a stale record (a marker is owed) or
-    an error (the sentence is wrong). Stating it in a document and checking nothing is the
-    failure mode the project's own witness ledger exists to catch.
+    at any revision" was the sentence the records carried until 2026-11-15, and it decided
+    whether a *thirteen* found somewhere was a stale record (a marker is owed) or
+    an error (the sentence is wrong). The `test_cli.py` split made a six-shard partition
+    balance, and the current workflow — twelve shard legs plus `lint` — spends exactly
+    thirteen on a pull request, so the sentence became a dated snapshot: the date the
+    count moved is now stated, and this witness checks the history against it.
 
     **The two shapes thirteen comes from.** Twelve shard legs from a six-shard matrix, plus a
-    separate `lint` job, plus `evaluation`. Both halves exist in this repository's history and
-    **no revision ever had them at once**, so no run ever spent thirteen jobs.
+    separate `lint` job, plus `evaluation`. The first two halves exist together only at the
+    revision the records date the move to; `evaluation` is schedule-gated, so a pull
+    request spends thirteen while the workflow renders fourteen names.
 
-    **What it cannot watch.** A future workflow that does produce thirteen. That would be
-    correct, and this test would go red for the right reason: the records' "never thirteen"
-    sentence would have become a dated snapshot, and a marker naming the later reading is what
-    turns it back into a green test.
+    **What it cannot watch.** A future workflow that produces thirteen a second time from a
+    different shape. That would make the records' dated narration a guess, and this test
+    would go red for the right reason.
     """
     # **The pathspec is forward-slated.** `str(WORKFLOW_FILE)` on Windows is
     # `.github\workflows\python.yml`, and git reads a backslash in a pathspec as an escape:
@@ -3488,17 +3490,28 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         if isinstance(shard_axis, list) and len(shard_axis) >= 6 and "lint" in jobs:
             six_with_lint.append(revision[:12])
 
-    assert not thirteen_revisions, (
-        f"{WORKFLOW_FILE} rendered {_THIRTEEN_JOBS} job names at {'/'.join(thirteen_revisions)}. "
-        f"The totals across {len(revisions)} revisions are {sorted(totals)}. The records' "
-        "'thirteen was never the count' sentence is then a dated snapshot rather than an error, "
-        "and every place that says so has to say which."
+    # **The 2026-11-15 split inverted this history.** Until then no revision
+    # spent thirteen jobs on a pull request, and the records said so; the
+    # `test_cli.py` split made a six-shard partition balance, and the current
+    # workflow — twelve shard legs plus `lint` — spends exactly thirteen on a
+    # pull request (`evaluation` is schedule-gated, so the rendered total is
+    # fourteen). The records now state the date the count moved
+    # (`.github/CI.md`, "became **thirteen** on 2026-11-15"), so the
+    # assertions below check the history the other way: the only revision
+    # that pairs six-or-more shards with `lint` is the current head, and every
+    # earlier revision rendered a different total.
+    head = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    assert not six_with_lint, (
-        f"{'/'.join(six_with_lint)} declared both a six-or-more-shard matrix and a `lint` job "
-        f"on {WORKFLOW_FILE}. That pairing is exactly what thirteen counts, so it is the pairing "
-        "the corrected records deny; if a revision had it, the denial describes a tree that no "
-        "longer exists."
+    assert head.returncode == 0, head.stderr
+    head_short = head.stdout.strip()[:12]
+    assert six_with_lint == [head_short], (
+        f"the six-or-more-shard-plus-lint pairing appears at {'/'.join(six_with_lint)}; "
+        f"expected only the current revision ({head_short}), where the records' date anchor "
+        "puts it."
     )
 
 

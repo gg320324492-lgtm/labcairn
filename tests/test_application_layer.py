@@ -420,6 +420,14 @@ _ALLOWED_STORE_READERS = frozenset(
         # is recorded here because a module that reaches the store must be
         # named.
         "labcairn.papers.revisions",
+        # LC-P3-07's diagnostics packager (2026-11-14). It reads the store's
+        # own readers (``list_operations``, ``events_after``, ``list_artifacts``)
+        # to assemble the allowlisted facts, and it mints no row: an allowlist
+        # field exists because the collector named it, so a field that could
+        # hold arbitrary text is a field a future caller will fill from
+        # ``str(exc)``. It is recorded here because a module that reaches the
+        # store must be named.
+        "labcairn.diagnostics.package",
         # Predate the layer.
         "labcairn.analysis.service",
         "labcairn.recovery.approvals",
