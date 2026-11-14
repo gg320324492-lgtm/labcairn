@@ -6,33 +6,43 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
-### The owner's T09/O3 decisions land (2026-11-14)
+### The owner's T09/O3 decisions land, and the frozen backend rides in the package (2026-11-14)
 
 - **O3 decided: a frozen service; T09's supply decided: mixed.** The owner
   picked the mixed supply — the package's `resources/shell-env.json` carries
-  `workspace` in its installation-relative form, the launcher carries
-  `cliPath` until the packaged backend exists — and the frozen backend:
-  `labcairn.cli:main` frozen with PyInstaller into a onedir `labcairn.exe`
-  carried in `extraResources`. The decision material is the T09/O3 decision
-  brief (outside the repository); the record is
+  `workspace` in its installation-relative form, and since the frozen
+  backend ships it now carries `cliPath` in its installation-relative form
+  too — and the frozen backend: `labcairn.cli:main` frozen with PyInstaller
+  into a onedir `labcairn.exe` carried in `extraResources`. The decision
+  material is the T09/O3 decision brief (outside the repository); the record
+  is
   [`LC-P3-05-input-update-supply-2026-11-14.md`](../acceptance/LC-P3-05-input-update-supply-2026-11-14.md)
-  §3.1–§3.2.
-- **What landed.** `shell/shell-env.template.json` now ships exactly
-  `{"workspace": "LabCairn-workspace"}` (the `_comment` field is gone — the
-  parser refuses unknown fields, so a live template carrying it would refuse
-  to start the shell; `cliPath` is absent rather than `null`, which is the
-  honest "nothing names this yet"). `shell/scripts/build-backend-freeze.mjs`
-  is the freeze tool; `shell/scripts/rehearse-packaged-shell-env.mjs` grew
-  from five scenarios to seven (the file naming a frozen exe, and the
-  environment overriding it), plus a live frozen-service leg that runs when
-  a freeze exists on the machine. §17's backend row now records the decision
-  and what stays open (the installer does not yet carry the frozen output).
-- **The freeze, measured.** Onedir bundle ~221 MB; the frozen exe starts
-  only with `PYDANTIC_DISABLE_PLUGINS=1` — logfire's pydantic plugin (a
-  transitive of `pydantic-ai`'s `logfire` extra) reads its target's source
-  text at import time, which a frozen application does not carry. The flag
-  is set by the build tool for the freeze and the frozen run; the full
-  numbers live in the record's §3.2.
+  §3.1–§3.3.
+- **What landed.** `shell/shell-env.template.json` ships
+  `{"cliPath": "backend/labcairn/labcairn.exe", "workspace":
+  "LabCairn-workspace"}` — the installation-relative forms, anchored to the
+  package's own resources directory (the `_comment` field had already been
+  removed; the parser refuses unknown fields). `shell/scripts/build-backend-freeze.mjs`
+  is the freeze tool; `electron-builder.yml` carries the whole onedir freeze
+  at `resources/backend/labcairn`; `shell/scripts/require-package-inputs.mjs`
+  (the guard formerly named `require-web-dist.mjs`) refuses a build whose
+  web bundle or frozen backend is absent, hollow, or missing its entry
+  binary or migrations; `ServiceSupervisor` sets `PYDANTIC_DISABLE_PLUGINS=1`
+  on every child's environment at its one spawn path.
+  `shell/scripts/rehearse-packaged-shell-env.mjs` runs eight scenarios
+  including the installation-relative supply and a live frozen-service leg.
+- **Measured.** Freeze 226,476,027 B in 131.7 s; the installer with the
+  backend is 234,325,233 B (sha256 `9805be54…55c4`; the 2026-11-11
+  backend-less installer was 124,568,971 B). The packaged-run drill against
+  the real unpacked package — the template renamed live, the environment
+  naming nothing — passed **connected → loaded → granted** with the
+  package's own backend. Two refusals were measured on the way and fixed:
+  the frozen exe dying at import without the plugin flag, and the file
+  naming the bundle directory instead of the exe (`ENOENT` at spawn). Full
+  numbers in the record's §3.2–§3.3. Still open: the NSIS
+  install/upgrade/uninstall arms and AC-6's clean-Windows drill (owner's
+  human run), and whether the `logfire` extra should leave the dependency
+  graph.
 
 ### The four delivery pull requests merge (2026-11-14)
 
