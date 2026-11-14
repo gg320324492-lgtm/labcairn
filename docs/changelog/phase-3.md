@@ -6,6 +6,65 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The 2026-11-14 review lessons become a standing review checklist (2026-11-14)
+
+- **Six checkable review rules (R1–R6) distilled from the day's multi-round
+  review**, recorded in `docs/review-checklist-2026-11-14.md`. Each rule
+  carries a checkbox, the reviewer's question, the day's real failure and the
+  repair commit measured by `git log`: R1 — a witness must not depend on a
+  build artifact the runner does not have (the packaging guards read real
+  frozen/`shell/build` outputs and CI went red three runs; synthetic tree,
+  `6c176f994e8df3c56dafeea0381c9aff12d37e42`); R2 — no single-platform facts
+  hard-coded (`labcairn.exe` vs `labcairn` on Ubuntu;
+  `6e208225906744450968dc6c69c4319a910027b9`,
+  `7a44f569ceafb4c5c284c183e764f53b8f6ad1af`); R3 — a guard of a guard needs
+  its own witness and a skipped arm proves nothing
+  (`PYDANTIC_DISABLE_PLUGINS` injection, `8bf367a6a64712b9f092fe41e463636e120f261f`;
+  channel-skip connection as syntax, `f2479c410b6bc487715bcab5a6addb3f3e7234e5`);
+  R4 — external wording is quoted as an English paraphrase with provenance and
+  a reading date, never the original Chinese (the D17 quotation that tripped
+  the reference-exclusion and release-contents gates,
+  `22232e2e877c9ddd09c56b5b47f24e12c855cf9e`); R5 — a documented rule and its
+  implementation say the same thing in both directions, each with a witness
+  (the `..`-climbing workspace escape,
+  `817a7e54c4890610de84b255f25c7d623f6d4d71`); R6 — a mutable number enters a
+  record only after a fresh measurement anchored to its commit (the
+  2026-11-14 sweep, `a691fb699c5c11904bc265cc631ca1db14090e6a`, and the map's
+  file-count re-reading, `c51fb23bba4cbdfb8e795bc71347c176c0b49c25`). The
+  repository map names the checklist under `docs/`, and `CLAUDE.md` points a
+  review window at it before a gate's review starts. The checklist is itself
+  subject to R6: a new failure class joins it in the same delivery that
+  produced the failure.
+
+### The installed-shell drill runs end to end on this machine (2026-11-14)
+
+- **Install → launch → uninstall → reinstall, measured on the real NSIS
+  install.** The `dist3` installer (sha256 `9805be54…55c4`, hash re-verified
+  before the drill) installed silently per-user to
+  `C:\Users\pc\AppData\Local\Programs\LabCairn` with the frozen backend,
+  web bundle and both supply templates in `resources/` — and **did not
+  start as-installed**: with no supply named, the shell refuses in ~1.1 s
+  with the designed `LABCAIRN_SHELL_CLI` refusal, because the installer
+  ships `shell-env.template.json` but no live `shell-env.json` for the
+  resolver to read. Both supply ways then passed on the installed package —
+  way 1 (launcher-template environment values) and way 2 (the template
+  materialized as the live file, environment cleared) each reached
+  **connected → loaded → granted** (ServiceStarting 2.3 s / 3.2 s,
+  `/health` 200, page 200, `POST /task/select` 200), with the child's
+  command line naming the resolved installation-relative paths. The
+  uninstaller removed the directory and its registry entry and kept
+  `%APPDATA%\@labcairn\shell` byte-for-byte (no `deleteAppDataOnUninstall`);
+  the reinstall landed a byte-identical tree (4,077 entries, empty diff)
+  and relaunched green. **Two findings for the owner:** the installed
+  package needs one supply action before its first launch (the live-file
+  question stays open); and with the installation-relative workspace the
+  workspace lives inside the install tree, so uninstall/reinstall resets it
+  (`workspace_not_initialised` until `init` runs again) even though Electron
+  userData survives. The record is
+  [`LC-P3-05-install-drill-2026-11-14.md`](../acceptance/LC-P3-05-install-drill-2026-11-14.md).
+  Docs only; no product source, test or workflow file changed. No CI run,
+  no pull request, no push.
+
 ### The second blind-rating round closes (2026-11-14)
 
 - **LC-P2-14's rating half ran a second round, both raters agents again.**

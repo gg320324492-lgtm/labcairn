@@ -560,3 +560,60 @@ test('a foreign listener on the chosen port is a refusal, not a page to load', a
   }
   await assertPortReleased(port, 'the foreign listener was stopped')
 })
+
+test('the one spawn path puts PYDANTIC_DISABLE_PLUGINS=1 on the child it starts', async () => {
+  // The flag is measured, not defensive: without it the frozen `labcairn.exe`
+  // dies at import (logfire's pydantic plugin reads its target's source text,
+  // and a frozen application carries none — `service-supervisor.mjs`'s header
+  // records the 2026-11-14 measurement). The injection rides the one spawn
+  // path, so this witness rides it too: a fake service command — this very
+  // Node interpreter, reporting the env it was started with and then serving
+  // the two lines the supervisor waits for — is spawned through
+  // `ServiceSupervisor.start` with nothing overridden but the command, and
+  // the supervisor's own drained log is where the answer is read. A refactor
+  // that drops the flag makes this red, without needing the real freeze.
+  const port = await freeLoopbackPort()
+  const { logPath } = scratchPaths('spawn-env')
+  const serviceSource = `
+    const http = require('node:http')
+    const record = JSON.stringify({ pydantic_disable_plugins: process.env.PYDANTIC_DISABLE_PLUGINS ?? null })
+    require('node:fs').writeFileSync(process.argv[2], record + '\\n')
+    const server = http.createServer((_req, res) => res.end('ok'))
+    server.listen(Number(process.argv[3]), '127.0.0.1', () => {
+      process.stdout.write(JSON.stringify({
+        host: '127.0.0.1', port: Number(process.argv[3]),
+        origin: 'http://127.0.0.1:' + process.argv[3], origins: [],
+        task_id: 't-spawn-env', token_path: 'unused',
+      }) + '\\n')
+    })
+  `
+  const serviceFile = path.join(scratchPaths('spawn-env-src').dir, 'fake_service.cjs')
+  fs.writeFileSync(serviceFile, serviceSource)
+  const marker = path.join(scratchPaths('spawn-env-marker').dir, 'env.json')
+  const supervisor = new ServiceSupervisor({
+    command: process.execPath,
+    env: childEnv(),
+    cwd: scratchRoot,
+    logPath,
+  })
+  const { child } = await supervisor.start({
+    port,
+    commandOverride: process.execPath,
+    argsOverride: [serviceFile, marker, String(port)],
+  })
+  try {
+    const recorded = JSON.parse(fs.readFileSync(marker, 'utf8'))
+    assert.equal(
+      recorded.pydantic_disable_plugins,
+      '1',
+      'the supervisor started its child without PYDANTIC_DISABLE_PLUGINS=1: the frozen ' +
+        'backend dies at import without it (logfire/pydantic source-text OSError), so this ' +
+        'is the flag the packaged run cannot lose',
+    )
+  } finally {
+    const outcome = await supervisor.stop()
+    assert.notEqual(outcome, null, 'the spawn-env child was never stopped')
+  }
+  assert.equal(child.exitCode !== null || child.signalCode !== null, true, 'the spawn-env child is still running')
+  await assertPortReleased(port, 'spawn-env')
+})

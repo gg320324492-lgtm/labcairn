@@ -127,6 +127,16 @@ test('every child the shell spawns is the service or the recorded group kill', (
   assert.match(supervisor, /commandOverride \?\? this\.command/, 'the spawn does not resolve its command through the supervisor')
   assert.match(supervisor, /'serve'/, 'the supervisor no longer spawns the service')
   assert.match(supervisor, /'--host',\s*\n?\s*'127\.0\.0\.1'/, 'the spawn no longer pins the loopback bind')
+  // The one environment flag the child always carries: without it the frozen
+  // backend dies at import (the supervisor's header records the measurement).
+  // The dynamic half of this witness — the flag really rides the spawn path —
+  // is `drain-witness.test.mjs`'s PYDANTIC case; this line holds the source
+  // shape, so a refactor that moves the spawn can drop neither.
+  assert.match(
+    supervisor,
+    /PYDANTIC_DISABLE_PLUGINS: '1'/,
+    'the spawn no longer sets PYDANTIC_DISABLE_PLUGINS=1: the frozen backend dies at import without it',
+  )
 })
 
 test('the preload exposes only the two read-only getters (the enumerable surface)', () => {

@@ -32,6 +32,7 @@ cover, with an evidence address for each.
 
 from __future__ import annotations
 
+import ast
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -530,20 +531,58 @@ def test_the_channel_skip_reason_refuses_every_other_launch_failure() -> None:
 def test_the_real_browser_fixture_skips_through_this_judgment() -> None:
     """The real-browser file's skip path goes through `channel_skip_reason`.
 
-    **Why an import-level assertion.** The two probes above witness the judgment's
-    behaviour; this one witnesses that the fixture which turns a launch failure
-    into a named skip still calls it. The 2026-11-14 review's concern was the
-    defence with no witness; the fixture in `tests/test_workbench_real_browser.py`
-    is the defence's only call site, and a call site that stops calling leaves the
-    function tested but unused — the skip would become a red on every channel-less
-    machine. Reading the fixture's source keeps that fact from rotting without
-    touching that file's cases.
+    **Why a syntax-level assertion, and why not a browser.** The two probes above
+    witness the judgment's behaviour; this one witnesses that the fixture which
+    turns a launch failure into a named skip still calls it *and hands its answer
+    to the skip*. The 2026-11-14 review's concern was the defence with no witness;
+    the fixture in `tests/test_workbench_real_browser.py` is the defence's only
+    call site, and a call site that stops calling — or calls and then skips with
+    some other words — leaves the function tested but unused, and on a machine
+    without the pinned channel (an Ubuntu runner carries no Edge) that fixture's
+    skip arm is the only place the judgment would ever run. Driving the fixture
+    far enough to see the skip would need a machine without Edge to be honest,
+    which a witness cannot arrange on a machine that has it; reading the
+    fixture's own syntax needs no browser at all, and it fails when the wiring
+    is cut rather than when a sentence is reworded.
     """
     source = (REPO_ROOT_FOR_HELPER / "tests" / "test_workbench_real_browser.py").read_text(
         encoding="utf-8"
     )
-    assert "channel_skip_reason(error)" in source, (
+    tree = ast.parse(source, filename="test_workbench_real_browser.py")
+
+    # `missing_channel = channel_skip_reason(error)` — any assignment whose value
+    # is a call to the judgment, whatever the variable is called.
+    judged: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id == "channel_skip_reason"
+        ):
+            judged.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    assert judged, (
         "the real-browser fixture no longer consults channel_skip_reason, so a "
         "missing channel would surface as a red launch failure instead of the "
         "named skip the environment record expects"
+    )
+
+    # The skip must be told the judgment's answer: `pytest.skip(<judged var>)`.
+    # A skip whose reason is a different expression keeps the call but severs
+    # the connection — the judgment would run and its answer would go nowhere.
+    skipped: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "skip"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "pytest"
+        ):
+            skipped.update(a.id for a in node.args if isinstance(a, ast.Name))
+    assert judged & skipped, (
+        "the real-browser fixture calls channel_skip_reason but does not pass its "
+        f"answer to pytest.skip (judged: {sorted(judged)}; skipped: {sorted(skipped)}), "
+        "so the named skip the environment record expects would never reach a "
+        "channel-less run"
     )
