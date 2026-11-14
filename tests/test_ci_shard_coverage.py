@@ -3918,3 +3918,225 @@ def test_the_supersession_marker_check_fails_when_a_marker_is_deleted_or_hollow(
     assert record.read_bytes() == original_bytes, (
         f"{REQUIRED_CHECK_RECORD} changed while it was being read"
     )
+
+
+# ---------------------------------------------------------------------------
+# The three counts of the required-check set agree with one another
+# ---------------------------------------------------------------------------
+#
+# The failure this closes (2026-11-14 independent review, findings 1): the
+# marked block in `.github/CI.md` is data, and the prose around it — in this
+# record and in the current pointers — states the same set as a *count*. Two
+# mutations proved that nothing held those together: deleting one context line
+# from the block left 37 related tests green, and changing `CLAUDE.md`'s
+# "fifteen required checks" to "fourteen" left them green too. A list and the
+# sentences that cite its length could drift apart with the whole tree green.
+
+#: The cardinal words a count may be written as, with their values. `_CARDINAL_WORDS`
+#: above stops at sixteen, which is enough for the job counts; the required-check
+#: counts live in the same range, so the same table is reused rather than a second
+#: one written here.
+_REQUIRED_COUNT_WORDS: Final[re.Pattern[str]] = re.compile(
+    r"\b(fifteen|fourteen|sixteen|thirteen|seventeen|eighteen|nineteen|\d{1,2})\b", re.I
+)
+
+_CARDINAL_VALUES: Final[dict[str, int]] = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+}
+
+
+def _required_count_value(token: str) -> int:
+    """A count token — a word or a numeral — as a number."""
+    lowered = token.lower()
+    if lowered in _CARDINAL_VALUES:
+        return _CARDINAL_VALUES[lowered]
+    return int(token)
+
+
+def _counted_lines(text: str, pattern: re.Pattern[str]) -> list[tuple[int, int]]:
+    """Every `(line, value)` a count pattern reads out of a document.
+
+    Line numbers are 1-based, because every report in this file cites them that
+    way and a reader has to be able to open the line the report names.
+    """
+    found: list[tuple[int, int]] = []
+    for match in pattern.finditer(text):
+        line = text[: match.start()].count("\n") + 1
+        found.append((line, _required_count_value(match.group(1))))
+    return found
+
+
+#: The count sentence each pointer states, in the words that document actually
+#: uses. A pattern per document rather than one loose shape, for the reason the
+#: job-count ruler states: a window of any length reads numbers that have
+#: nothing to do with the required set — `docs/handoff/CURRENT.md` alone carries
+#: five other *fifteen*s (ground-truth queries, test counts, "one out of
+#: sixteen"). Each pattern is anchored to the words that make the sentence a
+#: claim about the required-check set.
+REQUIRED_COUNT_SENTENCES: Final[dict[Path, tuple[re.Pattern[str], ...]]] = {
+    # `.github/CI.md` states the count three times besides carrying the block:
+    # the command comment (`# -> 15`), "The 15 contexts, printed one per line",
+    # and the supersession marker's "— 15, `lint` among them". The comment's
+    # `->` is why this pattern is not the one CLAUDE.md's comment shares.
+    REQUIRED_CHECK_RECORD: (
+        re.compile(r"\.contexts\s*\|\s*length'\s*#\s*->\s*(\d{1,2})"),
+        re.compile(r"\bThe\s+(\d{1,2})\s+contexts,\s*printed\s+one\s+per\s+line\b"),
+        re.compile(r"(\d{1,2}),\s*`lint`\s+among\s+them"),
+    ),
+    # `CLAUDE.md`: "the **fifteen required checks**", the `# 15` in the command
+    # comment, "the fifteen contexts are listed one per line in `.github/CI.md`",
+    # and "`lint` is a required check: it is one of the fifteen required contexts".
+    Path("CLAUDE.md"): (
+        re.compile(rf"\b({_NUMBER_WORDS})\s+required\s+(?:status\s+)?checks?\b", re.I),
+        re.compile(r"\.contexts\s*\|\s*length'\s+#\s+(\d{1,2})"),
+        re.compile(rf"\bthe\s+({_NUMBER_WORDS})\s+contexts\s+are\s+listed\b", re.I),
+        re.compile(rf"\bone\s+of\s+the\s+({_NUMBER_WORDS})\s+required\s+contexts\b", re.I),
+    ),
+    # `docs/handoff/CURRENT.md`: "one of the **fifteen required contexts** ...
+    # which printed **15**". The cross-line wrap is why the prose shape carries `\s+`.
+    Path("docs") / "handoff" / "CURRENT.md": (
+        re.compile(rf"\bone\s+of\s+the\s+({_NUMBER_WORDS})\s+required\s+contexts\b", re.I),
+        re.compile(
+            r"\.contexts\s*\|\s*length'`,\s*which\s+printed\s+\*{0,2}(\d{1,2})\*{0,2}", re.I
+        ),
+    ),
+    # `docs/REPOSITORY-MAP.md`: "fifteen required contexts at the same revision".
+    # The plain `fifteen` on its line 90 is a count of *files*, not checks, and
+    # the word `required` in this pattern is what keeps them apart.
+    Path("docs") / "REPOSITORY-MAP.md": (
+        re.compile(rf"\b({_NUMBER_WORDS})\s+required\s+contexts\b", re.I),
+    ),
+}
+
+
+def test_every_stated_required_check_count_equals_the_list_the_record_carries(
+    repo_root: Path,
+) -> None:
+    """The counts the pointers state are the count of the block the record carries.
+
+    **The property.** The required-check set lives in `.github/CI.md` as a marked
+    block — one context per line. Every sentence that states how many contexts
+    there are, in this record or in a current pointer, states the number of lines
+    in that block. A count that does not match the list is a sentence a reader
+    cannot trust: either the list lost a line or the sentence is behind, and the
+    tree stays green either way until something compares them.
+
+    **Why the comparison is per sentence rather than per file.** A document can
+    carry several counts of the set (`CLAUDE.md` states fifteen three times: as
+    prose, in the command comment, and in the lint paragraph), and it can carry
+    other fifteens that are not counts of this set at all — `CURRENT.md`'s
+    "fifteen ground-truth queries" and "one out of sixteen" are about the chain,
+    not about branch protection. So each document's patterns name the sentences
+    that are counts, and every value they read has to equal the block's line
+    count. Changing any one of them — or losing a line from the block — is red.
+
+    **What this cannot watch.** Whether GitHub's live protection still agrees.
+    That is a setting outside the repository; the record's own marker carries the
+    `gh api` command that re-reads it, and the record is re-anchored when the
+    owner re-measures. What is watched here is that the tree's own numbers do not
+    drift apart.
+    """
+    contexts, _anchor = _required_contexts(repo_root)
+    carried = len(contexts)
+
+    records: list[tuple[Path, int, str]] = [
+        (REQUIRED_CHECK_RECORD, carried, "the marked block's context lines"),
+    ]
+    for relative, patterns in REQUIRED_COUNT_SENTENCES.items():
+        text = (repo_root / relative).read_text(encoding="utf-8")
+        for pattern in patterns:
+            for line, value in _counted_lines(text, pattern):
+                records.append((relative, value, f"line {line}"))
+
+    assert len(records) > 1, (
+        "no pointer states a required-check count, so this witness reads nothing. "
+        "If the counts moved out of the pointers, delete this witness rather than "
+        "leaving it green over an empty one."
+    )
+    wrong = [
+        f"{relative.as_posix()}:{where} states {value}"
+        for relative, value, where in records
+        if value != carried
+    ]
+    assert not wrong, (
+        f"`{REQUIRED_CHECK_RECORD}` carries {carried} required contexts, and these "
+        f"sentences state a different count:\n  "
+        + "\n  ".join(wrong)
+        + "\n\nA count and the list it counts have to agree. Re-measure the set with "
+        "the `gh api` command in the record, then correct the sentence or the list — "
+        "whichever is behind — and anchor the new reading."
+    )
+
+
+def test_every_context_the_record_lists_is_named_by_the_its_own_shape(
+    repo_root: Path,
+) -> None:
+    """The block's lines are the set, both ways: no line lost, no line invented.
+
+    **The direction the first witness covers, and the one it cannot.**
+    `test_every_required_check_the_record_lists_is_a_name_a_job_reports` checks
+    the record against the workflows' rendered names — a required name no job
+    reports hangs a merge. It does not check the block's own arithmetic against
+    the workflow's shape, so a line dropped from the block — the exact mutation
+    the 2026-11-14 review ran — left every name check green: the remaining lines
+    were still names jobs report, and nothing compared the *count* to anything.
+
+    **The two directions, from the workflow's own shape.** `python.yml` declares
+    the shard matrix; the other required names are the four non-shard checks.
+    The block must carry exactly: every shard leg the matrix expands to, named
+    the way the workflow names them, plus `lint`, plus the four web-and-tool
+    checks. A line lost, a line invented, a leg renamed in one place — any of
+    these breaks the equality, and the report names which side moved.
+    """
+    contexts, _anchor = _required_contexts(repo_root)
+
+    workflow = yaml.safe_load((repo_root / WORKFLOW_FILE).read_text(encoding="utf-8"))
+    matrix = workflow["jobs"]["python-quality"]["strategy"]["matrix"]
+    axes = [axis for axis in matrix if axis not in MATRIX_NON_AXIS_KEYS]
+    assert axes, "python.yml declares no matrix axes, so the shard legs cannot be derived"
+    legs = 1
+    for axis in axes:
+        legs *= len(matrix[axis])
+    expected: set[str] = set()
+    for os_value in matrix["os"]:
+        for shard in matrix["shard"]:
+            expected.add(f"python-quality ({os_value}, shard {shard})")
+    assert len(expected) == legs, (
+        "the derived shard-leg names do not match the matrix's own leg count"
+    )
+    expected.update(
+        {"lint", "web-quality", "reference-exclusion", "secret-scan", "lockfile-consistency"}
+    )
+
+    listed = set(contexts)
+    missing = sorted(expected - listed)
+    extra = sorted(listed - expected)
+    assert not missing and not extra, (
+        f"`{REQUIRED_CHECK_RECORD}` lists {len(listed)} contexts; the workflows' shape "
+        f"gives {len(expected)} ({legs} shard legs from {axes} "
+        f"{[len(matrix[a]) for a in axes]}, plus `lint` and the four tool gates).\n"
+        f"  in no workflow's shape: {missing}\n"
+        f"  listed but not derivable: {extra}\n"
+        "A line lost from the block is a check branch protection no longer waits for "
+        "(the merge proceeds without a gate that was required); a line invented is one "
+        "GitHub never reports. Re-read the protection with the `gh api` command in the "
+        "record and correct whichever side is behind."
+    )

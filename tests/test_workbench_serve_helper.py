@@ -51,6 +51,11 @@ from labcairn.cli.commands import EXIT_REFUSED
 
 pytestmark = pytest.mark.e2e
 
+#: This repository's root, from this file's own location — the same derivation
+#: `workbench_serve_support.REPO_ROOT` uses, kept separate so this file can read
+#: another test file's source without importing it.
+REPO_ROOT_FOR_HELPER = Path(__file__).resolve().parent.parent
+
 #: The port ``labcairn serve`` falls back to, and the port the development server
 #: uses. §4.1 forbids the first for a baseline; the second belongs to a process this
 #: suite does not own.
@@ -426,3 +431,119 @@ def test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_start
         f"{stream.status} with {stream.body[:200]!r}"
     )
     assert stream.json()["reason"] == "not_implemented", stream.body[:200]
+
+
+# --------------------------------------------------------------------------- #
+# the channel-skip judgment, watched directly
+# --------------------------------------------------------------------------- #
+
+
+def test_the_channel_skip_reason_names_a_missing_pinned_channel() -> None:
+    """The launch failure that *is* a missing channel is judged, and named.
+
+    **The defence this watches.** `workbench_serve_support.channel_skip_reason`
+    is what turns the real-browser fixture's launch failure into a named skip on a
+    machine without the pinned channel (an Ubuntu runner carries no Edge). Until
+    the 2026-11-14 review, that judgment had no witness of its own: the fixture in
+    `tests/test_workbench_real_browser.py` calls it, but a call is not a witness —
+    widening the judgment (for example, returning a skip reason for *every* launch
+    failure) left the whole tree green, and a broken browser would then hide
+    behind "the channel is missing".
+
+    **The message is the driver's own shape.** Playwright's registry fails a
+    missing channel before any process is spawned, with
+    `Chromium distribution 'msedge' is not found at <path>` — measured against the
+    1.65.1 driver and quoted in `workbench_serve_support.channel_skip_reason`'s
+    docstring. The probe here uses that exact shape, so the witness tests the
+    judgment against the words the driver really produces, not a paraphrase.
+
+    **The reason carries the channel and the driver's words.** A skip reason that
+    did not name the channel would be interchangeable with any other skip; the
+    run's environment record is supposed to say which channel was missing and what
+    the driver said, so the judgment's answer is required to carry both.
+    """
+    message = (
+        f"Chromium distribution '{support.BROWSER_CHANNEL}' is not found at "
+        "/opt/microsoft/msedge/msedge"
+    )
+    failure = type("ChannelMissing", (Exception,), {})(message)
+    reason = support.channel_skip_reason(failure)
+    assert reason is not None, (
+        f"the driver's own missing-channel message ({message!r}) was not judged a "
+        "channel skip, so the real-browser file would report a red launch failure "
+        "on a machine that merely lacks the pinned browser"
+    )
+    assert support.BROWSER_CHANNEL in reason, (
+        f"the skip reason does not name the channel {support.BROWSER_CHANNEL!r}: {reason!r}"
+    )
+    assert "is not found" in reason, (
+        f"the skip reason does not carry the driver's own verdict: {reason!r}"
+    )
+
+
+def test_the_channel_skip_reason_refuses_every_other_launch_failure() -> None:
+    """A launch failure that is *not* a missing channel stays a failure.
+
+    **Why the negative side is the point.** A broken browser and an absent one are
+    different facts. Collapsing them — any exception becoming a channel skip — is
+    exactly the widening the 2026-11-14 review measured as silent: every witness
+    stayed green while the skip reason swallowed launch crashes. So this side
+    probes the failures a machine actually produces when the browser *exists* but
+    cannot start, in the shapes the driver and the OS produce them, and requires
+    `None` from each.
+
+    **Each probe is a shape, not a paraphrase.** A process that starts and dies
+    (the driver's "Browser closed unexpectedly"), a page/target crash, a timeout,
+    an executable that is not runnable, and a bare OSError with no message at all:
+    none of them names the channel, and none of them may read as its absence.
+    """
+    probes = {
+        "browser died after spawn": Exception(
+            "Browser closed unexpectedly on launch. Something is wrong with the browser process."
+        ),
+        "target crashed": Exception("Target page, context or browser has been closed"),
+        "launch timed out": Exception("Timeout 30000ms exceeded during launch."),
+        "executable not runnable": Exception("Failed to launch: spawn msedge ENOENT"),
+        "bare OS error with no words": OSError(13, "Permission denied"),
+    }
+    for label, failure in probes.items():
+        reason = support.channel_skip_reason(failure)
+        assert reason is None, (
+            f"{label} ({failure!r}) was judged a channel skip ({reason!r}). A browser "
+            "that exists but failed to start is not an absent browser; reading it as "
+            "one hides the breakage behind the pinned channel's absence."
+        )
+
+    # The judgment reads the pinned channel's name, so a *different* channel's
+    # missing-channel message is not this run's skip either: the reason names
+    # `BROWSER_CHANNEL`, and a message about another channel says the driver was
+    # pointed somewhere else — a different fact.
+    other_channel = Exception(
+        "Chromium distribution 'chrome' is not found at /usr/bin/google-chrome"
+    )
+    assert support.channel_skip_reason(other_channel) is None, (
+        "a missing-channel message about a channel this run does not pin was read "
+        "as this run's channel skip"
+    )
+
+
+def test_the_real_browser_fixture_skips_through_this_judgment() -> None:
+    """The real-browser file's skip path goes through `channel_skip_reason`.
+
+    **Why an import-level assertion.** The two probes above witness the judgment's
+    behaviour; this one witnesses that the fixture which turns a launch failure
+    into a named skip still calls it. The 2026-11-14 review's concern was the
+    defence with no witness; the fixture in `tests/test_workbench_real_browser.py`
+    is the defence's only call site, and a call site that stops calling leaves the
+    function tested but unused — the skip would become a red on every channel-less
+    machine. Reading the fixture's source keeps that fact from rotting without
+    touching that file's cases.
+    """
+    source = (REPO_ROOT_FOR_HELPER / "tests" / "test_workbench_real_browser.py").read_text(
+        encoding="utf-8"
+    )
+    assert "channel_skip_reason(error)" in source, (
+        "the real-browser fixture no longer consults channel_skip_reason, so a "
+        "missing channel would surface as a red launch failure instead of the "
+        "named skip the environment record expects"
+    )
