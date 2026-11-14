@@ -20,6 +20,16 @@ extraResources:
     to: web-dist
     filter:
       - '**/*'
+  # O3's frozen backend (decided 2026-11-14): the whole onedir tree PyInstaller
+  # produced, carried at `resources/backend/labcairn` — the place the package's
+  # own `shell-env.json` names in its installation-relative form
+  # (`"cliPath": "backend/labcairn"`). The tree is a build product: the
+  # `beforeBuild` guard below refuses the build when it is absent, and the
+  # freeze that produces it is `node shell/scripts/build-backend-freeze.mjs`.
+  - from: build/backend-freeze/labcairn
+    to: backend/labcairn
+    filter:
+      - '**/*'
   # T09's two supply templates travel in the package. The JSON template becomes
   # the package's own `resources/shell-env.json` only when the owner renames it;
   # the launcher template is copied next to LabCairn.exe and edited. Neither is
@@ -28,12 +38,13 @@ extraResources:
     to: shell-env.template.json
   - from: labcairn-shell.cmd
     to: labcairn-shell.cmd
-# The packaged window loads the web bundle from `resources/web-dist`. When that
+# The packaged window loads the web bundle from `resources/web-dist`, and the
+# service runs from the frozen backend at `resources/backend/labcairn`. When a
 # source directory is absent electron-builder warns -- one `file source doesn't
 # exist` line per missing path -- and keeps going, so an installer without the
 # frontend would ship; measured on 2026-11-11, such a build exited 0. This hook
-# turns the missing bundle into a build failure.
-beforeBuild: scripts/require-web-dist.mjs
+# turns a missing bundle or a missing frozen backend into a build failure.
+beforeBuild: scripts/require-package-inputs.mjs
 win:
   target:
     - nsis

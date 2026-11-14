@@ -102,12 +102,19 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: `shell-env.test.mjs` rose from nine to ten when O3's 2026-11-14 decision
 #: removed the template's `_comment` field (the parser refuses unknown
 #: fields, so the template's own shape changed and the refusal gained a case).
+#: O3's installer wiring (2026-11-14, this tree) raised `shell-env.test.mjs`
+#: to fourteen (the installation-relative `cliPath` form: parse-through,
+#: resolve-under-resources, absolute pass-through, no-anchor refusal, escape
+#: refusal, bare-name refusal), `config.test.mjs` to ten (the shipped
+#: template's shape resolving against a scratch resources tree), and
+#: `packaging-config.test.mjs` to seventeen (the frozen backend in
+#: extraResources, the input guard's two refusals and its shape).
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "command-line.test.mjs": 6,
-    "config.test.mjs": 9,
-    "shell-env.test.mjs": 10,
+    "config.test.mjs": 10,
+    "shell-env.test.mjs": 14,
     "update-path.test.mjs": 6,
     "dependency-surface.test.mjs": 3,
     "drain-witness.test.mjs": 5,
@@ -116,12 +123,12 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
     "notice-scope.test.mjs": 8,
-    "packaging-config.test.mjs": 15,
+    "packaging-config.test.mjs": 17,
     "shell-tree-terms.test.mjs": 7,
     "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "4a7b1894a00c1c009ab500c878816418beb312c1"
+CASE_FLOORS_MEASURED_AT: Final[str] = "PLACEHOLDER_SET_AFTER_COMMIT"
 
 
 # --------------------------------------------------------------------------
