@@ -533,8 +533,8 @@ about a case, not a judgement that a comment was answered.
 schedule, over the five classes it can run offline.**
 
 `python.yml` gained a `schedule` trigger and an `evaluation` job. On the
-schedule event `lint` and the ten shard jobs are skipped, so the run spends
-one job; the job runs `python -m tests.evaluation --classes
+schedule event `lint` and the twelve shard jobs are skipped, so the run
+spends one job; the job runs `python -m tests.evaluation --classes
 unit,integration,negative,e2e,repository`, prints the report to the log and
 uploads it as an artifact. It is **not** a required check, and it cannot be
 one: GitHub fires a schedule only from the default branch, so branch
@@ -544,10 +544,12 @@ choice between a weekly schedule, a per-merge push and a pull-request job
 that could be required is still the owner's, as is the runner cost.
 
 > **Dated snapshot — true when written, superseded since.** The sentence above
-> was written 2026-11-03, when `python.yml` had no `lint` job of its own and a
-> push started the ten shard legs. Since 2026-11-15
-> (`da48f15f5fdfeaf0a05c36c3d0e8fcfe1e90195a`) a push starts the eleven python
-> jobs — the ten shard legs and `lint` — and the count lives in
+> was written 2026-11-03, when `python.yml` had no `lint` job of its own and
+> a push started the shard legs alone. Since 2026-11-02
+> (`e5472f8fdb5739d37e1c997546784aa38255329c`) a push also carried `lint`,
+> and since 2026-11-15 (the `test_cli.py` split, which rebalanced the
+> partition to `shard: [0, 1, 2, 3, 4, 5]`) a push starts the thirteen
+> python jobs — the twelve shard legs and `lint`. The count lives in
 > `.github/CI.md`; re-read it with
 > `gh api repos/gg320324492-lgtm/labcairn/branches/main/protection --jq '.required_status_checks.contexts | length'`.
 
@@ -595,7 +597,8 @@ independent review.**
 **CI: lint is one job of its own, and the Ubuntu slow file is diagnosed.**
 The three static checks (`ruff check .`, `ruff format --check .`,
 `mypy --strict`) moved out of the ten shard jobs into one `lint` job on
-Ubuntu; `python-quality` jobs now run pytest only. The witness in
+Ubuntu (the matrix as it stood at `main` = `a1174ae2ff91263ea593f2596743e5b650ff0976`); `python-quality` jobs
+now run pytest only. The witness in
 `tests/test_ci_shard_coverage.py` checks the new job's name, its absence of
 a matrix, that all three commands live there, that no shard job repeats
 them, and that no two jobs share a check name. What this entry said on
@@ -603,7 +606,9 @@ them, and that no two jobs share a check name. What this entry said on
 it — has been overtaken: **`lint` is a required check**, one of the **fifteen
 required contexts** read from GitHub on 2026-11-11 with `gh api
 repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
-'.required_status_checks.contexts | length'`, which printed **15**, and the
+'.required_status_checks.contexts | length'`, which prints **17** for the
+current six-shard matrix (it printed **15** at that reading, when the matrix
+was five shards; the list in `.github/CI.md` carries both readings), and the
 same call's list names `lint` among them. **When the owner added it is not
 recorded anywhere in this repository** — only that the 2026-11-02 sentence was
 true when written and is not true now — and that gap is the finding: a setting
@@ -1493,12 +1498,14 @@ made possible and which is still a human's to set.
 
 > **Dated snapshot — true when written, superseded since.** The ten jobs this
 > entry counts were the whole of a push on 2026-10-31: `python.yml` had no
-> `lint` job of its own then, so a push started the ten shard legs and nothing
+> `lint` job of its own then, so a push started the shard legs and nothing
 > else. Since 2026-11-02 (`e5472f8fdb5739d37e1c997546784aa38255329c`, the
-> commit that split `lint` out of the shard jobs) the python jobs are the
-> eleven that a push event starts — the ten shard legs and `lint` — and
-> `.github/CI.md` is where that count is written down. The ten is left as
-> written because it is what the tree was then.
+> commit that split `lint` out of the shard jobs) a push also carried `lint`,
+> and since 2026-11-15 (the `test_cli.py` split, which rebalanced the
+> partition to `shard: [0, 1, 2, 3, 4, 5]`) the thirteen python jobs — the
+> twelve shard legs and `lint` — are what a push starts. `.github/CI.md` is
+> where that count is written down. The ten is left as written because it is
+> what the tree was then.
 
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-01,
 the model-call path, is landed: T00–T07.** `src/labcairn/application/

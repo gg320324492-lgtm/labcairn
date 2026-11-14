@@ -54,17 +54,17 @@ most expensive thing this project does — it is the gate, and it should be
 spent on the whole of a body of work rather than on each piece of it.
 
 **What it does not change.** `main` is a protected branch, so a pull
-request is how anything reaches it, and the **fifteen required checks**
+request is how anything reaches it, and the **seventeen required checks**
 (reading taken from GitHub on 2026-11-11 at
 `6b3211ae631c7c9548ca160615f88daa6da7d5dd`) have to pass on it. The count
 is a **reading, not a constant**:
 
 ```
 gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
-  --jq '.required_status_checks.contexts | length'    # 15
+  --jq '.required_status_checks.contexts | length'    # 17
 ```
 
-and the fifteen contexts are listed one per line in `.github/CI.md`, at the
+and the seventeen contexts are listed one per line in `.github/CI.md`, at the
 same revision. Branch protection lives on GitHub, so no file here sets it;
 `tests/test_ci_shard_coverage.py` is what notices when this document's
 reading names a check no job reports, or states a count without the revision
@@ -136,10 +136,10 @@ it failed. Run the command, then read its status separately.
 **The owner decided this on 2026-10-24**, and it is recorded in
 `docs/plans/LC-P1-11-12-task-breakdown.md` §1.5.
 
-- **Do not push to start a run.** The suite is five shards per platform and
-  `lint` is one job of its own, so the python jobs are the eleven that a push
-  event starts — the ten shard legs and `lint`; that is the owner's call, not
-  the session's.
+- **Do not push to start a run.** The suite is six shards per platform and
+  `lint` is one job of its own, so the python jobs are the thirteen that a
+  push event starts — the twelve shard legs and `lint`; that is the owner's
+  call, not the session's.
 - **Do not open a pull request.** Not for a finished piece of work, not for
   a document, not for a commit that is "ready to be reviewed". The work
   lands in the tree, the record says what it is, and the pull request waits
@@ -172,19 +172,23 @@ measured at, and rebuilds the partition. **The numbers must come from a
 runner**: a development machine gives a different answer, not only a different
 total but a different *order*, which is why the partition is one per platform.
 
-**The suite is split into five shards per platform, and each shard runs in its
-own job on its own runner.** The reason is measured: the Windows job spent
-34.5 minutes and the Ubuntu job 17.5, and every other required check
-together came to under two minutes, so the suite was the whole of the wait.
-One runner doing everything is the worst possible arrangement for a suite
-whose cost is spread unevenly.
+**The suite is split into six shards per platform, and each shard runs in its
+own job on its own runner.** The shard count is measured, not guessed: five
+was the count that balanced the original suite (the Windows job spent 34.5
+minutes and the Ubuntu job 17.5, and every other required check together came
+to under two minutes), and six became the count when the 2026-11-15 split of
+`tests/test_cli.py` — one file no partition could balance around — turned the
+six-shard arrangement from a cost into a saving. One runner doing everything
+is the worst possible arrangement for a suite whose cost is spread unevenly.
 
 **Lint and type checking are one job of their own; the shard jobs run pytest
 only.** The `lint` job runs `ruff check .`, `ruff format --check .` and
-`mypy --strict` on Ubuntu with no matrix. The same three commands used to run
-inside all ten shard jobs: one lint error turned ten checks red, and the work
-was paid for ten times. **`lint` is a required check**: it is one of the
-fifteen required contexts read from GitHub on 2026-11-11 at
+`mypy --strict` on Ubuntu with no matrix. The same three commands used to
+run in every shard job (2026-11-02, when the shard matrix was the five-way
+one: `e5472f8fdb5739d37e1c997546784aa38255329c`): one lint error turned
+every shard red, and the work was paid for once per shard. **`lint` is a
+required check**: it is one of the
+seventeen required contexts read from GitHub on 2026-11-11 at
 `6b3211ae631c7c9548ca160615f88daa6da7d5dd` and recorded in
 `.github/CI.md`. Before that reading this document said it "is not a required
 check until the owner adds it", and the owner had. **No workflow file can

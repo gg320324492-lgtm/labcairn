@@ -36,7 +36,7 @@
 # here stand in for one.
 #
 # ============================================================================
-# TWO KINDS OF JOB — one `lint`, ten shard jobs
+# TWO KINDS OF JOB — one `lint`, twelve shard jobs
 # ============================================================================
 # `lint` runs the three static checks once: `ruff check .`,
 # `ruff format --check .` and `mypy --strict`, on Ubuntu, with no matrix.
@@ -76,7 +76,7 @@ on:
   # A full offline run costs about 40 minutes on an Ubuntu runner (measured
   # per-file costs in `.github/ci-shards.json`, anchored at
   # a7cde5999a9db1524e2ec5514685b449e43de4b1), and
-  # the ten shard jobs already run the same files; adding it to
+  # the twelve shard jobs already run the same files; adding it to
   # `pull_request` would make it the wall-clock bottleneck for a report that
   # can be produced periodically instead. The job is `evaluation`, below.
   #
@@ -103,13 +103,16 @@ jobs:
     # by name, and a name that carries an expression would be a different
     # check on every run. The owner adds this name to the required list.
     name: lint
-    # The schedule spends one job — `evaluation` — not the eleven that a
-    # pull-request event spends (this `lint` job plus the ten shard legs:
-    # 2 platforms × 5 shards). Without this guard, every scheduled run
-    # would also repeat the static checks and all ten shards. The figure
+    # The schedule spends one job — `evaluation` — not the thirteen that a
+    # pull-request event spends (this `lint` job plus the twelve shard legs:
+    # 2 platforms × 6 shards). Without this guard, every scheduled run
+    # would also repeat the static checks and all twelve shards. The figure
     # this comment printed until 2026-11-12 was "thirteen", which is what a
     # six-shard matrix would give; six was rejected on 2026-10-25 at
-    # `5a4d8e9`, and the matrix has been `[0, 1, 2, 3, 4]` since.
+    # `5a4d8e9` on the costs of that tree, and the matrix stayed
+    # `[0, 1, 2, 3, 4]` until 2026-11-15, when the `test_cli.py` split made
+    # a six-shard partition balance (1.03 Ubuntu / 1.00 Windows) and the
+    # matrix became `[0, 1, 2, 3, 4, 5]`.
     # `.github/CI.md`, "2026-11-03 — the evaluation harness on a schedule",
     # carries the measurement.
     if: ${{ github.event_name != 'schedule' }}
@@ -182,27 +185,34 @@ jobs:
         # apart. A file in no shard is a test CI never runs, and every other
         # check would stay green while it went.
         #
-        # **Five, and not six, and the reason is the floor.** One file is
-        # the floor: `tests/test_cli.py` costs 647.24 seconds on the Windows
-        # runner and 350.60 on Ubuntu (`.github/ci-shards.json`, measured at
-        # a7cde5999a9db1524e2ec5514685b449e43de4b1, the commit this workflow's
-        # cost anchors name), and no arrangement of the other files makes the
-        # shard it is in any shorter. So the wall clock is that file plus the
-        # setup, and a sixth shard does not shorten it -- it only adds a job.
+        # **Six shards, after the floor file was split.** One file was the
+        # floor: `tests/test_cli.py` cost 647.24 seconds on the Windows runner
+        # and 350.60 on Ubuntu at a7cde5999a9db1524e2ec5514685b449e43de4b1
+        # (`.github/ci-shards.json`'s previous anchor), and no arrangement of
+        # the other files made the shard it sat in any shorter, so a sixth
+        # shard only added a job. On 2026-11-15 the file was split into
+        # per-section modules (`tests/test_cli_*.py` over a shared
+        # `test_cli_support.py`), the floor moved with it, and six shards
+        # balance.
+        #
+        # The split files' costs in the table are line-proportional
+        # placeholders anchored at a7cde5999a9db1524e2ec5514685b449e43de4b1
+        # (the remains of `test_cli.py` cost 113.64 seconds on Windows and
+        # 80.17 on Ubuntu), and the batch's own runner run re-measures them;
         # `tests/test_ci_shard_coverage.py::test_the_cost_figures_the_documents_print_are_the_costs_the_table_measures`
-        # re-reads both figures from that table, so a re-measurement that is
+        # re-reads the figures from that table, so a re-measurement that is
         # not carried here is red there.
         #
         # **Why five rather than six was decided, and when.** Measured on
         # 2026-10-25, on the costs of that tree: with six shards the Ubuntu
         # partition was 216 seconds against 135, a ratio of 1.60, and the best
-        # arrangement those costs allow is 1.603 -- **so six shards cannot
+        # arrangement those costs allow is 1.603 -- **so six shards could not
         # satisfy the balance limit at all, and the partition that could not be
         # improved was the one that was rejected.** With five, the same costs
         # give 216 against 169 and the ratio is 1.28. Those four figures belong
         # to the 2026-10-25 measurement and are kept as the record of the
         # decision; they are not the current costs, and the sentence above is.
-        shard: [0, 1, 2, 3, 4]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v7
         # Full history, because `test_status_consistency` decides whether a
@@ -342,8 +352,10 @@ jobs:
             "$RUNNER_TEMP/lgpl-upstream-scratch"
 
       # Lint and type checking run once, in the `lint` job above. They used
-      # to be repeated here, in all ten shard jobs: one lint error turned
-      # ten checks red, and the same three commands were paid for ten times.
+      # to be repeated here, in all ten shard jobs (2026-11-02, when the
+      # matrix was five shards: e5472f8fdb5739d37e1c997546784aa38255329c): one lint error turned ten checks
+      # red, and the same three commands were paid for ten times. The counts
+      # are the measurement of that revision, not today's.
 
       # This shard's files, and only this shard's. The shard list is read
       # from the file the workflow and the witness test both read, so the
@@ -404,10 +416,10 @@ jobs:
   # `python -m tests.evaluation` runs the protocol's gate classes and writes
   # the Phase 1 blocker table with its denominators. It is not on
   # `pull_request` because a full offline run costs about 40 minutes on an
-  # Ubuntu runner (the measured per-file costs in `.github/ci-shards.json`,
-  # anchored at a7cde5999a9db1524e2ec5514685b449e43de4b1, sum to 2380.0 s
-  # over the five offline classes), and
-  # the ten shard jobs already run the same files. A pull-request job would
+  # Ubuntu runner (the per-file costs in `.github/ci-shards.json`, anchored
+  # at a7cde5999a9db1524e2ec5514685b449e43de4b1, sum to 2416.0 s over the
+  # five offline classes — placeholder figures pending the batch's runner
+  # re-measurement), and the twelve shard jobs already run the same files. A pull-request job would
   # become the wall-clock bottleneck for a report that can be produced
   # periodically instead.
   #

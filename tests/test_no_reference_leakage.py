@@ -1516,7 +1516,6 @@ CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "docs/adr/ADR-0004-scientific-provenance-and-evidence-model.md": 2,
     "scripts/cjk_ceilings.py": 2,
     "tests/test_artifact_ledger_persistence.py": 2,
-    "tests/test_cli.py": 2,
     "tests/test_repo_root_guard.py": 2,
     "tests/test_skill_quality.py": 2,
 }

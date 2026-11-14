@@ -199,6 +199,19 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_application_ingestion.py": ("integration", "dataset-locators"),
     "test_application_layer.py": ("integration", "approvals"),
     "test_cli.py": ("e2e", "cli-task"),
+    # The test_cli.py split (2026-11-15): the monolith is one file no more —
+    # its sections are their own files, and the support module carries the rig.
+    # Same property as the monolith (the CLI is tested by running it), so the
+    # same class follows.
+    "test_cli_support.py": ("e2e", "cli-task"),
+    "test_cli_json_forms.py": ("e2e", "cli-task"),
+    "test_cli_refusals.py": ("e2e", "cli-task"),
+    "test_cli_parameters.py": ("e2e", "cli-task"),
+    "test_cli_init_doctor.py": ("e2e", "cli-task"),
+    "test_cli_serve_seam.py": ("e2e", "cli-task"),
+    "test_cli_layer_models.py": ("e2e", "cli-task"),
+    "test_cli_evidence_writer.py": ("e2e", "cli-task"),
+    "test_cli_confirmation_guidance.py": ("e2e", "cli-task"),
     "test_cli_path_refused_catch.py": ("negative", "path-traversal"),
     "test_cli_refusal_enumeration.py": ("negative", "missing-material"),
     "test_cli_serve_bind_refusal.py": ("negative", "path-traversal"),
