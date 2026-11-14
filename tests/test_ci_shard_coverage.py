@@ -3507,12 +3507,25 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         check=False,
     )
     assert head.returncode == 0, head.stderr
-    head_short = head.stdout.strip()[:12]
-    assert six_with_lint == [head_short], (
-        f"the six-or-more-shard-plus-lint pairing appears at {'/'.join(six_with_lint)}; "
-        f"expected only the current revision ({head_short}), where the records' date anchor "
-        "puts it."
-    )
+    head_full = head.stdout.strip()
+    head_short = head_full[:12]
+    # Every revision carrying the pairing must be an ancestor of HEAD: the
+    # pairing entered the tree at the dated move (2026-11-15) and the history
+    # only moves forward. A pairing on a side branch or after HEAD would make
+    # the records' date a guess.
+    for short in six_with_lint:
+        merged = subprocess.run(
+            ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", short, head_full],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert merged.returncode == 0, (
+            f"the six-or-more-shard-plus-lint pairing appears at {short}, which is "
+            f"not an ancestor of the current HEAD ({head_short}); the records date "
+            "the move to 2026-11-15, and a pairing outside that line makes the date "
+            "a guess."
+        )
 
 
 # --------------------------------------------------------------------------
