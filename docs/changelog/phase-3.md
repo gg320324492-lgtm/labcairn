@@ -10,7 +10,8 @@
   and on the remote.
 - **What it carried:** the LC-P3-07 drill window (the diagnostics package,
   the five drill classes, the installed-build drill with defect D-07-01
-  filed, the operator manual and the known-limits record); the LC-P3-08
+  filed — fixed on `main` 2026-11-15 by `5c1c454`; the operator manual and
+  the known-limits record); the LC-P3-08
   substitute-first trio (the trial protocol's section-7 registry, the
   evidence-mapping dry run, the reviewer form); the G2/G3 review repairs
   (F-A the `source_drifted` guard's witnesses, F-C the LC-P3-06 anchor
@@ -18,8 +19,12 @@
   `tests/test_cli.py` split (3,396 lines -> a 697-line body,
   `test_cli_support.py` and eight section files, 89 test functions moved
   with no test changed); and the six-shard repartition with runner-measured
-  costs (balance 1.000, Ubuntu 452.4 s / Windows 903.5 s per shard, measured
-  at `6c95d19`), plus the CI repair batch for the six failure classes the
+  costs (Windows balanced at 1.000 — 903.5 s × 6; Ubuntu shard 0 a
+  single-file floor at 604.0 s, `test_drill_interrupted_writes.py`, against
+  306.7 s for shards 1–5, max/min 1.969 — the balance property is "no file
+  can be moved to shorten the wait", not equal shards; measured at
+  `6c95d19`, re-anchored at `d9d380c`), plus the CI repair batch for the six
+  failure classes the
   batch surfaced (mypy's dual-platform view, the POSIX lock arms, the
   interrupted-write drill's publication-stage read).
 - **The witness ledger across the merge (`a7cde59` -> `56dc5af`) reports

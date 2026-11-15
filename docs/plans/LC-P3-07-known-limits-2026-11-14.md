@@ -57,6 +57,12 @@ and the test modules that carry the witnesses.
   build until `LC-P3-05` fixes the freeze. Owner: `LC-P3-05`. Evidence:
   drill record §5.
 
+  > **Superseded (2026-11-15).** Fixed on `main` by `5c1c454`: the frozen
+  > read prefers the `sys._MEIPASS` bundled bytes, falls back to `__file__`,
+  > and refuses honestly when a frozen bundle carries no sources; the freeze
+  > script now ships the `labcairn.material` sources as data files. The
+  > defect above stands as filed at the drill run's tree.
+
 ## Limits the design states and the run confirmed
 
 5. **The rollback preserves user data; it does not merge.** A rollback
