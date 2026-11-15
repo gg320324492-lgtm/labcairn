@@ -199,6 +199,7 @@
         "tests/test_drill_locked_files.py",
         "tests/test_analysis_manifest.py",
         "tests/test_material_regressions.py",
+        "tests/test_material_version.py",
         "tests/test_evidence_retrieval.py",
         "tests/test_analysis_selection.py",
         "tests/test_provider_adapter.py",
@@ -406,7 +407,8 @@
         "tests/test_public_fixtures.py",
         "tests/test_fake_provider_isolation.py",
         "tests/test_gold_set_corpus.py",
-        "tests/test_material_regressions.py"
+        "tests/test_material_regressions.py",
+        "tests/test_material_version.py"
       ]
     ]
   },
@@ -525,6 +527,7 @@
       "test_material_ingest.py": 2.55,
       "test_material_pdf.py": 71.91,
       "test_material_regressions.py": 0.21,
+      "test_material_version.py": 0.2,
       "test_material_schema.py": 1.0,
       "test_material_walk.py": 0.38,
       "test_material_walk_paths.py": 2.89,
@@ -717,6 +720,7 @@
       "test_material_ingest.py": 2.67,
       "test_material_pdf.py": 65.4,
       "test_material_regressions.py": 0.03,
+      "test_material_version.py": 0.1,
       "test_material_schema.py": 13.04,
       "test_material_walk.py": 1.84,
       "test_material_walk_paths.py": 28.01,
