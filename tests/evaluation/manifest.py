@@ -478,6 +478,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_drill_backup_rollback.py": ("integration", "restart-recovery"),
     "test_drill_known_errors_recovery.py": ("integration", "restart-recovery"),
     "test_drill_interrupted_writes.py": ("e2e", "cli-task"),
+    # The rewrite-side half of the interrupted-write crash clause: the
+    # destination already exists when the kill lands (the P3 final audit's
+    # M6/F-A1 gap), so old-or-new is observable against the first
+    # publication's bytes.
+    "test_drill_rewrite_interrupted.py": ("e2e", "cli-task"),
     # LC-P3-04: the binding loop's witnesses; its refusals are negative.
     "test_binding_loop.py": ("integration", "approvals"),
     "test_binding_loop_refusals.py": ("negative", "missing-material"),
