@@ -3509,10 +3509,42 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
     assert head.returncode == 0, head.stderr
     head_full = head.stdout.strip()
     head_short = head_full[:12]
-    # Every revision carrying the pairing must be an ancestor of HEAD: the
-    # pairing entered the tree at the dated move (2026-11-15) and the history
-    # only moves forward. A pairing on a side branch or after HEAD would make
-    # the records' date a guess.
+    # Every revision carrying the pairing must either sit on the current
+    # line (an ancestor of HEAD, the pairing having entered at the dated
+    # move of 2026-11-15) or be an **unmerged working branch** cut from a
+    # head that already carries the pairing — its merge-base with HEAD is a
+    # revision the pairing has already reached, so the branch carries the
+    # pairing without changing its date. The review windows run on such
+    # branches. What the date cannot survive is a pairing on a revision
+    # whose merge-base with HEAD predates the pairing's own first appearance
+    # on the reachable line — a side branch that invented the pairing before
+    # the dated move. That would make the records' date a guess.
+    reachable = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "rev-list",
+            head_full,
+            "--",
+            WORKFLOW_FILE.as_posix(),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert reachable.returncode == 0, reachable.stderr
+    paired_reachable = [
+        revision
+        for revision in reachable.stdout.split("\n")
+        if revision.strip() and any(revision.startswith(s) for s in six_with_lint)
+    ]
+    assert paired_reachable, (
+        f"no revision reachable from HEAD ({head_short}) carries the "
+        "six-or-more-shard-plus-lint pairing, but the records date it to "
+        "2026-11-15 — the history the records describe is not in this clone."
+    )
+    first_paired = min(paired_reachable)
     for short in six_with_lint:
         merged = subprocess.run(
             ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", short, head_full],
@@ -3520,11 +3552,36 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
             text=True,
             check=False,
         )
-        assert merged.returncode == 0, (
-            f"the six-or-more-shard-plus-lint pairing appears at {short}, which is "
-            f"not an ancestor of the current HEAD ({head_short}); the records date "
-            "the move to 2026-11-15, and a pairing outside that line makes the date "
-            "a guess."
+        if merged.returncode == 0:
+            continue
+        base = subprocess.run(
+            ["git", "-C", str(repo_root), "merge-base", short, head_full],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert base.returncode == 0, base.stderr
+        base_sha = base.stdout.strip()
+        base_paired = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "merge-base",
+                "--is-ancestor",
+                first_paired,
+                base_sha,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert base_paired.returncode == 0, (
+            f"the six-or-more-shard-plus-lint pairing appears at {short}, a "
+            f"revision whose merge-base with the current HEAD ({head_short}) is "
+            f"{base_sha[:12]} — older than the first paired revision reachable "
+            f"from HEAD ({first_paired[:12]}). The records date the move to "
+            "2026-11-15, and a pairing that predates it makes the date a guess."
         )
 
 
