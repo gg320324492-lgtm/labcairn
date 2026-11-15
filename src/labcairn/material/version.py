@@ -31,7 +31,9 @@ Two things are deliberately *not* in the hash:
 from __future__ import annotations
 
 import hashlib
+import sys
 from collections.abc import Mapping
+from pathlib import Path
 from types import ModuleType
 
 __all__ = [
@@ -45,9 +47,31 @@ __all__ = [
 #: or anything else this project hashes.
 _DOMAIN = b"labcairn/extraction-version/v1"
 
+#: The directory PyInstaller unpacks bundled data files into at run time.
+#: Present only in a frozen build that was frozen with data files; the
+#: attribute is spelled ``_MEIPASS2`` on some old loaders and ``_MEIPASS``
+#: on every loader this project targets, so only the current spelling is
+#: read and anything else falls through to the on-disk path.
+_MEIPASS_ATTRIBUTE = "_MEIPASS"
+
 
 class ExtractionVersionError(RuntimeError):
     """The adapter's source could not be read, so the version cannot track it."""
+
+
+def _frozen_data_root() -> Path | None:
+    """Where the freeze unpacked bundled files, when it did.
+
+    ``sys.frozen`` is set only in a PyInstaller (or similar) bundle, and
+    ``sys._MEIPASS`` is created only when the bundle carries data files.
+    Checked with ``getattr`` rather than attribute access so a mocked
+    ``sys.frozen`` without a ``_MEIPASS`` raises the honest error instead of
+    an ``AttributeError`` from inside the reader.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    root = getattr(sys, _MEIPASS_ATTRIBUTE, None)
+    return Path(root) if root else None
 
 
 def _module_source(module: ModuleType) -> bytes:
@@ -57,22 +81,41 @@ def _module_source(module: ModuleType) -> bytes:
     or zipped install has no source object to introspect, and a version that
     silently stops tracking the code is the failure this module exists to
     prevent. Refusing to produce one is the honest outcome.
+
+    In a frozen build the pure-Python product modules live inside the
+    executable and their ``__file__`` names a path under ``_internal`` that
+    does not exist, so the bytes are read from the bundle's data directory
+    (``sys._MEIPASS``) instead -- which only works when the freeze carried
+    the module sources as data files. The dependency is deliberate and
+    announced: a freeze that does not ship them fails here, at the same
+    point the unfrozen reader would, rather than deriving a version from
+    nothing. D-07-01.
     """
+    frozen_root = _frozen_data_root()
+    candidates: list[Path] = []
+    if frozen_root is not None:
+        candidates.append(frozen_root / module.__name__.replace(".", "/"))
     path = getattr(module, "__file__", None)
-    if not path:
+    if path:
+        candidates.append(Path(path))
+
+    if not candidates:
         raise ExtractionVersionError(
             f"{module.__name__} has no source file, so its extraction version cannot be "
             f"derived from its code. Returning something else would produce a version "
             f"that stops changing when the behaviour does."
         )
-    from pathlib import Path
-
-    try:
-        return Path(path).read_bytes()
-    except OSError as exc:
-        raise ExtractionVersionError(
-            f"cannot read {path} to derive an extraction version: {exc}"
-        ) from exc
+    for candidate in candidates:
+        try:
+            return candidate.read_bytes()
+        except OSError:
+            continue
+    details = "; ".join(str(candidate) for candidate in candidates)
+    raise ExtractionVersionError(
+        f"cannot read the source of {module.__name__} to derive an extraction "
+        f"version; tried: {details}. A version derived from anything else stops "
+        f"changing when the behaviour does."
+    )
 
 
 def derive_extraction_version(modules: tuple[ModuleType, ...], libraries: Mapping[str, str]) -> str:

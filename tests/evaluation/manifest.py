@@ -263,6 +263,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_material_ingest.py": ("integration", "dataset-locators"),
     "test_material_pdf.py": ("unit", "dataset-locators"),
     "test_material_regressions.py": ("negative", "conflicting-values"),
+    # LC-P3-07 D-07-01. The extraction version's frozen-build reader: the
+    # unfrozen disk read is unchanged, a frozen build reads the bundled
+    # sources, and a freeze that ships no sources refuses instead of minting
+    # a version that stops tracking the code.
+    "test_material_version.py": ("negative", "conflicting-values"),
     "test_material_schema.py": ("integration", "migrations"),
     "test_material_walk.py": ("unit", "permission-resolution"),
     "test_material_walk_paths.py": ("unit", "dataset-locators"),

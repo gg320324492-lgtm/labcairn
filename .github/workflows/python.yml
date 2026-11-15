@@ -196,8 +196,8 @@ jobs:
         # balance.
         #
         # The split files' costs in the table are runner measurements
-        # anchored at 6c95d196a24596d4e4c7c1e2f6fd69358709060c (the remains of
-        # `test_cli.py` cost 1.48 seconds on Windows and 1.53 on
+        # anchored at d9d380cfc5e2619db68a92e11eb9faea6d51b784 (the remains of
+        # `test_cli.py` cost 1.82 seconds on Windows and 1.46 on
         # Ubuntu), re-measured by this workflow's own run;
         # `tests/test_ci_shard_coverage.py::test_the_cost_figures_the_documents_print_are_the_costs_the_table_measures`
         # re-reads the figures from that table, so a re-measurement that is
@@ -415,11 +415,10 @@ jobs:
   #
   # `python -m tests.evaluation` runs the protocol's gate classes and writes
   # the Phase 1 blocker table with its denominators. It is not on
-  # `pull_request` because a full offline run costs about 40 minutes on an
+  # `pull_request` because a full offline run costs about 36 minutes on an
   # Ubuntu runner (the per-file costs in `.github/ci-shards.json`, anchored
-  # at a7cde5999a9db1524e2ec5514685b449e43de4b1, sum to 2262.3 s over the
-  # five offline classes — placeholder figures pending the batch's runner
-  # re-measurement), and the twelve shard jobs already run the same files. A pull-request job would
+  # at d9d380cfc5e2619db68a92e11eb9faea6d51b784, sum to 2137.4 s over the
+  # five offline classes), and the twelve shard jobs already run the same files. A pull-request job would
   # become the wall-clock bottleneck for a report that can be produced
   # periodically instead.
   #

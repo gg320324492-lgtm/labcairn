@@ -113,6 +113,15 @@ const args = [
   path.join(workDir, 'work'),
   '--specpath',
   workDir,
+  // The extraction-version digest reads each adapter's own source bytes
+  // (D-07-01): a frozen build embeds the compiled modules in labcairn.exe,
+  // so their __file__ paths do not exist and the digest must read the
+  // sources from the bundle's data directory instead. Shipping the
+  // package's Python sources as data files is what makes that possible;
+  // without them the digest refuses honestly rather than deriving from
+  // nothing. Only this package's sources go in, not the whole checkout.
+  '--add-data',
+  `${path.join(REPO_ROOT, 'src', 'labcairn', 'material')}:labcairn/material`,
   // The checkout's src tree: the frozen bundle carries this tree's product
   // code, so the drill measures what this tree ships.
   '--paths',
