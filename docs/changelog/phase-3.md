@@ -1,5 +1,32 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### PR #168 merges the G4 twin windows, the review repairs, the test_cli split and the six-shard repartition (2026-11-15)
+
+- **PRs #161–#164's successors landed as one delivery pull request**:
+  [#168](https://github.com/gg320324492-lgtm/labcairn/pull/168) merged at
+  2026-11-15T04:10:59Z as `56dc5af79f9ed7b8384142a2f8e71c231189a43f`, 22
+  commits, its final run green on all 22 checks. The delivery branch
+  `delivery/g4-twin-windows-and-review-repairs-2026-11-14` is deleted locally
+  and on the remote.
+- **What it carried:** the LC-P3-07 drill window (the diagnostics package,
+  the five drill classes, the installed-build drill with defect D-07-01
+  filed, the operator manual and the known-limits record); the LC-P3-08
+  substitute-first trio (the trial protocol's section-7 registry, the
+  evidence-mapping dry run, the reviewer form); the G2/G3 review repairs
+  (F-A the `source_drifted` guard's witnesses, F-C the LC-P3-06 anchor
+  correction, F-D the LC-P3-04 merge-time ledger reading); the
+  `tests/test_cli.py` split (3,396 lines -> a 697-line body,
+  `test_cli_support.py` and eight section files, 89 test functions moved
+  with no test changed); and the six-shard repartition with runner-measured
+  costs (balance 1.000, Ubuntu 452.4 s / Windows 903.5 s per shard, measured
+  at `6c95d19`), plus the CI repair batch for the six failure classes the
+  batch surfaced (mypy's dual-platform view, the POSIX lock arms, the
+  interrupted-write drill's publication-stage read).
+- **The witness ledger across the merge (`a7cde59` -> `56dc5af`) reports
+  LOST 89 / ADDED 123; all 89 LOST names re-appear among the ADDED** — the
+  split's pure moves, zero witnesses truly lost; the 34 remaining ADDED are
+  the batch's new witnesses.
+
 ### The G2/G3 review findings land as repairs (2026-11-14)
 
 The independent G2/G3 review window's four findings are fixed in the tree:

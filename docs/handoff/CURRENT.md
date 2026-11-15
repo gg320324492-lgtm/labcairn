@@ -1,6 +1,33 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-15 - PR #168 merged; the G4 twin windows, the review repairs, the test_cli split and the six-shard repartition are on `main`
+
+- **[PR #168](https://github.com/gg320324492-lgtm/labcairn/pull/168) merged**
+  at 2026-11-15T04:10:59Z as
+  `56dc5af79f9ed7b8384142a2f8e71c231189a43f`. The delivery branch
+  `delivery/g4-twin-windows-and-review-repairs-2026-11-14` is deleted locally
+  and on the remote. The final run (43653627211) was green: all 22 checks
+  passed, 0 failures.
+- **What the 22 commits carried:** the LC-P3-07 drill window (diagnostics
+  package, five drill classes, the installed-build drill, defect D-07-01);
+  the LC-P3-08 substitute-first trio (trial protocol, evidence-mapping dry
+  run, reviewer form); the G2/G3 review repairs F-A/F-C/F-D; the
+  `tests/test_cli.py` split (3,396 lines -> a 697-line body plus
+  `test_cli_support.py` and eight section files, 89 test functions moved);
+  the six-shard repartition with runner-measured costs (balance 1.000,
+  Ubuntu 452.4 s / Windows 903.5 s per shard, anchor `6c95d19`); and the CI
+  repair batch for the six failure classes the split batch surfaced.
+- **The witness ledger across the merge (`a7cde59` -> `56dc5af`) reports
+  LOST 89 / ADDED 123, and all 89 LOST names re-appear among the ADDED** —
+  the split's pure moves, zero witnesses truly lost. The 34 remaining ADDED
+  are the batch's new witnesses.
+- `origin/main` and local `main` stand together at the merge commit; nothing
+  is unpushed. The owner's human-task list
+  (`E:/labcairn-local/OWNER-HUMAN-TASKS-2026-11-14.md`, 9 items) is the
+  remaining Phase 3 work.
+
+
 ## 2026-11-14 (afternoon) - the G4 twin windows and the G2/G3 review window
 
 - **The LC-P3-08 substitute-first trio is merged to `main`** (merge `814689c`;
