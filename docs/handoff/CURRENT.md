@@ -105,8 +105,8 @@
   red).
 - **The owner's G4 decisions are made (2026-11-15)**: the trial protocol
   is approved; the owner plays both participant and advisor; the named
-  reviewer is a test name (`Trial-Reviewer`, to be replaced with a real
-  name before the trial's records are final); the exit decision is
+  reviewer was a test name (`Trial-Reviewer`) until the owner designated
+  **Xiaoqi Zhushou** as the real reviewer (2026-11-16); the exit decision is
   pre-authorized as PASS WITH NOTES if the eight rows pass with the
   row-7 named gap. The trial itself (installed build, real sample, both
   hosts) awaits the owner's machine and scheduling; the NSIS

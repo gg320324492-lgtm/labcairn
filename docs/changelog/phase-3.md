@@ -95,7 +95,8 @@
   before the dated move stays red.
 - **The owner's G4 decisions (2026-11-15)**: the trial protocol is
   approved; the owner plays participant and advisor; the named reviewer
-  is a test name (`Trial-Reviewer`) pending a real name; the exit is
+  was a test name (`Trial-Reviewer`) until the owner designated
+  **Xiaoqi Zhushou** as the real reviewer (2026-11-16); the exit is
   pre-authorized as PASS WITH NOTES if the eight rows pass with the
   row-7 named gap. The trial awaits the owner's machine and scheduling.
 
