@@ -32,7 +32,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from drill_support import EDITED_BYTES, REWRITE_BYTES
 
 pytestmark = pytest.mark.e2e
