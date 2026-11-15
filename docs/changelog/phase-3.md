@@ -1,5 +1,56 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The O3 supply decision lands; the closeout review's record findings are reconciled (2026-11-15)
+
+- **[PR #171](https://github.com/gg320324492-lgtm/labcairn/pull/171)
+  merged** as `eaab901` (final run green on all 22 checks; the delivery
+  branch `delivery/o3-supply-and-record-reconcile` deleted on both sides;
+  the witness ledger across the merge reads LOST none).
+- **The owner's O3 decision (made 2026-11-15: install-time supply +
+  workspace outside the install tree) is implemented.** The NSIS
+  installer materializes `resources/shell-env.json` from the template at
+  install time and aborts on failure; the build still ships only the
+  template (`packaging-config`'s assertion unchanged). The workspace's
+  default moves to `%APPDATA%\@labcairn\workspace` through a new
+  profile-relative form (refusing when no `APPDATA` is known), and the
+  uninstaller no longer removes it — the install drill's D17 data-loss
+  finding is closed at the source. The `%APPDATA%` expansion initially
+  hardcoded `path.win32` and failed on a POSIX runner's APPDATA shape;
+  it now matches the value's own form (`1099f7d`). Shell 122/122,
+  `test_shell_ci` 19, coverage/consistency 520 green on the merged tree.
+- **The closeout review's two M-level findings are repaired in the
+  records**: the placeholder-0.0 narrations (the drill record's §8, the
+  known-limits record, the work-order board) carry supersession markers
+  naming the re-measurement runs (43650932786 at `6c95d19`, re-anchored
+  by run 43682754663 at `d9d380c`); the balance narrations now state
+  what the balance witness accepts — Windows 972.9 s × 6 at ratio 1.000,
+  Ubuntu's shard 0 a single-file floor at 604.0 s against 306.7 s
+  (max/min 1.969), the property being "no file can be moved to shorten
+  the wait", not equality.
+- **The thirteen-jobs witness reads an unmerged working branch**
+  (`b712e3c`): a review branch cut from a head that already carries the
+  six-shards-plus-lint pairing carries it without being merged, which
+  had turned the witness red on the reviewer's own tree. Ancestor-of-
+  HEAD and merge-base-already-paired both pass; a pairing invented
+  before the dated move stays red.
+- **The owner's G4 decisions (2026-11-15)**: the trial protocol is
+  approved; the owner plays participant and advisor; the named reviewer
+  is a test name (`Trial-Reviewer`) pending a real name; the exit is
+  pre-authorized as PASS WITH NOTES if the eight rows pass with the
+  row-7 named gap. The trial awaits the owner's machine and scheduling.
+
+### PR #170 fixes D-07-01 (2026-11-15)
+
+- **[PR #170](https://github.com/gg320324492-lgtm/labcairn/pull/170)
+  merged** as `8d79c26`: the frozen build's extraction version reads the
+  adapter sources from the freeze's data directory (`sys._MEIPASS`)
+  instead of the non-existent `_internal` paths, and the freeze carries
+  `labcairn/material` as data. A freeze without the sources still
+  refuses honestly. Eleven new witnesses in
+  `tests/test_material_version.py`; the reuse matrix's `version.py`
+  pointer re-anchored to line 121. Costs re-measured from run
+  43682754663 at `d9d380c` and carried by `1061683`.
+
 ### PR #168 merges the G4 twin windows, the review repairs, the test_cli split and the six-shard repartition (2026-11-15)
 
 - **PRs #161–#164's successors landed as one delivery pull request**:

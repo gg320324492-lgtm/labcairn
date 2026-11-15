@@ -1,6 +1,59 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-15 (later) - PRs #169 and #170 merged; PR #171 lands the O3 supply decision and the closeout review's record repairs
+
+- **[PR #169](https://github.com/gg320324492-lgtm/labcairn/pull/169)
+  merged** as `cf0ea01` (the PR #168 merge recorded in the handoff and the
+  changelog; its CI green, the branch deleted both sides, ledger LOST
+  none).
+- **[PR #170](https://github.com/gg320324492-lgtm/labcairn/pull/170)
+  merged** as `8d79c26`: **D-07-01 is fixed.** `_module_source` reads the
+  adapter sources from the freeze's data directory when `sys.frozen` is
+  set, and the freeze carries `labcairn/material` as data (the honest
+  refusal stays for a freeze without them). Eleven new witnesses
+  (`tests/test_material_version.py`, shard 5 both platforms), the reuse
+  matrix's `version.py` pointer re-anchored to line 121. Costs
+  re-measured from run 43682754663 at `d9d380c` (Windows 972.9 s × 6,
+  balance 1.000; Ubuntu shard 0 a single-file floor at 604.0 s against
+  306.7 s — the balance property is "no file can be moved to shorten the
+  wait"). The first CI pass failed on three strict-typing annotations and
+  the stale matrix anchor, fixed by `d9d380c`'s successor `d9d380c…
+  (commit `1061683` carried the costs; the annotations landed on the
+  branch).
+- **The owner's O3 decision landed (choices C + B, made 2026-11-15)**:
+  **[PR #171](https://github.com/gg320324492-lgtm/labcairn/pull/171)
+  merged** as `eaab901`. The NSIS installer materializes
+  `resources/shell-env.json` at install time from the template (the build
+  still ships only the template); the workspace moves out of the install
+  tree to `%APPDATA%\@labcairn\workspace` (a new profile-relative form;
+  the uninstaller no longer deletes it — D17's data-loss finding closed
+  at the source). One CI failure on the way: the `%APPDATA%` expansion
+  hardcoded `path.win32` and a POSIX runner's APPDATA came out in the
+  wrong shape; the expansion now matches the APPDATA value's own form
+  (`1099f7d`). Shell 122/122, `test_shell_ci` 19, coverage/consistency
+  520 — all green on the merged tree; ledger LOST none; the delivery
+  branch is deleted both sides.
+- **The same PR carries the closeout review's F-1/F-2 record repairs**
+  (placeholder-0.0 narrations superseded with the re-measurement runs;
+  balance narrations state the floor shape the witness accepts) **and
+  the thirteen-jobs witness now reads an unmerged working branch**
+  (`b712e3c`: a review branch cut from a paired head carries the pairing
+  without being merged; a pairing invented before the dated move stays
+  red).
+- **The owner's G4 decisions are made (2026-11-15)**: the trial protocol
+  is approved; the owner plays both participant and advisor; the named
+  reviewer is a test name (`Trial-Reviewer`, to be replaced with a real
+  name before the trial's records are final); the exit decision is
+  pre-authorized as PASS WITH NOTES if the eight rows pass with the
+  row-7 named gap. The trial itself (installed build, real sample, both
+  hosts) awaits the owner's machine and scheduling; the NSIS
+  upgrade/uninstall arms' SOP is at
+  `E:/labcairn-local/p307-nsis-arms/` for the clean-Windows run.
+- `origin/main` and local `main` stand together at `eaab901`; nothing is
+  unpushed.
+
+
 ## 2026-11-15 - PR #168 merged; the G4 twin windows, the review repairs, the test_cli split and the six-shard repartition are on `main`
 
 - **[PR #168](https://github.com/gg320324492-lgtm/labcairn/pull/168) merged**
