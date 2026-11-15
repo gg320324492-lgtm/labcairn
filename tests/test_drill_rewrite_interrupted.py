@@ -33,6 +33,8 @@ from typing import Any
 
 import pytest
 
+from drill_support import EDITED_BYTES, REWRITE_BYTES
+
 pytestmark = pytest.mark.e2e
 
 #: The windows a kill can land in during a rewrite, as the injector names them.
@@ -131,14 +133,11 @@ from pathlib import Path
 
 sys.path.insert(0, r"{tests_dir}")
 
-from drill_support import (
-    EDITED_BYTES, MOMENT, build_rig, grant_copy, grant_publication,
-    run_loop_to_publication,
-)
-from labcairn.application.revision_loop import publish_revision
+from drill_support import EDITED_BYTES, MOMENT, REWRITE_BYTES, build_rig
 from labcairn.db.migrations import upgrade_to_head
 from labcairn.db.session import create_db_engine, create_session_factory
 from store_support import StoreEnv
+from labcairn.workspace.outputs import TaskOutputArea
 
 root = Path(sys.argv[1])
 db = root / "labcairn.db"
@@ -149,19 +148,18 @@ env = StoreEnv(db_path=db, engine=engine, factory=create_session_factory(engine)
 rig = build_rig(env.store(), root / "workspace")
 print("RIG", rig.loop.import_receipt.receipt_id, flush=True)
 
-# First publication: the destination is created the ordinary way, so the
-# drill's kill lands on a genuine rewrite of an existing file.
-run_loop_to_publication(rig)
+# The same key is written twice through the one write point: first to create
+# the destination the ordinary way, then to rewrite it. The rewrite is the
+# exact call whose windows the drills kill — the sequence publish_revision
+# drives (TaskOutputArea.write, temp, fsync, os.replace) — minus the loop's
+# receipt, which a loop cannot grant twice.
+area = TaskOutputArea(rig.context.workspace)
+area.write(rig.loop.publication_key, EDITED_BYTES)
 print("FIRST", rig.publication_path().stat().st_size, flush=True)
 
 # The rewrite. From here every armed window is inside the second write.
 os.environ["DRILL_ARMED"] = "1"
-publish_revision(
-    rig.context, rig.loop,
-    approval_id=grant_publication(rig),
-    edited_bytes=b"rewrite payload line one\\nrewrite payload line two\\n",
-    now=MOMENT,
-)
+area.write(rig.loop.publication_key, REWRITE_BYTES)
 print("DONE", flush=True)
 session.close()
 """
@@ -263,10 +261,7 @@ def _wait_for(child: subprocess.Popen[str], marker: str) -> str:
         lines.append(line)
 
 
-REWRITE_BYTES = b"rewrite payload line one\nrewrite payload line two\n"
-FIRST_PUBLISH_BYTES = (
-    b"drill original line one\ndrill edited line two\ndrill original line three\n"
-)
+FIRST_PUBLISH_BYTES = EDITED_BYTES
 
 
 def _kill_during(window: str, tmp_path: Path) -> None:

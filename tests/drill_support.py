@@ -41,6 +41,10 @@ ORIGINAL_BYTES: bytes = (
     b"drill original line one\ndrill original line two\ndrill original line three\n"
 )
 EDITED_BYTES: bytes = b"drill original line one\ndrill edited line two\ndrill original line three\n"
+#: The rewrite payload the rewrite-side kill drills stage over an existing
+#: publication. Kept here so the drill's child script and its parent's
+#: assertions read one definition.
+REWRITE_BYTES: bytes = b"rewrite payload line one\nrewrite payload line two\n"
 
 
 def allow_all() -> PermissionPolicy:

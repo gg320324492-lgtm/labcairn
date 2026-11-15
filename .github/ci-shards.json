@@ -606,7 +606,8 @@
       "test_workbench_real_browser.py": 0.0,
       "test_workbench_serve_helper.py": 21.87,
       "test_workspace_boundaries.py": 0.32,
-      "test_workspace_path_length.py": 0.0
+      "test_workspace_path_length.py": 0.0,
+      "test_drill_rewrite_interrupted.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 5.13,
@@ -799,7 +800,8 @@
       "test_workbench_real_browser.py": 0.98,
       "test_workbench_serve_helper.py": 51.01,
       "test_workspace_boundaries.py": 1.38,
-      "test_workspace_path_length.py": 0.01
+      "test_workspace_path_length.py": 0.01,
+      "test_drill_rewrite_interrupted.py": 0.0
     }
   }
 }
