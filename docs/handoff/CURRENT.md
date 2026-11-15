@@ -1,6 +1,109 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-16 - PRs #179 and #180 land; the reviewer is named; the trial dry run reports F-1..F-7; F-1 is fixed and verified end to end
+
+- **[PR #179](https://github.com/gg320324492-lgtm/labcairn/pull/179)
+  merged** as `21bfcf8`: the named reviewer's designation is recorded in
+  the two standing records. The owner designated **Xiaoqi Zhushou** as the
+  real named reviewer on **2026-11-16**, replacing the test name
+  (`Trial-Reviewer`) that the 2026-11-15 G4 decisions had carried pending
+  a real name. The changelog and this handoff were updated in the same
+  commit (`17a1abf`).
+- **[PR #180](https://github.com/gg320324492-lgtm/labcairn/pull/180)
+  merged** as `da433d5`: the trial dry run's F-1 fix. `open_loop` now
+  derives its source id through `_stable_source_id(root_id, resolved_key)`
+  — the same derivation the CLI's ingestion walk uses
+  (`src/labcairn/application/revision_loop.py`) — instead of the
+  workspace-relative path, so one file ingested by `task create` and then
+  looped keeps **one** source identity instead of arriving as two ids for
+  one `sources.relative_path` (the UNIQUE violation that poisoned the dry
+  run's session).
+- **The F-1 witness is in place**: `tests/test_loop_source_id_alignment.py`
+  (3 tests) is registered in the evaluation manifest and the shard
+  partition. The five-class cost totals were re-measured and updated to
+  **2138.3 s (Ubuntu) / 5845.6 s (Windows)** in `.github/CI.md`,
+  `.github/workflows/python.yml` and
+  `docs/plans/LC-P1-13-evaluation-ci.md`. The same PR carries the two
+  LC-P3-08 acceptance-record designation notes
+  (`docs/acceptance/LC-P3-08-reviewer-form-2026-11-14.md`,
+  `docs/acceptance/LC-P3-08-trial-protocol-2026-11-14.md`) naming Xiaoqi
+  Zhushou (2026-11-16).
+- **The G4 trial dry run (T1–T8, substitute material) reported**, all
+  outside the tree under `E:\labcairn-local\p308-trial-run\dry-run-2026-11-16\`
+  (`DRY-RUN-REPORT.md`, six trial-filled working records marked
+  SUBSTITUTE / DRY-RUN). T9 (independent review) and T10 (exit decision)
+  are human acts and were not performed. Seven findings, with
+  dispositions:
+  - **F-1 (product)** — `open_loop` vs the CLI walk derived two source
+    ids for one file; **fixed in PR #180** and verified end to end
+    (below).
+  - **F-2 (environment, known)** — the frozen exe needs
+    `PYDANTIC_DISABLE_PLUGINS=1` at import (frozen-smoke C-1); the shell
+    always sets it, and any trial-day step calling the backend directly
+    must too. The dry run used the unfrozen console script, so its
+    timings are optimistic for trial day.
+  - **F-3 / F-5 / F-7 (semantics, operational expectation, template vs
+    CLI output)** — clarified in the trial documents
+    (`FINDINGS-RESOLUTION-2026-11-16.md`, inside `p308-trial-run`);
+    `proposal-confirm` is for model proposals, a person's own claim is
+    attested with `claim-attest`, and the build refuses the wrong route
+    by name.
+  - **F-4 (gap to close or scope)** — a marked-draft / clean-draft /
+    point-by-point response table is not reachable as a distinct artifact
+    through this build's CLI; the trial day fills those rows from the
+    loop's receipts with an explicit note, or the scope is widened.
+    Scoping is open.
+  - **F-6 (by design)** — the UNCERTAIN stop-the-line: while any
+    operation is UNCERTAIN, every later stage of the task is refused
+    (`operation_uncertain`), not just publication; recovery is a manual
+    reconcile step by design.
+- **F-1 was verified end to end on merged `main`**: real order (CLI
+  `task create` ingest → `open_loop` on the same file) and reverse order
+  both reuse one source id (`src-ea41de7943f94745`), no
+  `IntegrityError`, no `PendingRollbackError`; editing the file moves the
+  content hash but not the identity. The old path-derived behaviour was
+  reproduced as a control (UNIQUE violation, then `PendingRollbackError`).
+  Mutation check: reverting the fix line turns two of the three alignment
+  tests red; the third (edit-does-not-move-identity) survives by design.
+  Full report:
+  `E:\labcairn-local\p308-trial-run\dry-run-2026-11-16\verify-f1-2026-11-16\VERIFY-RESULT.md`.
+  The dry run's separate `loop-materials/` root dodge is no longer needed
+  on trial day.
+- **The two human-gate packs were reconciled and prepared**: the T9
+  review pack (`T9-REVIEW-PACK-2026-11-16.md`) and the T10 signing pack
+  (`T10-SIGNING-PACK-2026-11-16.md`) were checked against each other and
+  the upstream protocol (`T9-T10-RECONCILE-2026-11-16.md`, 21 criteria) —
+  **0 direct conflicts**; T9 adds three reviewer reminders T10 already
+  carried, T10 is unchanged. The eve-of-trial checklist
+  (`EVE-CHECKLIST-2026-11-16.md`) is ready.
+- **The `E:\labcairn-local` inventory was taken**:
+  (`inventory-2026-11-16.md`) — **~21 GB** occupied, read-only audit,
+  every directory classed TRIAL / KEEP / CANDIDATE; nothing deleted. The
+  trial installer's provenance chain was re-verified (sha256 `c1b1d79f…`,
+  234,553,498 B, built from `3523bc4`).
+- **The stale G4 stash was dropped with the owner's approval**: the last
+  stash entry (`41ee21e…`, `g4-records-draft-not-for-batch`, 2026-10-22)
+  was inventoried (`E:\labcairn-local\stash-inventory-2026-11-16.md`),
+  classified *superseded by main*, and dropped on 2026-11-16; the stash
+  stack is now empty. Its untracked G4 acceptance drafts are superseded
+  by the records that landed on `main`.
+- **The closeout evidence pack was assembled and cross-checked**:
+  `E:\labcairn-local\CLOSEOUT-EVIDENCE-PACK-2026-11-16.md` and
+  `reports-crosscheck-2026-11-16.md` tie the out-of-repo reports to their
+  claims; the reports crosscheck found no unbacked claims.
+- **The watcher guard suite was verified locally — GREEN, report
+  pending in the tree**: the six-shard windows-latest partition (193
+  files, 5,358 tests) ran to completion on the tree of `da433d5`
+  (byte-identical to `27d29ff`). Final observation: 5,357 passed, 28
+  declared environment skips, and 1 transient (a render retry-budget
+  `WinError 5` under concurrent shards) that passed an isolated same-day
+  re-run — 0 real failures. Report:
+  `E:\labcairn-local\watcher-suite-verify-2026-11-16.md`; the evidence
+  pack's §1.1 was rewritten from pending to final. The record in the
+  tree stays marked pending until this report is referenced from a
+  landed commit.
+
 ## 2026-11-15 (evening) - PRs #174 and #175 land; the trial's second batch reports and the third batch is dispatched
 
 - **[PR #174](https://github.com/gg320324492-lgtm/labcairn/pull/174)
