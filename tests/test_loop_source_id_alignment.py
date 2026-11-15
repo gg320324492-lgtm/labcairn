@@ -22,13 +22,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from revision_loop_support import LoopFixture, build_fixture
 from store_support import StoreEnv
 from store_support import env as _shared_env
 
 from labcairn.application.revision_loop import open_loop
 from labcairn.material.walk import _stable_source_id, ingest_workspace
 from labcairn.workspace.readonly import SourceMaterial
-from revision_loop_support import LoopFixture, build_fixture
 
 pytestmark = pytest.mark.integration
 
@@ -71,9 +71,7 @@ def test_a_loop_over_walk_ingested_material_reuses_the_walks_identity(
         source_root_id=fixture.context.workspace.source_roots[0].root_id,
         source_key="original.bin",
     )
-    expected = _stable_source_id(
-        fixture.context.workspace.source_roots[0].root_id, "original.bin"
-    )
+    expected = _stable_source_id(fixture.context.workspace.source_roots[0].root_id, "original.bin")
     assert loop.import_receipt.source_id == expected
 
 
@@ -89,9 +87,7 @@ def test_a_loop_over_unwalked_material_still_opens(fixture: LoopFixture) -> None
         source_root_id=fixture.context.workspace.source_roots[0].root_id,
         source_key="original.bin",
     )
-    expected = _stable_source_id(
-        fixture.context.workspace.source_roots[0].root_id, "original.bin"
-    )
+    expected = _stable_source_id(fixture.context.workspace.source_roots[0].root_id, "original.bin")
     assert loop.import_receipt.source_id == expected
 
 
