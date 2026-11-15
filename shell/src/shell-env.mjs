@@ -204,7 +204,14 @@ export function resolveShellEnvWorkspace(value, resourcesDir, env = {}) {
           '(%APPDATA%), and no APPDATA value is known to expand it against.',
       )
     }
-    return path.win32.join(appData, value.slice(APPDATA_PREFIX.length))
+    // Expand against the APPDATA the environment actually named, with the
+    // path module matching that value's own form: the OS gives a Windows
+    // path on Windows, and a witness may name a POSIX directory on a POSIX
+    // runner. The remainder's separators are normalized to `/` first, which
+    // both path modules accept.
+    const rest = value.slice(APPDATA_PREFIX.length).replace(/\\/g, '/')
+    const anchor = /^[A-Za-z]:[\\/]/.test(appData) ? path.win32 : path.posix
+    return anchor.join(appData, rest)
   }
   if (typeof resourcesDir !== 'string' || resourcesDir.length === 0) {
     throw new Error(
