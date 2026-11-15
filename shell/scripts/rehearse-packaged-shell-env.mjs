@@ -68,6 +68,12 @@ function packagedResources({ withFile, file }) {
 }
 
 const CLI = 'C:\\Program Files\\LabCairn\\backend\\labcairn.exe'
+// O3 decision B (2026-11-15): the workspace lives under the user's profile
+// directory, so the file's `%APPDATA%` form is what the drill resolves. The
+// scratch APPDATA stands in for the real one — the expansion is what is
+// under test, not this machine's profile.
+const APPDATA = path.join(scratchRoot, 'appdata-roaming')
+const FILE_ENV = { APPDATA }
 
 // Way 1: the environment names both variables (what the launcher template sets).
 check('way 1 — the environment supplies CLI and workspace, and overrides the file', () => {
@@ -85,28 +91,28 @@ check('way 1 — the environment supplies CLI and workspace, and overrides the f
 })
 
 // Way 2: the package's own shell-env.json, environment empty.
-check('way 2 — the package shell-env.json supplies both, workspace installation-relative', () => {
+check('way 2 — the package shell-env.json supplies both, workspace under the profile directory', () => {
   const resourcesDir = packagedResources({
     withFile: true,
-    file: JSON.stringify({ cliPath: CLI, workspace: 'LabCairn-workspace' }),
+    file: JSON.stringify({ cliPath: CLI, workspace: '%APPDATA%\\@labcairn\\workspace' }),
   })
-  const config = resolveRunConfig({}, { packaged: true, resourcesDir })
+  const config = resolveRunConfig(FILE_ENV, { packaged: true, resourcesDir })
   assert.equal(config.cliPath, CLI)
-  assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
+  assert.equal(config.workspace, path.join(APPDATA, '@labcairn', 'workspace'))
 })
 
 // Way 2 with the environment supplying only one side: the file covers the rest.
 check('way 1+2 — the environment covers one side, the file the other', () => {
   const resourcesDir = packagedResources({
     withFile: true,
-    file: JSON.stringify({ workspace: 'LabCairn-workspace' }),
+    file: JSON.stringify({ workspace: '%APPDATA%\\@labcairn\\workspace' }),
   })
   const config = resolveRunConfig(
-    { LABCAIRN_SHELL_CLI: CLI },
+    { LABCAIRN_SHELL_CLI: CLI, ...FILE_ENV },
     { packaged: true, resourcesDir },
   )
   assert.equal(config.cliPath, CLI)
-  assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
+  assert.equal(config.workspace, path.join(APPDATA, '@labcairn', 'workspace'))
 })
 
 // The refusal the owner sees when nothing supplies the variables.
@@ -151,12 +157,13 @@ if (!fs.existsSync(frozenExe)) {
 check('way 2 + O3 — the file names the frozen backend installation-relatively, and the run resolves it under resources', () => {
   const resourcesDir = packagedResources({
     withFile: true,
-    file: JSON.stringify({ cliPath: 'backend/labcairn/labcairn.exe', workspace: 'LabCairn-workspace' }),
+    file: JSON.stringify({ cliPath: 'backend/labcairn/labcairn.exe', workspace: '%APPDATA%\\@labcairn\\workspace' }),
   })
-  const config = resolveRunConfig({}, { packaged: true, resourcesDir })
+  const config = resolveRunConfig(FILE_ENV, { packaged: true, resourcesDir })
   assert.equal(config.cliPath, path.join(resourcesDir, 'backend', 'labcairn', 'labcairn.exe'))
-  assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
+  assert.equal(config.workspace, path.join(APPDATA, '@labcairn', 'workspace'))
   assert.ok(path.isAbsolute(config.cliPath), 'the resolved entry point must be absolute')
+  assert.ok(path.isAbsolute(config.workspace), 'the resolved workspace must be absolute')
 })
 
 // The environment still wins per variable, even against a file that names a
@@ -164,7 +171,7 @@ check('way 2 + O3 — the file names the frozen backend installation-relatively,
 check('way 1 + O3 — the environment overrides a file that names the frozen exe', () => {
   const resourcesDir = packagedResources({
     withFile: true,
-    file: JSON.stringify({ cliPath: 'backend/labcairn/labcairn.exe', workspace: 'LabCairn-workspace' }),
+    file: JSON.stringify({ cliPath: 'backend/labcairn/labcairn.exe', workspace: '%APPDATA%\\@labcairn\\workspace' }),
   })
   const config = resolveRunConfig(
     { LABCAIRN_SHELL_CLI: CLI, LABCAIRN_SHELL_WORKSPACE: 'E:\\Labs\\drill-ws' },

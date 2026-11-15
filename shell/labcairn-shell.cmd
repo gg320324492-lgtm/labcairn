@@ -13,7 +13,10 @@ setlocal
 rem EDIT ME: absolute path to the labcairn entry point the installation carries
 rem (the frozen service ships at resources\backend\labcairn\labcairn.exe).
 set "LABCAIRN_SHELL_CLI=C:\Program Files\LabCairn\resources\backend\labcairn\labcairn.exe"
-rem EDIT ME: absolute path to the workspace the runs share.
-set "LABCAIRN_SHELL_WORKSPACE=C:\Users\%USERNAME%\LabCairn-workspace"
+rem EDIT ME: absolute path to the workspace the runs share. The package's own
+rem shell-env.json names %APPDATA%\@labcairn\workspace (O3 decision B: outside
+rem the installation, so uninstall leaves it behind); an operator override
+rem names its own absolute path here.
+set "LABCAIRN_SHELL_WORKSPACE=%APPDATA%\@labcairn\workspace"
 start "" "%~dp0LabCairn.exe"
 endlocal

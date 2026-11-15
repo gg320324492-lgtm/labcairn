@@ -175,11 +175,13 @@ test('a packaged build with a broken shell-env.json refuses at startup, naming t
   }
 })
 
-test('the shipped template shape resolves: the frozen backend named installation-relatively', () => {
-  // O3's wired supply (2026-11-14): the package's own file names the frozen
-  // backend as `backend/labcairn` — the place extraResources carries it — and
-  // the workspace in its installation-relative form. The environment names
-  // nothing; the package says where its own backend lives.
+test('the shipped template shape resolves: the frozen backend and the profile workspace', () => {
+  // O3's wired supply (2026-11-14, workspace re-anchored 2026-11-15): the
+  // package's own file names the frozen backend as `backend/labcairn` — the
+  // place extraResources carries it — and the workspace under the user's
+  // profile directory, the placement that survives an uninstall. The
+  // environment names nothing; the package says where its own backend lives,
+  // and the APPDATA the OS sets for every process expands the workspace.
   const resources = fs.mkdtempSync(path.join(os.tmpdir(), 'lc-shell-env-'))
   try {
     const resourcesDir = path.join(resources, 'resources')
@@ -188,9 +190,10 @@ test('the shipped template shape resolves: the frozen backend named installation
       path.join(resourcesDir, SHELL_ENV_FILE),
       fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'shell-env.template.json'), 'utf8'),
     )
-    const config = resolveRunConfig({}, { packaged: true, resourcesDir })
+    const appData = path.join(resources, 'appdata-roaming')
+    const config = resolveRunConfig({ APPDATA: appData }, { packaged: true, resourcesDir })
     assert.equal(config.cliPath, path.join(resourcesDir, 'backend', 'labcairn', 'labcairn.exe'))
-    assert.equal(config.workspace, path.join(resourcesDir, '..', 'LabCairn-workspace'))
+    assert.equal(config.workspace, path.join(appData, '@labcairn', 'workspace'))
   } finally {
     fs.rmSync(resources, { recursive: true, force: true })
   }
