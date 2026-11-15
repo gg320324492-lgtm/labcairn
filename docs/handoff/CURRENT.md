@@ -1,6 +1,54 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-15 (evening) - PRs #174 and #175 land; the trial's second batch reports and the third batch is dispatched
+
+- **[PR #174](https://github.com/gg320324492-lgtm/labcairn/pull/174)
+  merged** as `ef0d3d0`: the M6 rewrite kill-window drill
+  (`tests/test_drill_rewrite_interrupted.py`) closes the final audit's
+  F-A1 gap — a kill inside a **rewrite** of `TaskOutputArea.write` (the
+  destination already holds the previous publication) now has the witness
+  the first-publish drills established: the destination ends old or new,
+  never half-written, and a leftover temp is a whole staged payload under
+  the write-temp marker, never the destination. Announce-then-kill
+  injection with a hard kill (`taskkill /F` on Windows, `SIGKILL`
+  elsewhere). The drill is registered in the evaluation manifest and the
+  shard partition carries its measured costs.
+- **[PR #175](https://github.com/gg320324492-lgtm/labcairn/pull/175)
+  merged** as `7332b02`: F-A5 — the version-grouping comment in
+  `web/src/app/versions.ts` reworded in plain terms.
+- **The trial's second batch (four windows) reported**, all outside the
+  tree under `E:\labcairn-local\p308-trial-run\`:
+  - **Frozen smoke: PASS.** The trial installer (`LabCairn Setup
+    0.0.1.exe`, 234,553,498 B, sha256 `c1b1d79f…`, built from `3523bc4`)
+    installs cleanly; the freeze carries `labcairn/material`; a `.txt`
+    through init + task create mints version
+    `22a5734f5cc0ddebd30627459fa301e2` on all four `source_texts` rows,
+    frozen == unfrozen; the `.bin` control stays unparseable. C-1 caveat:
+    a bare exe invocation needs `PYDANTIC_DISABLE_PLUGINS=1` (logfire's
+    pydantic plugin dies at import otherwise); the shell supervisor
+    always sets it.
+  - **T0 rehearsal: all four arms PASS** on the dev machine with the same
+    installer — install (one expected legacy assert), first launch with
+    no manual supply (14/14), uninstall (4/4), reinstall (5/5, tree
+    identical to the first install), launch-after-reinstall (14/14, the
+    D17 runtime half). ENV-ARTIFACT count 0 in the arms.
+  - **Templates audit: 10 of 11 PASS.** F1 (medium): protocol §3 row 7's
+    `trial-real-model-gap-record` has no template of that name (its
+    content sits inside `trial-quality-record.md` §Row 7). F2
+    (low–medium): the precondition sheet and the distribution record
+    prefill the drilled 0.0.0 installer name; the trial runs 0.0.1.
+    O1 (optional): print the full sample digest in the supply receipt.
+  - **Owner list refreshed** to the 2026-11-15 version
+    (`OWNER-HUMAN-TASKS-2026-11-15.md`, 10 open items — 8 owner-solo,
+    2 needing a second person), superseding the 2026-11-14 list.
+- **The third batch is dispatched (three windows)**: `fix-f1-template`
+  (repairs the F1 template gap), `closeout-records` (this window: the
+  handoff and changelog entries you are reading), and
+  `owner-list-refresh` (keeps the owner list current). **Open on this
+  batch: the F1 template gap is pending the `fix-f1-template` window's
+  fix; the owner list stands at the 2026-11-15 version.**
+
 ## 2026-11-15 (later) - PRs #169 and #170 merged; PR #171 lands the O3 supply decision and the closeout review's record repairs
 
 - **[PR #169](https://github.com/gg320324492-lgtm/labcairn/pull/169)
