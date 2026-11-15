@@ -15,8 +15,11 @@
   run, reviewer form); the G2/G3 review repairs F-A/F-C/F-D; the
   `tests/test_cli.py` split (3,396 lines -> a 697-line body plus
   `test_cli_support.py` and eight section files, 89 test functions moved);
-  the six-shard repartition with runner-measured costs (balance 1.000,
-  Ubuntu 452.4 s / Windows 903.5 s per shard, anchor `6c95d19`); and the CI
+  the six-shard repartition with runner-measured costs (anchor `6c95d19`;
+  Windows balances at 1.000 — 903.5 s × 6 — while Ubuntu's shard 0 is a
+  single-file floor at 604.0 s, `test_drill_interrupted_writes.py`, against
+  306.7 s for shards 1–5, max/min 1.969: the balance property is "no file
+  can be moved to shorten the wait", not equal shards); and the CI
   repair batch for the six failure classes the split batch surfaced.
 - **The witness ledger across the merge (`a7cde59` -> `56dc5af`) reports
   LOST 89 / ADDED 123, and all 89 LOST names re-appear among the ADDED** —
@@ -54,7 +57,9 @@
   merged tree), the installed-build drill (defect D-07-01 filed to
   LC-P3-05: the frozen build refuses every `.txt` material), the operator
   manual and the known-limits record. The six new test files sit in shard
-  0 with placeholder 0.0 costs pending the batch's runner re-measurement.
+  0; their placeholder 0.0 costs were superseded by the batch's runner
+  re-measurement (run `43650932786` at `6c95d19`, carried by `1f4a290`,
+  re-anchored at `d9d380c`).
 - **The owner's human-task list is updated**:
   `E:/labcairn-local/OWNER-HUMAN-TASKS-2026-11-14.md` (9 items).
 - Local `main` is ahead of `origin/main` by several commits, batching as

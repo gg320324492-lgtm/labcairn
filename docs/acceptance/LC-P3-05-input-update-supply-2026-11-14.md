@@ -402,6 +402,73 @@ named).
 
 ## 4. T05 — packaging: the hash is a tool, the templates ship, the build stays green
 
+### 4.1 The supply decision's third act — the installer materializes the file, and the workspace leaves the install tree (O3, 2026-11-15)
+
+**The owner decided the two open O3 questions on 2026-11-15** (decision
+material: `E:\labcairn-local\p3-decision-briefs\O3-DECISION.md`, read-only
+research quoting this record and the install drill; no measurement of its
+own): **decision 1 is option C** — the installer materializes the package's
+own `resources/shell-env.json` at install time, from the template the build
+ships; **decision 2 is option B** — the workspace lives outside the install
+tree, at `%APPDATA%\@labcairn\workspace`. What landed in this tree:
+
+- **The template's `workspace` value changed**
+  (`shell/shell-env.template.json`): `{"cliPath":
+  "backend/labcairn/labcairn.exe", "workspace":
+  "%APPDATA%\\@labcairn\\workspace"}`. The install drill's D17 finding was
+  the deciding evidence: with an installation-relative workspace, "reinstall
+  preserves user data" is true for `%APPDATA%` and false for the workspace —
+  the uninstaller removes the install directory, workspace included. A
+  workspace outside the installation survives uninstall and reinstall, which
+  makes D17's two halves simultaneously true.
+- **The parse layer accepts a third workspace form**
+  (`shell/src/shell-env.mjs`): a value beginning with the `%APPDATA%` prefix
+  (case-insensitive, at least one path character after the prefix) is the
+  *profile-relative* form — absolute in meaning, a different absolute per
+  user, which is what a per-user installer needs without carrying one
+  machine's path in a shipped file. `resolveShellEnvWorkspace` expands the
+  prefix against the `APPDATA` environment variable (the value the OS sets
+  for every process), never against a guess: **no `APPDATA` value to expand
+  against is a refusal**, in the same voice as the existing no-anchor
+  refusal. `config.mjs` passes the run environment through. An
+  installation-relative workspace stays legal (the drill's installed tree
+  still resolves it), and the escape rule is unchanged: a value that climbs
+  out with `..` is refused at the parse, whatever its prefix.
+- **The installer materializes the live file at install time**
+  (`shell/nsis/materialize-shell-env.nsh`, new; wired through
+  `electron-builder.yml`'s `nsis.include`, now a list of the two fragments).
+  The `customInstall` macro refuses the install loudly when the installed
+  package carries no `resources/shell-env.template.json` and when the copy
+  to `resources/shell-env.json` fails — a silent skip would recreate the
+  measured first-launch refusal — and the `customUnInstall` macro
+  deliberately removes nothing outside the installation: the workspace and
+  the userData survive uninstall by design (`deleteAppDataOnUninstall` stays
+  unset, witnessed). **The build-time rule is unchanged**: the build ships
+  only the template, never the live name — `packaging-config.test.mjs`'s
+  "a live shell-env.json must not be shipped by the build" still holds, and
+  the install is the act that turns the template into the live file.
+- **Witnesses** (`shell/test/`): the packaging-config file gains the
+  include-list case, a materialization case (the macro copies the installed
+  template to the live name under `$INSTDIR`, aborts loudly on a missing
+  template or a failed copy) and an uninstall case (the macro names no
+  `RMDir`, no `Delete`, no `%APPDATA%` path in code; the config still sets
+  no `deleteAppDataOnUninstall`); `shell-env.test.mjs` gains the
+  profile-relative cases (parse-through and expansion against `APPDATA`,
+  case-insensitive prefix and forward slashes, the no-`APPDATA` refusal, the
+  bare-prefix fallthrough); `config.test.mjs`'s shipped-template case
+  resolves the new template shape (the frozen backend under `resources/`,
+  the workspace under the profile directory). The 7-scenario drill
+  (`shell/scripts/rehearse-packaged-shell-env.mjs`) resolves the
+  `%APPDATA%` form against a scratch `APPDATA` in its way-2 and O3
+  scenarios, and the launcher template's override line now names the
+  profile workspace too.
+
+**What this subsection does not claim**: no installer was rebuilt or
+re-drilled on this day — the materialization macro and the uninstall
+behaviour are witnessed at the mechanism level (the include's bytes), and
+the resolver's `%APPDATA%` form is witnessed at the parse and resolve layers
+plus the 7-scenario drill; the installed-artefact re-drill is the owner's
+AC-6 run, which a rebuilt package now starts green instead of refusing.
 **What was already measured** (2026-11-11 build report, referenced not
 carried): the minimal unsigned NSIS config builds and exits 0 with and
 without the bundle; the `beforeBuild` guard turns a missing `web/dist` into
