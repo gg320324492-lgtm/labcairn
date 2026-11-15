@@ -41,10 +41,24 @@
   - **Owner list refreshed** to the 2026-11-15 version
     (`OWNER-HUMAN-TASKS-2026-11-15.md`, 10 open items — 8 owner-solo,
     2 needing a second person), superseding the 2026-11-14 list.
-- **The third batch is dispatched (three windows)**: `fix-f1-template`
-  (repairs the F1 template gap), `closeout-records` (this entry's window:
-  handoff + changelog), and `owner-list-refresh` (keeps the owner list
-  current).
+- **The third batch (three windows) reported; both template findings are
+  closed.** `fix-f1-template` created the missing row-7 template
+  (`trial-real-model-gap-record.md`) and replaced both installer-name
+  pre-fills with the hash-at-T0 placeholder, closing F1 and F2 same-day.
+  `owner-list-refresh` kept the owner list at the 2026-11-15 version.
+  `closeout-records` wrote this entry; it landed as
+  **[PR #177](https://github.com/gg320324492-lgtm/labcairn/pull/177)**
+  (`cb047bf`) after **PR #176 was closed unmerged** — the record commit
+  `6359e02` is the same in both.
+- **Two follow-up windows reported, outside the tree.** The closeout pack
+  (`E:\labcairn-local\p3-closeout-pack\`) was refreshed to its final state
+  (F-A1 and F-A5 closed, F1/F2 fixed, G4 trial materials complete). The
+  version-reference sweep (`E:\labcairn-local\version-sweep-2026-11-15.md`)
+  found no misleading reference to rewrite across `p308-trial-run` and
+  `p307-nsis-arms`; it annotated two files with a NOTE and left nine
+  historical rows as written. Standing hazard: the 0.0.0 drill build and
+  the 0.0.1 trial build **share a file name**, so the package is identified
+  by SHA-256, never by name — which T0 step 0.2 enforces.
 
 ### The O3 supply decision lands; the closeout review's record findings are reconciled (2026-11-15)
 
