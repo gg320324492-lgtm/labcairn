@@ -35,7 +35,21 @@
  * known location, the same anchoring `resources/web-dist` already uses. In
  * the environment, only absolute paths are accepted.
  *
- * **The two installation-relative forms.** Since the frozen backend ships
+ * **The workspace may name the user's profile directory** with the `%APPDATA%`
+ * prefix (`"%APPDATA%\\@labcairn\\workspace"`). This is the owner's O3
+ * decision B (2026-11-15): the workspace lives outside the installation, so
+ * an uninstall leaves it behind — the install drill's D17 finding was that
+ * an installation-relative workspace is deleted by the uninstaller together
+ * with the install directory, which makes "reinstall preserves user data"
+ * false for the one directory the product writes its records into. The
+ * prefix is the Windows/NSIS convention for *the running user's profile
+ * directory*, so the value is absolute in meaning (a different absolute per
+ * user, which is what a per-user installer needs) without carrying one
+ * machine's path in a shipped file. It is expanded against the `APPDATA`
+ * environment variable at resolution time — the same variable the OS sets
+ * for every process — and never against a guess.
+ *
+ * **The frozen backend's installation-relative form.** Since the frozen backend ships
  * inside the package (O3, wired 2026-11-14 at `resources/backend/labcairn`),
  * both fields may name their target the way `resources/web-dist` is named:
  * relative to the installation, never to the working directory. A relative
@@ -64,6 +78,26 @@
 import path from 'node:path'
 
 const ALLOWED_FIELDS = ['cliPath', 'workspace']
+
+/** The expansion prefix the file's workspace form may name the profile directory by. */
+export const APPDATA_PREFIX = '%APPDATA%'
+
+/**
+ * Whether a workspace value is the file's profile-relative form: an absolute
+ * Windows path written with the `%APPDATA%` prefix the NSIS convention uses.
+ * The prefix is expanded against the running user's profile directory, so the
+ * value is absolute in meaning — it is a *different* absolute for each user,
+ * which is what a per-user installer needs. Case-insensitive on the prefix:
+ * NSIS macros and Windows path spellings vary in case, and the convention
+ * (`%APPDATA%\@labcairn\workspace`) is a fact about the expansion, not about
+ * the letters.
+ */
+function isProfileRelative(value) {
+  return typeof value === 'string'
+    && value.length > APPDATA_PREFIX.length
+    && value.slice(0, APPDATA_PREFIX.length).toLowerCase() === APPDATA_PREFIX.toLowerCase()
+    && /^([\\/][^\\/]|\\)/.test(value.slice(APPDATA_PREFIX.length))
+}
 
 function isAbsolutePath(value) {
   return typeof value === 'string' && /^([A-Za-z]:[\\/]|\/)/.test(value)
@@ -130,9 +164,12 @@ export function parseShellEnv(text) {
     // path refuses, and it is refused here — at the parse every packaged run
     // goes through — rather than at a resolution step a caller could bypass.
     // A single-step name ("LabCairn-workspace") stays legal: the workspace
-    // sits beside the resources directory, so it need not name a file.
+    // sits beside the resources directory, so it need not name a file. The
+    // profile-relative form (`%APPDATA%\...`) is an absolute in meaning, so it
+    // passes the same way an absolute path does.
     if (field === 'workspace' && typeof parsed[field] === 'string'
-      && !isAbsolutePath(parsed[field]) && parsed[field].split(/[\\/]/).includes('..')) {
+      && !isAbsolutePath(parsed[field]) && !isProfileRelative(parsed[field])
+      && parsed[field].split(/[\\/]/).includes('..')) {
       throw new Error(
         `shell-env.json's "workspace" must not climb out of the installation ` +
           `with ".."; got ${JSON.stringify(parsed[field])}.`,
@@ -157,8 +194,18 @@ export function parseShellEnv(text) {
  * @param value  the workspace string from the file
  * @param resourcesDir  the packaged app's resources directory
  */
-export function resolveShellEnvWorkspace(value, resourcesDir) {
+export function resolveShellEnvWorkspace(value, resourcesDir, env = {}) {
   if (isAbsolutePath(value)) return value
+  if (isProfileRelative(value)) {
+    const appData = env.APPDATA
+    if (typeof appData !== 'string' || appData.length === 0) {
+      throw new Error(
+        `shell-env.json's workspace "${value}" names the user's profile directory ` +
+          '(%APPDATA%), and no APPDATA value is known to expand it against.',
+      )
+    }
+    return path.win32.join(appData, value.slice(APPDATA_PREFIX.length))
+  }
   if (typeof resourcesDir !== 'string' || resourcesDir.length === 0) {
     throw new Error(
       `shell-env.json's workspace "${value}" is relative, and no resources ` +

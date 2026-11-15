@@ -24,6 +24,7 @@ const GUARD_PATH = path.join(SHELL_ROOT, 'scripts', 'require-package-inputs.mjs'
 const FREEZE_DIR = path.join(SHELL_ROOT, 'build', 'backend-freeze', 'labcairn')
 const LICENCES_PATH = path.join(SHELL_ROOT, 'licenses')
 const NSIS_INCLUDE_PATH = path.join(SHELL_ROOT, 'nsis', 'licenses.nsh')
+const MATERIALIZE_INCLUDE_PATH = path.join(SHELL_ROOT, 'nsis', 'materialize-shell-env.nsh')
 
 const config = fs.readFileSync(CONFIG_PATH, 'utf8')
 const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'))
@@ -314,9 +315,15 @@ function carriedTexts(include) {
   return new Set(fileCommands(include).map(carriedName))
 }
 
-test('the packaging config names the NSIS include that carries the licence texts', () => {
-  assert.match(config, /^ {2}include: nsis\/licenses\.nsh$/m)
+test('the packaging config names the NSIS includes that carry the licence texts and the materialization step', () => {
+  // The include is a list since O3's decision C (2026-11-15): one fragment
+  // carries the licence texts, the other the install-time materialization of
+  // the package's own configuration file.
+  assert.match(config, /^ {4}- nsis\/licenses\.nsh$/m)
+  assert.match(config, /^ {4}- nsis\/materialize-shell-env\.nsh$/m)
   assert.ok(fs.existsSync(NSIS_INCLUDE_PATH), 'the configuration names an NSIS include that is absent')
+  const materializePath = path.join(SHELL_ROOT, 'nsis', 'materialize-shell-env.nsh')
+  assert.ok(fs.existsSync(materializePath), 'the configuration names a materialization include that is absent')
 })
 
 test("the NSIS include writes each licence text into the installer's plugin directory", () => {
@@ -367,8 +374,49 @@ test('the packaging config ships the two T09 supply templates into the package',
   for (const name of ['shell-env.template.json', 'labcairn-shell.cmd']) {
     assert.ok(fs.existsSync(path.join(SHELL_ROOT, name)), `${name} is declared for shipping but absent`)
   }
-  // The live name must not ship: only the template does.
+  // The live name must not ship: only the template does. The build-time rule
+  // is unchanged by O3's decision C — the installer materializes the live
+  // file at install time, the build still ships only the template.
   assert.ok(!/^  - from: shell-env\.json$/m.test(config), 'a live shell-env.json must not be shipped by the build')
+})
+
+test('the NSIS include materializes shell-env.json at install time from the template', () => {
+  // O3's decision C (2026-11-15): the install is the act that turns the
+  // template into the live file, so the installed shell starts instead of
+  // refusing its first launch. This witness reads the include's bytes —
+  // the same mechanism-level read the licence witnesses use — because a
+  // real install run needs a Windows machine and the artefact, and the
+  // mechanism is what a reader has to be able to check.
+  const include = fs.readFileSync(MATERIALIZE_INCLUDE_PATH, 'utf8')
+  // The macro is the one electron-builder expands inside its install section.
+  assert.match(include, /^!macro customInstall$/m)
+  // The copy is from the installed template to the live name, under $INSTDIR.
+  assert.match(include, /CopyFiles \/SOFT "\$INSTDIR\\resources\\shell-env\.template\.json" "\$INSTDIR\\resources\\shell-env\.json"/)
+  // A missing template aborts the install loudly: a silent skip would
+  // recreate the measured first-launch refusal.
+  assert.match(include, /shell-env\.template\.json is missing/)
+  assert.match(include, /Abort/)
+  // A failed copy aborts too.
+  assert.match(include, /\$\{if\} \$\{Errors\}/)
+})
+
+test('the NSIS uninstall macro deletes nothing outside the installation', () => {
+  // O3's decision B (2026-11-15): the workspace lives at
+  // %APPDATA%\@labcairn\workspace, outside the install tree, and survives
+  // uninstall — the drill's D17 finding was that an installation-relative
+  // workspace died with the install directory. The uninstall macro must
+  // therefore name no %APPDATA% path and run no RMDir at all; electron-
+  // builder's own uninstaller removes $INSTDIR and leaves the profile
+  // directory alone because `deleteAppDataOnUninstall` is not set.
+  const include = fs.readFileSync(MATERIALIZE_INCLUDE_PATH, 'utf8')
+  assert.match(include, /^!macro customUnInstall$/m)
+  const uninstallBody = include.slice(include.indexOf('!macro customUnInstall'))
+  assert.ok(!/RMDir/i.test(uninstallBody), 'the uninstall macro must not remove directories')
+  assert.ok(!/^\s*Delete\b/m.test(uninstallBody), 'the uninstall macro must not delete files')
+  assert.ok(!/APPDATA/i.test(uninstallBody.replace(/;[^\n]*/g, '')), 'the uninstall macro must not name an %APPDATA% path in code')
+  // The config still does not set the key that would make electron-builder
+  // itself delete the profile directory.
+  assert.ok(!/deleteAppDataOnUninstall/.test(config), 'deleteAppDataOnUninstall must stay unset: the workspace and the userData survive uninstall')
 })
 
 test('a licence text the include does not name is a gap the mutation shows', () => {

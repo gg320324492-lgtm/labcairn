@@ -52,10 +52,18 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
-  # The licence texts the installer carries. LGPL-2.1 section 1 requires a
-  # copy of the Licence to travel with the Library, and the plug-ins are
-  # distributed inside this installer rather than as installed files — so the
-  # texts have to be in the installer's own $PLUGINSDIR, beside the binaries
-  # they govern. `shell/nsis/licenses.nsh` declares the macro that puts them
-  # there; `shell/licenses/README.txt` records where each text came from.
-  include: nsis/licenses.nsh
+  # The installer's own script fragments. electron-builder accepts a single
+  # file or a list; the list keeps each fragment's reason beside its macros.
+  # - `nsis/licenses.nsh` puts the licence texts the installer carries into its
+  #   $PLUGINSDIR (LGPL-2.1 section 1 requires a copy of the Licence to travel
+  #   with the Library, and the plug-ins are distributed inside this installer
+  #   rather than as installed files). `shell/licenses/README.txt` records
+  #   where each text came from.
+  # - `nsis/materialize-shell-env.nsh` materializes the package's own
+  #   `resources/shell-env.json` at install time (O3's decision C, 2026-11-15):
+  #   the build ships only the template — a template is not a default — and
+  #   the install is the act that turns it into the live file, so an installed
+  #   shell starts instead of refusing its first launch.
+  include:
+    - nsis/licenses.nsh
+    - nsis/materialize-shell-env.nsh

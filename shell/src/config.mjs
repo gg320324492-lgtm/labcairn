@@ -146,7 +146,7 @@ export function resolveRunConfig(env, { packaged, resourcesDir = null }) {
   const workspace =
     workspaceEnv ??
     (fromFile.workspace !== undefined
-      ? resolveShellEnvWorkspace(fromFile.workspace, resourcesDir)
+      ? resolveShellEnvWorkspace(fromFile.workspace, resourcesDir, env)
       : null)
   if (workspace === null) {
     throw new Error(

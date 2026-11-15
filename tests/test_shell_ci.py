@@ -109,12 +109,20 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: template's shape resolving against a scratch resources tree), and
 #: `packaging-config.test.mjs` to seventeen (the frozen backend in
 #: extraResources, the input guard's two refusals and its shape).
+#: O3's supply decision C+B (2026-11-15, this tree) raised `shell-env.test.mjs`
+#: to nineteen (the profile-relative `%APPDATA%` workspace form: parse-through
+#: and expansion, case-insensitive prefix and forward slashes, the no-APPDATA
+#: refusal, the bare-prefix fallthrough), `packaging-config.test.mjs` to
+#: nineteen (the two-fragment include list, the install-time materialization
+#: macro, and the uninstall macro that removes nothing outside the
+#: installation); `config.test.mjs` stays at ten — its shipped-template case
+#: was rewritten for the new template shape, not added to.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "command-line.test.mjs": 6,
     "config.test.mjs": 10,
-    "shell-env.test.mjs": 14,
+    "shell-env.test.mjs": 19,
     "update-path.test.mjs": 6,
     "dependency-surface.test.mjs": 3,
     "drain-witness.test.mjs": 5,
@@ -123,12 +131,12 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
     "notice-scope.test.mjs": 8,
-    "packaging-config.test.mjs": 17,
+    "packaging-config.test.mjs": 19,
     "shell-tree-terms.test.mjs": 7,
     "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "49a0d20f9cf3f9463745ba41967519bc26d41354"
+CASE_FLOORS_MEASURED_AT: Final[str] = "0b8c6e6d1a524b06d5caaaea0f1f91fe0d3e8dcd"
 
 
 # --------------------------------------------------------------------------

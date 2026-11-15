@@ -171,3 +171,73 @@ test('a relative workspace with no resources directory to anchor to is a refusal
     /no resources directory is known/,
   )
 })
+
+// O3's decision B (2026-11-15): the workspace lives outside the installation,
+// under the running user's profile directory, so an uninstall leaves it
+// behind. The file names it with the Windows/NSIS `%APPDATA%` prefix — an
+// absolute in meaning, a different absolute per user — and the resolution
+// expands the prefix against the APPDATA environment variable, never against
+// a guess.
+
+test('the profile-relative workspace form parses and resolves against APPDATA', () => {
+  const appData = 'C:\\Users\\pc\\AppData\\Roaming'
+  const parsed = parseShellEnv(JSON.stringify({ workspace: '%APPDATA%\\@labcairn\\workspace' }))
+  assert.deepEqual(parsed, { workspace: '%APPDATA%\\@labcairn\\workspace' })
+  // The resources directory is irrelevant to this form: the anchor is the
+  // profile directory, not the installation.
+  assert.equal(
+    resolveShellEnvWorkspace(parsed.workspace, 'C:\\Program Files\\LabCairn\\resources', { APPDATA: appData }),
+    'C:\\Users\\pc\\AppData\\Roaming\\@labcairn\\workspace',
+  )
+  assert.equal(
+    resolveShellEnvWorkspace(parsed.workspace, null, { APPDATA: appData }),
+    'C:\\Users\\pc\\AppData\\Roaming\\@labcairn\\workspace',
+  )
+})
+
+test('the profile-relative prefix is case-insensitive and accepts forward slashes', () => {
+  const appData = 'C:\\Users\\pc\\AppData\\Roaming'
+  // NSIS and Windows path spellings vary in case; the convention is about the
+  // expansion, not the letters.
+  assert.equal(
+    resolveShellEnvWorkspace('%appdata%\\@labcairn\\workspace', null, { APPDATA: appData }),
+    'C:\\Users\\pc\\AppData\\Roaming\\@labcairn\\workspace',
+  )
+  // The template could as well name the target with forward slashes; the
+  // expanded path is a Windows path either way.
+  assert.equal(
+    resolveShellEnvWorkspace('%APPDATA%/@labcairn/workspace', null, { APPDATA: appData }),
+    'C:\\Users\\pc\\AppData\\Roaming\\@labcairn\\workspace',
+  )
+})
+
+test('the profile-relative form without an APPDATA value to expand against is a refusal', () => {
+  // A refusal, not an empty expansion: silently resolving against an absent
+  // profile directory would put the workspace at a relative-looking path, and
+  // §4.1's rule is that a missing fact is named, not guessed.
+  assert.throws(
+    () => resolveShellEnvWorkspace('%APPDATA%\\@labcairn\\workspace', null, {}),
+    /no APPDATA value is known/,
+  )
+  assert.throws(
+    () => resolveShellEnvWorkspace('%APPDATA%\\@labcairn\\workspace', null),
+    /no APPDATA value is known/,
+  )
+})
+
+test('a bare or malformed %APPDATA% value is not silently accepted as profile-relative', () => {
+  const appData = 'C:\\Users\\pc\\AppData\\Roaming'
+  // The bare prefix with nothing after it has no target to name; it falls to
+  // the relative rules and is refused there (no anchor, no path).
+  assert.throws(
+    () => resolveShellEnvWorkspace('%APPDATA%', null, { APPDATA: appData }),
+    /no resources directory is known/,
+  )
+  // A value that merely contains %APPDATA% somewhere in the middle is not the
+  // prefix form; it is a relative name, and it resolves to nowhere real — so
+  // the resolution is the refusal, at the same layer the relative rules live.
+  assert.throws(
+    () => resolveShellEnvWorkspace('workspaces\\%APPDATA%', null, { APPDATA: appData }),
+    /no resources directory is known/,
+  )
+})
