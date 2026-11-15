@@ -42,6 +42,7 @@ from labcairn.db.models import PaperVersionRow
 from labcairn.db.repository import TaskStore
 from labcairn.editing.drafts import ApprovedEdit
 from labcairn.material.ingest import ingest_bytes
+from labcairn.material.walk import _stable_source_id
 from labcairn.papers.binding import BindingOpened, open_binding
 from labcairn.papers.feedback import FeedbackEvent
 from labcairn.runtime.lifecycle import TaskGoal
@@ -214,7 +215,9 @@ def build_binding_fixture(env_store: TaskStore, workspace_root: Path) -> Binding
     # **The manuscript is ingested the way the loop ingests it.** The ask-everything
     # context is the loop's own, and ``ingest_material`` would refuse under it —
     # so the fixture mints the source row through ``ingest_bytes`` + ``put_source``,
-    # the same writers ``open_loop`` uses, against the same location-derived id.
+    # the same writers ``open_loop`` uses, against the same id the walk derives
+    # (root id + root-relative key) — the derivation ``open_loop`` itself now
+    # passes, so a fixture row and a loop row are one identity.
     # What the witnesses exercise is the binding, not the ingestion gate.
     relative_path = f"materials/{SOURCE_KEY}"
     ingested = ingest_bytes(
@@ -222,6 +225,7 @@ def build_binding_fixture(env_store: TaskStore, workspace_root: Path) -> Binding
         relative_path=relative_path,
         display_name=SOURCE_KEY,
         ingested_at=MOMENT,
+        source_id=_stable_source_id(ROOT_ID, SOURCE_KEY),
     )
     put_source(env_store.session, ingested.source)
     env_store.session.commit()
