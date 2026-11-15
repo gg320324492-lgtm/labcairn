@@ -193,7 +193,11 @@ jobs:
         # shard only added a job. On 2026-11-15 the file was split into
         # per-section modules (`tests/test_cli_*.py` over a shared
         # `test_cli_support.py`), the floor moved with it, and six shards
-        # balance.
+        # balance on Windows (903.5 s × 6, ratio 1.000); on Ubuntu the floor
+        # is shard 0 alone — the single file `test_drill_interrupted_writes.py`
+        # at 604.0 s against 306.7 s for shards 1–5 (max/min 1.969) — so the
+        # balance property is "no file can be moved to shorten the wait",
+        # not "the shards are equal".
         #
         # The split files' costs in the table are runner measurements
         # anchored at d9d380cfc5e2619db68a92e11eb9faea6d51b784 (the remains of

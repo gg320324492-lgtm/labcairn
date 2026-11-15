@@ -150,7 +150,7 @@ and dependency pins, not generated debris.
 | `tests/fixtures/papers/` | Public paper-shaped fixtures; material words from the owner's pilot corpus stay outside this repository. |
 | `tests/docx_corpus.py`, `tests/gold_set_fixtures.py` | Fixture builders and corpus helpers, not duplicate datasets. |
 | `conftest.py` | Pytest's shared temporary-root rules. |
-| `.github/ci-shards.json` | Runner-measured per-file costs and the five-shard partition. A new test file must be registered here. |
+| `.github/ci-shards.json` | Runner-measured per-file costs and the six-shard partition. A new test file must be registered here. |
 | `scripts/witness_ledger.py` | Compares test-function names across two revisions after a merge. |
 | `scripts/cjk_ceilings.py` | Measures the longest Han run per tracked file; the pin watches material leakage. |
 
