@@ -462,6 +462,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # LC-P3-03: the loop binds the pieces; its refusals are negative.
     "test_revision_loop.py": ("integration", "approvals"),
     "test_revision_loop_refusals.py": ("negative", "path-traversal"),
+    # F-1 alignment: a loop over walk-ingested material reuses the walk's
+    # identity (one file, one row), whatever order the doors ran in.
+    "test_loop_source_id_alignment.py": ("integration", "approvals"),
     # LC-P3-06 substitute-first half: the pipeline's output carries no
     # material text (provider redaction), and the refusal ladder's rehearsal
     # spends one digest-bound approval per request (approvals).

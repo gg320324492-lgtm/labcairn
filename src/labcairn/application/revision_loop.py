@@ -97,6 +97,7 @@ from labcairn.core.ids import ApprovalId, RunId, SourceId, new_id
 from labcairn.db.materials import put_source
 from labcairn.db.repository import list_approvals, list_artifacts, load_task
 from labcairn.material import ingest_bytes
+from labcairn.material.walk import _stable_source_id
 from labcairn.reports.receipt import (
     ArtifactKind,
     ArtifactProducerKind,
@@ -338,22 +339,26 @@ def open_loop(
     # the task *holds* it. ``put_source`` is the same writer the walk uses, so
     # a loop's material and a walk's material are one kind of row.
     #
-    # **No source id is passed.** ``ingest_bytes`` derives one from the file's
-    # workspace-relative *location* (``src-`` + sixteen hex), and the ledger's
-    # ``relative_path`` is UNIQUE. That derivation is what makes a second loop
-    # over the same file import the same material instead of colliding with the
-    # constraint or splitting one file into two rows. A caller that minted its
-    # own id would have to keep the derivation in its head, and would also
-    # violate ``SourceId``'s runtime check: UUIDs are not source ids.
-    ingested = ingest_bytes(
+    # **The id is the walk's derivation.** ``ingest_bytes`` would derive one
+    # from the file's workspace-relative *location* (``src-`` + sixteen hex),
+    # but the CLI's ingestion walk derives ids from the **root id and the
+    # root-relative key** (``_stable_source_id``, ``material/walk.py``). The
+    # trial's real sample is CLI-ingested before it is looped, so a loop that
+    # minted the path-derived id would arrive as a *second* identity for one
+    # ``sources.relative_path`` -- a UNIQUE violation, an ``IntegrityError``,
+    # and a poisoned session. Passing the walk's derivation here makes one
+    # file one identity whatever door carried it in. (Found by the 2026-11-16
+    # trial dry run, finding F-1.)
+    loop_material = ingest_bytes(
         data,
         relative_path=relative_path,
         display_name=relative_path.rsplit("/", 1)[-1],
         ingested_at=moment,
+        source_id=_stable_source_id(canonical.root_id, str(canonical.resolved_key)),
     )
-    source_id = ingested.source.source_id
+    source_id = loop_material.source.source_id
     with store_refusals():
-        put_source(context.store.session, ingested.source)
+        put_source(context.store.session, loop_material.source)
         context.store.session.commit()
     _bind_one(context, SourceId(source_id), moment)
 

@@ -128,8 +128,8 @@ five offline classes:
 
 | platform | unit | integration | negative | e2e | repository | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| ubuntu-latest | 154.0 s | 596.5 s | 109.1 s | 1150.5 s | 127.3 s | **2137.4 s ≈ 35.6 min** |
-| windows-latest | 432.8 s | 3145.1 s | 333.0 s | 1751.1 s | 175.5 s | **5837.5 s ≈ 97.3 min** |
+| ubuntu-latest | 154.0 s | 597.4 s | 109.1 s | 1150.5 s | 127.3 s | **2138.3 s ≈ 35.6 min** |
+| windows-latest | 432.8 s | 3153.1 s | 333.0 s | 1751.1 s | 175.5 s | **5845.6 s ≈ 97.4 min** |
 
 The current pull-request wall clock is set by the slowest shard: about 904 s
 on Windows (15.1 min) and 453 s on Ubuntu, over six shards per platform

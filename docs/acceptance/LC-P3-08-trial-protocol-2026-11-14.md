@@ -364,6 +364,17 @@ packages at `E:\labcairn-local\shell-o3-package\dist3\`. What remains
 owner-gated is the **trial machine designation and its support-matrix
 re-measurement** (T0), not the existence of an installable build.
 
+**Registry status note (added 2026-11-16, status update only — row 4
+resolved 2026-11-16).** The owner designated **Xiaoqi Zhushou** as the
+named human reviewer on 2026-11-16, recorded in
+`docs/handoff/CURRENT.md` and `docs/changelog/phase-3.md` at commit
+`17a1abf73f254843cf54e62b5687fb7e884c62bc`. Registry row 4's
+designation prerequisite is therefore resolved; the row itself stays as
+written, because the reviewer's reading is still a future act. Rows 1,
+2, 3, 5, 6 and 7 remain PENDING-OWNER — each names a live act or
+decision (supply, participation, reopen, human review, exit, the
+real-model evidence) that no designation settles.
+
 ## 8. What this record does not do
 
 It runs no trial step, touches no real participant, opens no host, spends no
