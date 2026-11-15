@@ -123,24 +123,25 @@ on `main` is the measurement.
 ## 3. What a CI job costs
 
 The per-file costs in `.github/ci-shards.json` are runner measurements,
-anchored at `6b66e9487dd4dd349f529c096b2bfdad2dbde3c1`. Summed over the
+anchored at `6c95d196a24596d4e4c7c1e2f6fd69358709060c`. Summed over the
 five offline classes:
 
 | platform | unit | integration | negative | e2e | repository | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| ubuntu-latest | 160.2 s | 558.0 s | 125.6 s | 582.5 s | 118.7 s | **1544.9 s ≈ 25.7 min** |
-| windows-latest | 390.8 s | 2945.7 s | 379.1 s | 995.1 s | 165.0 s | **4875.8 s ≈ 81.3 min** |
+| ubuntu-latest | 175.0 s | 642.8 s | 172.2 s | 1153.5 s | 118.9 s | **2262.3 s ≈ 37.7 min** |
+| windows-latest | 338.6 s | 2991.8 s | 361.8 s | 1580.9 s | 148.2 s | **5421.1 s ≈ 90.4 min** |
 
-The current pull-request wall clock is set by the slowest shard: about 975 s
-on Windows (16.3 min); on Ubuntu the slowest shard is `test_cli.py` alone at
-386.6 s. A job that runs all five offline classes **on Ubuntu** would
-therefore become the new bottleneck at about 26 minutes — roughly a
-twelve-minute increase on every pull request, and another full run of the
-suite on top of the ten shard jobs. On Windows it would be about 81 minutes,
-which is not a candidate.
+The current pull-request wall clock is set by the slowest shard: about 904 s
+on Windows (15.1 min) and 453 s on Ubuntu, over six shards per platform
+(the matrix has been `[0, 1, 2, 3, 4, 5]` since 2026-11-15). A job that
+runs all five offline classes **on Ubuntu** would therefore become the new
+bottleneck at about 40 minutes — roughly a twenty-seven-minute increase on
+every pull request, and another full run of the suite on top of the twelve
+shard jobs. On Windows it would be about 78 minutes, which is not a
+candidate.
 
 That cost is the reason for the trigger choices below: the job is valuable
-as a report, but it is not worth adding twelve minutes to every pull request
+as a report, but it is not worth adding twenty-five minutes to every pull request
 while the shard jobs already run the same files.
 
 ## 4. The options
@@ -198,9 +199,10 @@ while the shard jobs already run the same files.
   owner's ruled shape for that class (G5 acceptance, 2026-10-28). The job
   is **not a required check** and cannot be one: a scheduled job does not
   report on a pull request, so branch protection never sees it.
-- **What CI looks like.** `lint` and the ten shard jobs keep their
-  pull-request behaviour unchanged; on the schedule event they are skipped
-  and only `evaluation` runs. The report is uploaded as an artifact and its
+- **What CI looks like.** `lint` and the ten shard jobs (the matrix of
+  2026-11-03, when this plan was written: 6cdd89d95ba20f6611fcfa2fc79ee37c35f2dc1c; it has been six shards
+  since 2026-11-15) keep their pull-request behaviour unchanged; on the
+  schedule event they are skipped and only `evaluation` runs. The report is uploaded as an artifact and its
   markdown is printed in the job log, so a failure leaves the blocker table
   and the failure list in the log.
 - **What goes red.** Only real failures in the offline classes (exit 1), or
@@ -230,10 +232,12 @@ blocker table from existing only on one developer's machine.
 - a `schedule` trigger — `17 3 * * 1` (Mondays, 03:17 UTC; the off-minute
   and the weekly cadence are deliberate);
 - `lint` and `python-quality` carry `if: ${{ github.event_name != 'schedule' }}`,
-  so the schedule run spends one job, not the eleven a pull-request event
-  spends (`lint` plus `python-quality`'s 2 platforms × 5 shards); the plan's
-  first draft of this line said *thirteen*, which is what a six-shard matrix
-  would give — six was rejected on 2026-10-25, so the count was never thirteen;
+  so the schedule run spends one job, not the thirteen a pull-request event
+  spends (`lint` plus `python-quality`'s 2 platforms × 6 shards; this plan's
+  first draft said *eleven* — five shards plus `lint`, the matrix as it
+  stood at 6cdd89d95ba20f6611fcfa2fc79ee37c35f2dc1c — and six was rejected
+  on 2026-10-25 on the costs of that tree; the matrix became six shards on
+  2026-11-15);
 - a new job `evaluation`, `name: evaluation`, `runs-on: ubuntu-latest`, no
   matrix, gated on `github.event_name == 'schedule'`. It checks out, sets up
   the pinned interpreter and uv, runs `uv sync --frozen`, then:

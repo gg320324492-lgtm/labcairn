@@ -320,3 +320,85 @@ def test_a_write_to_the_original_through_the_read_only_door_is_refused(
     assert spy.calls == []
     assert fixture.original_path.read_bytes() == ORIGINAL_BYTES
     assert content_hash(fixture.original_path) == before
+
+
+# --------------------------------------------------------------------------- #
+# 5. the loop's own drift guard, distinct from the consent layer's
+# --------------------------------------------------------------------------- #
+
+
+def test_an_original_moved_between_the_grant_and_the_copy_is_refused_by_the_loop(
+    fixture: LoopFixture,
+) -> None:
+    """The loop's own re-hash refuses what a re-granted approval lets through.
+
+    The consent layer's staleness check compares the original against the
+    hash the *approval* recorded at its ask. That check passes here by
+    construction: the approval is asked and granted **after** the tamper, so
+    its binding names the tampered bytes and the spend's re-hash agrees with
+    it. What still refuses is the loop's own guard — ``verify_original``
+    compares the file against the **import receipt's** hash, which no later
+    approval can refresh. A consent to write the moved bytes is not a licence
+    to publish a derivation of a file the receipt never recorded.
+    """
+    loop = open_a_loop(fixture)
+    fixture.original_path.write_bytes(ORIGINAL_BYTES + b"tampered before the ask\n")
+    approval_id = granted_copy_approval(fixture.context, loop)
+    requested = fixture.context.ledger.peek(approval_id)
+    assert requested is not None
+    # The approval's own binding names the tampered bytes: the consent layer
+    # has nothing to complain about at the spend.
+    assert requested.sources[0].expected_hash != loop.import_receipt.original_sha256
+
+    copy_path = fixture.workspace_root / "output" / str(fixture.context.task_id) / loop.copy_key
+    with WriteSpy() as spy:
+        error = refusal_of(
+            lambda: stage_copy(fixture.context, loop, approval_id=approval_id, now=MOMENT),
+            "a copy whose original moved after the import (fresh approval)",
+        )
+    assert error.reason is ApplicationRefusal.SOURCE_DRIFTED
+    assert spy.calls == []
+    assert not copy_path.exists()
+
+
+def test_an_original_moved_between_the_grant_and_the_publication_is_refused_by_the_loop(
+    fixture: LoopFixture,
+) -> None:
+    """The publication guard refuses the same drift at the second checkpoint.
+
+    The copy and the publication each re-hash the original inside the
+    authorised effect. This witness moves the original after the copy landed
+    (so the copy's own checkpoint has already passed honestly) and asks the
+    publication approval for the moved bytes, so the only guard that can
+    refuse is ``verify_original`` at :func:`publish_revision`.
+    """
+    loop = open_a_loop(fixture)
+    copy_approval = granted_copy_approval(fixture.context, loop)
+    staged = stage_copy(fixture.context, loop, approval_id=copy_approval, now=MOMENT)
+    copy_path = fixture.workspace_root / "output" / str(fixture.context.task_id) / loop.copy_key
+    assert copy_path.exists()
+
+    fixture.original_path.write_bytes(ORIGINAL_BYTES + b"tampered after the copy\n")
+    publication_approval = granted_publication_approval(fixture.context, loop)
+    requested = fixture.context.ledger.peek(publication_approval)
+    assert requested is not None
+    assert requested.sources[0].expected_hash != loop.import_receipt.original_sha256
+
+    publication_path = (
+        fixture.workspace_root / "output" / str(fixture.context.task_id) / loop.publication_key
+    )
+    with WriteSpy() as spy:
+        error = refusal_of(
+            lambda: publish_revision(
+                fixture.context,
+                loop,
+                approval_id=publication_approval,
+                edited_bytes=EDITED_BYTES,
+                now=MOMENT,
+            ),
+            "a publication whose original drifted after the copy (fresh approval)",
+        )
+    assert error.reason is ApplicationRefusal.SOURCE_DRIFTED
+    assert spy.calls == []
+    assert not publication_path.exists()
+    assert content_hash(copy_path) == staged.copy_sha256

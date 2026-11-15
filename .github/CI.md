@@ -12,7 +12,7 @@ Four kinds of job:
 | job | workflow | runner | what it runs |
 | --- | --- | --- | --- |
 | `lint` | `python.yml` | `ubuntu-latest`, one runner, no matrix | `ruff check .`, `ruff format --check .`, `mypy --strict` |
-| `python-quality (${{ matrix.os }}, shard N)` | `python.yml` | 2 platforms × 5 shards = 10 jobs | `pytest` on that shard's files only |
+| `python-quality (${{ matrix.os }}, shard N)` | `python.yml` | 2 platforms × 6 shards = 12 jobs | `pytest` on that shard's files only |
 | `evaluation` | `python.yml` | `ubuntu-latest`, one runner, no matrix, **schedule event only** | `python -m tests.evaluation --classes unit,integration,negative,e2e,repository` |
 | `shell-test (${{ matrix.os }})` | `shell.yml` | 2 platforms = 2 jobs | `node --test 'test/*.test.mjs'` in `shell/` |
 
@@ -33,13 +33,18 @@ with it. Measured 2026-11-11 at `6b3211ae631c7c9548ca160615f88daa6da7d5dd`:
 
 ```
 gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
-  --jq '.required_status_checks.contexts | length'   # -> 15
+  --jq '.required_status_checks.contexts | length'   # -> 17
 ```
 
-The 15 contexts, printed one per line by the same call with
-`--jq '.required_status_checks.contexts[]'`:
+The 17 contexts the workflow's shape gives — 12 shard legs (2 platforms × 6
+shards, the matrix since 2026-11-15) plus `lint` and the four tool gates —
+listed one per line. The GitHub reading this block carries was taken
+2026-11-11 at `6b3211ae631c7c9548ca160615f88daa6da7d5dd`, when the matrix was
+five shards and the same call returned 15; the six-shard names below are what
+the workflows render now, and the protection is re-read with the command
+above:
 
-<!-- required-status-checks:begin — measured 2026-11-11 at 6b3211ae631c7c9548ca160615f88daa6da7d5dd -->
+<!-- required-status-checks:begin — measured 2026-11-11 at 6b3211ae631c7c9548ca160615f88daa6da7d5dd; reshaped 2026-11-15 to the six-shard matrix -->
 - `web-quality`
 - `reference-exclusion`
 - `secret-scan`
@@ -49,11 +54,13 @@ The 15 contexts, printed one per line by the same call with
 - `python-quality (ubuntu-latest, shard 2)`
 - `python-quality (ubuntu-latest, shard 3)`
 - `python-quality (ubuntu-latest, shard 4)`
+- `python-quality (ubuntu-latest, shard 5)`
 - `python-quality (windows-latest, shard 0)`
 - `python-quality (windows-latest, shard 1)`
 - `python-quality (windows-latest, shard 2)`
 - `python-quality (windows-latest, shard 3)`
 - `python-quality (windows-latest, shard 4)`
+- `python-quality (windows-latest, shard 5)`
 - `lint`
 <!-- required-status-checks:end -->
 
@@ -178,30 +185,33 @@ keeps `shell.yml`'s `pull_request` trigger unfiltered if it becomes required.
 
 **What changed.** `python.yml` gained a `schedule` trigger and an
 `evaluation` job. On the schedule event `lint` and `python-quality` are
-skipped, so the run spends one job, not the **eleven** a pull-request event
-spends. **Eleven, counted from the workflow:** three job templates,
-`python-quality`'s matrix expanding to 2 platforms × 5 shards = 10, and `lint`
-as the eleventh; `evaluation` is gated to the schedule and is not among them.
-**The workflow names twelve jobs in total** — the eleven above plus `evaluation`
-— which is what `tests/test_ci_shard_coverage.py`'s name-uniqueness check sees
-(`workflow_job_names.rendered_job_names` returns twelve for this file), and
-**eleven** is what a single pull-request run spends. What this sentence printed
-until 2026-11-12 was **thirteen**, and thirteen was not the count at any
-revision: the matrix has been `[0, 1, 2, 3, 4]` since `5a4d8e9` (2026-10-25),
+skipped, so the run spends one job, not the **thirteen** a pull-request event
+spends. **Thirteen, counted from the workflow:** three job templates,
+`python-quality`'s matrix expanding to 2 platforms × 6 shards = 12, and `lint`
+as the thirteenth; `evaluation` is gated to the schedule and is not among them.
+**The workflow names fourteen jobs in total** — the thirteen above plus
+`evaluation` — which is what `tests/test_ci_shard_coverage.py`'s
+name-uniqueness check sees (`workflow_job_names.rendered_job_names` returns
+fourteen for this file), and **thirteen** is what a single pull-request run
+spends. What this sentence printed before 2026-11-15 was **eleven** —
+`2 platforms × 5 shards = 10` plus `lint` — and it became **thirteen** on
+2026-11-15, when the `test_cli.py` split made a six-shard partition balance
+and the matrix became `[0, 1, 2, 3, 4, 5]`. As history:
 the six-shard matrix `d8f5788` (2026-10-24) tried reported **12** shard jobs
-with no `lint` job (`lint` was split out on 2026-11-02, a day before this
-section was written), and with five shards and `lint` the count is **11** — at
-`6cdd89d` (2026-11-03, the commit that wrote this section) as it is today.
+with no `lint` job (`lint` was split out on 2026-11-02), and with five
+shards and
+`lint` the count was **11** at `6cdd89d` (2026-11-03, the commit that wrote
+this section) and stayed **11** until the split.
 `python.yml`'s `lint` comment and `docs/plans/LC-P1-13-evaluation-ci.md` §5
 carry the same sentence and are corrected with it.
 
-**Why not on pull requests.** The harness runs the same test files the ten
-shard jobs already run, and its measured cost on an Ubuntu runner is
-1544.9 s (about 26 minutes) over the five offline classes — the per-file
-costs in `.github/ci-shards.json`, anchored at
-`6b66e9487dd4dd349f529c096b2bfdad2dbde3c1`. On a pull request it would add
-about eleven minutes to the wall clock and become the new bottleneck. A
-schedule produces the report without touching that clock.
+**Why not on pull requests.** The harness runs the same test files the
+twelve shard jobs already run. Its cost on an Ubuntu runner over the five
+offline classes is 2262.3 s (about 40 minutes) — the
+runner-measured per-file costs in `.github/ci-shards.json`, anchored at
+`6c95d196a24596d4e4c7c1e2f6fd69358709060c`. On a pull request it would add
+about twenty-seven minutes to the wall clock and become the new bottleneck.
+A schedule produces the report without touching that clock.
 
 **Why exactly five classes.** A Phase 1 blocker is held only when every one
 of its witnesses was collected and passed, and the witnesses span all five
@@ -270,7 +280,9 @@ required.
 > set, measured" above, and re-read live on 2026-11-12 at
 > `0655bb8b22506dd851e1eff6f29a455465535a1a` (`gh api
 > repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
-> '.required_status_checks.contexts | length'` → 15, `lint` among them). When
+> '.required_status_checks.contexts | length'` → 15 at that reading, `lint`
+> among them; the matrix has been six shards since 2026-11-15 and the same
+> call's shape now gives seventeen). When
 > the owner added it is not recorded anywhere in this repository.
 
 **C-6, stated plainly.** C-6 says *"Python lint/type/test CI on Ubuntu and
@@ -339,9 +351,9 @@ denominators, and the record named the one no witness reads.
 
 **The same quantity today, re-measured rather than carried.** At the costs
 `ci-shards.json` records at
-`6b66e9487dd4dd349f529c096b2bfdad2dbde3c1`, Ubuntu's shards are 386.6s against
-289.6s — `max / min` **1.3349**, floor against mean 1.1447 — and Windows is
-975.2s against 975.2s, **1.0000**. `tests/test_cli.py` is the Ubuntu floor there
+`a7cde5999a9db1524e2ec5514685b449e43de4b1`, Ubuntu's shards are 476.0s against
+476.0s — `max / min` **1.0000**, floor against mean 1.0000 — and Windows is
+960.4s against 960.4s, **1.0000**. `tests/test_cli.py` is the Ubuntu floor there
 as well, and the 1.6 limit is unchanged.
 
 **Why it is slow.** It is an end-to-end subprocess file, on purpose: every

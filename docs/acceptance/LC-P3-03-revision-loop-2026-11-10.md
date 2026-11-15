@@ -98,6 +98,7 @@ Two refusal names were added to `ApplicationRefusal`:
 | **path escape** | A real file outside the selected workspace (`outside-the-workspace.bin`) and a real file inside the workspace but outside the source root (`loose.bin`). | `path_refused` (`outside_every_root` for the first; wrong-root for the second), no write primitive reached, both files byte-for-byte unchanged. |
 | **stale approval** | The approval's window is still open; **the file moves**. Real bytes are written over the original after the grant (copy witness) and after the import (publication witness). | `approval_refused` with ADR-0003's own `source_changed`; no write primitive reached; the copy/publication file does not exist afterwards. The grant's `bound_sources` hash is asserted against the import receipt's before the mutation. |
 | **duplicate requests** | One copy approval is spent twice; then a **fresh** publication approval is granted for a second publication under an id whose receipt and bytes are already on disk. | `approval_refused: consumed` for the first; `loop_already_published` for the second, before the write. The spy is empty, the first publication's bytes and hash hold, and exactly one artefact row carries that publication id. |
+| **source drift (the loop's own guard)** | The original moves, but the approval is asked and granted **after** the move, so the consent layer's re-hash agrees with the moved bytes and the spend succeeds — only the loop's own `verify_original`, which compares against the **import receipt's** hash, can refuse. Witnessed at both checkpoints: `stage_copy` and `publish_revision` (the latter after an honest copy landed first). Two witnesses added 2026-11-14 by the G2/G3 review (`tests/test_revision_loop_refusals.py`, the two `…_is_refused_by_the_loop` tests). | `source_drifted` (not `source_changed` — the consent layer passed by construction); no write primitive reached; the copy/publication file does not exist afterwards; the approval's own binding hash is asserted **different** from the import receipt's. |
 
 Every row's second half — "before any file is touched" — is carried by the
 `WriteSpy` in `tests/revision_loop_support.py`, which patches
@@ -119,6 +120,8 @@ green tested nothing.
 | path escape | Reclassify the canonicaliser's escape refusal as `arguments_invalid` | RED: `assert ARGUMENTS_INVALID is PATH_REFUSED` fails. |
 | stale approval | Bind the approval to `"0" * 64` instead of the original's hash | RED: the grant's bound hash no longer equals the import receipt's. |
 | duplicate requests | Make the receipt lookup see no prior publication (`landed = ()`) | RED: the second publication completes instead of refusing. |
+| source drift (added 2026-11-14) | Remove `verify_original` from `copy_work` **and** turn the copy-hash check's condition into `if False` (one mutation, both refusal sites in `stage_copy` dead) | RED: `…_is_refused_by_the_loop` (copy) fails — the copy completes. |
+| source drift (added 2026-11-14) | Remove `verify_original` from `publish_work` (the publication's drift guard dead) | RED: `…_is_refused_by_the_loop` (publication) fails — the publication completes. |
 
 Earlier attempts at the first and fourth mutations were **not** effective (one
 changed a condition that the branch did not decide; one produced a

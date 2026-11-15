@@ -2360,11 +2360,11 @@ _WORKFLOW_NAMED: Final[re.Pattern[str]] = re.compile(r"\b([a-z0-9][a-z0-9-]*\.ya
 #: "push".
 JOB_COUNT_CLAIMS: Final[dict[str, int]] = {
     "CI.md": 11,
-    "python.yml": 8,
-    "LC-P1-13-evaluation-ci.md": 4,
-    "CLAUDE.md": 6,
+    "python.yml": 9,
+    "LC-P1-13-evaluation-ci.md": 7,
+    "CLAUDE.md": 5,
     "CONTRIBUTING.md": 3,
-    "CURRENT.md": 6,
+    "CURRENT.md": 5,
     "LC-P1-11-12-task-breakdown.md": 1,
 }
 
@@ -2874,14 +2874,14 @@ def _job_count_reports(
 #: carry `\s+` and the patterns are counted before anything is replaced.
 _MUTATIONS: Final[tuple[tuple[str, re.Pattern[str], str], ...]] = (
     (
-        "the pull-request job count read as thirteen",
-        re.compile(r"eleven(\*{0,2}\s+a\s+pull[- ]request)"),
-        r"thirteen\1",
+        "the pull-request job count read as eleven",
+        re.compile(r"thirteen(\*{0,2}\s+a\s+pull[- ]request)"),
+        r"eleven\1",
     ),
     (
-        "the shard-leg count read as eleven",
-        re.compile(r"\bten(\s+shard jobs)\b"),
-        r"eleven\1",
+        "the shard-leg count read as ten",
+        re.compile(r"\btwelve(\s+shard jobs)\b"),
+        r"ten\1",
     ),
 )
 
@@ -2971,16 +2971,18 @@ def test_the_job_count_reader_fails_for_a_record_left_behind_by_the_matrix(
     mutating for its reader to be proven, which is what `test_the_required_check_comparison_
     fails_when_a_record_names_a_dead_name` does for the required-check reader.
 
-    **Three mutations, and what each one proves.** (1) `eleven` → `thirteen` for the
-    pull-request count: the exact figure four records carried, and the reader must report it
-    **once**, naming thirteen and naming the workflow. (2) `ten` → `eleven` for the shard-leg
-    count: a number that is legal *somewhere* in this repository (11 is `python.yml`'s
-    pull-request figure) and has to be reddened because it is wrong **for the quantity the
-    sentence states** — the specificity the witness exists for. (3) The matrix mutation, in
-    memory: `shard: [0, 1, 2, 3, 4]` → six values, which makes **five present-tense claims**
-    report at once, because the records are true of the five-shard matrix and not of a
-    six-shard one. That is the clearest form of "fails for the property": the records are not
-    touched, only the thing they describe.
+    **Three mutations, and what each one proves.** (1) `thirteen` → `eleven` for the
+    pull-request count: eleven is the figure the records printed before the
+    2026-11-15 split, and the reader must report it **once**, naming eleven and
+    naming the workflow. (2) `twelve` → `ten` for the shard-leg count: a number
+    that is legal *somewhere* in this repository's history (10 was the shard-leg
+    figure until 2026-11-15) and has to be reddened because it is wrong **for the
+    quantity the sentence states** — the specificity the witness exists for.
+    (3) The matrix mutation, in memory: `shard: [0, 1, 2, 3, 4, 5]` → five
+    values, which makes the present-tense counts report at once, because the
+    records are true of the six-shard matrix and not of a five-shard one. That is
+    the clearest form of "fails for the property": the records are not touched,
+    only the thing they describe.
 
     **Controls.** The unmutated copy reports nothing, so every report above is the mutation
     and not the reader; the dated `12 shard jobs` claim stays quiet when its figure changes
@@ -3015,9 +3017,9 @@ def test_the_job_count_reader_fails_for_a_record_left_behind_by_the_matrix(
         f"{JOB_COUNT_RECORDS[0]} no longer carries the dated six-shard claim, so the control "
         "below that requires an anchor to be measured has nothing to test"
     )
-    assert workflow_text.count("shard: [0, 1, 2, 3, 4]") == 1, (
-        f"{WORKFLOW_FILE} no longer holds exactly one `shard: [0, 1, 2, 3, 4]` matrix literal, "
-        "so the workflow-side mutation below would not apply"
+    assert workflow_text.count("shard: [0, 1, 2, 3, 4, 5]") == 1, (
+        f"{WORKFLOW_FILE} no longer holds exactly one `shard: [0, 1, 2, 3, 4, 5]` matrix "
+        "literal, so the workflow-side mutation below would not apply"
     )
 
     relative = JOB_COUNT_RECORDS[0]
@@ -3032,20 +3034,21 @@ def test_the_job_count_reader_fails_for_a_record_left_behind_by_the_matrix(
         "below that requires an anchor to be measured has nothing to test"
     )
 
-    # Mutation 1: the pull-request job count, read as thirteen.
+    # Mutation 1: the pull-request job count, read as eleven — the pre-split figure.
     first = _MUTATIONS[0][1].sub(_MUTATIONS[0][2], ci_text, count=1)
     assert first != ci_text
     stale, _missing, _dated = _job_count_reports(repo_root, {relative: first})
-    assert stale, "the reader stayed green on a record that prints thirteen pull-request jobs"
+    assert stale, "the reader stayed green on a record that prints eleven pull-request jobs"
     assert len(stale) == 1, f"one edited figure produced {len(stale)} reports: {stale}"
-    assert "thirteen" in stale[0] and "pull-request" in stale[0], stale[0]
+    assert "eleven" in stale[0] and "pull-request" in stale[0], stale[0]
 
-    # Mutation 2: the shard-leg count, read as eleven — a legal figure for a different
-    # quantity, which is why comparing a claim with the quantity it states is the property.
+    # Mutation 2: the shard-leg count, read as ten — a legal figure in this
+    # repository's history, which is why comparing a claim with the quantity it
+    # states is the property.
     second = _MUTATIONS[1][1].sub(_MUTATIONS[1][2], ci_text, count=1)
     assert second != ci_text
     stale, _missing, _dated = _job_count_reports(repo_root, {relative: second})
-    assert stale, "the reader stayed green on a record that prints eleven shard jobs"
+    assert stale, "the reader stayed green on a record that prints ten shard legs"
     assert len(stale) == 1, f"one edited figure produced {len(stale)} reports: {stale}"
     assert "shard" in stale[0], stale[0]
 
@@ -3054,27 +3057,30 @@ def test_the_job_count_reader_fails_for_a_record_left_behind_by_the_matrix(
     # disk — so no file is written and the records are not touched either. That is what makes
     # this the strongest half of the demonstration: the only thing that changes is the thing
     # the records describe.
-    six_shard_text = workflow_text.replace("shard: [0, 1, 2, 3, 4]", "shard: [0, 1, 2, 3, 4, 5]", 1)
-    assert six_shard_text != workflow_text, "the matrix mutation did not apply to the copy"
-    six_figures = copy.deepcopy(_workflow_figures(repo_root))
-    six_figures[WORKFLOW_FILE.name] = _figures_from_document(
-        yaml.safe_load(six_shard_text), WORKFLOW_FILE.name
+    five_shard_text = workflow_text.replace(
+        "shard: [0, 1, 2, 3, 4, 5]", "shard: [0, 1, 2, 3, 4]", 1
+    )
+    assert five_shard_text != workflow_text, "the matrix mutation did not apply to the copy"
+    five_figures = copy.deepcopy(_workflow_figures(repo_root))
+    five_figures[WORKFLOW_FILE.name] = _figures_from_document(
+        yaml.safe_load(five_shard_text), WORKFLOW_FILE.name
     )
 
-    six_stale: list[str] = []
+    five_stale: list[str] = []
     for other in JOB_COUNT_RECORDS:
         text = (repo_root / other).read_text(encoding="utf-8")
-        found, _unresolvable, _anchored = _job_count_reports(repo_root, {other: text}, six_figures)
-        six_stale.extend(found)
-    assert len(six_stale) >= 3, (
-        f"a six-shard matrix left {len(six_stale)} job counts behind in the records. The "
-        "records state five shards, ten shard legs, eleven jobs for a push or a pull request, "
-        "and twelve rendered names; against a six-shard matrix every one of those is wrong, so "
-        "a reader that reports fewer is reading the wording rather than the quantities."
+        found, _unresolvable, _anchored = _job_count_reports(repo_root, {other: text}, five_figures)
+        five_stale.extend(found)
+    assert len(five_stale) >= 3, (
+        f"a five-shard matrix left {len(five_stale)} job counts behind in the records. The "
+        "records state six shards, twelve shard legs, thirteen jobs for a push or a pull "
+        "request, and fourteen rendered names; against a five-shard matrix every one of those "
+        "is wrong, so a reader that reports fewer is reading the wording rather than the "
+        "quantities."
     )
-    assert any("shard axis" in report or "shards" in report for report in six_stale), six_stale
-    assert any("rendered job names" in report or "twelve" in report for report in six_stale), (
-        six_stale
+    assert any("shard axis" in report or "shards" in report for report in five_stale), five_stale
+    assert any("rendered job names" in report or "fourteen" in report for report in five_stale), (
+        five_stale
     )
 
     # A second workflow-side mutation, the one the records are most likely to fall behind:
@@ -3110,11 +3116,15 @@ def test_the_job_count_reader_fails_for_a_record_left_behind_by_the_matrix(
         guard_stale
     )
 
-    # Control: the dated claim is exempt because its anchor **produces its figure**...
+    # Control: the dated claims are exempt because their anchors **produce their
+    # figures**. Under the six-shard matrix the `12 shard jobs` figure is today's own
+    # figure and is accepted without the anchor path; the claims that still exercise
+    # the path are the five-shard and eleven-job readings anchored at `6cdd89d`,
+    # whose YAML gives 5 shard axes and 11 pull-request jobs.
     _stale, _unresolvable, anchored_reports = _job_count_reports(repo_root, {relative: ci_text})
-    assert any("12" in report and "d8f5788" in report for report in anchored_reports), (
-        f"the six-shard claim was not exempted by measuring `d8f5788`, which gives 12 shard "
-        f"legs: {anchored_reports}"
+    assert any("5" in report and "6cdd89d" in report for report in anchored_reports), (
+        f"the five-shard claim was not exempted by measuring `6cdd89d`, which gives 5 "
+        f"shard axes: {anchored_reports}"
     )
 
     # ...and a **wrong figure keeps its anchor and is still reported**, which is the whole
@@ -3163,16 +3173,26 @@ def test_the_job_count_reader_fails_for_a_record_left_behind_by_the_matrix(
 #: between "push" and "event", and `docs/handoff/CURRENT.md` prefixes the second line with
 #: the blockquote mark), and a needle typed from the joined sentence would match none of
 #: them.
-_PUSH_COUNT_CLAIM: Final[re.Pattern[str]] = re.compile(r"eleven that a push\s+event\s+starts", re.I)
-_PUSH_COUNT_WRONG: Final[str] = "ten that a push event starts"
+_PUSH_COUNT_CLAIM: Final[re.Pattern[str]] = re.compile(
+    r"thirteen that a\s+push\s+event\s+starts", re.I
+)
+_PUSH_COUNT_WRONG: Final[str] = "eleven that a push event starts"
 
-#: The parenthesis that holds the revision a historical six-shard sentence names, stripped to
-#: show the exemption is load-bearing: without it the sentence is judged against today's
-#: shard axis, and today's axis is five. **The pattern carries `\s+` because the parenthesis
-#: wraps in both records** — `CLAUDE.md` breaks the line before it and the task breakdown
-#: breaks it inside — and a needle typed from the joined sentence would match neither.
+#: The parenthesis that holds the revision a historical five-shard sentence names, stripped
+#: to show the exemption is load-bearing: without it the sentence is judged against today's
+#: shard axis, and today's axis is six. **The pattern carries `\s+` because the sentence
+#: wraps across lines in `CLAUDE.md`** — and a needle typed from the joined sentence would
+#: not match the wrapped form.
+_FIVE_SHARD_ANCHOR: Final[re.Pattern[str]] = re.compile(
+    r"\s*\(2026-11-02, when the shard matrix was the\s+five-way one:\s*`e5472f8f[0-9a-f]*`\)"
+)
+
+#: The parenthesis that holds the revision the "six shards were tried" sentence names.
+#: Stripping it takes the exemption away: without the revision, the sentence's six is
+#: judged against today's matrix — which also gives six — by a reader that has lost the
+#: evidence that the six was a measurement.
 _SIX_SHARD_ANCHOR: Final[re.Pattern[str]] = re.compile(
-    r"\s*\(the six-shard matrix `d8f5788[0-9a-f]*`(?:\s+tried)?\)"
+    r"\s*\(the six-shard matrix\s+`d8f5788[0-9a-f]*`\)"
 )
 
 
@@ -3203,7 +3223,6 @@ def test_the_live_pointers_job_counts_are_watched_too(repo_root: Path) -> None:
     pointers = (
         Path("CLAUDE.md"),
         Path("CONTRIBUTING.md"),
-        Path("docs") / "handoff" / "CURRENT.md",
     )
     dated = (
         Path("CLAUDE.md"),
@@ -3236,33 +3255,49 @@ def test_the_live_pointers_job_counts_are_watched_too(repo_root: Path) -> None:
         assert relative.name in report, (
             f"the report for {relative} does not name the record it is about: {report}"
         )
-        assert "prints 10" in report and "gives [11]" in report, (
+        assert "prints 11" in report and "gives [13]" in report, (
             f"the report for {relative} does not name the figure the record prints and the "
             f"figure the workflow gives: {report}"
         )
 
     for relative in dated:
         text = before[relative].decode("utf-8")
-        stale, unresolvable, anchored = _job_count_reports(repo_root, {relative: text})
-        assert not stale and not unresolvable, (
-            f"{relative} is read as carrying a job count no workflow gives: {stale + unresolvable}"
+        stale, _unresolvable_dated, _anchored = _job_count_reports(repo_root, {relative: text})
+        assert not stale and not _unresolvable_dated, (
+            f"{relative} is read as carrying a job count no workflow gives: "
+            f"{stale + _unresolvable_dated}"
         )
-        assert any("d8f5788" in report for report in anchored), (
-            f"{relative} carries a six-shard sentence that names no revision the six shards "
-            f"were measured in, so nothing exempts it: {anchored}"
-        )
-
-        stripped = _SIX_SHARD_ANCHOR.sub("", text, count=1)
-        assert stripped != text, (
-            f"{relative} carries no six-shard anchor for this control to strip, so stripping "
-            "it would change nothing and the control would prove nothing"
-        )
-        stale, _unresolvable, _anchored = _job_count_reports(repo_root, {relative: stripped})
-        assert len(stale) == 1, (
-            f"removing the revision a six-shard sentence named produced {len(stale)} reports "
-            f"in {relative}: {stale}"
-        )
-        assert "prints 6" in stale[0] and "shard axis" in stale[0], stale[0]
+        # The exemption path is exercised on CLAUDE.md's "six shards were
+        # tried" sentence, which names `d8f5788`. Its figure is six, and six
+        # is also today's figure, so the sentence is read against the
+        # **five-shard matrix held in memory** — the same in-memory mutation
+        # the demonstration above uses — under which six is wrong unless the
+        # anchor produces it.
+        if relative.name == "CLAUDE.md":
+            five = {name: dict(document) for name, document in _workflow_figures(repo_root).items()}
+            five[WORKFLOW_FILE.name] = {
+                **five[WORKFLOW_FILE.name],
+                "axes": {"os": 2, "shard": 5},
+                "shard-legs": 10,
+            }
+            _stale5, _unres5, anchored5 = _job_count_reports(repo_root, {relative: text}, five)
+            assert any("d8f5788" in report for report in anchored5), (
+                f"{relative} carries a six-shard sentence that names no revision the "
+                f"six shards were measured in, so nothing exempts it: {anchored5}"
+            )
+            stripped = _SIX_SHARD_ANCHOR.sub("", text, count=1)
+            assert stripped != text, (
+                f"{relative} carries no six-shard anchor for this control to strip, so "
+                "stripping it would change nothing and the control would prove nothing"
+            )
+            stale, _unresolvable, _anchored = _job_count_reports(
+                repo_root, {relative: stripped}, five
+            )
+            assert len(stale) >= 1, (
+                f"removing the revision a six-shard sentence named produced {len(stale)} "
+                f"reports in {relative}: {stale}"
+            )
+            assert any("shard axis" in report and "6" in report for report in stale), stale
 
     for relative, original in before.items():
         assert (repo_root / relative).read_bytes() == original, (
@@ -3382,22 +3417,24 @@ _THIRTEEN_JOBS: Final[int] = 13
 def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
     repo_root: Path,
 ) -> None:
-    """The corrected figure was not just wrong today — it was never true of any tree.
+    """The pairing thirteen counts exists only at the revision the records date it to.
 
     **Why the history is watched rather than written as prose.** "Thirteen was not the count
-    at any revision" is a claim about every revision of `python.yml`, and it is the sentence
-    that decides whether a *thirteen* found somewhere is a stale record (a marker is owed) or
-    an error (the sentence is wrong). Stating it in a document and checking nothing is the
-    failure mode the project's own witness ledger exists to catch.
+    at any revision" was the sentence the records carried until 2026-11-15, and it decided
+    whether a *thirteen* found somewhere was a stale record (a marker is owed) or
+    an error (the sentence is wrong). The `test_cli.py` split made a six-shard partition
+    balance, and the current workflow — twelve shard legs plus `lint` — spends exactly
+    thirteen on a pull request, so the sentence became a dated snapshot: the date the
+    count moved is now stated, and this witness checks the history against it.
 
     **The two shapes thirteen comes from.** Twelve shard legs from a six-shard matrix, plus a
-    separate `lint` job, plus `evaluation`. Both halves exist in this repository's history and
-    **no revision ever had them at once**, so no run ever spent thirteen jobs.
+    separate `lint` job, plus `evaluation`. The first two halves exist together only at the
+    revision the records date the move to; `evaluation` is schedule-gated, so a pull
+    request spends thirteen while the workflow renders fourteen names.
 
-    **What it cannot watch.** A future workflow that does produce thirteen. That would be
-    correct, and this test would go red for the right reason: the records' "never thirteen"
-    sentence would have become a dated snapshot, and a marker naming the later reading is what
-    turns it back into a green test.
+    **What it cannot watch.** A future workflow that produces thirteen a second time from a
+    different shape. That would make the records' dated narration a guess, and this test
+    would go red for the right reason.
     """
     # **The pathspec is forward-slated.** `str(WORKFLOW_FILE)` on Windows is
     # `.github\workflows\python.yml`, and git reads a backslash in a pathspec as an escape:
@@ -3453,18 +3490,42 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         if isinstance(shard_axis, list) and len(shard_axis) >= 6 and "lint" in jobs:
             six_with_lint.append(revision[:12])
 
-    assert not thirteen_revisions, (
-        f"{WORKFLOW_FILE} rendered {_THIRTEEN_JOBS} job names at {'/'.join(thirteen_revisions)}. "
-        f"The totals across {len(revisions)} revisions are {sorted(totals)}. The records' "
-        "'thirteen was never the count' sentence is then a dated snapshot rather than an error, "
-        "and every place that says so has to say which."
+    # **The 2026-11-15 split inverted this history.** Until then no revision
+    # spent thirteen jobs on a pull request, and the records said so; the
+    # `test_cli.py` split made a six-shard partition balance, and the current
+    # workflow — twelve shard legs plus `lint` — spends exactly thirteen on a
+    # pull request (`evaluation` is schedule-gated, so the rendered total is
+    # fourteen). The records now state the date the count moved
+    # (`.github/CI.md`, "became **thirteen** on 2026-11-15"), so the
+    # assertions below check the history the other way: the only revision
+    # that pairs six-or-more shards with `lint` is the current head, and every
+    # earlier revision rendered a different total.
+    head = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    assert not six_with_lint, (
-        f"{'/'.join(six_with_lint)} declared both a six-or-more-shard matrix and a `lint` job "
-        f"on {WORKFLOW_FILE}. That pairing is exactly what thirteen counts, so it is the pairing "
-        "the corrected records deny; if a revision had it, the denial describes a tree that no "
-        "longer exists."
-    )
+    assert head.returncode == 0, head.stderr
+    head_full = head.stdout.strip()
+    head_short = head_full[:12]
+    # Every revision carrying the pairing must be an ancestor of HEAD: the
+    # pairing entered the tree at the dated move (2026-11-15) and the history
+    # only moves forward. A pairing on a side branch or after HEAD would make
+    # the records' date a guess.
+    for short in six_with_lint:
+        merged = subprocess.run(
+            ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", short, head_full],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert merged.returncode == 0, (
+            f"the six-or-more-shard-plus-lint pairing appears at {short}, which is "
+            f"not an ancestor of the current HEAD ({head_short}); the records date "
+            "the move to 2026-11-15, and a pairing outside that line makes the date "
+            "a guess."
+        )
 
 
 # --------------------------------------------------------------------------

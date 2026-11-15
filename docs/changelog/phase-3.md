@@ -1,5 +1,29 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The G2/G3 review findings land as repairs (2026-11-14)
+
+The independent G2/G3 review window's four findings are fixed in the tree:
+
+- **F-A** — the revision loop's `source_drifted` guard (`verify_original`)
+  had no witness: the two existing "original moved" witnesses exercise the
+  consent layer's `source_changed`, and a fresh approval granted after the
+  tamper sailed through. Two witnesses added to
+  `tests/test_revision_loop_refusals.py` (copy and publication checkpoints,
+  the approval deliberately asked *after* the tamper so only the loop's own
+  guard can refuse); two counter-mutation rows added to the LC-P3-03 record's
+  §4 table, both verified red on the mutated module.
+- **F-C** — `LC-P3-06-real-half-2026-11-10.md` paired the `46e2c21` shard
+  reading (shard 4, 0.15/1.34 s) with `fc6d65b` as the place it was taken;
+  the sentence now names `46e2c21` and states what `fc6d65b` itself shows
+  (shard 2, 0.15/1.04 s).
+- **F-D** — the LC-P3-04 record now records the merge commit's own ledger
+  reading (`4855ea6 → 2dce121`: LOST 1, ADDED 52) and why: `4afb829` renamed
+  the events-panel witness; the property is intact under its new name.
+- **F-E** — no action (snapshot numbers are honestly anchored to their named
+  trees); the gate's closing record re-measures per the standing rule.
+
+G2 test files: 36 passed (41.9 s); consistency witnesses: 514 passed.
+
 Archived verbatim from the root [`CHANGELOG.md`](../../CHANGELOG.md) on
 2026-11-11. The body is byte-identical to the sections as they stood there,
 except that each relative link gained the depth of `docs/changelog/`.
