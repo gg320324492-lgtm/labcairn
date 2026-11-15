@@ -1,5 +1,72 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The reviewer is named, the dry run's F-1 is fixed and verified, and the trial's human-gate packs are ready (2026-11-16)
+
+- **[PR #179](https://github.com/gg320324492-lgtm/labcairn/pull/179)
+  merged** as `21bfcf8` — the owner designated **Xiaoqi Zhushou** as the
+  real named reviewer (2026-11-16), replacing the test name
+  `Trial-Reviewer`; the designation is recorded in the changelog, this
+  handoff and both LC-P3-08 acceptance records
+  (`docs/acceptance/LC-P3-08-reviewer-form-2026-11-14.md`,
+  `docs/acceptance/LC-P3-08-trial-protocol-2026-11-14.md`).
+- **[PR #180](https://github.com/gg320324492-lgtm/labcairn/pull/180)
+  merged** as `da433d5` — the trial dry run's F-1 fix:
+  `open_loop` now derives its source id through
+  `_stable_source_id(root_id, resolved_key)`, the same derivation as the
+  CLI's ingestion walk (`src/labcairn/application/revision_loop.py`),
+  instead of the workspace-relative path. One file ingested by
+  `task create` and then looped keeps one source identity; the UNIQUE
+  violation (`IntegrityError`, poisoned session) the dry run hit is gone.
+  The dry run's separate `loop-materials/` root dodge is no longer needed.
+- **The F-1 witness is registered**:
+  `tests/test_loop_source_id_alignment.py` (3 tests) is in the evaluation
+  manifest and the shard partition, and the five-class cost totals were
+  re-measured to **2138.3 s (Ubuntu) / 5845.6 s (Windows)** in
+  `.github/CI.md`, `.github/workflows/python.yml` and
+  `docs/plans/LC-P1-13-evaluation-ci.md`.
+- **F-1 was verified end to end on merged `main`** — real order (CLI
+  ingest → `open_loop`) and reverse order reuse one source id
+  (`src-ea41de7943f94745`); editing moves the content hash but not the
+  identity; the old path-derived behaviour was reproduced as a control;
+  the mutation (fix line reverted) turns two alignment tests red.
+  Report: `E:\labcairn-local\p308-trial-run\dry-run-2026-11-16\verify-f1-2026-11-16\VERIFY-RESULT.md`.
+- **The G4 trial dry run (T1–T8, substitute material) reported** —
+  `DRY-RUN-REPORT.md` and six SUBSTITUTE/DRY-RUN working records under
+  `E:\labcairn-local\p308-trial-run\dry-run-2026-11-16\`; T9/T10 are human
+  acts, not performed. Seven findings and their dispositions: **F-1**
+  fixed in PR #180 (above); **F-2** known environment (frozen exe needs
+  `PYDANTIC_DISABLE_PLUGINS=1`; dry-run timings are optimistic); **F-3 /
+  F-5 / F-7** clarified in the trial documents
+  (`FINDINGS-RESOLUTION-2026-11-16.md`); **F-4** open scoping (the
+  marked-draft / clean-draft / response-table deliverables are not
+  distinct CLI artifacts — fill from receipts with an explicit note, or
+  widen the scope); **F-6** manual by design (the UNCERTAIN stop-the-line
+  refuses every later stage until a reconcile answers it).
+- **The T9 review pack and the T10 signing pack are ready and
+  reconciled** — `T9-REVIEW-PACK-2026-11-16.md`,
+  `T10-SIGNING-PACK-2026-11-16.md`,
+  `T9-T10-RECONCILE-2026-11-16.md` (21 criteria, 0 direct conflicts; T9
+  adds three reviewer reminders T10 already carried), and the eve
+  checklist `EVE-CHECKLIST-2026-11-16.md` — all outside the tree under
+  `E:\labcairn-local\p308-trial-run\`.
+- **The `E:\labcairn-local` inventory was taken** —
+  `inventory-2026-11-16.md`: ~21 GB, read-only, TRIAL / KEEP / CANDIDATE
+  classes; the installer's provenance chain re-verified (sha256
+  `c1b1d79f…`, 234,553,498 B, built from `3523bc4`).
+- **The stale G4 stash was dropped with the owner's approval** —
+  `41ee21e…` (`g4-records-draft-not-for-batch`, 2026-10-22), inventoried
+  in `stash-inventory-2026-11-16.md`, classified superseded by `main`;
+  the stash stack is now empty.
+- **The closeout evidence pack was assembled and cross-checked** —
+  `CLOSEOUT-EVIDENCE-PACK-2026-11-16.md`, `reports-crosscheck-2026-11-16.md`
+  (no unbacked claims).
+- **The watcher guard suite was verified locally — GREEN** — six-shard
+  windows-latest partition, 193 files, 5,358 tests on the `da433d5` tree:
+  5,357 passed, 28 declared environment skips, 1 transient re-run green;
+  0 real failures. Report:
+  `E:\labcairn-local\watcher-suite-verify-2026-11-16.md` (the evidence
+  pack's §1.1 rewritten from pending to final).
+
 ### The M6 rewrite kill-window drill and the F-A5 tidy land; the trial's second batch reports and the third batch is dispatched (2026-11-15, evening)
 
 - **[PR #174](https://github.com/gg320324492-lgtm/labcairn/pull/174)
