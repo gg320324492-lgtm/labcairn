@@ -42,12 +42,26 @@
   - **Owner list refreshed** to the 2026-11-15 version
     (`OWNER-HUMAN-TASKS-2026-11-15.md`, 10 open items — 8 owner-solo,
     2 needing a second person), superseding the 2026-11-14 list.
-- **The third batch is dispatched (three windows)**: `fix-f1-template`
-  (repairs the F1 template gap), `closeout-records` (this window: the
-  handoff and changelog entries you are reading), and
-  `owner-list-refresh` (keeps the owner list current). **Open on this
-  batch: the F1 template gap is pending the `fix-f1-template` window's
-  fix; the owner list stands at the 2026-11-15 version.**
+- **The third batch (three windows) reported; both template findings are
+  closed.** `fix-f1-template` created the missing row-7 template
+  (`trial-real-model-gap-record.md`) and replaced both installer-name
+  pre-fills with the hash-at-T0 placeholder, so F1 and F2 are fixed
+  same-day (the templates audit's update note). `owner-list-refresh` kept
+  the owner list at the 2026-11-15 version (its own reading: 9 open items —
+  the push item closed with PRs #174/#175). `closeout-records`
+  wrote this entry; it landed as **[PR #177](https://github.com/gg320324492-lgtm/labcairn/pull/177)**
+  (`cb047bf`) after **PR #176 was closed unmerged** — the record commit
+  `6359e02` is the same in both.
+- **Two follow-up windows reported, outside the tree.** The closeout pack
+  (`E:\labcairn-local\p3-closeout-pack\`, four pages) was refreshed to its
+  final state: F-A1 and F-A5 closed, F1/F2 fixed, the G4 trial materials
+  complete. The version-reference sweep
+  (`E:\labcairn-local\version-sweep-2026-11-15.md`) found **no misleading
+  reference to rewrite** across `p308-trial-run` and `p307-nsis-arms`; it
+  annotated two files with a NOTE and left nine historical rows as written.
+  Its one standing hazard: the 0.0.0 drill build and the 0.0.1 trial build
+  **share a file name**, so the package is identified by SHA-256, never by
+  name — which is what T0 step 0.2 enforces.
 
 ## 2026-11-15 (later) - PRs #169 and #170 merged; PR #171 lands the O3 supply decision and the closeout review's record repairs
 
