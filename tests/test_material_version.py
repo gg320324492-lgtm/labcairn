@@ -27,6 +27,7 @@ import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -49,9 +50,10 @@ def _freeze(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
     monkeypatch.setattr(sys, "_MEIPASS", str(root), raising=False)
 
 
-def _bundle_source(root: Path, module: object, contents: bytes) -> Path:
+def _bundle_source(root: Path, module: ModuleType, contents: bytes) -> Path:
     """Lay one module's source into the bundle's data tree."""
-    bundled = root / module.__name__.replace(".", "/")  # type: ignore[attr-defined]
+    name = module.__name__
+    bundled = root / name.replace(".", "/")
     bundled.parent.mkdir(parents=True, exist_ok=True)
     bundled.write_bytes(contents)
     return bundled
@@ -165,7 +167,7 @@ def test_frozen_version_tracks_the_bundled_bytes(
     _bundle_source(tmp_path, text_module, b"def decode_text(data):\n    return data\n")
     _freeze(monkeypatch, tmp_path)
     modules = (text_module,)
-    libraries = {}
+    libraries: dict[str, str] = {}
 
     first = derive_extraction_version(modules, libraries)
     again = derive_extraction_version(modules, libraries)
@@ -187,7 +189,7 @@ def test_unfrozen_version_is_stable_across_the_fix(
     every pre-fix row stays valid.
     """
     modules = (text_module,)
-    libraries = {}
+    libraries: dict[str, str] = {}
     before = derive_extraction_version(modules, libraries)
 
     monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)

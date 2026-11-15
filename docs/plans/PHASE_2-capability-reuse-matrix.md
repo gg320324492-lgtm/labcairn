@@ -160,7 +160,7 @@ requirement the `locator_key` already serves for pages and cells.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/material/ingest.py`, `src/labcairn/material/walk.py:101` — `def ingest_workspace(`, `src/labcairn/material/indexing.py:71` — `def build_index(`, `src/labcairn/material/version.py:78` — `def derive_extraction_version(` |
+| **Where** | `src/labcairn/material/ingest.py`, `src/labcairn/material/walk.py:101` — `def ingest_workspace(`, `src/labcairn/material/indexing.py:71` — `def build_index(`, `src/labcairn/material/version.py:121` — `def derive_extraction_version(` |
 | **Watched by** | `tests/test_material_ingest.py`, `tests/test_material_indexing.py`, `tests/test_material_walk.py`, `tests/test_material_regressions.py` |
 | **Verdict** | **reuse** |
 
