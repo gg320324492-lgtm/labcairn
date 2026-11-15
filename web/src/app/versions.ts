@@ -55,7 +55,7 @@ export function reportVersions(artifacts: readonly ArtifactView[]): readonly Rep
     if (view.receipt.kind !== 'report') {
       continue
     }
-    // MUTATION reverted: the receipt's own revision number groups it.
+    // A report receipt groups by its own revision number.
     const revision = view.receipt.revision ?? 1
     const group = byRevision.get(revision)
     if (group === undefined) {
