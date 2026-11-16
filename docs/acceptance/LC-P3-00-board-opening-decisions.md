@@ -67,6 +67,17 @@ on the reference host without a repair prompt. If the trial environment
 changes before the runs, the matrix is re-measured live; this record's
 values are anchors, not carried-forward facts.
 
+**Re-measured 2026-11-16 — the matrix changed.** The machine no longer
+carries Word 2010; it carries **Microsoft Office Home & Student 2019
+(ClickToRun, `HomeStudent2019Retail`), WINWORD file version
+`16.0.17932.20162`**. The owner ruled the same day that **Word 2019 is the
+compatibility reference for the §4 rows**, and that the ledger's host
+columns are corrected to the measured host rather than left naming a
+program that is not installed. WPS Office remains the primary host, still
+at `12.1.0.29690`. What the ruling does not do: it does not convert a
+Word 2019 reading into a Word 2010 reading — the reference host is 2019
+now, and the records say so.
+
 ## 6. Desktop shell, signing
 
 `LC-P3-05` (desktop shell, installer) stays scoped as written; signing and

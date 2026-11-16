@@ -78,7 +78,9 @@ per-row evidence map those steps must satisfy; it does not restate the steps.
 
 Hosts are the supported Word environments of
 [`LC-P3-00-board-opening-decisions.md`](LC-P3-00-board-opening-decisions.md)
-§5: WPS Office primary, Microsoft Office 2010 compatibility reference.
+§5: WPS Office primary, and the compatibility reference as re-measured there
+(**Microsoft Office 2019, WINWORD 16.0.17932.20162** since the 2026-11-16
+re-measurement; the record's original 2026-11-07 reading was Word 2010).
 Open/reopen steps are human-performed; no COM, no ProgID, no UI automation,
 and no agent stands in for them.
 

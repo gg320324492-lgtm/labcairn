@@ -55,7 +55,8 @@ it.
 
 ## The human half
 
-The WPS Office and Microsoft Office 2010 open/reopen checklist is **NOT RUN**
+The WPS Office and Microsoft Office 2019 (see LC-P3-00 §5's 2026-11-16
+re-measurement) open/reopen checklist is **NOT RUN**
 in this 2026-11-08 record. No operator launched either host at that time, and
 no host result is claimed here. The form and the evidence directory are in
 `G1-ENV-EVIDENCE-PREP-2026-11-08.md`; the rows were held open pending the
