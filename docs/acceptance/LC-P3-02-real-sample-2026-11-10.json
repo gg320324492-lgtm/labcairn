@@ -171,7 +171,7 @@
   "completed_arms": 42,
   "errors": 0,
   "expectation_mismatches": 0,
-  "human_half": "NOT RUN - the dual-host reopen rows are the owner's open half",
+  "human_half": "COMPLETE - 16/16 PASS on 2026-11-16/17 (WPS primary and Word 2019 reference judged separately; all hashes unchanged)",
   "import_receipt": {
     "accepted_text_chars": 18928,
     "accepted_text_sha256": "c7d085e6036e36b70e827eee941d8cc33340234827a3ec0da02b76df7acfafae",

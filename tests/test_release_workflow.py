@@ -51,8 +51,9 @@ gate reads every installed distribution's licence and refuses a release whose
 closure carries a term it does not record; NOTICE §2.2 prints the census that
 audit produces and §2.3 names the four dependencies whose *bundled* material
 carries terms of its own. Nothing compared the two, and nothing compared §2.2's
-five closure figures -- 171 requirement lines, 167 Linux, 165 macOS, 168 Windows,
-a union of 170 -- with anything. They are a computation over the markers
+five closure figures -- the 171 requirement lines, 167 Linux, 165 macOS, 168 Windows
+and a union of 170 the pre-logfire-removal lock gave, re-measured at 159/155/153/156/158
+when the extra left -- with anything. They are a computation over the markers
 ``uv export`` prints for this lock, and the licence file paths §2.3 names are
 files inside installed distributions. ``scripts/notice_licence_watch.py`` is the
 reader; the cases below run it against the real tree and against doctored copies
@@ -79,6 +80,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import importlib.metadata
 import importlib.util
 import io
 import os
@@ -888,22 +890,23 @@ def _closure_read() -> Any:
 def test_notice_closure_figures_are_the_figures_the_lock_markers_produce(repo_root: Path) -> None:
     """§2.2's five closure figures are recomputed from the markers the lock records.
 
-    **The property.** §2.2 states 171 requirement lines, 167 on Linux, 165 on macOS,
-    168 on Windows and a union of 170, and explains the differences as the
+    **The property.** §2.2 states 159 requirement lines, 155 on Linux, 153 on macOS,
+    156 on Windows and a union of 158, and explains the differences as the
     platform-conditional packages. Those five numbers are not a measurement that has
     to be carried forward by hand: they are what `packaging.markers` answers for the
     markers ``uv export`` prints for this lock, and the same evaluator the release
-    gate's own audit uses.
+    gate's own audit uses. (The section's earlier reading — 171/167/165/168/170 —
+    is the pre-logfire-removal closure, recorded in the section's own prose.)
 
     **Why it needed a witness.** A dependency arriving with a Windows marker, or a
     marker being narrowed, changes all five figures at once. §2.2 would have kept
-    printing 171/167/165/168/170 and every other check would have stayed green,
+    printing its closure counts and every other check would have stayed green,
     because nothing read the lock's markers against the section's prose.
 
-    **The union is not the line count.** The export resolves 171 ``name==version``
-    lines; the union of what the three supported platforms install is 170, because one
+    **The union is not the line count.** The export resolves 159 ``name==version``
+    lines; the union of what the three supported platforms install is 158, because one
     distribution carries ``sys_platform == 'emscripten'`` and installs on none of
-    them. A reader that took §2.2's "union is 170" as the line count would have
+    them. A reader that took §2.2's "union is 158" as the line count would have
     reported a real, correct section as wrong -- which is a red about the witness, not
     about the record.
     """
@@ -911,8 +914,8 @@ def test_notice_closure_figures_are_the_figures_the_lock_markers_produce(repo_ro
     read = _closure_read()
     recorded = watch.closure_counts(watch.read_notice())
 
-    assert len(read.rows) == 171, (
-        f"the export names {len(read.rows)} requirement lines; §2.2 states 171, and the "
+    assert len(read.rows) == 159, (
+        f"the export names {len(read.rows)} requirement lines; §2.2 states 159, and the "
         "figure this test is about has stopped being the one the lock gives"
     )
     problems = watch.closure_count_problems(read, recorded)
@@ -1005,7 +1008,7 @@ def test_notice_licence_census_closes_against_the_installed_closure(repo_root: P
     invented = dict(recorded)
     invented["GPL-3.0-only"] = 1
     invented_problems = watch.census_problems(invented, labels, foreign, broken)
-    assert any("census rows add to 172" in problem for problem in invented_problems), (
+    assert any("census rows add to 160" in problem for problem in invented_problems), (
         f"a §2.2 row for a licence nothing carries left the census total closed: "
         f"{invented_problems}"
     )
@@ -3363,3 +3366,100 @@ def test_the_licence_witness_catches_a_damaged_record(repo_root: Path, tmp_path:
     )
     assert stated_digest == damaged, "the control did not find the damaged hash in the README"
     assert stated_size == on_disk[victim][0], "the control changed the recorded byte count"
+
+
+# ---------------------------------------------------------------------------
+# The release dependency graph and the logfire extra.
+#
+# `pydantic-ai`'s default distribution (its own Requires-Dist) pulls every
+# extra it publishes, and `logfire` came in that way. No product file imports
+# logfire; its one effect on this product was its pydantic plugin, which reads
+# its target's source text at import time and kills a frozen executable
+# (ADR-0023 §D; `PYDANTIC_DISABLE_PLUGINS=1` on the supervisor's one spawn path
+# was the mitigation). The owner decided on 2026-11-17 to drop the extra from
+# the release graph while keeping the supervisor's setting, so the plugin never
+# has anything to register even when the flag is absent.
+#
+# Both halves are witnessed here because the claim is one sentence with two
+# ends: the graph installs no logfire distribution, and the supervisor still
+# sets the flag. Removing only the first end would make the flag dead weight
+# the next dependency change could silently drop; removing the second while the
+# extra is gone would leave the freeze dependent on nothing ever re-adding it.
+# ---------------------------------------------------------------------------
+
+#: The distributions the release graph must not carry. The plugin entry point
+#: is registered by the `logfire` distribution itself (measured: installing it
+#: adds `pydantic` entry point `logfire-plugin ->
+#: logfire.integrations.pydantic:plugin`; the `logfire-api` stub it leaves
+#: behind registers nothing). A distribution naming the plugin in the graph
+#: makes the freeze's import-time plugin scan a live hazard again.
+FORBIDDEN_PLUGIN_DISTRIBUTIONS: Final[frozenset[str]] = frozenset({"logfire"})
+
+
+def _pydantic_plugin_entry_points() -> list[tuple[str, str]]:
+    """The `pydantic` entry-point group, as the installed graph presents it."""
+    group = list(importlib.metadata.entry_points().select(group="pydantic"))
+    return [(entry.name, entry.value) for entry in group]
+
+
+def test_the_release_closure_installs_no_logfire_distribution() -> None:
+    """The release dependency graph installs no logfire distribution.
+
+    **The property.** `uv export --frozen --no-dev` over this tree's lock — the
+    same command the release gate's dependency-licences job resolves and
+    installs — names no `logfire` distribution. The export is run, not
+    paraphrased, so a lock edit that reintroduces the package reddens this
+    before a release build carries it.
+
+    **The positive control is in the graph itself.** The same scan must still
+    find `logfire-api` — pydantic-graph's own hard dependency, left in the
+    graph when the extra was dropped, and measured to register no pydantic
+    plugin entry point. If both names vanish from the scan, the scan is reading
+    the wrong text and the witness proves nothing.
+    """
+    read = _closure_read()
+    named = {row.name.lower() for row in read.distinct_rows}
+
+    installed_forbidden = FORBIDDEN_PLUGIN_DISTRIBUTIONS & named
+    assert not installed_forbidden, (
+        f"the release closure pins {sorted(installed_forbidden)}, whose pydantic "
+        "plugin reads its target's source text at import time and kills a frozen "
+        "executable (ADR-0023 §D). Remove the extra from pyproject.toml and "
+        "re-resolve, or record a new owner decision that reverses the 2026-11-17 one."
+    )
+
+    assert "logfire-api" in named, (
+        "the scan found neither logfire nor logfire-api in the closure: it is not "
+        "reading the export this witness is about, so its green proves nothing"
+    )
+    assert "logfire-api" not in FORBIDDEN_PLUGIN_DISTRIBUTIONS, (
+        "logfire-api was measured to register no pydantic plugin entry point; "
+        "if that changes, it belongs in the forbidden set with the evidence"
+    )
+
+
+def test_the_installed_graph_registers_no_pydantic_plugin_entry_point() -> None:
+    """The installed release graph registers no pydantic plugin entry point.
+
+    **The property.** In the project environment synced from this lock, the
+    `pydantic` entry-point group is empty: the plugin that killed the frozen
+    executable registers through that group, and after the extra's removal
+    nothing in the closure registers one. This is the end-to-end half of the
+    claim — the export names no logfire distribution *and* the environment the
+    freeze is built from really carries no plugin.
+
+    **Why the group, not a package name.** ADR-0023 §D measured the failure as
+    `import fastapi` loading `logfire.integrations.pydantic:plugin` through
+    pydantic's plugin machinery; the machinery reads entry points, so the
+    entry-point group is the fact the freeze depends on. The control requires
+    the group to have been readable at all, so an import-level failure of the
+    machinery cannot pass as a green.
+    """
+    entry_points = _pydantic_plugin_entry_points()
+    assert entry_points is not None, "the pydantic entry-point group could not be read"
+    assert not entry_points, (
+        f"the installed graph registers pydantic plugin(s) {entry_points}; the "
+        "release closure was decided to carry none (owner decision, 2026-11-17). "
+        "A plugin here reads its target's source text at import time and kills "
+        "the frozen executable (ADR-0023 §D)."
+    )
