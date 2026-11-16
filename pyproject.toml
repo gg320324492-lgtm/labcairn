@@ -59,7 +59,19 @@ dependencies = [
     "pydantic>=2.9,<3",
     # Model/tool interaction layer. Explicitly NOT the task data authority —
     # SQLite is. See docs/ARCHITECTURE.md and ADR-0002.
-    "pydantic-ai>=1,<2",
+    # The default `pydantic-ai` distribution hard-requires
+    # `pydantic-ai-slim[ag-ui,anthropic,bedrock,cli,cohere,evals,fastmcp,google,
+    # groq,huggingface,logfire,mcp,mistral,openai,retries,spec,temporal,ui,
+    # vertexai,xai]` — every extra it publishes, including the `logfire`
+    # observability extra. No product file imports logfire; its only effect
+    # here was its pydantic plugin, which reads its target's source text at
+    # import time and kills a frozen executable (ADR-0023 §D; the supervisor's
+    # PYDANTIC_DISABLE_PLUGINS=1 was the mitigation). The owner decided on
+    # 2026-11-17 to drop the logfire extra from the release graph while keeping
+    # every other dependency, so the dependency is named in slim form with the
+    # same extra list minus `logfire`. Removing another extra later is a
+    # deliberate act, witnessed by the release-graph test.
+    "pydantic-ai-slim[ag-ui,anthropic,bedrock,cli,cohere,evals,fastmcp,google,groq,huggingface,mcp,mistral,openai,retries,spec,temporal,ui,vertexai,xai]>=1,<2",
     # LC-P2-01 T00. The HTTP client the provider path is built on arrived
     # transitively through pydantic-ai and was declared by nobody; the
     # decision record is docs/adr/ADR-0019-model-call-dependencies.md. The
