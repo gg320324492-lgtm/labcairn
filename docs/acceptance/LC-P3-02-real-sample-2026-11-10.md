@@ -8,7 +8,7 @@
 
 **real-sample loop: 42/42 arms measured; complete = true; report_sha256 = a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638; human dual-host reopen: NOT RUN - held open pending the owner.**
 
-This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and keeps the human dual-host reopen half open; the two halves are not the same claim. **Read with the dated update in [Open half](#open-half) below:** on 2026-11-16 the eight WPS rows were measured `PASS` with unchanged hashes, and the eight Word 2010 rows remain `PENDING-HUMAN`.
+This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and keeps the human dual-host reopen half open; the two halves are not the same claim. **Read with the dated update in [Open half](#open-half) below:** on 2026-11-16 the eight WPS rows were measured `PASS` with unchanged hashes, and the eight Word rows remain `PENDING-HUMAN` (reference host re-measured to Word 2019 on 2026-11-16, see below).
 
 ## Branch roles
 
@@ -250,11 +250,15 @@ included, `hash_changed = no`**, and every row is `PASS` in
 | R04 clean | 4,438,807 | `28e0e502caaa…` |
 | R04 marked | 4,438,860 | `cd1e7a357c80…` |
 
-**Still open: the eight Word 2010 `-reference` rows.** Word 2010 is not
-installed on the machine used for the WPS half (only Office16 is), so
-those eight rows stay `PENDING-HUMAN` with all thirteen human cells empty.
-A WPS `PASS` is never copied, averaged or extrapolated into a Word `PASS`;
-the reference half is decided by a person on a host that has Word 2010.
+**Still open: the eight Word `-reference` rows.** The machine used for the
+WPS half carried no Word 2010; re-measured live on 2026-11-16 it carries
+**Office Home & Student 2019, WINWORD `16.0.17932.21140`**, and the owner
+ruled that **Word 2019 is the compatibility reference** for these rows
+(recorded in `LC-P3-00-board-opening-decisions.md` §5). The ledger's host
+columns carry that measured host. Those eight rows stay `PENDING-HUMAN`
+with all thirteen human cells empty until a person runs them. A WPS `PASS`
+is never copied, averaged or extrapolated into a Word `PASS`; the reference
+half is decided by a person on the reference host.
 
 Evidence lives outside the tree, as the SOP requires: the ledger with its
 measured cells, sixteen screenshots, and a per-row snapshot taken before
