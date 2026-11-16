@@ -421,7 +421,7 @@ jobs:
   # the Phase 1 blocker table with its denominators. It is not on
   # `pull_request` because a full offline run costs about 36 minutes on an
   # Ubuntu runner (the per-file costs in `.github/ci-shards.json`, anchored
-  # at d9d380cfc5e2619db68a92e11eb9faea6d51b784, sum to 2138.3 s over the
+  # at d9d380cfc5e2619db68a92e11eb9faea6d51b784, sum to 2138.7 s over the
   # five offline classes), and the twelve shard jobs already run the same files. A pull-request job would
   # become the wall-clock bottleneck for a report that can be produced
   # periodically instead.

@@ -39,7 +39,7 @@
 - **The F-1 witness is registered**:
   `tests/test_loop_source_id_alignment.py` (3 tests) is in the evaluation
   manifest and the shard partition, and the five-class cost totals were
-  re-measured to **2138.3 s (Ubuntu) / 5845.6 s (Windows)** in
+  re-measured to **2138.7 s (Ubuntu) / 5846.4 s (Windows)** in
   `.github/CI.md`, `.github/workflows/python.yml` and
   `docs/plans/LC-P1-13-evaluation-ci.md`.
 - **F-1 was verified end to end on merged `main`** — real order (CLI
