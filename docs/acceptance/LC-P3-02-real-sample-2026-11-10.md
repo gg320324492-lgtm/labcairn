@@ -8,7 +8,7 @@
 
 **real-sample loop: 42/42 arms measured; complete = true; report_sha256 = a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638; human dual-host reopen: NOT RUN - held open pending the owner.**
 
-This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and keeps the human dual-host reopen half open; the two halves are not the same claim.
+This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and keeps the human dual-host reopen half open; the two halves are not the same claim. **Read with the dated update in [Open half](#open-half) below:** on 2026-11-16 the eight WPS rows were measured `PASS` with unchanged hashes, and the eight Word 2010 rows remain `PENDING-HUMAN`.
 
 ## Branch roles
 
@@ -226,4 +226,37 @@ The companion JSON file is derived from the same append-only ledger. Its `comple
 
 ## Open half
 
-The dual-host reopen rows are **NOT RUN**. No operator launched WPS Office or Microsoft Office 2010, and no host result is claimed here. The owner's human half stays open until a person performs it.
+The dual-host reopen rows were **NOT RUN** at the record's date. No operator
+launched WPS Office or Microsoft Office 2010 then, and no host result is
+claimed by this record.
+
+**Measured 2026-11-16 — the WPS half has run.** A person opened each of the
+eight `-primary` artifacts in WPS Office 12.1.0.29690 twice (first open,
+then reopen; closed without saving between passes), screenshotted both
+passes, and judged the eight structure tokens from each pass separately.
+After the cycle each file was re-hashed: **all 8 measured
+`sha256_after` values equal their `sha256_before` values, byte sizes
+included, `hash_changed = no`**, and every row is `PASS` in
+`reopen-rows.csv` (operator `LabCarin`). Measured values:
+
+| row | bytes | sha256 (unchanged across the cycle) |
+|---|---:|---|
+| R01 clean | 4,438,788 | `2843198175b1…` |
+| R01 marked | 4,438,835 | `72f0472e86c7…` |
+| R02 clean | 4,438,795 | `ec63960564e3…` |
+| R02 marked | 4,438,859 | `ba8381f0099a…` |
+| R03 clean | 4,438,801 | `bb63cef41541…` |
+| R03 marked | 4,438,846 | `9e9e9d3d7154…` |
+| R04 clean | 4,438,807 | `28e0e502caaa…` |
+| R04 marked | 4,438,860 | `cd1e7a357c80…` |
+
+**Still open: the eight Word 2010 `-reference` rows.** Word 2010 is not
+installed on the machine used for the WPS half (only Office16 is), so
+those eight rows stay `PENDING-HUMAN` with all thirteen human cells empty.
+A WPS `PASS` is never copied, averaged or extrapolated into a Word `PASS`;
+the reference half is decided by a person on a host that has Word 2010.
+
+Evidence lives outside the tree, as the SOP requires: the ledger with its
+measured cells, sixteen screenshots, and a per-row snapshot taken before
+each write under
+`E:/labcairn-local/phase3-g1-evidence/LC-P3-02-real-half-2026-11-10/`.
