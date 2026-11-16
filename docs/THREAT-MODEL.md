@@ -863,7 +863,7 @@ witnessed in the unit class (`tests/test_provider_credentials.py:319` — `def t
 `tests/test_provider_credentials.py:355` — `assert live_settings({SMOKE_KEY_ENV: FAKE_KEY}) is None, (`), because a rule that gates a class
 cannot be checked only inside that class. The marker is registered as *"needs a
 real paid provider credential; skipped wherever the owner has not named one"*
-(`pyproject.toml:311` — `requires_provider: needs a real paid provider credential; skipped wherever the owner has not named one`).
+(`pyproject.toml:323` — `requires_provider: needs a real paid provider credential; skipped wherever the owner has not named one`).
 
 **It has run.** Three times on 2026-10-28 against `MiniMax-M3.1-Flash` over an
 Anthropic-protocol endpoint — twice locally and once on GitHub, dispatch
