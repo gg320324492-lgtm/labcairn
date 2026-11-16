@@ -69,4 +69,8 @@ observed with the same mode. **Read 2026-11-13** in
 [`PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)'s open-gaps table.
 The 42-arm machine half is recorded in
 [`LC-P3-02-real-sample-2026-11-10.md`](LC-P3-02-real-sample-2026-11-10.md);
-it does not close the human half.
+it does not close the human half. **Read 2026-11-17:** the separate 16-row
+real-sample human ledger is now **16/16 PASS** — the eight WPS primary rows
+on 2026-11-16 and the eight Word 2019 reference rows on 2026-11-16/17, all
+re-hashed unchanged — in the same dated record; this matrix's fifth-version
+44-row checklist remains an owner obligation.
