@@ -375,11 +375,14 @@ def test_the_run_record_states_the_open_half_as_open() -> None:
     record would be claiming a dual-host result no person produced; without
     the machine-half sentence it would be reporting synthetic coverage as
     advisor use, which `LC-P3-00` §3 forbids. The real-sample loop's 42-arm
-    measurement now has its own dated record; the substitute record must cite
-    that measured state while keeping the human half open.
+    measurement and its later human half have their own dated record; the
+    substitute record must cite both measured states without back-filling a
+    host observation into the substitute run.
     """
     text = RUN_RECORD.read_text(encoding="utf-8")
-    assert "NOT RUN" in text, "the record states no open half"
+    assert "At this record's date the human half was **NOT RUN**" in text, (
+        "the substitute record lost its dated open-half statement"
+    )
     assert "real-sample loop: NOT RUN — held open pending the owner's sample" not in text, (
         "the substitute record has not followed the completed 42-arm record"
     )
@@ -392,8 +395,11 @@ def test_the_run_record_states_the_open_half_as_open() -> None:
     assert "a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638" in text, (
         "the substitute record does not bind its statement to the report digest"
     )
-    assert "human\ndual-host reopen: NOT RUN - held open pending the owner" in text, (
-        "the machine half has been allowed to close the human half"
+    assert "human\ndual-host reopen: 16/16 PASS on 2026-11-16/17" in text, (
+        "the substitute record has not followed the completed human half"
+    )
+    assert "human\ndual-host reopen: NOT RUN - held open pending the owner" not in text, (
+        "the substitute record still closes the human half as NOT RUN"
     )
     real = (RECORDS / "LC-P3-02-real-sample-2026-11-10.json").read_text(encoding="utf-8")
     summary = json.loads(real)

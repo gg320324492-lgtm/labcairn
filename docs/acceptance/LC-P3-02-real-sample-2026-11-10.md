@@ -6,9 +6,9 @@
 
 ## Final status sentence
 
-**real-sample loop: 42/42 arms measured; complete = true; report_sha256 = a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638; human dual-host reopen: NOT RUN - held open pending the owner.**
+**real-sample loop: 42/42 arms measured; complete = true; report_sha256 = a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638; human dual-host reopen: 16/16 PASS on 2026-11-16/17.**
 
-This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and keeps the human dual-host reopen half open; the two halves are not the same claim. **Read with the dated update in [Open half](#open-half) below:** on 2026-11-16 the eight WPS rows were measured `PASS` with unchanged hashes, and the eight Word rows remain `PENDING-HUMAN` (reference host re-measured to Word 2019 on 2026-11-16, see below).
+This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and now names the completed human dual-host reopen half; the two halves are distinct measurements. **Read with the dated update in [Open half](#open-half) below:** the eight WPS rows were measured `PASS` on 2026-11-16 and the eight Word 2019 rows on 2026-11-16/17, all with unchanged hashes.
 
 ## Branch roles
 
@@ -250,17 +250,39 @@ included, `hash_changed = no`**, and every row is `PASS` in
 | R04 clean | 4,438,807 | `28e0e502caaa…` |
 | R04 marked | 4,438,860 | `cd1e7a357c80…` |
 
-**Still open: the eight Word `-reference` rows.** The machine used for the
-WPS half carried no Word 2010; re-measured live on 2026-11-16 it carries
-**Office Home & Student 2019, WINWORD `16.0.17932.21140`**, and the owner
-ruled that **Word 2019 is the compatibility reference** for these rows
-(recorded in `LC-P3-00-board-opening-decisions.md` §5). The ledger's host
-columns carry that measured host. Those eight rows stay `PENDING-HUMAN`
-with all thirteen human cells empty until a person runs them. A WPS `PASS`
-is never copied, averaged or extrapolated into a Word `PASS`; the reference
-half is decided by a person on the reference host.
+**Measured 2026-11-16/17 — the Word `-reference` half has run.** The machine
+used for the WPS half carried no Word 2010; re-measured live on 2026-11-16 it
+carries **Office Home & Student 2019, WINWORD `16.0.17932.21140`**, and the
+owner ruled that **Word 2019 is the compatibility reference** for these rows
+(recorded in `LC-P3-00-board-opening-decisions.md` §5). A person opened each
+of the eight `-reference` artifacts in Word 2019 twice (first open, then
+reopen; closed without saving between passes), screenshotted both passes,
+and judged the eight structure tokens from each pass separately. After the
+cycle each file was re-hashed: **all 8 measured `sha256_after` values equal
+their `sha256_before` values, byte sizes included, `hash_changed = no`**,
+and every row is `PASS` in `reopen-rows.csv` (operator `LabCarin`). Measured
+values:
+
+| row | bytes | sha256 (unchanged across the cycle) |
+|---|---:|---|
+| R01 clean | 4,438,788 | `2843198175b1…` |
+| R01 marked | 4,438,835 | `72f0472e86c7…` |
+| R02 clean | 4,438,795 | `ec63960564e3…` |
+| R02 marked | 4,438,859 | `ba8381f0099a…` |
+| R03 clean | 4,438,801 | `bb63cef41541…` |
+| R03 marked | 4,438,846 | `9e9e9d3d7154…` |
+| R04 clean | 4,438,807 | `28e0e502caaa…` |
+| R04 marked | 4,438,860 | `cd1e7a357c80…` |
+
+The two halves were decided separately. No WPS `PASS` was copied, averaged
+or extrapolated into a Word `PASS`; the reference half was decided by a
+person on the reference host. After the final write-back, all **16/16 rows
+are `PASS`**, every row has all thirteen human cells filled, and the ledger
+SHA-256 is `2d8b133b5c077e0808d8d2c9235df1ea75557d397741ebd2264aa287aa5c7e19`
+(27,107 bytes, 16 data rows).
 
 Evidence lives outside the tree, as the SOP requires: the ledger with its
-measured cells, sixteen screenshots, and a per-row snapshot taken before
+measured cells, 32 first-open/reopen screenshots, five auxiliary review/last-page
+screenshots captured during observation, and a per-row snapshot taken before
 each write under
 `E:/labcairn-local/phase3-g1-evidence/LC-P3-02-real-half-2026-11-10/`.

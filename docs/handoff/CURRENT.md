@@ -1,6 +1,30 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-17 - the real-sample dual-host reopen half is complete (16/16 PASS)
+
+- The eight WPS `-primary` rows were measured on 2026-11-16 and the eight
+  Word 2019 `-reference` rows on 2026-11-16/17. The reference host was
+  re-measured as Office Home & Student 2019, WINWORD `16.0.17932.21140`
+  (`HomeStudent2019Retail`), and PR #184 recorded that correction on
+  `main` = `31972d9dcfd04d5c4fbfa556a4e5d1b6f80918b4` with all 23 checks
+  green; its branch was deleted and `witness_ledger.py` reported
+  `LOST -- none`.
+- A person opened each of the 16 artifacts twice on its assigned host,
+  closed without saving, screenshot both passes, and judged the eight
+  structure tokens in each pass. All 16 rows are `PASS` in the external
+  `reopen-rows.csv` with operator `LabCarin`; all 13 human cells are filled;
+  every `sha256_after` equals `sha256_before` with byte size unchanged, so
+  `hash_changed = no` in every row.
+- The validated ledger's SHA-256 is
+  `2d8b133b5c077e0808d8d2c9235df1ea75557d397741ebd2264aa287aa5c7e19`
+  (27,107 bytes, 16 data rows). Thirty-two first-open/reopen screenshots
+  and three auxiliary review screenshots live outside the tree under
+  `E:/labcairn-local/phase3-g1-evidence/LC-P3-02-real-half-2026-11-10/`.
+  [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md)
+  no longer carries the human half as `NOT RUN`; the WPS and Word halves
+  were decided separately and neither was extrapolated into the other.
+
 ## 2026-11-16 - PRs #179 and #180 land; the reviewer is named; the trial dry run reports F-1..F-7; F-1 is fixed and verified end to end
 
 - **[PR #179](https://github.com/gg320324492-lgtm/labcairn/pull/179)
@@ -437,9 +461,10 @@ version the ledger names, verified 2026-11-13), so its rows are open for the
 owner to observe with the same screenshot mode rather than waiting for an
 installation. The owner-picked sample's 42-arm machine loop landed on
 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
-dual-host reopen half stays `NOT RUN`, with the 16-row reopen ledger 16/16
-`PENDING-HUMAN` and its observation SOP ready for the owner, and no gate row
-has moved.
+dual-host reopen half was completed on 2026-11-16/17, with the 16-row reopen
+ledger 16/16 `PASS` (operator `LabCarin`, unchanged hashes, WPS primary and
+Word 2019 reference judged separately). This historical entry predates that
+measurement; no gate row has moved.
 
 **Date:** 2026-11-09 · **Phase 3's G1 batch has landed
 locally; no gate is closed.** `LC-P3-01`'s real-browser baseline, the write seam's

@@ -1,5 +1,23 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The real-sample dual-host reopen half is complete (2026-11-17)
+
+- All 16 rows of the external LC-P3-02 real-sample reopen ledger are now
+  `PASS` (operator `LabCarin`): eight WPS Office 12.1.0.29690 primary rows
+  measured on 2026-11-16 and eight Microsoft Office Home & Student 2019
+  (`WINWORD 16.0.17932.21140`) reference rows measured on 2026-11-16/17.
+  Each artifact was opened twice on its assigned host, closed without
+  saving, screenshot on both passes, and judged on eight structure tokens;
+  all 16 files were re-hashed unchanged.
+- The completed ledger is
+  `2d8b133b5c077e0808d8d2c9235df1ea75557d397741ebd2264aa287aa5c7e19`
+  (27,107 bytes, 16 data rows) with all thirteen human cells filled in each
+  row; 32 first-open/reopen screenshots, five auxiliary review/last-page
+  screenshots, and one per-row pre-write snapshot are outside the tree under
+  `E:/labcairn-local/phase3-g1-evidence/LC-P3-02-real-half-2026-11-10/`.
+  The dated acceptance record now states 16/16 PASS and keeps the two host
+  halves as separate measurements.
+
 ### The reviewer is named, the dry run's F-1 is fixed and verified, and the trial's human-gate packs are ready (2026-11-16)
 
 - **[PR #179](https://github.com/gg320324492-lgtm/labcairn/pull/179)
