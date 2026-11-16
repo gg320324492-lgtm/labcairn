@@ -54,7 +54,7 @@ measures it is named in the last column.
 
   surface                          items  copyleft / attribution       measured in
   -------------------------------  -----  --------------------------  -----------
-  python dependency closure          171  MPL-2.0, LGPL, GPL-3.0       §2.2, §2.3
+  python dependency closure          159  MPL-2.0, LGPL, GPL-3.0       §2.2, §2.3
   shell npm tree                     268  none                       §2.4
   installer-distributed binaries        8  LGPL-2.1                   §2.5
   web npm tree                       266  MPL-2.0, CC-BY-4.0         §2.6
@@ -172,27 +172,45 @@ text lives inside the installed distribution.
 2.2  The whole closure
 -----------------------
 
-`uv export --frozen --no-dev` over the current `uv.lock` (measured
-2026-11-11 at `1dd0d54` and re-run at `c884f25`, both printed by
+`uv export --frozen --no-dev` over the `uv.lock` of 2026-11-11 (measured
+at `1dd0d54` and re-run at `c884f25`, both printed by
 `git rev-parse HEAD`, both producing the same 171 lines and the same census; the
 figures were first measured over the lockfile at `dd08573` and reproduce
-unchanged, even though that lock has since changed) resolves 171
-requirement lines across platforms: 167 on Linux, 165 on macOS, 168 on Windows.
-The difference between the three counts is the platform-conditional packages
-(pywin32, pywin32-ctypes and colorama on Windows; jeepney and secretstorage on
-Linux). Their union is 170; the one distribution left over,
-httpx2-jsfetch, installs on no supported platform at all — its marker is
-`sys_platform == 'emscripten'` — and it is under BSD-3-Clause.
+unchanged, even though that lock has since changed) resolved 171
+requirement lines across platforms (167 Linux, 165 macOS, 168 Windows, a
+170-package union). The difference between the three counts
+was the platform-conditional packages (pywin32, pywin32-ctypes and colorama
+on Windows; jeepney and secretstorage on Linux). The one distribution left
+over, httpx2-jsfetch, installs on no supported platform at all — its marker
+is `sys_platform == 'emscripten'` — and it is under BSD-3-Clause.
 
-Every one of the 171 resolved to a licence read out of the installed
-distribution, and the sixteen distinct results were:
+Re-measured 2026-11-17, after the owner's decision to drop the `logfire`
+extra from the release dependency graph (the same day's `pyproject.toml`
+comment records it). Over the lock this tree carries now, the same export
+resolves 159 requirement lines across platforms: 155 on Linux, 153 on
+macOS, 156 on Windows; their union is 158. The difference between the three
+counts is still the platform-conditional packages (pywin32 and colorama on
+Windows; jeepney and secretstorage on Linux); httpx2-jsfetch still installs
+on no supported platform. The twelve lines the graph lost are the `logfire`
+distribution itself, the `pydantic-ai` wrapper distribution that
+hard-required its extra, and the ten packages only that extra pulled in
+(`executing`, `wrapt`, and the eight opentelemetry exporter, instrumentation
+and proto packages the logfire extra alone carried; `protobuf` stays — other
+extras pin it too). Every figure from here on is measured over the lock this
+tree carries now.
 
-  74  MIT
-  46  Apache-2.0
+Every one of the 159 resolved to a licence read out of the installed
+distribution's own metadata (the three that install on no platform here —
+jeepney and secretstorage under MIT and BSD-3-Clause, httpx2-jsfetch under
+BSD-3-Clause — from their distributions' published metadata), and the
+sixteen distinct results were:
+
+  71  MIT
+  38  Apache-2.0
   29  BSD-3-Clause
    4  PSF-2.0
-   3  BSD-2-Clause
    3  ISC
+   2  BSD-2-Clause
    2  MPL-2.0
    2  BSD-3-Clause+Apache-2.0
    1  Apache-2.0 AND CNRI-Python
