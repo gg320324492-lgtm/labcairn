@@ -1113,8 +1113,13 @@ sessions.**
 **The first real model request is done.** A request with a schema, against
 the owner's own MiniMax endpoint, under an approval a person granted,
 with the ceiling the owner set: **one request, four thousand tokens, and
-no money ceiling** (MiniMax has no price table, and a money ceiling nobody
-can measure fails closed — it would have refused the request). The
+no money ceiling** (MiniMax had no published price table then, and a money
+ceiling nobody can measure fails closed — it would have refused the
+request). **[Priced 2026-11-16:]** MiniMax has since published the
+`MiniMax-M3.1-Flash` price table (CNY 1 / 1M input, CNY 4 / 1M output,
+CNY 0.1 / 1M cached input; minimax.cn; USD $0.15 / $0.60 / $0.015 on
+minimax.io), and the owner's account runs on a prepaid token plan, so a
+measurable money ceiling now exists for future runs. The
 transmit gate refused twice before it permitted anything, and each
 refusal named its remedy: the grant's scope did not reach the material,
 and then the approval's task scope did not match. **The answer was
