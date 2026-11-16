@@ -252,7 +252,7 @@ included, `hash_changed = no`**, and every row is `PASS` in
 
 **Still open: the eight Word `-reference` rows.** The machine used for the
 WPS half carried no Word 2010; re-measured live on 2026-11-16 it carries
-**Office Home & Student 2019, WINWORD `16.0.17932.20162`**, and the owner
+**Office Home & Student 2019, WINWORD `16.0.17932.21140`**, and the owner
 ruled that **Word 2019 is the compatibility reference** for these rows
 (recorded in `LC-P3-00-board-opening-decisions.md` §5). The ledger's host
 columns carry that measured host. Those eight rows stay `PENDING-HUMAN`

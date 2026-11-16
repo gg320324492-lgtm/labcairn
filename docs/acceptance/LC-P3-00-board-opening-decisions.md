@@ -70,7 +70,7 @@ values are anchors, not carried-forward facts.
 **Re-measured 2026-11-16 — the matrix changed.** The machine no longer
 carries Word 2010; it carries **Microsoft Office Home & Student 2019
 (ClickToRun, `HomeStudent2019Retail`), WINWORD file version
-`16.0.17932.20162`**. The owner ruled the same day that **Word 2019 is the
+`16.0.17932.21140`**. The owner ruled the same day that **Word 2019 is the
 compatibility reference for the §4 rows**, and that the ledger's host
 columns are corrected to the measured host rather than left naming a
 program that is not installed. WPS Office remains the primary host, still
