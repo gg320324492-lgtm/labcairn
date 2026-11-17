@@ -123,16 +123,16 @@ on `main` is the measurement.
 ## 3. What a CI job costs
 
 The per-file costs in `.github/ci-shards.json` are runner measurements,
-anchored at `b2e3661a8988bd36d3fc1d63348ac9dcb34473d8`. Summed over the
+anchored at `2bf0ce097d8fcd572c4cc9c5a0aad4b6d652baee`. Summed over the
 five offline classes:
 
 | platform | unit | integration | negative | e2e | repository | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| ubuntu-latest | 121.8 s | 528.2 s | 138.4 s | 2236.2 s | 114.2 s | **3138.8 s ≈ 52.3 min** |
-| windows-latest | 356.1 s | 3222.5 s | 376.0 s | 2827.5 s | 161.4 s | **6943.5 s ≈ 115.7 min** |
+| ubuntu-latest | 119.6 s | 517.9 s | 123.3 s | 2244.0 s | 99.0 s | **3103.8 s ≈ 51.7 min** |
+| windows-latest | 459.5 s | 3062.7 s | 354.8 s | 2860.8 s | 190.9 s | **6928.8 s ≈ 115.5 min** |
 
-The current pull-request wall clock is set by the slowest shard: about 1221 s
-on Windows (20.3 min) and 1204 s on Ubuntu, over six shards per platform
+The current pull-request wall clock is set by the slowest shard: about 1218 s
+on Windows (20.3 min) and 1205 s on Ubuntu, over six shards per platform
 (the matrix has been `[0, 1, 2, 3, 4, 5]` since 2026-11-15). A job that
 runs all five offline classes **on Ubuntu** would therefore become the new
 bottleneck at about 52 minutes — roughly a thirty-two-minute increase on
