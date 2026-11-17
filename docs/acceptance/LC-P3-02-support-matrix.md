@@ -92,3 +92,21 @@ PR #184; Word 2010 is not installed on the machine), and the two
 identity by owner ruling, preserved byte-for-byte. The "4/44" and
 "Word 2010 rows stay `PENDING-HUMAN`" readings above are superseded by
 this one.
+
+**Read 2026-11-17 (one row is a host limitation, not a defect).** One of the
+eleven `PRESENCE-LOSS` rows is not a defect in the documents this matrix
+covers. `06b-hyperlink-target-inside-the-wrap-surgical-marked` shows
+`hyperlinks:no` on WPS Office `12.1.0.29690` while the Word 2019 reference
+row for the same artifact is `PASS`. The construction is
+`w:hyperlink` **containing** `w:del` and `w:ins` — measured element by
+element from the artifact's `word/document.xml`, and it is the schema-legal
+direction: ECMA-376 Part 1 (5th ed.) `CT_Hyperlink` admits the edit-content
+group, so revision runs inside a hyperlink are valid. The generator-side
+alternatives were examined and each either breaks the property under test —
+the edit must happen inside a surviving hyperlink wrap — or is schema-illegal,
+so **no generator change is made**: this is a WPS rendering limitation, and
+the WPS row stays `PRESENCE-LOSS` as observed, which is a statement about
+what the host displayed, not a claim that the document is malformed. Recorded
+as issue [#190](https://github.com/gg320324492-lgtm/labcairn/issues/190)
+(labelled `wontfix`); the root-cause analysis is in the external report
+`E:/labcairn-local/defect-rootcause-d234-20261117/REPORT.md` §1.
