@@ -258,8 +258,7 @@ def test_media_png_chunks_carry_correct_checksums() -> None:
                     zlib.decompress(chunk_data)
                 except zlib.error as error:
                     pytest.fail(
-                        f"{sample.name}: the IDAT chunk at byte {offset} does not "
-                        f"inflate: {error}"
+                        f"{sample.name}: the IDAT chunk at byte {offset} does not inflate: {error}"
                     )
             if chunk_type == b"IHDR":
                 width = int.from_bytes(chunk_data[0:4], "big")
@@ -270,8 +269,7 @@ def test_media_png_chunks_carry_correct_checksums() -> None:
                     "not the one-pixel image the corpus documents"
                 )
                 assert colour == 6, (
-                    f"{sample.name}: the IHDR chunk declares colour type {colour}, "
-                    "not RGBA (6)"
+                    f"{sample.name}: the IHDR chunk declares colour type {colour}, not RGBA (6)"
                 )
             offset = end
         assert seen_idat, f"{sample.name}: word/media/image1.png carries no IDAT chunk"
