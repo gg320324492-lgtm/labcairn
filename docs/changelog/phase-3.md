@@ -1,5 +1,33 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The trial-day record templates are the prefilled set, and the 16-row reopen's cross-references say so (2026-11-18)
+
+- **Which template set the trial day fills is now stated in the repository.**
+  The twelve record templates the protocol's §3 names are filled from the
+  **prefilled** set at
+  `E:/labcairn-local/g4-templates-prefilled-20261117/templates/`, in which
+  every fixed value is already written with an `[Snn]` source tag resolving
+  to that pack's `PREFILL-SOURCE.md`. The empty source templates at
+  `E:/labcairn-local/p308-trial-run/RECORD-TEMPLATES/` are the set those
+  copies were made from; they are kept as history and are **not** filled. A
+  prefilled value is a **reference value**, not the day's value: the
+  installer SHA-256, the sample SHA-256 and both host versions are
+  re-measured on the trial machine, and the day's own printed measurement
+  is what the record carries. Stated in the protocol's §3 and in the work
+  orders' §13 §6.6; the execution packs carried the same rule, and the
+  repository now says it where a reader of a repository record meets it.
+- **The 16-row human dual-host reopen half ran on 2026-11-16/17** — the
+  real-sample ledger is 16/16 `PASS` with unchanged hashes (sha256
+  `2d8b133b…`, 27,107 B; eight WPS Office primary rows and eight Microsoft
+  Office 2019 reference rows), recorded in
+  [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md).
+  The cross-reference in
+  [`LC-P3-08-evidence-mapping-design.md`](../plans/LC-P3-08-evidence-mapping-design.md)
+  that said the half "stays `NOT RUN`" now carries a dated rider naming
+  the measurement and the date it was read. Every sentence that carried the
+  pre-completion state is kept and dated rather than deleted; no gate row
+  moves and no PASS is claimed for `LC-P3-02`.
+
 ### The fifth-version 44-row dual-host checklist is complete (2026-11-17)
 
 - The external 44-row checklist ledger reached 44/44 completion with

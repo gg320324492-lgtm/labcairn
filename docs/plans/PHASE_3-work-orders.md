@@ -1120,6 +1120,16 @@ rule, quoted for the record).
    reader).
 4. The **exit-decision record**: the owner's decision, from the evidence.
 
+**The twelve record templates the trial day fills** are the **prefilled**
+set at `E:/labcairn-local/g4-templates-prefilled-20261117/templates/`, in
+which every fixed value is already written with an `[Snn]` source tag. The
+empty source templates at `E:/labcairn-local/p308-trial-run/RECORD-TEMPLATES/`
+are the set those copies were made from; they are kept as history and are
+**not** filled. A prefilled value is a **reference value**, not the day's
+value — the installer SHA-256, the sample SHA-256 and both host versions are
+re-measured on the trial machine, and the day's own printed measurement is
+what the record carries. The protocol's §3 states this in full.
+
 **6.7 Acceptance evidence.** Execution plan §4's full table is the checklist,
 row by row, with the two sample-class rules the plan states around it: raw
 samples stay in the authorised environment, and rows defined by real advisor

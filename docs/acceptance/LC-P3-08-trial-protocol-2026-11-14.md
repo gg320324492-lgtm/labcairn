@@ -93,6 +93,19 @@ its section anchor and the digest/count/refusal class that identifies the
 observation ([`LC-P3-08-trial-protocol-design.md`](../plans/LC-P3-08-trial-protocol-design.md)
 §5).
 
+**Read 2026-11-18 — which template set the trial day fills.** The twelve
+record templates this section names are filled on the day from the
+**prefilled** set at `E:/labcairn-local/g4-templates-prefilled-20261117/templates/`,
+in which every fixed value is already written and carries an `[Snn]` source
+tag resolving to that pack's `PREFILL-SOURCE.md`. The empty source templates
+at `E:/labcairn-local/p308-trial-run/RECORD-TEMPLATES/` are the set those
+copies were made from; they are kept as history and are **not** filled. A
+prefilled value is a **reference value**, not the day's value: the installer
+SHA-256, the sample SHA-256 and both host versions are re-measured on the
+trial machine, and the day's own printed measurement is what the record
+carries. The record templates themselves live outside the repository, so
+this protocol cites them by address and never quotes one as if it were here.
+
 ### Row 1 — Import to delivery
 
 - **Evidence requirement.** The commented/revised sample runs through the
