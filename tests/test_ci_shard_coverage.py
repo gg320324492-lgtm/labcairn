@@ -2400,6 +2400,7 @@ JOB_COUNT_RECORDS: Final[tuple[Path, ...]] = (
     Path("CONTRIBUTING.md"),
     Path("docs") / "handoff" / "CURRENT.md",
     Path("docs") / "plans" / "LC-P1-11-12-task-breakdown.md",
+    Path("docs") / "acceptance" / "LC-P3-02-shard-anchor-incident-2026-11-17.md",
 )
 
 #: The workflow a claim is judged against when its own sentence names none. Every record
@@ -2556,6 +2557,7 @@ JOB_COUNT_CLAIMS: Final[dict[str, int]] = {
     "CONTRIBUTING.md": 3,
     "CURRENT.md": 5,
     "LC-P1-11-12-task-breakdown.md": 1,
+    "LC-P3-02-shard-anchor-incident-2026-11-17.md": 1,
 }
 
 #: **Why a record is outside the completeness rule, on the record's own terms.** An
