@@ -1,5 +1,16 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The logfire decision lands as PR #186 (2026-11-17)
+
+- The owner decided on 2026-11-17 that the shipped build drops the
+  `logfire` extra from the dependency graph.
+  [PR #186](https://github.com/gg320324492-lgtm/labcairn/pull/186)
+  implemented it: the dependency is now `pydantic-ai-slim` (no `logfire`
+  extra), `uv.lock` updated, NOTICE re-measured, release witnesses added,
+  CI green — merged into `main` as `8064fb7` on 2026-11-16 (UTC).
+  LC-P3-05's supply record §6 now carries the decided state alongside its
+  superseded 2026-11-14 "Open, named" paragraph.
+
 ### The trial's T0 evidence base stands on the rebuilt package (2026-11-17)
 
 - The 2026-11-16 new-package T0 rehearsal

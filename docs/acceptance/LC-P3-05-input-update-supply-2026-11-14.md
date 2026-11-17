@@ -280,11 +280,22 @@ its target's source text at import time to patch a known pydantic bug.
 With the flag set, the same frozen tree prints `frozen import ok: True`
 and exits 0. This reproduces, on this tree, the failure the 2026-11-11
 selection measurement found (its §5); the flag is now carried by the build
-tool so the drill and any later installer work inherit it. **Open, named:**
+tool so the drill and any later installer work inherit it. **Open, named
+(as of 2026-11-14; superseded 2026-11-17, see below):**
 whether the shipped build should instead drop the `logfire` extra from the
 dependency graph (the product never imports logfire) is a dependency
 decision that belongs to the owner; the flag is the honest state until
 then.
+
+**Decided 2026-11-17 — the `logfire` extra is dropped.** The owner decided
+the shipped build drops the `logfire` extra from the dependency graph.
+Landed as [PR #186](https://github.com/gg320324492-lgtm/labcairn/pull/186)
+("Remove the logfire extra and correct the review findings"), merged into
+`main` as `8064fb7` on 2026-11-16 (UTC): the dependency is now
+`pydantic-ai-slim` (no `logfire` extra), `uv.lock` updated, NOTICE
+re-measured, release witnesses added, CI green at `8064fb7`. The
+"Open, named" paragraph above is kept as the historical state of this
+record on 2026-11-14.
 
 **The frozen exe as `cliPath`, measured.** With a real freeze present, the
 drill's live leg drives the frozen exe end to end: `labcairn init`,
