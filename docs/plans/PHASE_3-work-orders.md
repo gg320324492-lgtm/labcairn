@@ -10,8 +10,8 @@ it, and never because something looks finished.
 | Ticket | Stage | Status | What the row rests on |
 |---|---|---|---|
 | `LC-P3-00` | Phase 3 G0 | decision record, landed 2026-11-07 | [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) — a dated owner decision record, not a gate verdict. |
-| `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; shard costs were re-measured from runner run `42733499009`; no PASS is claimed. |
-| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md), [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md) and the dated [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md); the owner-picked sample's 42-arm machine loop is measured (42/42, 14 produced, 28 refused, 8 artifacts), while the §4.9 human dual-host reopen half and the gate remain open | The dated substitute and real-sample records and their witnesses; no host result and no PASS is claimed. Shard costs were re-measured from runner run `42733499009`. |
+| `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); as read on 2026-11-08 the §4.9 human checklist and the LC-P3-02 substitute round-trip remained open. **Read 2026-11-17:** the §4.9 human dual-host reopen half has run — the fifth-version 44-row ledger is 44/44 rows filled and format-validated, row verdicts 31 PASS / 11 PRESENCE-LOSS / 2 REFUSAL-RECORDED (record [`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md), PR #188; external ledger sha256 `b24f22e5…`, 47,156 B) — and the gate stays open, because 12 of the 13 non-PASS rows still wait for the owner's re-run on WPS and Word 2019 after the artifact fixes (PRs #193 and #195); see §17 | The dated window record and its witnesses; shard costs were re-measured from runner run `42733499009`; no PASS is claimed. |
+| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md), [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md) and the dated [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md); the owner-picked sample's 42-arm machine loop is measured (42/42, 14 produced, 28 refused, 8 artifacts), while the §4.9 human dual-host reopen half and the gate remained open as read on 2026-11-09. **Read 2026-11-17:** that half has run — the fifth-version 44-row ledger is 44/44 rows filled and format-validated, row verdicts 31 PASS / 11 PRESENCE-LOSS / 2 REFUSAL-RECORDED (record [`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md), PR #188; external ledger sha256 `b24f22e5…`, 47,156 B) — and the gate remains open: 12 of the 13 non-PASS rows wait for the owner's re-run on WPS and Word 2019 after the artifact fixes (PRs #193 and #195), and the thirteenth is the WPS rendering limitation of issue #190 (labelled `wontfix` by PR #198) | The dated substitute and real-sample records and their witnesses; shard costs were re-measured from runner run `42733499009`; no PASS is claimed — as read on 2026-11-09 no host result was claimed either, and the 2026-11-17 ledger now carries the host results row by row without carrying a gate verdict. |
 | `LC-P3-03` | Phase 3 G2 | **`IN PROGRESS`** — implementation merged 2026-11-10 (merge `4855ea6`); evidence in [`LC-P3-03-revision-loop-2026-11-10.md`](../acceptance/LC-P3-03-revision-loop-2026-11-10.md); 17 witnesses, four refusal classes, all four counter-mutation families caught; the gate itself stays open | The dated run record and its witnesses, measured locally; no PASS is claimed. |
 | `LC-P3-04` | Phase 3 G2 | **`IN PROGRESS`** — the binding loop (opinion → locate → suggest → apply → dossier) merged 2026-11-10 (merge `2dce121`); evidence in [`LC-P3-04-binding-loop-2026-11-10.md`](../acceptance/LC-P3-04-binding-loop-2026-11-10.md); 17 Python witnesses + 5 web witnesses, 6 counter-mutations caught, ledger `ADDED -- 17`; the gate itself stays open | Execution plan §3; §9. |
 | `LC-P3-05` | Phase 3 G3 | **`IN PROGRESS`** — the selection-and-measurement stage landed 2026-11-10 (merge `1e35758`; evidence in [`LC-P3-05-selection-measurement-2026-11-10.md`](../acceptance/LC-P3-05-selection-measurement-2026-11-10.md) and [`ADR-0023`](../adr/ADR-0023-desktop-shell-integration-keeps-the-served-origin.md)); the Electron shell implementation followed: the skeleton and the named gaps landed 2026-11-10 ([`LC-P3-05-shell-skeleton-2026-11-10.md`](../acceptance/LC-P3-05-shell-skeleton-2026-11-10.md)), the installer's licence census gained its three-sided witness (PR #163, merge `7ccc5c0`), T08's input policy, T06's update path and T09's two supply ways closed 2026-11-14 (record [`LC-P3-05-input-update-supply-2026-11-14.md`](../acceptance/LC-P3-05-input-update-supply-2026-11-14.md)), and O3's frozen backend now rides in the package (same record §3.3: `extraResources` at `resources/backend/labcairn`, the input guard, the installation-relative `cliPath`, and the packaged-run drill passing connected → loaded → granted). Open: AC-6's clean-Windows drill (owner's human run), the NSIS install/upgrade/uninstall arms, and the gate itself | The dated selection, skeleton and supply records; §10. |
@@ -245,6 +245,39 @@ above is a historical anchor, not a current reading. The host is re-measured
 live before anyone uses the matrix, and the reopen rows are judged on the
 measured host.
 
+**Read 2026-11-17 — the human half has run; the gate has not closed.** The
+fifth-version 44-row checklist is complete as an observation: 44/44 rows
+filled and format-validated, row verdicts 31 PASS / 11 PRESENCE-LOSS / 2
+REFUSAL-RECORDED, every row re-hashed unchanged (record
+[`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md),
+PR #188; the external ledger `reopen-rows-filled-2026-11-10.csv`, sha256
+`b24f22e5…`, 47,156 B, 44 data rows × 27 columns). Thirteen of those rows are
+not `PASS`, and they fall into two groups:
+
+- **Twelve rows a product fix could change.** Eight rows — the
+  `05-image-and-relationship` and `07-everything-at-once` families, two hosts
+  each — recorded a presence loss caused by the corpus's own media PNG, whose
+  IDAT chunk carried a CRC of zero; fixed in PR #193. Four rows — the
+  `08-refusals-elsewhere` family, two hosts each — recorded the family's
+  text-box anchor (`wp:docPr` and `wps:spPr` missing, a 1×1-EMU extent) and the
+  image the sample declared but never carried; fixed in PR #195.
+- **One row no product fix touches.** The `06b` hyperlink row on the WPS
+  primary host is recorded as issue #190 — a WPS rendering limitation, since
+  WPS renders neither the inserted nor the deleted sentence when a hyperlink
+  wraps tracked-revision content, while the Word 2019 reference row for the
+  same artifact is `PASS`; the issue is labelled `wontfix` (PR #198, whose
+  root-cause report lives outside the repository at
+  `E:/labcairn-local/defect-rootcause-d234-20261117/`).
+
+What is still owed is the owner's re-run of the twelve fixable rows on
+**WPS Office 12.1.0.29690** and **Word 2019 16.0.17932.21140**. That is a
+human act at the machine, so it cannot be automated and it has not happened
+yet: the execution pack — twelve cards, the twelve-row ledger template and
+the W0 slot in the W1–W6 day — is outside the repository, under
+`E:/labcairn-local/rerun12-exec-20261117/`. Until that re-run lands, this
+half is complete as an observation and the G1 gate stays open; no gate verdict
+is claimed here.
+
 **4.10 Substitute boundary.**
 
 | Allowed by substitution | Not substitutable |
@@ -397,6 +430,15 @@ been measured in
 dated record closes only the machine half; the human dual-host reopen half
 remains `NOT RUN`, and no ticket verdict is transferred from one half to the
 other.
+**Read 2026-11-16/17:** the human half has run since — the real-sample
+ledger's sixteen rows are 16/16 `PASS` with unchanged hashes (sha256
+`2d8b133b…`, 27,107 B), and the fifth-version 44-row ledger is 44/44 rows
+filled and format-validated, row verdicts 31 PASS / 11 PRESENCE-LOSS / 2
+REFUSAL-RECORDED (sha256 `b24f22e5…`, 47,156 B; record
+[`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md),
+PR #188). What remains open is the owner's re-run of the twelve rows the
+artifact fixes touched (§4.9's 2026-11-17 rider); no ticket verdict is
+transferred from one half to the other, and neither half closes the G1 gate.
 
 **The corpus is identified; the sample is picked.** On 2026-11-09 the
 owner confirmed the uploaded micro-nano-bubble reference batches as this
@@ -421,6 +463,10 @@ loop has now run on this file and is recorded in the dated
 [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md).
 That record closes the machine half only; the human dual-host reopen half
 remains `NOT RUN` and is still a named gap.
+**Read 2026-11-16/17:** the human half has since run as well (16/16 `PASS` on
+the real-sample ledger, 44/44 rows filled on the fifth-version ledger); the
+named gap is now the owner's re-run of the twelve rows the artifact fixes
+touched, not the half itself — see §4.9's 2026-11-17 rider and §17.
 
 **5.10 The empty row, and who watches it.** A record may leave a cell empty
 because the evidence for it has not been taken. That is honest only while a
@@ -1213,6 +1259,12 @@ below carries its answer in place, with the question's original wording kept.
    the G1 records name first, its inputs (`LC-P3-02`'s substitute-run
    outputs) exist, and the performer is the owner by the 2026-11-08 decision.
    Restated so it is not lost under the new tickets.
+   **Read 2026-11-17:** the owner has performed it — 44/44 rows filled and
+   format-validated, row verdicts 31 PASS / 11 PRESENCE-LOSS / 2
+   REFUSAL-RECORDED (PR #188, record
+   [`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md)).
+   The item is still open in the sense that matters here: the twelve rows the
+   artifact fixes touched await the owner's re-run, and the gate is not closed.
 
 Standing constraints that need no new decision: Q77 and Q82 stay at their
 triggers; signing and public distribution stay behind `W28`; CI stays on
@@ -1266,6 +1318,11 @@ before `LC-P3-01`'s row may move to `PASS` or `PASS WITH NOTES`, because §4.9's
 human dual-host reopen checklist consumes those outputs and has not been
 performed. `LC-P3-01`'s existing `IN PROGRESS` move (local `main`, the LC-P3-01
 merge) did not violate this; a `PASS` move now would.
+**Read 2026-11-17:** the checklist has been performed (44/44 rows filled and
+format-validated, PR #188), so that precondition is met. What still keeps
+`LC-P3-01` from moving is the owner's pending re-run of the twelve rows the
+artifact fixes touched, and then the gate's own verdict — neither of which
+this file grants.
 
 ---
 
@@ -1321,7 +1378,7 @@ do not edit these; both sequence against them.
 
 | Gap | Waiting on | Where it is stated |
 |---|---|---|
-| The real advisor sample's human dual-host reopen half | The 42-arm machine loop ran on the picked sample on 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts) and is recorded in [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md). What remains open is the owner's human dual-host reopen half, not the machine loop; the file stays outside the repository | §5.9, §14 item 4, the dated real-sample record |
+| The real advisor sample's human dual-host reopen half | The 42-arm machine loop ran on the picked sample on 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts) and is recorded in [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md). What remains open is the owner's human dual-host reopen half, not the machine loop; the file stays outside the repository. **Read 2026-11-16/17:** that half has run — the real-sample ledger's sixteen rows are 16/16 `PASS` with unchanged hashes (sha256 `2d8b133b…`, 27,107 B) — and what this row waits for now is the owner's re-run of the twelve rows the artifact fixes touched (§4.9's 2026-11-17 rider) | §5.9, §14 item 4, the dated real-sample record |
 | `LC-P3-06`'s "One real model" gate row | Nothing left to run: the bounded real-model call ran 2026-11-10 under the seven-field authorisation (5 requests, 5,136 tokens, synthetic samples; record [`LC-P3-06-real-half-2026-11-10.md`](../acceptance/LC-P3-06-real-half-2026-11-10.md)). The row stays a named gap for the exit decision by §14 item 7's own ruling — it does not pass on a substitute, and the trial's real-advisor sample was not spent here | §1, §11, §12's decision-5 block, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §4 |
 | A Windows browser pass a runner has run | The workflow now installs the pinned driver: `python.yml`'s shard jobs run `uv pip install playwright==1.65.1` (the version measured 2026-11-13 — channel `msedge`, Edge 157.0.4341.46; the driver stays out of `pyproject.toml`, per the decision recorded in [`LC-P3-01-browser-rerun-2026-11-13.md`](../acceptance/LC-P3-01-browser-rerun-2026-11-13.md) §1), and no step runs `playwright install`, so no browser is downloaded. The Windows shard legs run the browser file; the Ubuntu legs skip it, with the driver's own "channel not found" reason, because GitHub's Ubuntu images carry no Edge. What remains is the owner's run: a push that starts the matrix is the first runner pass this gap waits for | §3 rule 6, execution plan §6 last row, `.github/workflows/python.yml` (the driver-install and pytest steps), [`LC-P3-01-browser-rerun-2026-11-13.md`](../acceptance/LC-P3-01-browser-rerun-2026-11-13.md) |
 | Which side carries the driver, and whether the witness is new or extended | Decided on 2026-11-13 and recorded: the driver is carried on the **Python** side, the witness is the **existing** `tests/test_workbench_real_browser.py`, and the record names the side, the driver version and the channel actually used | §4.12, [`LC-P3-01-browser-rerun-2026-11-13.md`](../acceptance/LC-P3-01-browser-rerun-2026-11-13.md) §1 |
@@ -1329,7 +1386,7 @@ do not edit these; both sequence against them.
 | Which system-browser channel the trial machine has | A measurement at dispatch | §4.12 |
 | Q77's per-layer rules and Q82's original | Their own triggers: a memory-interface design task, and a later requirements baseline only the owner can state | §1, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §8 |
 | Version switching in the workbench | The version-selection surface landed 2026-11-14 (merge `0691aa2`, record [`LC-P3-01-version-select-2026-11-14.md`](../acceptance/LC-P3-01-version-select-2026-11-14.md)): the panel lists an artifact's revisions and selects one over the live-service contract, witnessed at the wire (3 cases) and in jsdom (142 passing). What stays open is the **real-browser half**: the page-level assertion is written and ready in that record's §5, and it joins `tests/test_workbench_real_browser.py` when that file's window frees it — until it runs there, the render half is witnessed in jsdom only | §4.8, [`LC-P3-01-version-select-2026-11-14.md`](../acceptance/LC-P3-01-version-select-2026-11-14.md) §4–§5 |
-| The §4.9 human dual-host reopen checklist | The owner personally performing the 44-row checklist (§14 item 8). **Updated 2026-11-16/17:** the reference host is Word 2019 (`16.0.17932.21140`), not Word 2010, and the separate 16-row real-sample dual-host ledger is **16/16 PASS** with unchanged hashes; the fifth-version 44-row checklist remains an owner obligation, with the WPS primary rows open for observation and the Word reference rows gated on that corrected host. The operation page and CSV inputs exist outside the repository | §5.8, §14 item 8, LC-P3-00 §5 |
+| The §4.9 human dual-host reopen checklist | The owner personally performing the 44-row checklist (§14 item 8). **Updated 2026-11-16/17:** the reference host is Word 2019 (`16.0.17932.21140`), not Word 2010, and the separate 16-row real-sample dual-host ledger is **16/16 PASS** with unchanged hashes; the fifth-version 44-row checklist remains an owner obligation, with the WPS primary rows open for observation and the Word reference rows gated on that corrected host. The operation page and CSV inputs exist outside the repository. **Read 2026-11-17:** the 44-row checklist itself has run — 44/44 rows filled and format-validated, row verdicts 31 PASS / 11 PRESENCE-LOSS / 2 REFUSAL-RECORDED, external ledger sha256 `b24f22e5…`, 47,156 B (record [`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md), PR #188) — so the owner obligation now is the **re-run of the twelve rows** the artifact fixes touched (PRs #193 and #195) on WPS Office 12.1.0.29690 and Word 2019 16.0.17932.21140, with the execution pack under `E:/labcairn-local/rerun12-exec-20261117/`; the thirteenth non-PASS row is the WPS rendering limitation of issue #190 (labelled `wontfix` by PR #198). The gate stays open until that re-run lands | §4.9, §5.8, §14 item 8, LC-P3-00 §5 |
 | The packaged shell's own backend | **O3 decided 2026-11-14: a frozen service — and it now ships in the package.** `labcairn.cli:main` frozen with PyInstaller into a onedir `labcairn.exe` carried in `extraResources` at `resources/backend/labcairn`. The supply is mixed (same decision): `workspace` from the package's `resources/shell-env.json` in its installation-relative form, and — since the frozen exe ships — `cliPath` from the same file in its installation-relative form (`backend/labcairn/labcairn.exe`, anchored under the resources directory; the environment keeps absolute-paths-only and stays the operator override). Landed: the freeze build tool (`shell/scripts/build-backend-freeze.mjs`), the wiring batch — `extraResources`, the input guard (`shell/scripts/require-package-inputs.mjs`, which refuses a build whose web bundle or frozen backend is absent/hollow), the installation-relative `cliPath` resolution, and the supervisor's unconditional `PYDANTIC_DISABLE_PLUGINS=1` on the child — all measured in [`LC-P3-05-input-update-supply-2026-11-14.md`](../acceptance/LC-P3-05-input-update-supply-2026-11-14.md) §3.1–§3.3. The packaged-run drill against the real unpacked package passed connected → loaded → granted with the package's own backend (installer 234,325,233 B, sha256 `9805be54821ae8af549bb7cd2e3c9924186550127005130004680e4ff5e155c4`). What stays open: the NSIS install/upgrade/uninstall arms and AC-6's clean-Windows drill (owner's human run), and whether the shipped build should drop the `logfire` extra from the dependency graph (the flag makes the frozen run self-contained either way). Platform constraint measured 2026-11-14: on Windows, Node 24's `spawn` refuses a `.cmd` batch-file entry point outright (`EINVAL`, every process-group/kill combination tried; no graceful-stop equivalent exists on the Node side), so a script-type backend entry (a `.cmd` launcher) cannot be the packaged backend's process — the frozen `labcairn.exe` is unaffected, which is itself a reason the O3 decision lands on a frozen service. The drill notes behind this measurement live outside the repository (the O3 decision brief's directory, `E:\labcairn-local\shell-o3-decision\` at the time of writing) | §10.4 of [`LC-P3-05`](../acceptance/LC-P3-05-shell-skeleton-2026-11-10.md), the O3 runtime-arrangement gap; [`LC-P3-05-input-update-supply-2026-11-14.md`](../acceptance/LC-P3-05-input-update-supply-2026-11-14.md) §3.1–§3.3 |
 | Who supplies a packaged run's three environment variables | **Closed 2026-11-14** (merge `7ccc5c0`, record [`LC-P3-05-input-update-supply-2026-11-14.md`](../acceptance/LC-P3-05-input-update-supply-2026-11-14.md)): the backend and the workspace are supplied one of two ways, both implemented and drilled — the environment (`labcairn-shell.cmd`, the template beside the shell) wins, and the package's own `resources/shell-env.json` covers what the environment names nothing for; a broken or unknown field is a startup refusal, and the static directory stays derived (`resources/web-dist`, closed 2026-11-11). What remains open is not the supply but the backend arrangement itself — O3's unmeasured decision, the row above | §10.4 of [`LC-P3-05`](../acceptance/LC-P3-05-shell-skeleton-2026-11-10.md), T09's drill, [`LC-P3-05-input-update-supply-2026-11-14.md`](../acceptance/LC-P3-05-input-update-supply-2026-11-14.md) |
 | Whether `shell-test (windows-latest)` and `shell-test (ubuntu-latest)` become required checks | **Decided on 2026-11-11: they do not, and the measured set stands as it is.** The reading that informed it, taken from GitHub at `6b3211ae631c7c9548ca160615f88daa6da7d5dd` — `gh api repos/gg320324492-lgtm/labcairn/branches/main/protection --jq '.required_status_checks.contexts | length'` printed **15**, and `… --jq '[.required_status_checks.contexts[] \| select(startswith("shell-test"))] \| length'` printed **0**: the two legs run on every pull request and are not required, while `lint` is. The same day the owner decided that **no required review is added**, so the review this project treats as the gate stays the one the repository arranges rather than one GitHub enforces. The repository offers the two names and no file here can make one required; the list with its command is recorded in [`.github/CI.md`](../../.github/CI.md) and `tests/test_ci_shard_coverage.py` watches that every name in that record is a name a job reports | `.github/CI.md`'s 2026-11-11 required-check section, §4.12's shell CI, [`LC-P3-05`](../acceptance/LC-P3-05-shell-skeleton-2026-11-10.md) §10.4 |
