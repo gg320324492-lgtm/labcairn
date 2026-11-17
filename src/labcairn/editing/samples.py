@@ -83,14 +83,28 @@ _ROOT: Final[str] = (
 
 #: A one-pixel RGBA PNG, so the image sample carries bytes a host can decode
 #: and a relationship that points at something. Without the part, "the
-#: relationship survived" would be a claim about an attribute alone. Every
-#: chunk's CRC is checked by :func:`tests.test_docx_edit_samples.test_media_png`
-#: because the previous value carried an IDAT CRC field of ``0x00000000`` and a
-#: truncated stream: neither host decoded it, and eight support-matrix rows
-#: recorded a presence loss that was the corpus's own defect, not the seam's.
+#: relationship survived" would be a claim about an attribute alone.
+#:
+#: **The pixel is opaque, and the opacity is part of the property.** The
+#: value before this one carried correct chunk CRCs but a fully transparent
+#: pixel -- ``RGBA(0, 0, 0, 0)`` -- and the document places the image at
+#: ``wp:extent cx="360000" cy="360000"``, one centimetre square. A fully
+#: transparent pixel is invisible on white paper in every host, so the eight
+#: support-matrix rows whose ``images`` column is ``yes`` could never record a
+#: pass: the package held a part and no host drew anything. "The package holds
+#: a part" and "the host draws something" are two different claims, and the
+#: bytes have to carry the second one too.
+#:
+#: Every chunk's CRC is checked by
+#: :func:`tests.test_docx_edit_samples.test_media_png_chunks_carry_correct_checksums`
+#: because the value before that one carried an IDAT CRC field of
+#: ``0x00000000`` and a truncated stream: neither host decoded it, and eight
+#: support-matrix rows recorded a presence loss that was the corpus's own
+#: defect, not the seam's. The pixel itself is read by
+#: :func:`tests.test_docx_edit_samples.test_media_png_pixel_is_not_transparent`.
 _PNG: Final[bytes] = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
-    "0000000b49444154789c6360000200000500017a5eab3f0000000049454e44ae426082"
+    "0000000d4944415478da63d02bd9fa1f0004820257033e19120000000049454e44ae426082"
 )
 
 #: The author the seam stamps and the moment it stamps. Neither is read from a
