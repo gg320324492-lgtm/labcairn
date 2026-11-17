@@ -238,6 +238,12 @@ date it was performed.
 and **Microsoft Office 2010, file version 14.0.7252.5000** as the compatibility
 reference on 2026-11-07. Those are anchors. If the trial machine changes before
 these runs, the matrix is re-measured live before anyone uses it.
+**Read 2026-11-16 (re-measured; PR #184, `LC-P3-00` §5):** the reference host is
+now **Microsoft Office Home & Student 2019, file version `16.0.17932.21140`**;
+Word 2010 is no longer installed on the trial machine, so the 2010 wording
+above is a historical anchor, not a current reading. The host is re-measured
+live before anyone uses the matrix, and the reopen rows are judged on the
+measured host.
 
 **4.10 Substitute boundary.**
 

@@ -80,4 +80,15 @@ it does not close the human half. **Read 2026-11-17:** the separate 16-row
 real-sample human ledger is now **16/16 PASS** — the eight WPS primary rows
 on 2026-11-16 and the eight Word 2019 reference rows on 2026-11-16/17, all
 re-hashed unchanged — in the same dated record; this matrix's fifth-version
-44-row checklist remains an owner obligation.
+44-row checklist remains an owner obligation. **Read 2026-11-17
+(completion):** the fifth-version 44-row checklist itself is now complete —
+**44/44 rows** (31 `PASS`, 11 `PRESENCE-LOSS`, 2 `REFUSAL-RECORDED`), every
+file re-hashed unchanged, validator `PASS` — recorded in
+[`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](LC-P3-02-fifth-version-44-rows-2026-11-17.md)
+with external ledger SHA-256 `b24f22e5…`. The Word reference rows were
+measured on Word 2019 `16.0.17932.21140` (the host re-measured 2026-11-16 —
+PR #184; Word 2010 is not installed on the machine), and the two
+2026-11-10 PASS rows keep their historical Word 2010 `14.0.7252.5000`
+identity by owner ruling, preserved byte-for-byte. The "4/44" and
+"Word 2010 rows stay `PENDING-HUMAN`" readings above are superseded by
+this one.
