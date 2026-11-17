@@ -1,0 +1,2561 @@
+{
+  "schema": "labcairn-external-path-ledger/v1",
+  "read_at": "2026-11-18",
+  "root": "E:/labcairn-local",
+  "what_this_is": "Every path under E:/labcairn-local that a tracked file names, and what each one is expected to be: present, renamed (with the path that replaced it), or absent. The rule it encodes: a rename is not a defect, a bare pointer to the old name is. The half that needs the packs runs on a development machine; the half that only needs the tree runs in CI.",
+  "apparatus": [
+    "docs/ci/external-paths.json",
+    "scripts/check_external_paths.py",
+    "scripts/build_external_path_ledger.py",
+    "tests/test_external_path_references.py"
+  ],
+  "paths": [
+    {
+      "path": "E:/labcairn-local",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-cej-pilot.md",
+        "docs/changelog/phase-3.md",
+        "docs/ci/external-path-reading.md",
+        "docs/handoff/CURRENT.md",
+        "docs/plans/LC-P3-05-shell-implementation-plan.md",
+        "scripts/lgpl_upstream_archives.py",
+        "tests/evaluation/manifest.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/CLOSEOUT-EVIDENCE-PACK-2026-11-16.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/G1-G2-independent-review",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/G1-G2-owner-review.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/G1-G2-review-packet",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/G1-G2-owner-review.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/HUMAN-TASKS.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/OWNER-HUMAN-TASKS-2026-11-14.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/_OBSOLETE-transparent-png__rerun12-exec-20261117",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md",
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch10-graph",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch10-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch10-negative/mutate.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch10-negative.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch10-negative/mutation-results.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch10-negative.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch10-recon",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch10-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch10-recon/RECON.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch10-negative.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch11-graph",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch11-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch11-graph/real-write.out",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch11-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch11-graph/rehearsal.db",
+      "expectation": "absent",
+      "kind": "material",
+      "replacement": null,
+      "note": "the batch 11 rehearsal store is gone; the batch 8 and batch 9 stores are still there, this one is not",
+      "announcements": [
+        "not on disk"
+      ],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch11-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch11-graph/write-plan.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch11-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch11-negative",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch11-negative.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch11-recon",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch11-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch11-recon/RECON.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch11-negative.md",
+        "tests/test_ooxml_revisions.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch7-recon/RECON.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-cej-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch8-graph/rehearsal.db",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch8-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch8-recon/RECON.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch8-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-negative",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch9-negative.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-negative/mutate.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch9-negative.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-pilot",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch9-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-pilot/RESULTS.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch9-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-pilot/pilot.db",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch9-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-pilot/run_pilot.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch9-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-pilot/verify.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch9-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-recon/RECON.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-batch9-negative.md",
+        "docs/acceptance/LC-P2-14-batch9-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch9-version",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch9-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/bind_candidate_check.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-check-binding.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-billing-console-2026-11-16",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-06-real-half-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-rating-agent-run",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-second-blind-round-2026-11-14.md",
+        "docs/changelog/phase-3.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-rating-kit",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-phase2-exit-gate.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-rating-kit-paper2",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-phase2-exit-gate.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-rating-kit-paper2/sheets/closeout-summary.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-phase2-exit-gate.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-rating-kit/lc_p2_14_rating_kit.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-rating-closeout.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-rating-kit/mutate_rating_closeout.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-rating-closeout.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-rating-kit/mutation-results",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-rating-closeout.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind-rating-kit/sheets/closeout-summary.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-phase2-exit-gate.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind5-arms",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-unseen-material.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/blind6-arms",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-rating-closeout.md",
+        "docs/acceptance/LC-P2-14-unseen-material.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/bt-g5-product",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-product.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/bt-g5-records",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/bt-mutation",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P1-14-outsider-path.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/bt-rv-",
+      "expectation": "absent",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/bt-verify-final",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/bt-yourname",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "CONTRIBUTING.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/cej-pilot",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-cej-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/cej-pilot/mutate.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-cej-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/cej-pilot/pilot.db",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-cej-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/cej-pilot/run_pilot.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-cej-pilot.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/checkbind-pilot4/labcairn.db.before_20261105T084935Z",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-check-binding.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/citation-sample/INDEPENDENT-AGREEMENT.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-26-retrieval-metric-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/citation-sample/baseline-run2",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-26-baseline.json",
+        "docs/acceptance/LC-P2-26-retrieval-metric-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/citation-sample/baseline-run2/evaluation-report.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-26-baseline.json"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/citation-sample/citation-support-sample.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-26-baseline.json",
+        "docs/acceptance/LC-P2-26-retrieval-metric-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/citation-sample/eval-run",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-26-retrieval-metric-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/citation-sample/eval-run/evaluation-report.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-26-retrieval-metric-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/defect-rootcause-d234-20261117",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/defect-rootcause-d234-20261117/REPORT.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-support-matrix.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/distil_rules_pilot3_revisions.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-revision-distillation.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/docfetch-20261110",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-selection-measurement-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/evaluation-baseline-freeze-canonical",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-00-baseline.json",
+        "docs/acceptance/LC-P2-00-baseline.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/evaluation-t01",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P1-13-evaluation.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/evaluation-t01/evaluation-report.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/evaluation-t09",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P1-13-baseline.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/evaluation-t09/evaluation-report",
+      "expectation": "absent",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P1-13-baseline.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/g4-templates-prefilled-20261117/templates",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-trial-protocol-2026-11-14.md",
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md",
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/harness-final2.log",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/harness-final2/evaluation-report.md",
+      "expectation": "absent",
+      "kind": "material",
+      "replacement": null,
+      "note": "only harness-final2.log survives; the evaluation report it names is not on disk",
+      "announcements": [
+        "not on disk"
+      ],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/intake-paper1-20261105",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch8-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/lc-p2-18-run",
+      "expectation": "present",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-18-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/lc-p2-18-run/2026-11-04",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-18-live-run.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/lc-p2-18-runbook-demo/package",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-18-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/lc-p3-07/installed-drill-evidence.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/lc-p3-07/installed-drill.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-revision-event-identity.md",
+        "docs/acceptance/LC-P2-07-table-row-markers.md",
+        "docs/handoff/CURRENT.md",
+        "docs/papers/pilot-method.md",
+        "docs/plans/PHASE_2-pilot-task-breakdown.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library/README.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/papers/pilot-method.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library/corpus-1-mn-bubbles/labels/reading-1.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/papers/pilot-method.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library/corpus-1-mn-bubbles/originals",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/papers/pilot-method.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library/corpus-1-mn-bubbles/pilot-blind-readings.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/papers/pilot-method.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library/corpus-1-mn-bubbles/pilot-model-proposal.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/papers/pilot-method.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library/corpus-1-mn-bubbles/versions-chinese",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/papers/pilot-method.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library/corpus-2-recycling-4404737",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/second-corpus-absorption.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/materials-library/pilot-model-proposal.json",
+      "expectation": "renamed",
+      "kind": "material",
+      "replacement": "E:/labcairn-local/materials-library/corpus-1-mn-bubbles/pilot-model-proposal.json",
+      "note": "the library was reorganised into one directory per corpus; the corpus 1 material now sits under corpus-1-mn-bubbles/",
+      "announcements": [
+        "moved, not deleted"
+      ],
+      "sites": [
+        "docs/papers/pilot-method.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/nonzero-width",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-27-position-anchors.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/nonzero-width/EXECUTION-PLAN.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-27-position-anchors.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/one-page-trial-day-20261118",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/one-page-trial-day-20261118/INCONSISTENCY-RESOLUTION.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/one-page-trial-day-20261118/ONE-PAGE-DAY-PLAN.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/outsider",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "CONTRIBUTING.md",
+        "docs/QUICKSTART.md",
+        "docs/acceptance/LC-P1-14-outsider-path.md",
+        "scripts/outsider_path.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/outsider-reviewer",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P1-14-outsider-path.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/outsider-reviewer/clone",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the clone the outsider walk made; it was removed after the walk",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P1-14-outsider-path.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/outsider-reviewer/workspace",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P1-14-outsider-path.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p3-closeout-pack",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p3-decision-briefs/O3-DECISION.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p305-selection",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the probe directories of the 2026-11-10 measurement; the record reports the measurement, it does not offer the paths",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-selection-measurement-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p307-nsis-arms",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/RECORD-TEMPLATES",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-trial-protocol-2026-11-14.md",
+        "docs/handoff/CURRENT.md",
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/dry-run-2026-11-16",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/dry-run-2026-11-16/verify-f1-2026-11-16/VERIFY-RESULT.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/installer",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/installer/BUILD-SOURCE.txt",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/plans/LC-P3-07-operator-manual.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/installer/REBUILD-2026-11-16.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/t0-rehearsal/T0-REHEARSAL-SUMMARY-NEWPKG-2026-11-16.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/paperqa-venv-19b47f/venv",
+      "expectation": "absent",
+      "kind": "prospective",
+      "replacement": null,
+      "note": "the competitor virtualenv is not on disk now; the preparation record carries the command that rebuilds it at this exact path, so the path is where it belongs rather than where it was",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-18-machinery.md",
+        "docs/acceptance/LC-P2-18-preparation.md",
+        "scripts/run_paperqa_competitor.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/paperqa-venv-19b47f/venv/Scripts/python.exe",
+      "expectation": "absent",
+      "kind": "prospective",
+      "replacement": null,
+      "note": "the competitor virtualenv is not on disk now; the preparation record carries the command that rebuilds it at this exact path, so the path is where it belongs rather than where it was",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-18-machinery.md",
+        "docs/acceptance/LC-P2-18-preparation.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/path-liveness-20261118",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/ci/external-path-reading.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g1-evidence/LC-P3-01/2026-11-08-environment-and-run-record.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-01-browser-baseline.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g1-evidence/LC-P3-02-fifth-fix-2026-11-09",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g1-evidence/LC-P3-02-real-half-2026-11-10",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md",
+        "docs/acceptance/LC-P3-02-support-matrix.md",
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g1-evidence/LC-P3-06-real-half",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-06-real-half-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g1-evidence/LC-P3-08-form-dryrun-2026-11-10.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-mapping-dryrun-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g1-evidence/installer-build-2026-11-11",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md",
+        "docs/changelog/phase-3.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g1-evidence/shell-skeleton-independent-critique-2026-11-10.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g1-evidence/witness-review-2026-11-14.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase3-g3-evidence/LC-P3-05/2026-11-10-environment-and-run-record.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-selection-measurement-2026-11-10.md",
+        "docs/acceptance/o6-event-stream-stall-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/corrected-scopes-corpus1.txt",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/second-corpus-absorption.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/cross-confirmation-corpus1-corpus2.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/second-corpus-absorption.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/labcairn.20261104T073605Z.pre-two-rows.db",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-27-position-anchors.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/labcairn.db",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-revision-event-identity.md",
+        "docs/acceptance/LC-P2-07-table-row-markers.md",
+        "docs/acceptance/LC-P2-11-check-binding.md",
+        "docs/acceptance/LC-P2-11-pilot-4-distillation.md",
+        "docs/acceptance/LC-P2-27-position-anchors.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/labcairn.db.backup.before-batch10-graph-20261105T133354Z",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch10-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/labcairn.db.backup.before-batch11-graph-20261105T171744Z",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch11-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/labcairn.db.backup.before-batch8-20261105T091830Z",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch8-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/labcairn.db.backup.before-batch9-water-20261105T124317Z",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-08-batch9-version-graph.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/labcairn.db.backup.before_binding_2026-11-03",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-check-binding.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws/providers.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "scripts/run_ourside_competitor.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/reference-repos",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/P2-G0-evidence-pack.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/reorganise_library.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/papers/pilot-method.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-exec-20261117",
+      "expectation": "renamed",
+      "kind": "material",
+      "replacement": "E:/labcairn-local/_OBSOLETE-transparent-png__rerun12-exec-20261117",
+      "note": "the pack was renamed on 2026-11-18 and not deleted; the new name is _OBSOLETE-transparent-png__rerun12-exec-20261117",
+      "announcements": [
+        "renamed, not deleted"
+      ],
+      "sites": [
+        "docs/handoff/CURRENT.md",
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md",
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/revdistil-pilot3/labcairn.db.before",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-check-binding.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/revdistil-pilot3/labcairn.db.before-v2",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-check-binding.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/review-g2g3-2026-11-14/REPORT.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/row-marker-measure",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-table-row-markers.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/row-marker-measure/measure.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-table-row-markers.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/row-marker-measure/mut",
+      "expectation": "absent",
+      "kind": "material",
+      "replacement": null,
+      "note": "the mutation tree this record points at is not on disk",
+      "announcements": [
+        "not on disk"
+      ],
+      "sites": [
+        "docs/acceptance/LC-P2-07-table-row-markers.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/row-marker-measure/prefix",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-table-row-markers.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/row-marker-measure/prefix/src",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-table-row-markers.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/row-marker-measure/prefix/src/labcairn/material/ooxml.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-table-row-markers.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/row-marker-measure/run_mutations.sh",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-table-row-markers.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rule-card/card.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-check-binding.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rule-card/ws",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-check-binding.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/secrets",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/secrets/lc-p2-18-approval.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-18-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-logs",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-logs/service.log",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-o3-decision",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-o3-install-drill",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-install-drill-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-o3-package",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-o3-package/dist3",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-trial-protocol-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-o3-package/dist3/LabCairn Setup 0.0.0.exe",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-install-drill-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-o3-package/dist3/win-unpacked",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md",
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-scratch",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-test-tmp",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        ".github/CI.md",
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md",
+        "tests/test_shell_ci.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/shell-test-tmp/arm-c-ws-",
+      "expectation": "absent",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/stash-inventory-2026-11-16.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "CLAUDE.md",
+        "docs/acceptance/LC-P1-06-artifact-ledger.md",
+        "docs/acceptance/LC-P2-02-review.md",
+        "docs/acceptance/LC-P2-06-review.md",
+        "docs/acceptance/LC-P2-07-review.md",
+        "docs/acceptance/LC-P2-07-table-row-markers.md",
+        "docs/acceptance/LC-P2-08-acceptance.md",
+        "docs/acceptance/LC-P2-09-review.md",
+        "docs/acceptance/LC-P2-10-acceptance.md",
+        "docs/acceptance/LC-P2-10-review.md",
+        "docs/acceptance/LC-P2-11-acceptance.md",
+        "docs/acceptance/LC-P2-12-acceptance.md",
+        "docs/acceptance/LC-P2-16-acceptance.md",
+        "docs/acceptance/LC-P2-16-review.md",
+        "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md",
+        "docs/acceptance/LC-P3-03-revision-loop-2026-11-10.md",
+        "docs/acceptance/LC-P3-04-binding-loop-2026-11-10.md",
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md",
+        "docs/plans/LC-P1-13-evaluation-ci.md",
+        "docs/plans/LC-P3-07-drill-matrix-design.md",
+        "tests/evaluation/runner.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp-g5-product",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-product.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp-g5-product/eval-run",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-product.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp-g5-records",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp-g5-records/evaluation",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp-rv",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp-verify-final",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp-verify-records",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp-verify-records/evaluation",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the project's own convention for a base temp directory; the run that used it made it and cleaned it away",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/g5-review-records.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/assess-door/pilot-ws-copy/labcairn.db",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-11-assessment-door.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/b404/btN",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-04-binding-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/bt-",
+      "expectation": "absent",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/o6-event-stream-stall-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/bt-full-o6",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/o6-event-stream-stall-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/bt-rowmark",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-07-table-row-markers.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/labcairn-ms-playwright",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/THREAT-MODEL.md",
+        "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/lc-p305-probe/counter-mutations.NOT-ATTRIBUTABLE-2026-11-10-concurrent.out",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/lc-p305-shell",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/lc-p305-shell/witness-output",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/lc-shell-env-",
+      "expectation": "absent",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/lc-version-smoke",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-01-version-select-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/mpl",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/mutations/mutate_and_witness.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-26-retrieval-metric-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/o6probe/probe_capacity2.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/o6-event-stream-stall-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/o6probe/probe_pipe.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/o6-event-stream-stall-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/o6probe/probe_volume.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/o6-event-stream-stall-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p3-browser-1",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-002.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-003.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-004.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-005.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-006.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-007.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-008.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-009.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-010.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p302-real-half-resume/logs/batch-011.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.json",
+        "docs/acceptance/LC-P3-02-real-sample-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p303-mutations",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-03-revision-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p303-mutations/run_mutations.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-03-revision-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p303-probe",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-03-revision-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p303-probe/probe_loop.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-03-revision-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p303-tests/bt6",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-03-revision-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p304-mutations",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-04-binding-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p304-mutations/run_mutations.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-04-binding-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p304-suite/bt1",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-04-binding-loop-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p305-selection",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-selection-measurement-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p306-",
+      "expectation": "absent",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-06-substitute-first-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p306-mut",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-06-substitute-first-2026-11-10.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p307",
+      "expectation": "absent",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p307-probe",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md",
+        "docs/plans/LC-P3-07-known-limits-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p307-probe/parent.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p307-probe/run_mutations.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p307X",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p307b",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/p307b2",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/pc-1/mutate.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-rating-closeout.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/pc-1/mutations.txt",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-14-rating-closeout.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/pqa-adapter",
+      "expectation": "absent",
+      "kind": "created",
+      "replacement": null,
+      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-18-preparation.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/probe-shell-env.mjs",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/t05-dist-check",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/t05-hash-drill",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/venv-review",
+      "expectation": "absent",
+      "kind": "historical",
+      "replacement": null,
+      "note": "the sentence says a separate virtualenv was created there for the review; the review is over and the virtualenv went with it",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P2-06-review.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/version-sweep-2026-11-15.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/watcher-suite-verify-2026-11-16.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    }
+  ]
+}
