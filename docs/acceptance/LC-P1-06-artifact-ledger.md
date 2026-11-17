@@ -21,7 +21,7 @@ G2's acceptance carried the gap rather than dropping it. It is stated, in the
 same words, in five places:
 
 - `docs/acceptance/G2-acceptance.md:123` — open item, owner "G3 or later";
-- `docs/handoff/CURRENT.md:1509` — carried item;
+- `docs/handoff/CURRENT.md:1537` — carried item;
 - `docs/RELEASE-NOTES.md:303` — §2.12 limitation;
 - `docs/THREAT-MODEL.md:779` — §6.12 limitation;
 - `docs/PHASE_1_WORKORDERS.md:42` — G2's carried notes.
