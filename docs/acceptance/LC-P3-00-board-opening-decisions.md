@@ -87,7 +87,8 @@ PR #188; external ledger sha256 `b24f22e5…`, 47,156 B), on the two hosts this
 section names — WPS Office 12.1.0.29690 as primary and Word 2019
 16.0.17932.21140 as reference. Twelve of the thirteen non-PASS rows await the
 owner's re-run on those two hosts after the artifact fixes (PRs #193 and #195);
-the thirteenth is the WPS rendering limitation recorded as issue #190. **This
+the thirteenth is the WPS rendering limitation recorded as issue #190, which
+PR #198 labelled `wontfix`. **This
 record moves no board row:** `LC-P3-01` and `LC-P3-02` stay `IN PROGRESS` in
 [`PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)'s §1 table, and
 the G1 gate is not closed.

@@ -26,7 +26,9 @@
   `07-everything-at-once` rows), PR #195 repaired the text-box anchor and
   gave the `08` sample its declared image (the four `08-refusals-elsewhere`
   rows), and the thirteenth — the `06b` hyperlink row on WPS — is the WPS
-  rendering limitation of open issue #190 (issues #189–#192 are open). The
+  rendering limitation of issue #190, which PR #198 labelled `wontfix` and
+  characterised as not a defect in the documents the matrix covers; it is not
+  among the twelve rows. Issues #189, #191 and #192 are still open. The
   owner still has to re-run those **twelve rows** on WPS Office 12.1.0.29690
   and Word 2019 16.0.17932.21140; the execution pack — twelve cards, the
   twelve-row ledger template and the W0 slot in the W1–W6 day — is outside
