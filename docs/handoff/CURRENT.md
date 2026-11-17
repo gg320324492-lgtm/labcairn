@@ -1,6 +1,34 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-18 - the trial-day record templates are the prefilled set, and the 16-row reopen's cross-references say so
+
+- **Which templates the trial day fills is now stated in the repository, not
+  only in the execution packs.** The twelve record templates are filled from
+  the **prefilled** set at
+  `E:/labcairn-local/g4-templates-prefilled-20261117/templates/`, in which
+  every fixed value is already written with an `[Snn]` source tag. The empty
+  source templates at
+  `E:/labcairn-local/p308-trial-run/RECORD-TEMPLATES/` are the set those
+  copies were made from; they are kept as history and are **not** filled. A
+  prefilled value is a **reference value**, not the day's value: the installer
+  SHA-256, the sample SHA-256 and both host versions are re-measured on the
+  trial machine, and the day's own printed measurement is what the record
+  carries. Stated in the trial protocol's §3 and in the work orders' §13
+  §6.6.
+- **The 16-row human dual-host reopen half ran on 2026-11-16/17**, so the
+  cross-references that still read as if it were open now carry a dated
+  rider. The real-sample ledger is 16/16 `PASS` with unchanged hashes
+  (sha256 `2d8b133b…`, 27,107 B; eight WPS Office primary rows and eight
+  Microsoft Office 2019 reference rows), recorded in
+  [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md);
+  the record's own sentences are kept as its 2026-11-10 reading. The
+  [`LC-P3-08-evidence-mapping-design.md`](../plans/LC-P3-08-evidence-mapping-design.md)
+  row that said the half "stays `NOT RUN`" now says which date it was
+  read on and that the half has since run. No gate row moves and no PASS is
+  claimed for `LC-P3-02`.
+
+
 ## 2026-11-18 - the shard-anchor incident of 2026-11-17 is on the record
 
 - A squash merge rewrote the revision the shard costs were anchored to, so
