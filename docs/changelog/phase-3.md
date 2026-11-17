@@ -1,34 +1,46 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
-### The trial-day work is split into three dates, and the source packs are reconciled (2026-11-18)
+### The trial day has three dates, one template set and one 16-row reopen half (2026-11-18)
 
-- The owner split the trial-day work into **three provisional dates**: the twelve
+- **Three provisional dates.** The owner split the trial-day work: the twelve
   LC-P3-02 reopen rows **alone** on 2026-11-19; AC-6 in the morning and G4
   T0–T8 in the afternoon on 2026-11-20, **with no T9/T10**; and the T9 review
-  plus the T10 exit decision on 2026-11-23 — with the six prerequisites in
+  plus the T10 exit decision on 2026-11-23 — with the six P0 prerequisites in
   front of all three. The plan and its seven hand-over cards live outside the
   repository at `E:/labcairn-local/one-page-trial-day-20261118/`.
-- **PR #201 landed** as `50f7110` (2026-11-18 01:55): the corpus's media pixel
-  is opaque now, so the image/media rows can record a pass on the `images`
-  token. The pack regenerated from it is
-  `E:/labcairn-local/rerun12-opaque-20261118/`; the earlier pack at
-  `E:/labcairn-local/rerun12-exec-20261117/` carries a fully transparent pixel
-  **and its own cards name its own artifacts' hashes**, so opening it raises no
-  error and the wrong reading would be silent. The live pointers — in
-  [`docs/handoff/CURRENT.md`](../handoff/CURRENT.md) and in the §4.9 board row
-  of [`PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md) — now name the
+- **The run's pack is the opaque one.** PR #201 landed as `50f7110`
+  (2026-11-18 01:55) and the pack regenerated from it is
+  `E:/labcairn-local/rerun12-opaque-20261118/`. The 2026-11-17 pack's media
+  pixel is transparent **and its own cards name its own artifacts' hashes**,
+  so opening it raises no error and the wrong reading would be silent; it was
+  **renamed, not deleted**, on 2026-11-18 and is now
+  `E:/labcairn-local/_OBSOLETE-transparent-png__rerun12-exec-20261117/`. The
+  live pointers — in [`docs/handoff/CURRENT.md`](../handoff/CURRENT.md) and in
+  the §4.9 board row of
+  [`PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md) — name the
   opaque pack and say why the earlier one must not be opened.
-- A **consistency sweep** of the twelve source inconsistencies the one-page
-  re-write reported (`REPORT.md` §3, items R-1…R-12) re-measured each one,
-  settled the ones the material could settle, and named the ones it could not;
-  the per-item disposition is in
+- **The 16-row human dual-host reopen half ran on 2026-11-16/17** — the
+  real-sample ledger is 16/16 `PASS` with unchanged hashes (sha256
+  `2d8b133b…`, 27,107 B; eight WPS Office primary rows and eight Microsoft
+  Office 2019 reference rows), recorded in
+  [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md).
+  This repository's own record has said so three times since 2026-11-17
+  (commit `5073542`); the trial card's stale `NOT RUN` was corrected outside
+  the repository with dated notes, and the cross-reference in
+  [`LC-P3-08-evidence-mapping-design.md`](../plans/LC-P3-08-evidence-mapping-design.md)
+  now carries a dated rider naming the measurement and the date it was read.
+- **The twelve record templates are filled from the prefilled set** at
+  `E:/labcairn-local/g4-templates-prefilled-20261117/templates/`, in which
+  every fixed value is already written with an `[Snn]` source tag; a prefilled
+  value is a **reference value**, and the day's own printed measurement is
+  what the record carries. Stated in the trial protocol's §3 and in the work
+  orders' §13 §6.6.
+- **The consistency sweep** re-measured the twelve source inconsistencies the
+  one-page re-write reported (`REPORT.md` §3, items R-1…R-12), settled the
+  ones the material could settle and named the ones it could not; the
+  per-item disposition is in
   `E:/labcairn-local/one-page-trial-day-20261118/INCONSISTENCY-RESOLUTION.md`.
-  Two findings reached outside this repository and were corrected there with
-  dated notes, not deletions: the trial card's stale `human dual-host reopen
-  NOT RUN` — the half **ran** on 2026-11-16/17, sixteen rows, `PASS` ×16, and
-  this repository's own record has said so three times since 2026-11-17 — and
-  the `~6–8 h` time budget in that card's header, which does not agree with the
-  sum of the same card's per-stage figures (545–605 min ≈ 9.1–10.1 h).
+ origin/main
 
 ### The fifth-version 44-row dual-host checklist is complete (2026-11-17)
 

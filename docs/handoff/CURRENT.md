@@ -1,6 +1,53 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-18 - the trial-day record templates are the prefilled set, and the 16-row reopen's cross-references say so
+
+- **Which templates the trial day fills is now stated in the repository, not
+  only in the execution packs.** The twelve record templates are filled from
+  the **prefilled** set at
+  `E:/labcairn-local/g4-templates-prefilled-20261117/templates/`, in which
+  every fixed value is already written with an `[Snn]` source tag. The empty
+  source templates at
+  `E:/labcairn-local/p308-trial-run/RECORD-TEMPLATES/` are the set those
+  copies were made from; they are kept as history and are **not** filled. A
+  prefilled value is a **reference value**, not the day's value: the installer
+  SHA-256, the sample SHA-256 and both host versions are re-measured on the
+  trial machine, and the day's own printed measurement is what the record
+  carries. Stated in the trial protocol's §3 and in the work orders' §13
+  §6.6.
+- **The 16-row human dual-host reopen half ran on 2026-11-16/17**, so the
+  cross-references that still read as if it were open now carry a dated
+  rider. The real-sample ledger is 16/16 `PASS` with unchanged hashes
+  (sha256 `2d8b133b…`, 27,107 B; eight WPS Office primary rows and eight
+  Microsoft Office 2019 reference rows), recorded in
+  [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md);
+  the record's own sentences are kept as its 2026-11-10 reading. The
+  [`LC-P3-08-evidence-mapping-design.md`](../plans/LC-P3-08-evidence-mapping-design.md)
+  row that said the half "stays `NOT RUN`" now says which date it was
+  read on and that the half has since run. No gate row moves and no PASS is
+  claimed for `LC-P3-02`.
+
+
+## 2026-11-18 - the shard-anchor incident of 2026-11-17 is on the record
+
+- A squash merge rewrote the revision the shard costs were anchored to, so
+  the cost witness could not find that revision and `main` and the open pull
+  requests went red until the costs were re-measured on the merged tree and
+  re-anchored. Repaired by PR #197, guarded by PR #199.
+- The record is
+  [`LC-P3-02-shard-anchor-incident-2026-11-17.md`](../acceptance/LC-P3-02-shard-anchor-incident-2026-11-17.md):
+  the timeline, the root cause (the re-measure tool's default anchors the
+  costs at a pull request's branch head, and the squash merge rewrote it),
+  the two failing runs — `44092424276` on `main` and `44095579632` on PR
+  #194 — with the same message, the measured tree equality between
+  `b2e3661…` and `e16d82d…` (`340083a0f42602caae52427712a63f40587d6c86`),
+  and the two-clone reproduction, including the checkout where the old
+  witness passes and only PR #199's ancestor witness fails.
+- The tool convention that came out of it: re-measure with `--measured-at`
+  naming a commit already in `main`'s history, rather than the run's head.
+
+
 ## 2026-11-17 - the fifth-version 44-row dual-host checklist is complete (44/44 rows)
 
 - The external fillable ledger `reopen-rows-filled-2026-11-10.csv` is now
@@ -32,26 +79,35 @@
   owner still has to re-run those **twelve rows** on WPS Office 12.1.0.29690
   and Word 2019 16.0.17932.21140; the execution pack — twelve cards, the
   twelve-row ledger template and the W0 slot in the W1–W6 day — is outside
-  the repository, under `E:/labcairn-local/rerun12-exec-20261117/`. Until
+  the repository, under `E:/labcairn-local/rerun12-exec-20261117/` — a path that
+  no longer exists: that pack was **renamed, not deleted**, on 2026-11-18 to
+  `E:/labcairn-local/_OBSOLETE-transparent-png__rerun12-exec-20261117/`. Until
   that re-run lands, the G1 gate is open and the `LC-P3-01` and `LC-P3-02`
   board rows stay `IN PROGRESS`.
   **Read 2026-11-18:** the pack named above is **superseded for the rerun's
   artifacts** by `E:/labcairn-local/rerun12-opaque-20261118/`, whose media
-  pixel is opaque. The 2026-11-17 pack's artifacts carry a **fully transparent**
-  pixel, so the `images` token of the `05`, `07` and `08` families could never
-  be `yes` there — and **that pack's own cards name its own artifacts' hashes**,
-  so opening it raises no error and the wrong reading is silent (re-measured
-  2026-11-18: its `08-refusals-elsewhere-in-the-document-surgical-clean.docx`
-  hashes to `cc50411c…`, exactly what its `R01` card names, while the opaque
-  pack's same artifact hashes to `cbf08be1…`). **The rerun runs from the
-  opaque pack**; the 2026-11-17 pack is kept for its order, its timing and its
-  pause/resume rules. **PR #201 is on `main` as `50f7110`** (merged 2026-11-18
-  01:55) and its tree is identical to the pack's source tree `4f311bc…`, so the
-  pack's artifacts are reproducible from `main` now. The rerun is also **no
-  longer a window of a W1–W6 day**:
-  the owner split the trial-day work into three dates on 2026-11-18 — the
-  twelve rows alone on 2026-11-19, AC-6 + G4 T0–T8 on 2026-11-20, T9 + T10 on
-  2026-11-23 — with the six prerequisites in front of all three. The plan is
+  pixel is opaque (`RGBA(46, 116, 181, 255)`). The 2026-11-17 pack's artifacts
+  carry a **fully transparent** pixel (`RGBA(0, 0, 0, 0)`), so the `images`
+  token of the `05`, `07` and `08` families could never be `yes` there — and
+  **that pack's own cards name its own artifacts' hashes**, so opening it
+  raises no error and the wrong reading is silent (re-measured 2026-11-18: its
+  `08-refusals-elsewhere-in-the-document-surgical-clean.docx` hashes to
+  `cc50411c…`, exactly what its `R01` card names, while the opaque pack's
+  same artifact hashes to `cbf08be1…`). That pack was **renamed, not
+  deleted**, on 2026-11-18: it is now
+  `E:/labcairn-local/_OBSOLETE-transparent-png__rerun12-exec-20261117/`, and
+  the path above is history. **The rerun runs from the opaque pack**; the
+  2026-11-17 pack is kept for its order, its timing and its pause/resume
+  rules. **PR #201 is on `main` as `50f7110`** (merged 2026-11-18 01:55) and
+  its tree is identical to the pack's source tree `4f311bc…`, so the pack's
+  artifacts are reproducible from `main` now — but the pack's own record says
+  the regeneration at the merged commit **was not run**, so whoever merges
+  runs `scripts/regenerate.py` at the merged commit and compares the hashes
+  before the twelve rows are executed. The rerun is also **no longer a window
+  of a W1–W6 day**: the owner split the trial-day work into three dates on
+  2026-11-18 — the twelve rows alone on 2026-11-19, AC-6 + G4 T0–T8 on
+  2026-11-20, T9 + T10 on 2026-11-23 — with the six prerequisites in front of
+  all three. The plan is
   `E:/labcairn-local/one-page-trial-day-20261118/ONE-PAGE-DAY-PLAN.md`, and
   its hand-over cards are in the same folder's `HANDOVER-CHECKPOINTS.md`.
 
