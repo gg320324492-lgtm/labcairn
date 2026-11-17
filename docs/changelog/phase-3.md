@@ -1,5 +1,18 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The fifth-version 44-row dual-host checklist is complete (2026-11-17)
+
+- The external 44-row checklist ledger reached 44/44 completion with
+  `VALIDATOR RESULT: PASS`: 31 PASS, 11 PRESENCE-LOSS and 2
+  REFUSAL-RECORDED. WPS and Word rows were judged separately; all 22 DOCX
+  re-hashed unchanged, and the four historical 2026-11-10 PASS rows were
+  preserved byte-for-byte.
+- Record [`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md)
+  binds this fifth-version ledger at SHA-256
+  `b24f22e5a163bfb9d6663a8f049b0f9d11adda84bc33ef01166868e10a2354aa`
+  and names the image/media blank-PNG losses, the WPS hyperlink-in-revision
+  loss, and the two Word severe-open-error refusals.
+
 ### The logfire decision lands as PR #186 (2026-11-17)
 
 - The owner decided on 2026-11-17 that the shipped build drops the
