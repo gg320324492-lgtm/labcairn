@@ -356,6 +356,100 @@ def test_the_recorded_costs_cover_every_test_file(repo_root: Path) -> None:
         )
 
 
+def _ancestor_of_head(repo_root: Path, revision: str) -> tuple[bool, str]:
+    """Whether ``revision`` is an ancestor of HEAD, and how git answered.
+
+    **The exit status is the answer.** ``git merge-base --is-ancestor`` says
+    **zero** when the revision is an ancestor, **one** when the revision
+    exists in this checkout but this tree did not grow out of it, and
+    **128** when the revision does not exist here at all. The last two are
+    different accidents -- one revision was rewritten away, the other names
+    a tree that was never part of this one -- so the caller is told which
+    happened instead of being handed a bare "no".
+    """
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "merge-base",
+            "--is-ancestor",
+            revision,
+            "HEAD",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        return True, "it is an ancestor of HEAD"
+    if proc.returncode == 1:
+        return False, "it is in this checkout but HEAD did not grow out of it"
+    detail = proc.stderr.strip()
+    return False, f"it cannot be resolved in this checkout: {detail}"
+
+
+def _assert_measured_at_is_an_ancestor(repo_root: Path, measured_at: str) -> None:
+    """Fail unless ``measured_at`` is a commit this tree grew out of.
+
+    **The accident.** On 2026-11-17 a pull request measured the shard costs
+    on its own branch and recorded that branch commit as the anchor. The
+    merge was a squash, so the work was rewritten as a new commit and the
+    recorded anchor was left naming the **pre-squash** revision -- which no
+    clone of ``main`` contains. The cost check could not compare the two
+    trees, and **``main`` and every open pull request went red** at once
+    until the costs were re-measured on the merged tree and re-anchored.
+
+    **Why an ancestor and not merely "a commit the checkout contains".** A
+    revision the checkout happens to hold but that this tree did not grow
+    out of -- a side branch's commit, or the pre-squash commit a fetch left
+    behind -- makes ``git diff <anchor>..HEAD`` compare two unrelated
+    trees and return a difference that is about neither of them. The
+    ancestor relation is the stronger and the right property: **this tree
+    grew out of the tree the costs were measured on.** Being in the
+    checkout is a statement about the object store; being an ancestor is a
+    statement about the history, and the history is what the costs describe.
+    """
+    ok, how = _ancestor_of_head(repo_root, measured_at)
+    assert ok, (
+        f"the shard file's measured_at is {measured_at}, and {how}.\n\n"
+        "The anchor has to be a commit this tree grew out of. A squash merge "
+        "rewrites a pull request's commits, so an anchor measured on the "
+        "branch names a revision the merged tree has never heard of: "
+        "re-measure the costs on the merged tree and re-anchor the shard "
+        "file.\n\n"
+        f"  git merge-base --is-ancestor {measured_at} HEAD"
+    )
+
+
+def test_the_costs_were_measured_on_an_ancestor_of_this_tree(repo_root: Path) -> None:
+    """The commit the costs were measured at must be an ancestor of HEAD.
+
+    **Why it needs watching.** The anchor is a pointer into the history, and
+    a merge can move the work it points at. A squash merge rewrites a pull
+    request's commits into a new one, so an anchor measured on the branch
+    names a revision the merged tree does not contain -- and the cost check
+    then cannot say whether the costs still describe the tree. That is not
+    hypothetical: it happened on 2026-11-17, and it turned ``main`` and
+    every open pull request red.
+
+    **What it is not.** This is not the check that the costs are still right
+    for this tree -- that is the next test's job, and it needs an anchor it
+    can compare against. **This one only says the anchor is usable at
+    all**: it is a commit this tree grew out of.
+    """
+    document = _shard_document(repo_root)
+    measured_at = document.get("measured_at")
+    assert measured_at, (
+        "the shard file must name the commit its costs were measured at, so "
+        "that a cost which no longer belongs to the tree is noticed"
+    )
+    assert isinstance(measured_at, str), (
+        f"the shard file's measured_at must be a commit, not {measured_at!r}"
+    )
+    _assert_measured_at_is_an_ancestor(repo_root, measured_at)
+
+
 def test_the_costs_belong_to_the_tree_they_were_measured_on(repo_root: Path) -> None:
     """The costs must still describe the tree, or the shards are lopsided.
 
@@ -412,8 +506,9 @@ def test_the_costs_belong_to_the_tree_they_were_measured_on(repo_root: Path) -> 
         shards = _shards(repo_root, platform)
         heavy, reason = _files_that_need_a_remeasurement(changed, shards, costs)
         assert not heavy, (
-            f"on {platform}, these files changed since the costs were measured "
-            f"at {measured_at}, and {reason}:\n  "
+            f"the anchor {measured_at} could be compared against HEAD, but on "
+            f"{platform} these files changed since the costs were measured, "
+            f"and {reason}:\n  "
             + "\n  ".join(heavy)
             + "\n\nRe-measure the costs on the runner and regenerate the shard "
             "file."
@@ -797,7 +892,8 @@ def _changed_paths(repo_root: Path, since: str) -> list[str]:
         pytest.fail(
             f"the commit {since} is not in this checkout, so the costs cannot "
             "be checked. The shard file's measured_at must name a commit the "
-            "checkout contains -- a run id, for instance, is not one."
+            "checkout contains and that HEAD grew out of -- a run id, for "
+            "instance, is neither."
         )
     return [
         line
@@ -827,6 +923,106 @@ def test_the_cost_check_fails_when_it_cannot_look(repo_root: Path) -> None:
         _changed_paths(repo_root, "not-a-commit-at-all")
     assert "not in this checkout" in str(caught.value), (
         f"the failure must say the commit could not be found, not {caught.value!r}"
+    )
+
+
+def _a_repository_with_a_side_branch(tmp_path: Path) -> tuple[Path, str, str]:
+    """A throwaway repository whose side branch never grew into its main line.
+
+    **Why a repository of its own.** The proof that the ancestor witness
+    fails has to be made on a tree with the *shape* of the accident, and
+    the real checkout does not have that shape on demand: whether a
+    rewritten revision is in the object store depends on what has been
+    fetched, so the same mistake shows up as two different symptoms. A
+    repository built here has exactly the history the accident produced --
+    a commit on a line the main line never took -- and it is thrown away
+    afterwards.
+    """
+    repo = tmp_path / "checkout"
+    repo.mkdir()
+    identity = (
+        "-c",
+        "user.name=LabCairn Witness",
+        "-c",
+        "user.email=witness@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+    )
+
+    def git(*arguments: str) -> str:
+        proc = subprocess.run(
+            ["git", "-C", str(repo), *arguments],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return proc.stdout.strip()
+
+    git("init")
+    git(*identity, "commit", "--allow-empty", "--no-verify", "-m", "root")
+    main_sha = git("rev-parse", "HEAD")
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    git("checkout", "-b", "side")
+    git(*identity, "commit", "--allow-empty", "--no-verify", "-m", "side")
+    side_sha = git("rev-parse", "HEAD")
+    git("checkout", branch)
+    return repo, main_sha, side_sha
+
+
+def test_the_ancestor_check_says_which_accident_happened(tmp_path: Path) -> None:
+    """The ancestor check must tell the two accidents apart.
+
+    **Why the distinction matters.** A revision this checkout does not have
+    and a revision it has but did not grow out of are different faults with
+    different fixes, and a message that does not say which one happened
+    sends the reader to the wrong place: the first is a fetch or a rewritten
+    commit, the second is an anchor measured on a tree this one never grew
+    from.
+    """
+    repo, main_sha, side_sha = _a_repository_with_a_side_branch(tmp_path)
+
+    ok, how = _ancestor_of_head(repo, main_sha)
+    assert ok, f"the line's own commit is an ancestor of itself, not {how}"
+
+    ok, how = _ancestor_of_head(repo, side_sha)
+    assert not ok, "the side branch's commit is not an ancestor of the main line"
+    assert "did not grow out of it" in how, (
+        f"the message must say the revision exists but is not an ancestor, not {how!r}"
+    )
+
+    ok, how = _ancestor_of_head(repo, "not-a-commit-at-all")
+    assert not ok, "a revision this checkout does not have cannot be an ancestor"
+    assert "cannot be resolved" in how, (
+        f"the message must say the revision is missing here, not {how!r}"
+    )
+
+
+def test_the_ancestor_witness_fails_on_a_rewritten_anchor(
+    repo_root: Path, tmp_path: Path
+) -> None:
+    """The witness must fail when the shard file names a rewritten anchor.
+
+    **This is the mutation.** The accident of 2026-11-17 was a shard file
+    whose anchor named a revision the merged tree did not grow out of. Here
+    that anchor is written on purpose and the witness is asked about it, so
+    the witness is shown to fail for the property it claims to watch rather
+    than merely to exist.
+    """
+    repo, _, side_sha = _a_repository_with_a_side_branch(tmp_path)
+    document = copy.deepcopy(_shard_document(repo_root))
+    document["measured_at"] = side_sha
+    path = repo / SHARD_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(AssertionError) as caught:
+        test_the_costs_were_measured_on_an_ancestor_of_this_tree(repo)
+    message = str(caught.value)
+    assert side_sha in message, (
+        f"the failure must name the revision it is about, not {message!r}"
+    )
+    assert "re-anchor" in message, (
+        f"the failure must say what to do about it, not {message!r}"
     )
 
 
