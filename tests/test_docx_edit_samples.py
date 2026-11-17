@@ -38,6 +38,7 @@ import io
 import re
 import xml.etree.ElementTree as ElementTree
 import zipfile
+import zlib
 from typing import Final
 
 import pytest
@@ -202,6 +203,76 @@ def test_the_parts_a_docx_needs_are_all_there() -> None:
                 f"{sample.name} references {token} in the document part and the "
                 "relationship part does not declare it"
             )
+
+
+def test_media_png_chunks_carry_correct_checksums() -> None:
+    """The corpus's own image is decodable, or the images row is a self-inflicted loss.
+
+    **Why this is a byte-level witness.** The previous value of the media part
+    carried an IDAT chunk whose CRC field was ``0x00000000`` and a stream that
+    was four bytes short, so neither host decoded it and eight support-matrix
+    rows recorded a presence loss that was the corpus's defect, not the seam's.
+    A test that only asks whether the part is present would have stayed green
+    through all of that, so this one reads the chunk structure the PNG
+    specification defines -- length, type, data, CRC -- and checks each
+    against :func:`zlib.crc32`, independently of any image library.
+
+    **Every sample that writes the part, refused ones included.** A refusal
+    sample still ships the media part; a host that opens it before the seam
+    refuses would hit the same broken bytes.
+    """
+    for sample in SAMPLES:
+        if not sample.media or sample.hostile:
+            continue
+        with zipfile.ZipFile(io.BytesIO(sample_bytes(sample))) as archive:
+            png = archive.read("word/media/image1.png")
+        assert png.startswith(b"\x89PNG\r\n\x1a\n"), (
+            f"{sample.name}: word/media/image1.png does not start with the PNG signature"
+        )
+        offset = 8
+        seen_idat = False
+        while offset < len(png):
+            if offset + 8 > len(png):
+                pytest.fail(
+                    f"{sample.name}: word/media/image1.png ends inside the header of "
+                    f"the chunk at byte {offset}"
+                )
+            length = int.from_bytes(png[offset : offset + 4], "big")
+            end = offset + 12 + length
+            if end > len(png):
+                pytest.fail(
+                    f"{sample.name}: the chunk at byte {offset} declares "
+                    f"{length} data bytes but only {len(png) - offset - 8} remain in the part"
+                )
+            chunk_type = png[offset + 4 : offset + 8]
+            chunk_data = png[offset + 8 : offset + 8 + length]
+            stored = int.from_bytes(png[offset + 8 + length : end], "big")
+            computed = zlib.crc32(chunk_type + chunk_data) & 0xFFFFFFFF
+            assert stored == computed, (
+                f"{sample.name}: the {chunk_type!r} chunk at byte {offset} stores "
+                f"crc32 {stored:08x} but its type and data hash to {computed:08x}"
+            )
+            if chunk_type == b"IDAT":
+                seen_idat = True
+                try:
+                    zlib.decompress(chunk_data)
+                except zlib.error as error:
+                    pytest.fail(
+                        f"{sample.name}: the IDAT chunk at byte {offset} does not inflate: {error}"
+                    )
+            if chunk_type == b"IHDR":
+                width = int.from_bytes(chunk_data[0:4], "big")
+                height = int.from_bytes(chunk_data[4:8], "big")
+                colour = chunk_data[9]
+                assert (width, height) == (1, 1), (
+                    f"{sample.name}: the IHDR chunk declares {width}x{height}, "
+                    "not the one-pixel image the corpus documents"
+                )
+                assert colour == 6, (
+                    f"{sample.name}: the IHDR chunk declares colour type {colour}, not RGBA (6)"
+                )
+            offset = end
+        assert seen_idat, f"{sample.name}: word/media/image1.png carries no IDAT chunk"
 
 
 def test_comments_have_a_body_where_the_mark_says_there_is_one() -> None:

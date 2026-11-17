@@ -66,12 +66,16 @@ _ROOT: Final[str] = (
     f' xmlns:v="{V}" xmlns:o="{OLE_NS}" xmlns:w14="{W14}" mc:Ignorable="w14">'
 )
 
-#: A one-pixel PNG, so the image sample carries bytes a host can decode and a
-#: relationship that points at something. Without the part, "the relationship
-#: survived" would be a claim about an attribute alone.
+#: A one-pixel RGBA PNG, so the image sample carries bytes a host can decode
+#: and a relationship that points at something. Without the part, "the
+#: relationship survived" would be a claim about an attribute alone. Every
+#: chunk's CRC is checked by :func:`tests.test_docx_edit_samples.test_media_png`
+#: because the previous value carried an IDAT CRC field of ``0x00000000`` and a
+#: truncated stream: neither host decoded it, and eight support-matrix rows
+#: recorded a presence loss that was the corpus's own defect, not the seam's.
 _PNG: Final[bytes] = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
-    "0000000d4944415478da63600000020001e221bc330000000049454e44ae426082"
+    "0000000b49444154789c6360000200000500017a5eab3f0000000049454e44ae426082"
 )
 
 #: The author the seam stamps and the moment it stamps. Neither is read from a
