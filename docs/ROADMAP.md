@@ -62,8 +62,12 @@ no implementation; on 2026-11-08 the owner's decisions on the six open G1
 points issued the board's first two work orders,
 [`LC-P3-01` and `LC-P3-02`](plans/PHASE_3-work-orders.md), both **`IN PROGRESS`**.
 **Phase 3's first two tickets have landed locally and no Phase 3 gate is closed**:
-the §4.9 human dual-host reopen checklist, the real advisor sample and the
-runner-measured shard costs are open, and no delivery is authorised. The dated
+as read on 2026-11-12 the §4.9 human dual-host reopen checklist, the real
+advisor sample and the runner-measured shard costs were open, and no delivery
+is authorised. **Read 2026-11-17:** the §4.9 human dual-host reopen half and
+the real advisor sample's reopen half have run (44/44 rows and 16/16 rows
+filled); what is still open on them is the owner's re-run of the twelve rows
+the artifact fixes touched, and then the gate's own verdict. The dated
 rows below are historical records; see
 [`handoff/CURRENT.md`](handoff/CURRENT.md) and
 [`PHASE_3-planning-decisions-2026-11-06.md`](acceptance/PHASE_3-planning-decisions-2026-11-06.md)

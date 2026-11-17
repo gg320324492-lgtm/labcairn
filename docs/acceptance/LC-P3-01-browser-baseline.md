@@ -85,7 +85,14 @@ window's environment record outside the repository:
   (WPS as judge, Word 2010 as reference, no COM automation), and it examines
   files `LC-P3-02` produces, which did not exist while this window ran. It
   stays open for the owner; the hosts and procedure are named in
-  `G1-ENV-EVIDENCE-PREP-2026-11-08.md` §2.
+  `G1-ENV-EVIDENCE-PREP-2026-11-08.md` §2. **Read 2026-11-17:** the owner has
+  performed it since — 44/44 rows filled and format-validated, row verdicts
+  31 PASS / 11 PRESENCE-LOSS / 2 REFUSAL-RECORDED (PR #188, record
+  [`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](LC-P3-02-fifth-version-44-rows-2026-11-17.md));
+  what is still owed is the owner's re-run of the twelve rows the artifact
+  fixes touched. The reference host named above is Word 2019
+  (`16.0.17932.21140`) now, not Word 2010 — see `LC-P3-00` §5's 2026-11-16
+  re-measurement.
 - **A ticket status.** §1 carries rows, not a verdict; the gate decides.
 - **Any change to the shared records.** The work orders' board, README,
   CHANGELOG, CURRENT and ROADMAP were left untouched for the commander to

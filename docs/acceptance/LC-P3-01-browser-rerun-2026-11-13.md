@@ -229,7 +229,12 @@ Named, per §4.8's rule, not assumed away:
    follow from that decision; neither is made here.
 3. **The §4.9 human dual-host reopen checklist** remains open, as the
    baseline record already records: it examines files `LC-P3-02` produces and
-   is a human act at the machine.
+   is a human act at the machine. **Read 2026-11-17:** the owner has since
+   performed it — 44/44 rows filled and format-validated, row verdicts
+   31 PASS / 11 PRESENCE-LOSS / 2 REFUSAL-RECORDED (PR #188, record
+   [`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](LC-P3-02-fifth-version-44-rows-2026-11-17.md));
+   what is open now is the owner's re-run of the twelve rows the artifact
+   fixes touched, and the G1 gate verdict.
 
 ## 8. What this window left on the machine
 
