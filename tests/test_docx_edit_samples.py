@@ -380,6 +380,59 @@ def test_media_png_chunks_carry_correct_checksums() -> None:
         assert seen_idat, f"{sample.name}: word/media/image1.png carries no IDAT chunk"
 
 
+def test_media_png_pixel_is_not_transparent() -> None:
+    """A transparent pixel is not a picture; the part being in the package is not the show.
+
+    **Why this is a witness of its own.** The chunk witness above asks whether
+    the media part is *well formed*; this one asks whether it is *visible*.
+    Those are two claims, and the value the chunk witness accepted was a
+    well-formed PNG whose one pixel was ``RGBA(0, 0, 0, 0)`` -- fully
+    transparent. The document draws that image one centimetre square, so on
+    white paper the picture is not there at all: the package held a part, no
+    host drew anything, and the eight support-matrix rows whose ``images``
+    column is ``yes`` could never record a pass. A CRC says the bytes were
+    not corrupted; only the pixel says there is something to see.
+
+    **The pixel is read from the inflated IDAT, not from the constant.** The
+    claim is about what a host would decode, so it is taken from the bytes a
+    host decodes: the IDAT stream is inflated, its first byte is the
+    per-scanline filter and the four after it are the RGBA sample.
+    """
+    for sample in SAMPLES:
+        if not sample.media or sample.hostile:
+            continue
+        with zipfile.ZipFile(io.BytesIO(sample_bytes(sample))) as archive:
+            png = archive.read("word/media/image1.png")
+        idat = b""
+        offset = 8
+        while offset < len(png):
+            length = int.from_bytes(png[offset : offset + 4], "big")
+            chunk_type = png[offset + 4 : offset + 8]
+            if chunk_type == b"IDAT":
+                idat += png[offset + 8 : offset + 8 + length]
+            offset = offset + 12 + length
+        assert idat, f"{sample.name}: word/media/image1.png carries no IDAT chunk"
+        raw = zlib.decompress(idat)
+        assert len(raw) >= 5, (
+            f"{sample.name}: the IDAT stream inflates to {len(raw)} bytes, too few for "
+            "one RGBA pixel behind its filter byte"
+        )
+        assert raw[0] == 0, (
+            f"{sample.name}: the IDAT stream's filter byte is {raw[0]}, not the 0 this "
+            "witness reads the pixel behind"
+        )
+        red, green, blue, alpha = raw[1], raw[2], raw[3], raw[4]
+        assert alpha == 255, (
+            f"{sample.name}: the media pixel is RGBA({red}, {green}, {blue}, {alpha}) -- "
+            f"alpha is {alpha}, not 255; a transparent pixel is invisible on paper, so "
+            "the images row can never record a pass"
+        )
+        assert red or green or blue, (
+            f"{sample.name}: the media pixel is RGBA({red}, {green}, {blue}, {alpha}) -- "
+            "every colour channel is zero, so there is nothing to draw"
+        )
+
+
 def test_comments_have_a_body_where_the_mark_says_there_is_one() -> None:
     """A comment marker whose id matches no comment body is damage, not a fixture."""
     for sample in SAMPLES:

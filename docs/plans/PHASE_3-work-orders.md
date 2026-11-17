@@ -260,7 +260,11 @@ not `PASS`, and they fall into two groups:
   IDAT chunk carried a CRC of zero; fixed in PR #193. Four rows — the
   `08-refusals-elsewhere` family, two hosts each — recorded the family's
   text-box anchor (`wp:docPr` and `wps:spPr` missing, a 1×1-EMU extent) and the
-  image the sample declared but never carried; fixed in PR #195.
+  image the sample declared but never carried; fixed in PR #195. The image
+  those two fixes brought was well formed and **fully transparent**, so it
+  could not be drawn either; PR #201 replaced its one pixel with an opaque one
+  (`RGBA(46, 116, 181, 255)`), which moved every one of the twelve artifacts
+  a second time.
 - **One row no product fix touches.** The `06b` hyperlink row on the WPS
   primary host is recorded as issue #190 — a WPS rendering limitation, since
   WPS renders neither the inserted nor the deleted sentence when a hyperlink
@@ -274,9 +278,11 @@ What is still owed is the owner's re-run of the twelve fixable rows on
 human act at the machine, so it cannot be automated and it has not happened
 yet: the execution pack — twelve cards, the twelve-row ledger template and
 the W0 slot in the W1–W6 day — is outside the repository, under
-`E:/labcairn-local/rerun12-exec-20261117/`. Until that re-run lands, this
-half is complete as an observation and the G1 gate stays open; no gate verdict
-is claimed here.
+`E:/labcairn-local/rerun12-opaque-20261118/`, regenerated from the tree PR
+#201 carries. The earlier pack at `E:/labcairn-local/rerun12-exec-20261117/`
+holds artifacts whose media pixel is transparent, and **they must not be
+opened for this run**. Until that re-run lands, this half is complete as an
+observation and the G1 gate stays open; no gate verdict is claimed here.
 
 **4.10 Substitute boundary.**
 
