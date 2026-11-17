@@ -26,7 +26,7 @@ The sample is the owner-picked advisor-annotated manuscript, called here only by
 - sample bytes: 4443105
 - plan digest: `19ff69ef5051cc8dbd06df50f120840d33992655c4a9b52ebeaf233c0eeb71e2`
 
-The proposals are deterministic structural constructions behind the provider gate. No real-model call was made; that belongs to LC-P3-06. No human host was launched: the two-host reopen checklist remains the owner's half and is recorded as `PENDING-HUMAN` outside the tree.
+The proposals are deterministic structural constructions behind the provider gate. No real-model call was made; that belongs to LC-P3-06. No human host was launched: the two-host reopen checklist remains the owner's half and is recorded as `PENDING-HUMAN` outside the tree. **Read 2026-11-16/17:** that half has since run — the sixteen reopen rows of this sample's own ledger are 16/16 `PASS` with unchanged hashes (sha256 `2d8b133b…`, 27,107 B).
 
 ## Import
 
@@ -112,7 +112,7 @@ Each batch's exit code is read back from a file, and the file it came from is pr
 - artifacts named in the ledger: 8
 - artifact files in the output directory: 8
 - the two inventories agree: True
-- dual-host reopen rows: 16 (`PENDING-HUMAN`; `NOT_MEASURED` until the finalizer writes them)
+- dual-host reopen rows: 16 (`PENDING-HUMAN`; `NOT_MEASURED` until the finalizer writes them) — **read 2026-11-16/17:** all 16 are `PASS` with unchanged hashes; the `PENDING-HUMAN` label above is this record's 2026-11-10 reading
 - external report SHA-256: `a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638`
 
 ## Ledger binding

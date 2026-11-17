@@ -3,6 +3,16 @@
 **Date:** 2026-11-08. **Head:** `bbed26cf0c0468c0bc625542bd94ac9f0bd948ad`.
 **Status:** proposed. The independent copy is **temporary**, and the adoption
 is provisional until the real-sample run and the human reopen checklist exist.
+**Status read 2026-11-17:** both now exist — the real-sample run is recorded
+(42/42 arms; record
+[`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md))
+and the human reopen checklist has been performed (44/44 rows filled and
+format-validated, row verdicts 31 PASS / 11 PRESENCE-LOSS / 2
+REFUSAL-RECORDED; record
+[`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md),
+PR #188). What is still open is the owner's re-run of the twelve rows the
+artifact fixes touched, and the adoption decision itself, which this ADR does
+not make.
 
 ## Context and concrete problem
 
@@ -48,6 +58,10 @@ this ADR.
 
 - The corpus is synthetic; a host's answer about a synthetic file is not a
   host's answer about a real manuscript. The human checklist is **NOT RUN**.
+  **Read 2026-11-17:** the checklist has since run on the synthetic corpus
+  (44/44 rows, PR #188), so this risk entry records the ADR's 2026-11-08
+  reading; the re-run of the twelve fixed rows and the real-manuscript half
+  are still open.
 - The real advisor sample is held open pending the owner; no synthetic result
   substitutes for it.
 - The surgical option still reports `docx_nested_revision` on reopen; it is

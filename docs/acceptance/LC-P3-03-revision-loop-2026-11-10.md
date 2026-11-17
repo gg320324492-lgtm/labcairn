@@ -175,6 +175,10 @@ sample.
    the copy and producing the quality report is LC-P3-04's scope; the DOCX
    support matrix remains LC-P3-02's record. The real advisor sample, the WPS
    and Office human reopen checks and ADR-0021's final adoption remain open.
+   **Read 2026-11-17:** the real advisor sample's and the 44-row checklist's
+   human reopen halves have run (16/16 and 44/44 rows); what is open on them
+   is the owner's re-run of the twelve rows the artifact fixes touched, and
+   ADR-0021's final adoption, which this ticket does not make either way.
 5. **`SourceMaterial.read_permitted` in the copy effect.** The copy reads the
    original a second time inside the authorised effect, through the read-only
    door. The first read (at import) and the second (at copy) are both checked

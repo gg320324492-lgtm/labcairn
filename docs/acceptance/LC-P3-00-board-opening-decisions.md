@@ -78,6 +78,21 @@ at `12.1.0.29690`. What the ruling does not do: it does not convert a
 Word 2019 reading into a Word 2010 reading — the reference host is 2019
 now, and the records say so.
 
+**Read 2026-11-17 — the §4 rows have run; the gate has not closed.** The
+fifth-version 44-row dual-host checklist is complete as an observation: 44/44
+rows filled and format-validated, row verdicts 31 PASS / 11 PRESENCE-LOSS / 2
+REFUSAL-RECORDED (record
+[`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](LC-P3-02-fifth-version-44-rows-2026-11-17.md),
+PR #188; external ledger sha256 `b24f22e5…`, 47,156 B), on the two hosts this
+section names — WPS Office 12.1.0.29690 as primary and Word 2019
+16.0.17932.21140 as reference. Twelve of the thirteen non-PASS rows await the
+owner's re-run on those two hosts after the artifact fixes (PRs #193 and #195);
+the thirteenth is the WPS rendering limitation recorded as issue #190, which
+PR #198 labelled `wontfix`. **This
+record moves no board row:** `LC-P3-01` and `LC-P3-02` stay `IN PROGRESS` in
+[`PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)'s §1 table, and
+the G1 gate is not closed.
+
 ## 6. Desktop shell, signing
 
 `LC-P3-05` (desktop shell, installer) stays scoped as written; signing and

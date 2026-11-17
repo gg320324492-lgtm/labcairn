@@ -20,6 +20,21 @@
   and the content-control/field/text-box observations. The ledger SHA-256 is
   `b24f22e5a163bfb9d6663a8f049b0f9d11adda84bc33ef01166868e10a2354aa`
   (47,156 bytes, 44 data rows). No WPS result was copied into a Word row.
+- **What is still owed, and where it is.** Thirteen of the 44 rows are not
+  `PASS`, and the fixes for twelve of them have landed: PR #193 replaced the
+  corpus's own corrupt media PNG (the eight `05-image-and-relationship` and
+  `07-everything-at-once` rows), PR #195 repaired the text-box anchor and
+  gave the `08` sample its declared image (the four `08-refusals-elsewhere`
+  rows), and the thirteenth — the `06b` hyperlink row on WPS — is the WPS
+  rendering limitation of issue #190, which PR #198 labelled `wontfix` and
+  characterised as not a defect in the documents the matrix covers; it is not
+  among the twelve rows. Issues #189, #191 and #192 are still open. The
+  owner still has to re-run those **twelve rows** on WPS Office 12.1.0.29690
+  and Word 2019 16.0.17932.21140; the execution pack — twelve cards, the
+  twelve-row ledger template and the W0 slot in the W1–W6 day — is outside
+  the repository, under `E:/labcairn-local/rerun12-exec-20261117/`. Until
+  that re-run lands, the G1 gate is open and the `LC-P3-01` and `LC-P3-02`
+  board rows stay `IN PROGRESS`.
 
 ## 2026-11-17 - the logfire decision lands as PR #186; the dual-host reopen ledger is 16/16 PASS
 

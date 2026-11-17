@@ -326,6 +326,9 @@ printed full commit SHA`. 08 cites
 dual-host reopen `NOT RUN` — its "Final status sentence") as the same
 supply's machine half; no §4 row of this trial passes on 02's evidence
 alone, and 08 still records its own observation for every row it claims.
+**Read 2026-11-17:** that record's "Final status sentence" now reads
+`human dual-host reopen: 16/16 PASS on 2026-11-16/17`, so the `NOT RUN` above
+is this protocol's 2026-11-14 reading of it.
 
 ## 6. Evidence-address discipline (all rows)
 
