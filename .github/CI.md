@@ -33,18 +33,19 @@ with it. Measured 2026-11-11 at `6b3211ae631c7c9548ca160615f88daa6da7d5dd`:
 
 ```
 gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
-  --jq '.required_status_checks.contexts | length'   # -> 17
+  --jq '.required_status_checks.contexts | length'   # -> 15
 ```
 
-The 17 contexts the workflow's shape gives — 12 shard legs (2 platforms × 6
-shards, the matrix since 2026-11-15) plus `lint` and the four tool gates —
-listed one per line. The GitHub reading this block carries was taken
-2026-11-11 at `6b3211ae631c7c9548ca160615f88daa6da7d5dd`, when the matrix was
-five shards and the same call returned 15; the six-shard names below are what
-the workflows render now, and the protection is re-read with the command
-above:
+The 15 contexts, printed one per line: the names that call returned. The GitHub
+reading this block carries was taken 2026-11-11 at
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd`, when the matrix was five shards and
+every shard leg was required; it was read again on 2026-11-18 and returned the
+same 15 names. The newest reading is a file a program can read —
+`docs/ci/required-checks-reading.json` — and it is the file
+`tests/test_ci_shard_coverage.py` checks against this block (see 2026-11-18
+below).
 
-<!-- required-status-checks:begin — measured 2026-11-11 at 6b3211ae631c7c9548ca160615f88daa6da7d5dd; reshaped 2026-11-15 to the six-shard matrix -->
+<!-- required-status-checks:begin — measured 2026-11-11 at 6b3211ae631c7c9548ca160615f88daa6da7d5dd; re-read 2026-11-18, same set -->
 - `web-quality`
 - `reference-exclusion`
 - `secret-scan`
@@ -54,15 +55,25 @@ above:
 - `python-quality (ubuntu-latest, shard 2)`
 - `python-quality (ubuntu-latest, shard 3)`
 - `python-quality (ubuntu-latest, shard 4)`
-- `python-quality (ubuntu-latest, shard 5)`
 - `python-quality (windows-latest, shard 0)`
 - `python-quality (windows-latest, shard 1)`
 - `python-quality (windows-latest, shard 2)`
 - `python-quality (windows-latest, shard 3)`
 - `python-quality (windows-latest, shard 4)`
-- `python-quality (windows-latest, shard 5)`
 - `lint`
 <!-- required-status-checks:end -->
+
+<!-- unprotected-jobs:begin — read 2026-11-18 at 69be18efc52e08c19087db61de9ecdc9a8257772 -->
+- `evaluation`
+- `python-quality (ubuntu-latest, shard 5)`
+- `python-quality (windows-latest, shard 5)`
+- `real-model smoke`
+- `release-contents`
+- `release-dependency-licences (ubuntu-latest)`
+- `release-dependency-licences (windows-latest)`
+- `shell-test (ubuntu-latest)`
+- `shell-test (windows-latest)`
+<!-- unprotected-jobs:end -->
 
 **`lint` is in that list.** The 2026-11-02 record that introduced the job said it
 "reports without blocking" until the owner added it; the owner has since added it,
@@ -91,15 +102,26 @@ gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
 - **`admins: {"enabled": true}`** (`enforce_admins`) — the fifteen checks bind
   administrators as well.
 
-**Seven names the tree offers are not in the list:** `evaluation` and
-`real-model smoke` (schedule-only, so branch protection cannot see them at all),
-`release-contents` and both `release-dependency-licences (…)` legs (tag-triggered;
-they run on pull requests but are not required), and both
-`shell-test (…)` legs. `tests/test_ci_shard_coverage.py` watches the direction
-that can actually break a merge — **every name in the list must be a name some job
-in `.github/workflows/` reports**, because a required check naming a name no job
-reports is a check GitHub waits for forever. It does not watch the seven, and it
+**Nine names the tree offers are not in the list:** the two `shard 5` legs
+(`python-quality (ubuntu-latest, shard 5)` and `python-quality (windows-latest,
+shard 5)`), `evaluation` and `real-model smoke` (schedule-only, so branch
+protection cannot see them at all), `release-contents` and both
+`release-dependency-licences (…)` legs (tag-triggered; they run on pull
+requests but are not required), and both `shell-test (…)` legs. They are listed
+in the `unprotected-jobs` block above, so the gap is a list and not a silence.
+`tests/test_ci_shard_coverage.py` watches the direction that can actually break
+a merge — **every name in the list must be a name some job in
+`.github/workflows/` reports**, because a required check naming a name no job
+reports is a check GitHub waits for forever. It does not watch the nine, and it
 must not: which of them become required is the owner's decision, recorded below.
+
+**The two `shard 5` legs are a gap, not a decision.** The six-shard matrix
+arrived on 2026-11-15; the protection was last read on 2026-11-11, when the
+matrix had five shards and every shard leg was required. The owner has not
+added the two new legs, so **a pull request can merge with `shard 5` red** —
+the tests in those two shards are real tests, and the merge does not wait for
+them. Adding them is the owner's call on GitHub; this repository's part is to
+say so, which is what the `unprotected-jobs` block and the reading record do.
 
 **The owner's decision, taken 2026-11-11.** `shell-test
 (windows-latest)` and `shell-test (ubuntu-latest)` run on every pull request
@@ -110,6 +132,45 @@ The same day the owner decided that **no required review is added**: the
 review this project treats as the gate stays the one the repository arranges
 (two layers, an implementer and a reader that did not write the code), not one
 GitHub enforces.
+
+## 2026-11-18 — the reading becomes a record a program can check
+
+**What drifted, and why nothing caught it.** The required-check set was a
+hand-written list in this file and a count in three pointers, and the two came
+apart. On 2026-11-15 the matrix went to six shards and the list here was
+reshaped to the workflow's shape — seventeen contexts — while the protection on
+GitHub stayed at the fifteen the 2026-11-11 call returned. **The list stopped
+being a reading and became the shape of the workflows wearing a reading's
+name.** No witness could tell, because every name in it was a name some job
+reports: the shape check and the reading check said the same thing, and the
+shape was the thing that had changed.
+
+**What is recorded now.** `docs/ci/required-checks-reading.json` holds the
+reading in a form a program can read: the instant it was taken, the revision
+it was taken at, the names it returned, the names every workflow in the tree
+reports, and the names that are reported and not required. Read on 2026-11-18
+at `69be18efc52e08c19087db61de9ecdc9a8257772`, it returned the same fifteen
+contexts, and it named the two `shard 5` legs as reported and not required.
+
+**What the witness checks, and what it cannot.** `tests/test_ci_shard_coverage.py`
+checks that the file agrees with itself and with the tree: every required
+context is a name a workflow reports, the two lists together are exactly the
+names the tree reports, the revision is a commit this checkout still has, the
+shard count is the workflow matrix's, and the file and this block name the same
+set. **It cannot check GitHub's actual protection** — CI holds no credentials,
+so a context added or removed on GitHub is invisible until somebody re-reads it
+with credentials and rewrites the file. That gap is stated here rather than
+closed, because closing it is the owner's setting to change and this
+repository can only read it.
+
+**One mismatch this change did not repair, recorded rather than hidden.**
+`docs/REPOSITORY-MAP.md` still reads "seventeen required contexts at that
+reading", and that sentence puts two quantities in one: the reading was
+**fifteen** and seventeen is the **shape**. The file is outside the scope of
+this change, so the sentence is still there; the witness reads it as the shape
+statement it ends with and watches that number against the matrix, and the
+reading's own number against this block. **The file's sentence should be
+corrected to fifteen**, and that correction is not this change's to make.
 
 ## 2026-11-11 — the shell's Node witnesses get a job, and two name defects close
 
