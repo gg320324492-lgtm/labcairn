@@ -29,6 +29,9 @@ markers.
 | the AlternateContent branches agree | a straw-man refusal against a file no host writes |
 | the hostile inputs are hostile | a refusal branch reached by nothing |
 | the reasons are reached and documented | a refusal nobody raises; a raise nobody tells |
+| every anchor carries docPr and a real extent | a file Word refuses (D-4) or cannot show (D-3) |
+| anchor docPr ids are distinct per document | two drawings minting one id |
+| sample 08's image declaration is carried | a declared class the package does not hold |
 """
 
 from __future__ import annotations
@@ -202,6 +205,108 @@ def test_the_parts_a_docx_needs_are_all_there() -> None:
                 f"{sample.name} references {token} in the document part and the "
                 "relationship part does not declare it"
             )
+
+
+WP: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+A_NS: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/main"
+
+
+def test_every_anchored_drawing_carries_its_required_children() -> None:
+    """An anchor missing a required child is a file Word refuses, not a fixture.
+
+    **What this witnesses.** ECMA-376's ``CT_Anchor`` requires a ``wp:docPr``
+    child, and the ``wps:wsp`` inside a text box requires a ``wps:spPr``
+    child ahead of ``wps:txbx``. The 44-row ledger's D-4 finding is Word 2019
+    refusing sample 08 outright with both missing; WPS opened the same file,
+    so only a host as strict as Word catches it. A second drawing in one
+    document must mint a second ``wp:docPr`` id, so the ids are asserted
+    unique per document. The extent must be a readable size: the 1x1-EMU box
+    the first version wrote is the ledger's D-3 finding, a caption no host
+    can show.
+    """
+    anchors = 0
+    for sample in SAMPLES:
+        if sample.hostile:
+            continue
+        document = _document_of(sample)
+        root = ElementTree.fromstring(document)
+        for anchor in root.iter(f"{{{WP}}}anchor"):
+            anchors += 1
+            children = [child.tag for child in anchor]
+            assert f"{{{WP}}}docPr" in children, (
+                f"{sample.name} has a wp:anchor without wp:docPr, which Word 2019 "
+                "refuses the file over (the ledger's D-4 finding)"
+            )
+            extent = anchor.find(f"{{{WP}}}extent")
+            assert extent is not None, f"{sample.name} has a wp:anchor without wp:extent"
+            cx, cy = int(extent.get("cx", "0")), int(extent.get("cy", "0"))
+            assert (cx, cy) != (1, 1) and cx > 0 and cy > 0, (
+                f"{sample.name} has a {cx}x{cy}-EMU anchored drawing, which no host "
+                "can show (the ledger's D-3 finding)"
+            )
+        for shape in root.iter(f"{{{WPS}}}wsp"):
+            children = [child.tag for child in shape]
+            assert f"{{{WPS}}}spPr" in children, (
+                f"{sample.name} has a wps:wsp without wps:spPr, which Word 2019 "
+                "refuses the file over (the ledger's D-4 finding)"
+            )
+            assert children.index(f"{{{WPS}}}spPr") < children.index(f"{{{WPS}}}txbx"), (
+                f"{sample.name}'s wps:spPr does not precede wps:txbx, which the "
+                "CT_WordprocessingShape sequence requires"
+            )
+    assert anchors > 0, "no sample carries an anchored drawing, so nothing witnesses the anchor"
+
+
+def test_every_anchored_drawing_mints_distinct_docpr_ids() -> None:
+    """Two drawings sharing one ``wp:docPr`` id is a conflict Word reports.
+
+    Sample 08 carries both the text box's anchored drawing and an inline
+    picture, and each names its own ``wp:docPr``; the ids are asserted
+    distinct within one document part.
+    """
+    for sample in SAMPLES:
+        if sample.hostile:
+            continue
+        root = ElementTree.fromstring(_document_of(sample))
+        ids = [int(element.get("id", "0")) for element in root.iter(f"{{{WP}}}docPr")]
+        assert len(ids) == len(set(ids)), (
+            f"{sample.name} mints the same wp:docPr id twice: {sorted(ids)}"
+        )
+
+
+def test_sample_08_declares_the_image_its_carries_claim_names() -> None:
+    """A declared class the package does not carry makes the ledger row fiction.
+
+    **The mismatch this witnesses.** Sample 08's first version declared the
+    image class while carrying no media part, no picture relationship and no
+    drawing — the ledger's D-3 follow-on finding. The declaration and the
+    bytes must agree in both directions: the media part and the image
+    relationship exist, the relationship target names the part, and every
+    ``r:embed`` the body mentions is that relationship.
+    """
+    sample = next(item for item in SAMPLES if item.name.startswith("08-refusals"))
+    assert StructureClass.IMAGES in sample.carries and StructureClass.MEDIA in sample.carries
+    with zipfile.ZipFile(io.BytesIO(sample_bytes(sample))) as archive:
+        names = archive.namelist()
+        media_parts = [name for name in names if name.startswith("word/media/")]
+        relationships = archive.read("word/_rels/document.xml.rels").decode()
+        document = archive.read("word/document.xml")
+    assert media_parts, f"{sample.name} declares images and carries no media part"
+    embeds = {match.decode() for match in re.findall(rb'r:embed="(rId\d+)"', document)}
+    declared = {
+        match.group(1)
+        for match in re.finditer(r'Id="(rId\d+)"[^>]*relationships/image"', relationships)
+    }
+    assert embeds == declared and declared, (
+        f"{sample.name}'s picture references {sorted(embeds)} and its relationships "
+        f"declare {sorted(declared)}"
+    )
+    for rid in declared:
+        target = re.search(rf'Id="{rid}"[^>]*Target="([^"]+)"', relationships)
+        assert target is not None, f"{sample.name} declares {rid} with no target"
+        assert f"word/{target.group(1)}" in names, (
+            f"{sample.name}'s {rid} targets {target.group(1)} and no such part exists"
+        )
 
 
 def test_comments_have_a_body_where_the_mark_says_there_is_one() -> None:
