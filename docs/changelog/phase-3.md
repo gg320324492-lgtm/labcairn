@@ -41,6 +41,16 @@
   `E:/labcairn-local/phase3-g1-evidence/LC-P3-02-real-half-2026-11-10/`.
   The dated acceptance record now states 16/16 PASS and keeps the two host
   halves as separate measurements.
+- **Dated-reading note (added 2026-11-17):** older entries below —
+  including the 2026-11-12 section's "Word 2010 rows stay `PENDING-HUMAN`;
+  the owner will install that host later" and the 2026-11-16 batch's
+  `c1b1d79f…` installer identity — were written before the 2026-11-16
+  re-measurement that found Word 2010 **absent** from the machine (the
+  reference host is Office 2019, `16.0.17932.21140`, PR #184) and before the
+  new-package rebuild `79b7f0bd…` (from `main` `da433d5`) superseded the
+  `c1b1d79f…` package. The current facts live in the 2026-11-17 section
+  above and in `docs/handoff/CURRENT.md`; the historical wording below is
+  kept as written.
 
 ### The reviewer is named, the dry run's F-1 is fixed and verified, and the trial's human-gate packs are ready (2026-11-16)
 

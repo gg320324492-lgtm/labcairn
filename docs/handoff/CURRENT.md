@@ -1,44 +1,23 @@
 # LabCairn — Current handoff
 
 
-## 2026-11-17 - the trial's T0 evidence base now stands on the rebuilt package; medium consistency findings corrected
-
-- **The 2026-11-16 new-package T0 rehearsal is the trial's operative T0
-  evidence** (`t0-rehearsal/T0-REHEARSAL-SUMMARY-NEWPKG-2026-11-16.md`):
-  the rebuilt installer `LabCairn Setup 0.0.1.exe` (sha256
-  `79b7f0bd21b741243dfd59f86419ccacabd279a0c943b0ac55213c1654764ed3`,
-  234,466,054 B, built from `main` `da433d5` carrying the F-1 fix)
-  passed all four arms — install (13 automated checks + 1 superseded
-  legacy assertion), first launch with no manual supply (11/11),
-  uninstall with workspace survival (4/4 + the O3-B workspace check),
-  reinstall idempotent (5/5, tree identical), and launch after reinstall
-  (11/11). B7 (workbench renders in the window) is recorded **NOT
-  OBSERVED** on this rerun — it stays a HUMAN-CHECK for trial day; the
-  2026-11-15 rehearsal's B7 human pass covered the same bundle shape.
-  The first rerun attempt FAILED and is recorded: a stray D:-drive
-  install of the rebuilt package itself (installed ~03:26 by the
-  frozen-smoke verification window while `%LOCALAPPDATA%` still resolved
-  to D:) was found in the pre-clean and uninstalled with its own
-  uninstaller before the arms ran.
-- **The frozen-package smoke test was re-run against the rebuilt
-  installer** (`frozen-smoke/RESULT-REBUILD-2026-11-16.md`): **PASS** —
-  `.txt` ingest end-to-end, idempotent second `task create`, `doctor`
-  exit 0, no `ExtractionVersionError`, C-1 honoured.
-- The previous package (`c1b1d79f…`, from `3523bc4`) is preserved under
-  `installer/previous-3523bc4/` and is **not** the trial package.
-
 ## 2026-11-17 - the real-sample dual-host reopen half is complete (16/16 PASS)
 
 - The eight WPS `-primary` rows were measured on 2026-11-16 and the eight
   Word 2019 `-reference` rows on 2026-11-16/17. The reference host was
   re-measured as Office Home & Student 2019, WINWORD `16.0.17932.21140`
   (`HomeStudent2019Retail`), and PR #184 recorded that correction on
-  `main` = `31972d9dcfd04d5c4fbfa556a4e5d1b6f80918b4`; the required-check
-  protection read 15 on 2026-11-17, and that commit's check-runs read 20
-  successful named checks with `evaluation` skipping by design (its
-  duplicate `failure`/`skipped` legs are schedule-only); its branch was
-  deleted and `witness_ledger.py` reported
-  `LOST -- none`.
+  `main` = `31972d9dcfd04d5c4fbfa556a4e5d1b6f80918b4`. **[Corrected
+  2026-11-17]** An earlier version of this entry said "all 23 checks green",
+  a number no measured reading produced. Re-measured from the GitHub
+  check-runs API for that commit (`gh api
+  repos/gg320324492-lgtm/labcairn/commits/31972d9…/check-runs`): 19
+  successful check-runs (12 `python-quality` shard legs, `lint`, `lint`
+  duplicate, `web-quality`, `reference-exclusion`, `secret-scan`,
+  `lockfile-consistency`, `shell-test` ×2, `real-model smoke`), plus
+  `evaluation` skipped by design (schedule-only) and duplicate-name
+  skipped/failure rows; the required-check protection set is **15** contexts.
+  Its branch was deleted and `witness_ledger.py` reported `LOST -- none`.
 - A person opened each of the 16 artifacts twice on its assigned host,
   closed without saving, screenshot both passes, and judged the eight
   structure tokens in each pass. All 16 rows are `PASS` in the external
@@ -134,10 +113,16 @@
   (`inventory-2026-11-16.md`) — **~21 GB** occupied, read-only audit,
   every directory classed TRIAL / KEEP / CANDIDATE; nothing deleted. The
   trial installer's provenance chain was re-verified (sha256 `c1b1d79f…`,
-  234,553,498 B, built from `3523bc4`) — superseded 2026-11-16 by the
-  `79b7f0bd…` rebuild from `da433d5` (see
-  `p308-trial-run/installer/REBUILD-2026-11-16.md`; that rebuild is the
-  trial package).
+  234,553,498 B, built from `3523bc4`).
+  **[Superseded 2026-11-16]** that `c1b1d79f…` package is no longer the
+  trial installer: the trial package is the 2026-11-16 rebuild
+  `79b7f0bd21b741243dfd59f86419ccacabd279a0c943b0ac55213c1654764ed3`
+  (234,466,054 B, built from `main` `da433d5`), which carries the F-1 fix
+  and is preserved in
+  `E:\labcairn-local\p308-trial-run\installer\` (the superseded package in
+  `installer\previous-3523bc4\`); see
+  `E:\labcairn-local\p308-trial-run\installer\REBUILD-2026-11-16.md` and
+  `installer\BUILD-SOURCE.txt`.
 - **The stale G4 stash was dropped with the owner's approval**: the last
   stash entry (`41ee21e…`, `g4-records-draft-not-for-batch`, 2026-10-22)
   was inventoried (`E:\labcairn-local\stash-inventory-2026-11-16.md`),
@@ -178,7 +163,7 @@
   `web/src/app/versions.ts` reworded in plain terms.
 - **The trial's second batch (four windows) reported**, all outside the
   tree under `E:\labcairn-local\p308-trial-run\`:
-  - **Frozen smoke: PASS.** The trial installer (`LabCairn Setup
+  - **Frozen smoke: PASS.** The then-trial installer (`LabCairn Setup
     0.0.1.exe`, 234,553,498 B, sha256 `c1b1d79f…`, built from `3523bc4`)
     installs cleanly; the freeze carries `labcairn/material`; a `.txt`
     through init + task create mints version
