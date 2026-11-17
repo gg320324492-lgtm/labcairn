@@ -53,6 +53,21 @@ V: Final[str] = "urn:schemas-microsoft-com:vml"
 OLE_NS: Final[str] = "urn:schemas-microsoft-com:office:office"
 W14: Final[str] = "http://schemas.microsoft.com/office/word/2010/wordml"
 
+#: The text box's extent, in EMU. 3600000x900000 is 10 cm x 2.5 cm -- large
+#: enough for a caption to be visible, unlike the 1x1-EMU box the first
+#: version wrote. ``wp:extent`` and ``wps:spPr``'s ``a:ext`` carry the same
+#: pair, and the VML fallback spells the same size in points (1 EMU is
+#: 1/12700 pt, so 3600000 EMU is 283.46 pt and 900000 EMU is 70.87 pt).
+BOX_CX: Final[int] = 3600000
+BOX_CY: Final[int] = 900000
+BOX_VML_WIDTH: Final[str] = "283.46"
+BOX_VML_HEIGHT: Final[str] = "70.87"
+#: The ``wp:docPr`` id of the text box's drawing. ``image()`` spells its own
+#: picture drawing with ``id="1"``, and the two ids are distinct within one
+#: document part: a sample that carries both (08) must not mint two
+#: drawings with one id.
+BOX_DOCPR_ID: Final[int] = 2
+
 _XML_HEAD: Final[str] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
 
 #: The prefixes every sample declares, ``w14`` included. A document that names
@@ -181,14 +196,30 @@ def text_box(text: str) -> str:
     of the modern branch alone leaves a document whose legacy spelling of the
     same caption says something else, and no measurement of "the box survived"
     would see the disagreement.
+
+    **The anchor is schema-complete.** ECMA-376's ``CT_Anchor`` requires a
+    ``wp:docPr`` child, and ``CT_WordprocessingShape`` requires a
+    ``wps:spPr`` child before ``wps:txbx``; Word 2019 refuses the sample
+    outright when either is missing (the 44-row ledger's D-4 finding), while
+    WPS opens it. The extent is a readable 3600000x900000 EMU, not 1x1: a
+    1x1-EMU box is the 44-row ledger's D-3 finding, a caption no host can
+    show. The ``mc:Fallback``'s ``v:shape`` carries the matching style so
+    both branches describe the same box.
     """
     inner = para(text)
     return (
         '<w:p><mc:AlternateContent><mc:Choice Requires="wps">'
-        '<w:drawing><wp:anchor><wp:extent cx="1" cy="1"/><a:graphic>'
-        f'<a:graphicData uri="{WPS}"><wps:wsp><wps:txbx><w:txbxContent>{inner}'
+        "<w:drawing><wp:anchor>"
+        f'<wp:extent cx="{BOX_CX}" cy="{BOX_CY}"/>'
+        f'<wp:docPr id="{BOX_DOCPR_ID}" name="Text box 1"/>'
+        "<a:graphic>"
+        f'<a:graphicData uri="{WPS}"><wps:wsp>'
+        f'<wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{BOX_CX}" cy="{BOX_CY}"/></a:xfrm>'
+        '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></wps:spPr>'
+        f"<wps:txbx><w:txbxContent>{inner}"
         f"</w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
-        f'</w:drawing></mc:Choice><mc:Fallback><w:pict><v:shape id="box"><v:textbox>'
+        f'</w:drawing></mc:Choice><mc:Fallback><w:pict><v:shape id="box"'
+        f' style="width:{BOX_VML_WIDTH}pt;height:{BOX_VML_HEIGHT}pt"><v:textbox>'
         f"<w:txbxContent>{inner}</w:txbxContent></v:textbox></v:shape></w:pict>"
         "</mc:Fallback></mc:AlternateContent></w:p>"
     )
@@ -710,13 +741,15 @@ _SAMPLES: Final[tuple[Sample, ...]] = (
     ),
     _sample(
         "08-refusals-elsewhere-in-the-document",
-        "a text box, a field and a content control, none of them where the edit goes",
-        (_B.BODY_TEXT, _B.TEXT_BOXES, _B.FIELDS, _B.CONTENT_CONTROLS, _B.IMAGES),
+        "a text box, an image, a field and a content control, none of them where the edit goes",
+        (_B.BODY_TEXT, _B.TEXT_BOXES, _B.FIELDS, _B.CONTENT_CONTROLS, _B.IMAGES, _B.MEDIA),
         para(TARGET)
         + box_beside(SIDE, BOXED)
+        + image("rId4", "figure-1.png")
         + field(INSTRUCTION, CACHED)
         + content_control(BOUND),
         _edit(1, TARGET, REPLACED),
+        media=True,
     ),
     _sample(
         "09-target-inside-another-reviewers-insertion",
