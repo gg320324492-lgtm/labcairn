@@ -13,6 +13,13 @@ dated [`LC-P3-02-real-sample-2026-11-10.md`](LC-P3-02-real-sample-2026-11-10.md)
 measured the sample's 42-arm machine half. No host result is claimed here, and
 the machine loop is not a human dual-host reopen observation.
 
+**Rider, 2026-11-16/17:** the human dual-host reopen half is complete —
+all 16 rows of the real-sample reopen ledger are `PASS` (eight WPS primary
+rows on 2026-11-16, eight Word 2019 `16.0.17932.21140` reference rows on
+2026-11-16/17); see `docs/handoff/CURRENT.md`'s 2026-11-17 entry and the
+external ledger under
+`E:/labcairn-local/phase3-g1-evidence/LC-P3-02-real-half-2026-11-10/`.
+
 ## The matrix
 
 Columns are structure class, what it is, whether the seam carries it, and

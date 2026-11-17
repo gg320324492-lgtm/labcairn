@@ -1,6 +1,17 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-17 - the logfire decision lands as PR #186; the dual-host reopen ledger is 16/16 PASS
+
+- **The `logfire` decision is decided and landed.** The owner decided on
+  2026-11-17 that the shipped build drops the `logfire` extra from the
+  dependency graph; [PR #186](https://github.com/gg320324492-lgtm/labcairn/pull/186)
+  implemented it (the dependency is now `pydantic-ai-slim` with no
+  `logfire` extra, `uv.lock` updated, NOTICE re-measured, release
+  witnesses added, CI green) and merged into `main` as `8064fb7` on
+  2026-11-16 (UTC). LC-P3-05's supply record §6 now carries the decided
+  state alongside its superseded 2026-11-14 "Open, named" paragraph.
+
 ## 2026-11-17 - the real-sample dual-host reopen half is complete (16/16 PASS)
 
 - The eight WPS `-primary` rows were measured on 2026-11-16 and the eight
