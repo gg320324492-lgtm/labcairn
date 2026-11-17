@@ -1,15 +1,34 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-17 - the logfire decision lands as PR #186; the dual-host reopen ledger is 16/16 PASS
+
+- **The `logfire` decision is decided and landed.** The owner decided on
+  2026-11-17 that the shipped build drops the `logfire` extra from the
+  dependency graph; [PR #186](https://github.com/gg320324492-lgtm/labcairn/pull/186)
+  implemented it (the dependency is now `pydantic-ai-slim` with no
+  `logfire` extra, `uv.lock` updated, NOTICE re-measured, release
+  witnesses added, CI green) and merged into `main` as `8064fb7` on
+  2026-11-16 (UTC). LC-P3-05's supply record §6 now carries the decided
+  state alongside its superseded 2026-11-14 "Open, named" paragraph.
+
 ## 2026-11-17 - the real-sample dual-host reopen half is complete (16/16 PASS)
 
 - The eight WPS `-primary` rows were measured on 2026-11-16 and the eight
   Word 2019 `-reference` rows on 2026-11-16/17. The reference host was
   re-measured as Office Home & Student 2019, WINWORD `16.0.17932.21140`
   (`HomeStudent2019Retail`), and PR #184 recorded that correction on
-  `main` = `31972d9dcfd04d5c4fbfa556a4e5d1b6f80918b4` with all 23 checks
-  green; its branch was deleted and `witness_ledger.py` reported
-  `LOST -- none`.
+  `main` = `31972d9dcfd04d5c4fbfa556a4e5d1b6f80918b4`. **[Corrected
+  2026-11-17]** An earlier version of this entry said "all 23 checks green",
+  a number no measured reading produced. Re-measured from the GitHub
+  check-runs API for that commit (`gh api
+  repos/gg320324492-lgtm/labcairn/commits/31972d9…/check-runs`): 19
+  successful check-runs (12 `python-quality` shard legs, `lint`, `lint`
+  duplicate, `web-quality`, `reference-exclusion`, `secret-scan`,
+  `lockfile-consistency`, `shell-test` ×2, `real-model smoke`), plus
+  `evaluation` skipped by design (schedule-only) and duplicate-name
+  skipped/failure rows; the required-check protection set is **15** contexts.
+  Its branch was deleted and `witness_ledger.py` reported `LOST -- none`.
 - A person opened each of the 16 artifacts twice on its assigned host,
   closed without saving, screenshot both passes, and judged the eight
   structure tokens in each pass. All 16 rows are `PASS` in the external
@@ -106,6 +125,15 @@
   every directory classed TRIAL / KEEP / CANDIDATE; nothing deleted. The
   trial installer's provenance chain was re-verified (sha256 `c1b1d79f…`,
   234,553,498 B, built from `3523bc4`).
+  **[Superseded 2026-11-16]** that `c1b1d79f…` package is no longer the
+  trial installer: the trial package is the 2026-11-16 rebuild
+  `79b7f0bd21b741243dfd59f86419ccacabd279a0c943b0ac55213c1654764ed3`
+  (234,466,054 B, built from `main` `da433d5`), which carries the F-1 fix
+  and is preserved in
+  `E:\labcairn-local\p308-trial-run\installer\` (the superseded package in
+  `installer\previous-3523bc4\`); see
+  `E:\labcairn-local\p308-trial-run\installer\REBUILD-2026-11-16.md` and
+  `installer\BUILD-SOURCE.txt`.
 - **The stale G4 stash was dropped with the owner's approval**: the last
   stash entry (`41ee21e…`, `g4-records-draft-not-for-batch`, 2026-10-22)
   was inventoried (`E:\labcairn-local\stash-inventory-2026-11-16.md`),
@@ -146,7 +174,7 @@
   `web/src/app/versions.ts` reworded in plain terms.
 - **The trial's second batch (four windows) reported**, all outside the
   tree under `E:\labcairn-local\p308-trial-run\`:
-  - **Frozen smoke: PASS.** The trial installer (`LabCairn Setup
+  - **Frozen smoke: PASS.** The then-trial installer (`LabCairn Setup
     0.0.1.exe`, 234,553,498 B, sha256 `c1b1d79f…`, built from `3523bc4`)
     installs cleanly; the freeze carries `labcairn/material`; a `.txt`
     through init + task create mints version

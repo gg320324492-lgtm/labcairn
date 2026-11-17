@@ -1,5 +1,18 @@
 # LabCairn operator manual — trial build
 
+> **Reading note (added 2026-11-17):** this manual was written from the
+> 2026-11-14 drill of the **0.0.0** package (`dist3/LabCairn Setup
+> 0.0.0.exe`). The trial package is the 2026-11-16 rebuild **0.0.1**
+> (sha256 `79b7f0bd21b741243dfd59f86419ccacabd279a0c943b0ac55213c1654764ed3`,
+> from `main` `da433d5`), which **materialises `shell-env.json` at install
+> time** (no manual supply step) and defaults the workspace to
+> `%APPDATA%\@labcairn\workspace`. Where §1 below describes a manual supply
+> step or a workspace "beside the install", the trial-day behaviour is the
+> install-time supply and the `%APPDATA%` workspace. Authoritative sources
+> for the trial package:
+> [../acceptance/LC-P3-08-trial-protocol-2026-11-14.md](../acceptance/LC-P3-08-trial-protocol-2026-11-14.md)
+> and `E:\labcairn-local\p308-trial-run\installer\BUILD-SOURCE.txt`.
+
 **Status:** filled from the LC-P3-07 drill run on the packaged build
 (`win-unpacked` tree of `dist3/LabCairn Setup 0.0.0.exe`, backend frozen exe
 under `resources/backend/labcairn/`). The drill evidence is
@@ -27,13 +40,17 @@ deliverable; their preservation claims are drilled in
 [LC-P3-07-drill-run-2026-11-14.md](../acceptance/LC-P3-07-drill-run-2026-11-14.md)
 §backup. What the operator needs:
 
-- Install from `LabCairn Setup 0.0.0.exe`. The package carries no Python; the
-  backend is the frozen `labcairn.exe` the shell spawns exactly as its
-  supervisor does.
-- The workspace lands where the package's `shell-env.json` names it
-  (`LabCairn-workspace` beside the install). The first run initialises it;
-  the product refuses a directory with no `workspace.json`
-  (`workspace_not_initialised`).
+- Install from the trial package `LabCairn Setup 0.0.1.exe` (sha256
+  `79b7f0bd21b741243dfd59f86419ccacabd279a0c943b0ac55213c1654764ed3`, built
+  from `main` `da433d5`; the 0.0.0 `dist3` package named below is the
+  2026-11-14 drill build and is **not** the trial package). The package
+  carries no Python; the backend is the frozen `labcairn.exe` the shell
+  spawns exactly as its supervisor does.
+- The package writes `shell-env.json` at install time, and the workspace
+  defaults to `%APPDATA%\@labcairn\workspace` (first run initialises it; the
+  product refuses a directory with no `workspace.json`,
+  `workspace_not_initialised`). The drill build's "beside the install"
+  placement is historical.
 - The backend needs `PYDANTIC_DISABLE_PLUGINS=1` in its environment — the
   shell's supervisor sets it; a hand-launched backend must set it too, or it
   dies at start-up.
