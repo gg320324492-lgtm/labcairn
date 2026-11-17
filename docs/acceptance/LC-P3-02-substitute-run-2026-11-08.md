@@ -3,6 +3,17 @@
 **Date:** 2026-11-08. **Head:** `bbed26cf0c0468c0bc625542bd94ac9f0bd948ad`.
 **Type:** dated machine-side run record for `LC-P3-02` §5.7–§5.10.
 
+> **2026-11-17 correction.** The corpus's `text_box()` was repaired the same
+> day (missing `wp:docPr` and `wps:spPr`, a 1×1-EMU extent, and sample 08's
+> declared-but-absent image — the 44-row ledger's D-3/D-4 findings). The
+> substitute run was re-measured at that repair; the only cells that move are
+> the region-row counts below (the two 08-family artifacts gained two regions
+> each under `surgical`, `library` and `reserialize`). The row numbers here
+> are the re-measured ones, and they are also what
+> `tests/test_docx_edit_records.py` re-derives from a fresh run — the record's
+> line-number pointers were written before this correction and no longer land
+> on their cells.
+
 ## What ran
 
 31 samples, 11 the seam writes and 20 it refuses; 248 results over the four
@@ -25,13 +36,13 @@ Columns are the option, produced and refused counts, identical class and region
 rows, respelled rows, and the declaration, entry-order and marked-draft
 results.
 
-| surgical | 22 | 40 | 76 | 66 | 0 | yes | yes | yes |
+| surgical | 22 | 40 | 76 | 68 | 0 | yes | yes | yes |
 |---|---|---|---|---|---|---|---|---|
-| reserialize | 22 | 40 | 68 | 44 | 22 | no | yes | no |
-| library | 22 | 40 | 68 | 66 | 0 | no | no | no |
+| reserialize | 22 | 40 | 68 | 44 | 24 | no | yes | no |
+| library | 22 | 40 | 68 | 68 | 0 | no | no | no |
 | rebuild | 22 | 40 | 16 | 0 | 0 | no | no | no |
 
-The surgical option left 66 of 66 region rows identical and kept declaration,
+The surgical option left 68 of 68 region rows identical and kept declaration,
 entry order and the marked draft's change; its one reopen problem is
 `docx_nested_revision`. The other options changed or respelled rows, lost the
 declaration or entry order, or (rebuild) lost 52 of 68 class rows and all
