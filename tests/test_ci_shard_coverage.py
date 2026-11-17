@@ -1721,6 +1721,17 @@ def test_a_pin_witness_that_reads_nothing_is_not_a_green_witness() -> None:
 #: The record that keeps the dated reading of branch protection.
 REQUIRED_CHECK_RECORD: Final[Path] = Path(".github") / "CI.md"
 
+#: The reading of branch protection in a form a program can read. `.github/CI.md`
+#: states it for a reader; this file states it for a witness, and it is the file
+#: the witness checks against the tree.
+REQUIRED_CHECK_READING: Final[Path] = Path("docs") / "ci" / "required-checks-reading.json"
+
+#: The markers around the list of jobs the tree reports that protection does
+#: not wait for. A job GitHub reports and does not require is a gate a merge can
+#: go without, and a record that does not name it is a record that cannot say so.
+UNPROTECTED_LIST_BEGIN: Final[str] = "<!-- unprotected-jobs:begin"
+UNPROTECTED_LIST_END: Final[str] = "<!-- unprotected-jobs:end -->"
+
 #: The markers around the list of required contexts. A record a witness reads
 #: has to have an edge: "the bullet lines of a section" would sweep in the
 #: prose around it, and a witness that reads prose as data is a witness that
@@ -1759,6 +1770,248 @@ def _required_contexts(repo_root: Path) -> tuple[list[str], str]:
     ]
     assert contexts, "the required-check block lists no contexts"
     return contexts, anchor_match.group(0)
+
+
+def _unprotected_jobs(repo_root: Path) -> list[str]:
+    """The jobs the tree reports that branch protection does not wait for.
+
+    Read from a marked block rather than from prose, for the reason given on
+    the required-check markers: a witness that reads prose as data reads
+    whatever was written last.
+    """
+    text = (repo_root / REQUIRED_CHECK_RECORD).read_text(encoding="utf-8")
+    begin = text.find(UNPROTECTED_LIST_BEGIN)
+    end = text.find(UNPROTECTED_LIST_END)
+    assert begin != -1 and end > begin, (
+        f"{REQUIRED_CHECK_RECORD} carries no {UNPROTECTED_LIST_BEGIN} … "
+        f"{UNPROTECTED_LIST_END} block, so the jobs the tree reports that protection "
+        "does not wait for are prose rather than a list"
+    )
+    names = [
+        match.group(1)
+        for line in text[begin:end].splitlines()
+        if (match := re.match(r"\s*-\s*`([^`]+)`\s*$", line))
+    ]
+    assert names, "the unprotected-jobs block lists no jobs"
+    return names
+
+
+def _reading_record(reading_path: Path) -> dict[str, Any]:
+    """The machine-readable reading of branch protection."""
+    assert reading_path.is_file(), (
+        f"{reading_path} is not there, so the tree holds no reading of branch "
+        "protection that a program can check"
+    )
+    data: Any = json.loads(reading_path.read_text(encoding="utf-8"))
+    assert isinstance(data, dict), f"{reading_path} is not a JSON object"
+    record: dict[str, Any] = data
+    return record
+
+
+def _reported_job_names(repo_root: Path) -> dict[str, list[str]]:
+    """Every job name the workflows render, by the file that renders it."""
+    names: dict[str, list[str]] = {}
+    for path, document in _workflow_job_names(repo_root):
+        names[path.name] = sorted(rendered_job_names(document, path.name))
+    return names
+
+
+def _differing_files(recorded: dict[str, Any], reported: dict[str, list[str]]) -> list[str]:
+    """The files whose job names the reading and the tree disagree about."""
+    return [
+        name for name in sorted(set(recorded) & set(reported)) if recorded[name] != reported[name]
+    ]
+
+
+def _required_check_shape(repo_root: Path) -> set[str]:
+    """The names the workflows' *shape* gives, derived from the matrix.
+
+    **Shape is not the reading.** The shape is what the workflows would report
+    if every one of their required-family jobs were required: every leg the
+    shard matrix expands to, plus `lint`, plus the four tool gates. The
+    reading is what GitHub actually waits for, and on 2026-11-18 the two were
+    seventeen and fifteen — the two new shard legs had never been added to
+    protection. A sentence that says "the shape now gives seventeen" is
+    stating the shape, and the witness reads it as one.
+    """
+    workflow = yaml.safe_load((repo_root / WORKFLOW_FILE).read_text(encoding="utf-8"))
+    matrix = workflow["jobs"]["python-quality"]["strategy"]["matrix"]
+    axes = [axis for axis in matrix if axis not in MATRIX_NON_AXIS_KEYS]
+    assert axes, "python.yml declares no matrix axes, so the shard legs cannot be derived"
+    legs = 1
+    for axis in axes:
+        legs *= len(matrix[axis])
+    expected: set[str] = set()
+    for os_value in matrix["os"]:
+        for shard in matrix["shard"]:
+            expected.add(f"python-quality ({os_value}, shard {shard})")
+    assert len(expected) == legs, (
+        "the derived shard-leg names do not match the matrix's own leg count"
+    )
+    expected.update(
+        {"lint", "web-quality", "reference-exclusion", "secret-scan", "lockfile-consistency"}
+    )
+    return expected
+
+
+def _check_reading_record(repo_root: Path, reading_path: Path) -> None:
+    """Every consistency the reading claims, checked against the tree.
+
+    **What this can decide.** Branch protection lives on GitHub and CI holds no
+    credentials, so the repository can never re-read it from a test. What a
+    test *can* decide is whether the tree's own account of that reading still
+    hangs together: that the instant and the revision in the file are a moment
+    and a commit this checkout has; that every required context is a name a
+    workflow in this repository reports; that the required list and the
+    unprotected list together are exactly the names the tree reports, so a job
+    nobody has classified is a gap nobody is watching; that the shard count is
+    the workflow matrix's; and that the file and `.github/CI.md` name the same
+    set.
+
+    **What it cannot decide, and what that leaves.** It cannot know what GitHub
+    requires right now. A context added to or removed from protection after
+    the reading is invisible here until somebody re-reads it with credentials
+    and rewrites the file. The file says so in its own `cannot_verify` field,
+    because a record that does not say what it cannot decide is a record that
+    reads as more than it is.
+
+    **Why it is a function and not a test.** The mutation witness has to drive
+    the same checks against a copy, and a test cannot be driven from outside
+    itself. The checks live here; the test below calls them.
+    """
+    record = _reading_record(reading_path)
+
+    for field in (
+        "read_at_utc",
+        "read_at_revision",
+        "shard_count",
+        "required_contexts",
+        "unprotected_jobs",
+        "workflow_jobs",
+    ):
+        assert field in record, (
+            f"{reading_path} has no {field!r} field, so the reading says less than "
+            "the witness reads"
+        )
+
+    read_at = record["read_at_utc"]
+    assert isinstance(read_at, str) and re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", read_at
+    ), (
+        f"read_at_utc is {read_at!r}, which is not an instant in UTC — a reading "
+        "without a moment cannot be compared with a later one"
+    )
+
+    revision = record["read_at_revision"]
+    assert isinstance(revision, str) and FULL_SHA.fullmatch(revision), (
+        f"read_at_revision is {revision!r}, which is not a full 40-character revision"
+    )
+    proc = subprocess.run(
+        ["git", "-C", str(repo_root), "cat-file", "-t", revision],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0 and proc.stdout.strip() == "commit", (
+        f"the reading is anchored at {revision}, which is not a commit in this "
+        "checkout — a dated reading has to be a reading of a tree this repository "
+        "can still show"
+    )
+
+    shard_count = record["shard_count"]
+    assert isinstance(shard_count, int) and not isinstance(shard_count, bool), (
+        f"shard_count is {shard_count!r}, which is not a number"
+    )
+    matrix_shards = _matrix_shard_count(repo_root)
+    assert shard_count == matrix_shards, (
+        f"the reading says {shard_count} shards and {WORKFLOW_FILE} declares "
+        f"{matrix_shards}. The reading and the tree it was read at have come apart, "
+        "so the reading has to be taken again."
+    )
+
+    reported = _reported_job_names(repo_root)
+    recorded_jobs = record["workflow_jobs"]
+    assert isinstance(recorded_jobs, dict), (
+        f"workflow_jobs is {recorded_jobs!r}, which is not a mapping of file to names"
+    )
+    assert recorded_jobs == reported, (
+        "the reading's workflow_jobs do not match the names the workflows render:\n"
+        f"  in the reading but not in the tree: "
+        f"{sorted(set(recorded_jobs) - set(reported))}\n"
+        f"  in the tree but not in the reading: "
+        f"{sorted(set(reported) - set(recorded_jobs))}\n"
+        f"  files whose names differ: "
+        f"{_differing_files(recorded_jobs, reported)}\n"
+        "A workflow that gained, lost or renamed a job leaves the reading behind, "
+        "and a reading that names the wrong job is a reading that cannot be compared "
+        "with the next one."
+    )
+
+    required = record["required_contexts"]
+    assert isinstance(required, list) and all(isinstance(name, str) for name in required), (
+        f"required_contexts is {required!r}, which is not a list of names"
+    )
+    assert required == sorted(required), (
+        "required_contexts is not in sorted order — an unsorted list makes every "
+        "re-reading of the same set look like a change"
+    )
+    assert len(set(required)) == len(required), "required_contexts names a context twice"
+
+    unprotected = record["unprotected_jobs"]
+    assert isinstance(unprotected, list) and all(isinstance(name, str) for name in unprotected), (
+        f"unprotected_jobs is {unprotected!r}, which is not a list of names"
+    )
+    assert unprotected == sorted(unprotected), (
+        "unprotected_jobs is not in sorted order — an unsorted list makes every "
+        "re-reading of the same set look like a change"
+    )
+    assert len(set(unprotected)) == len(unprotected), "unprotected_jobs names a job twice"
+
+    every_reported = {name for names in reported.values() for name in names}
+
+    missing = sorted(set(required) - every_reported)
+    assert not missing, (
+        f"the reading requires {missing}, and no job in {WORKFLOWS_DIR} reports "
+        "those names. A required check that no job reports is a check GitHub waits "
+        "for forever. Re-read the protection with the `gh api` command in the "
+        "record, or correct the name."
+    )
+
+    overlap = sorted(set(required) & set(unprotected))
+    assert not overlap, (
+        f"{overlap} appear in both the required list and the unprotected list. A "
+        "name cannot be required and not required at once, so one of the two lists "
+        "is behind the protection."
+    )
+
+    unclassified = sorted(every_reported - set(required) - set(unprotected))
+    assert not unclassified, (
+        f"the tree reports {unclassified} and the reading does not classify them: "
+        "they are in neither the required list nor the unprotected list. Every job "
+        "the tree reports has to be in one of the two — a job nobody has classified "
+        "is a gap nobody is watching, and a job that was protected yesterday and is "
+        "not protected today is a merge that proceeds without it."
+    )
+
+    contexts, _anchor = _required_contexts(repo_root)
+    assert sorted(contexts) == sorted(required), (
+        f"{REQUIRED_CHECK_RECORD} lists {len(contexts)} required contexts and the "
+        f"reading lists {len(required)}; they name different sets:\n"
+        f"  in the record but not in the reading: {sorted(set(contexts) - set(required))}\n"
+        f"  in the reading but not in the record: {sorted(set(required) - set(contexts))}\n"
+        "The record and the reading are two accounts of one reading, so they have to "
+        "agree. Re-read the protection, then correct whichever is behind."
+    )
+
+    recorded_unprotected = _unprotected_jobs(repo_root)
+    assert sorted(recorded_unprotected) == sorted(unprotected), (
+        f"{REQUIRED_CHECK_RECORD} lists {len(recorded_unprotected)} unprotected jobs "
+        f"and the reading lists {len(unprotected)}; they name different sets:\n"
+        f"  in the record but not in the reading: "
+        f"{sorted(set(recorded_unprotected) - set(unprotected))}\n"
+        f"  in the reading but not in the record: "
+        f"{sorted(set(unprotected) - set(recorded_unprotected))}"
+    )
 
 
 def test_every_required_check_the_record_lists_is_a_name_a_job_reports(
@@ -4331,8 +4584,34 @@ REQUIRED_COUNT_SENTENCES: Final[dict[Path, tuple[re.Pattern[str], ...]]] = {
     # `docs/REPOSITORY-MAP.md`: "fifteen required contexts at the same revision".
     # The plain `fifteen` on its line 90 is a count of *files*, not checks, and
     # the word `required` in this pattern is what keeps them apart.
+    #
+    # **The sentence that puts two quantities in one.** The file's own sentence
+    # reads "seventeen required contexts at that reading (the matrix has been six
+    # shards since 2026-11-15, and the shape now gives seventeen)". The reading
+    # that call returned was fifteen; seventeen is the shape. The negative
+    # lookahead is what tells the two apart — a sentence that goes on to name the
+    # shape is read as the shape statement it ends with, and that statement's
+    # number is watched by `SHAPE_COUNT_SENTENCES` below. The mismatch between
+    # the two numbers in that one sentence is recorded in `.github/CI.md` rather
+    # than left unsaid; the file is outside the scope of the change that found it.
     Path("docs") / "REPOSITORY-MAP.md": (
-        re.compile(rf"\b({_NUMBER_WORDS})\s+required\s+contexts\b", re.I),
+        re.compile(rf"\b({_NUMBER_WORDS})\s+required\s+contexts\b(?![^.]*\bshape\b)", re.I),
+    ),
+}
+
+#: The sentences that state the workflows' **shape** — the names the workflows
+#: would report if every required-family job were required — rather than the
+#: reading of what GitHub waits for. On 2026-11-18 the two were seventeen and
+#: fifteen, and the wording is what tells them apart: a sentence that says "the
+#: shape now gives seventeen" is stating the shape. These numbers are watched
+#: against the shape the matrix derives, so a shape that changed under them is
+#: caught.
+SHAPE_COUNT_SENTENCES: Final[dict[Path, tuple[re.Pattern[str], ...]]] = {
+    Path("docs") / "REPOSITORY-MAP.md": (
+        re.compile(rf"\bshape\s+(?:now\s+)?gives\s+({_NUMBER_WORDS})\b", re.I),
+    ),
+    REQUIRED_CHECK_RECORD: (
+        re.compile(rf"\bshape\s+(?:now\s+)?gives\s+({_NUMBER_WORDS})\b", re.I),
     ),
 }
 
@@ -4395,11 +4674,38 @@ def test_every_stated_required_check_count_equals_the_list_the_record_carries(
         "whichever is behind — and anchor the new reading."
     )
 
+    # The shape is the other quantity, and it is watched against the matrix.
+    shape = len(_required_check_shape(repo_root))
+    shapes: list[tuple[Path, int, str]] = []
+    for relative, patterns in SHAPE_COUNT_SENTENCES.items():
+        text = (repo_root / relative).read_text(encoding="utf-8")
+        for pattern in patterns:
+            for line, value in _counted_lines(text, pattern):
+                shapes.append((relative, value, f"line {line}"))
+    assert shapes, (
+        "no record states the workflows' shape, so the shape's count is watched by "
+        "nothing. That count is seventeen on the six-shard matrix and the reading "
+        "is fifteen, and the wording is what tells the two apart."
+    )
+    wrong_shapes = [
+        f"{relative.as_posix()}:{where} states {value}"
+        for relative, value, where in shapes
+        if value != shape
+    ]
+    assert not wrong_shapes, (
+        f"the workflows' shape gives {shape} names, and these sentences state a "
+        f"different count:\n  "
+        + "\n  ".join(wrong_shapes)
+        + "\n\nThe shape is derived from the matrix, so a count that disagrees with "
+        "it is either a matrix that changed under the sentence or a sentence that "
+        "was left behind."
+    )
 
-def test_every_context_the_record_lists_is_named_by_the_its_own_shape(
+
+def test_the_required_and_unprotected_blocks_together_are_the_names_the_tree_reports(
     repo_root: Path,
 ) -> None:
-    """The block's lines are the set, both ways: no line lost, no line invented.
+    """The two blocks, together, are exactly the names the workflows report.
 
     **The direction the first witness covers, and the one it cannot.**
     `test_every_required_check_the_record_lists_is_a_name_a_job_reports` checks
@@ -4409,44 +4715,138 @@ def test_every_context_the_record_lists_is_named_by_the_its_own_shape(
     the 2026-11-14 review ran — left every name check green: the remaining lines
     were still names jobs report, and nothing compared the *count* to anything.
 
-    **The two directions, from the workflow's own shape.** `python.yml` declares
-    the shard matrix; the other required names are the four non-shard checks.
-    The block must carry exactly: every shard leg the matrix expands to, named
-    the way the workflow names them, plus `lint`, plus the four web-and-tool
-    checks. A line lost, a line invented, a leg renamed in one place — any of
-    these breaks the equality, and the report names which side moved.
+    **What changed on 2026-11-18, and why.** This witness used to require the
+    required-check block to equal the workflow's shape: every shard leg the
+    matrix expands to, plus `lint`, plus the four tool gates. That equality was
+    what the 2026-11-15 six-shard change produced, and it was wrong twice over.
+    The block is a reading of what GitHub *requires*, and on 2026-11-18 GitHub
+    required fifteen names — the two new shard legs had never been added to
+    protection. So the block had stopped being a reading and become the shape
+    wearing a reading's name, and the equality this witness enforced is what
+    kept it there: every name in it was a name some job reports, so the shape
+    check and the reading check said the same thing, and the shape was the
+    thing that had changed.
+
+    **What it decides now.** The two blocks together — the required ones and the
+    unprotected ones — are exactly the names the workflows report. A line lost
+    from either side breaks the equality, and the report names which side
+    moved. The matrix's own legs are still derived rather than read, so a matrix
+    that changed under the names is caught here too.
     """
     contexts, _anchor = _required_contexts(repo_root)
+    unprotected = _unprotected_jobs(repo_root)
 
-    workflow = yaml.safe_load((repo_root / WORKFLOW_FILE).read_text(encoding="utf-8"))
-    matrix = workflow["jobs"]["python-quality"]["strategy"]["matrix"]
-    axes = [axis for axis in matrix if axis not in MATRIX_NON_AXIS_KEYS]
-    assert axes, "python.yml declares no matrix axes, so the shard legs cannot be derived"
-    legs = 1
-    for axis in axes:
-        legs *= len(matrix[axis])
-    expected: set[str] = set()
-    for os_value in matrix["os"]:
-        for shard in matrix["shard"]:
-            expected.add(f"python-quality ({os_value}, shard {shard})")
-    assert len(expected) == legs, (
-        "the derived shard-leg names do not match the matrix's own leg count"
-    )
-    expected.update(
-        {"lint", "web-quality", "reference-exclusion", "secret-scan", "lockfile-consistency"}
+    reported = {
+        name
+        for _path, document in _workflow_job_names(repo_root)
+        for name in rendered_job_names(document, _path.name)
+    }
+
+    derived = _required_check_shape(repo_root)
+    derived_legs = {name for name in derived if name.startswith("python-quality (")}
+    rendered_legs = {name for name in reported if name.startswith("python-quality (")}
+    assert rendered_legs == derived_legs, (
+        f"the workflows render the shard legs {sorted(rendered_legs)} and the matrix "
+        f"derives {sorted(derived_legs)}. The legs are derived here so that a matrix "
+        "changed under the names is caught by this witness and not only by the "
+        "reading file."
     )
 
-    listed = set(contexts)
-    missing = sorted(expected - listed)
-    extra = sorted(listed - expected)
+    listed = set(contexts) | set(unprotected)
+    missing = sorted(reported - listed)
+    extra = sorted(listed - reported)
     assert not missing and not extra, (
-        f"`{REQUIRED_CHECK_RECORD}` lists {len(listed)} contexts; the workflows' shape "
-        f"gives {len(expected)} ({legs} shard legs from {axes} "
-        f"{[len(matrix[a]) for a in axes]}, plus `lint` and the four tool gates).\n"
-        f"  in no workflow's shape: {missing}\n"
-        f"  listed but not derivable: {extra}\n"
-        "A line lost from the block is a check branch protection no longer waits for "
-        "(the merge proceeds without a gate that was required); a line invented is one "
-        "GitHub never reports. Re-read the protection with the `gh api` command in the "
+        f"`{REQUIRED_CHECK_RECORD}` lists {len(set(contexts))} required contexts and "
+        f"{len(set(unprotected))} unprotected jobs; the workflows report "
+        f"{len(reported)} names.\n"
+        f"  reported but listed in neither block: {missing}\n"
+        f"  listed in a block but reported by no job: {extra}\n"
+        "A line lost from the required block is a check branch protection no longer "
+        "waits for (the merge proceeds without a gate that was required); a line lost "
+        "from the unprotected block is a job the tree reports that nobody has "
+        "classified, so a merge can go through it without anyone having said "
+        "whether it should. Re-read the protection with the `gh api` command in the "
         "record and correct whichever side is behind."
     )
+
+
+def test_the_required_check_reading_agrees_with_itself_and_with_the_tree(
+    repo_root: Path,
+) -> None:
+    """The reading of branch protection is a reading, not the workflows' shape.
+
+    **Why this is watched.** The required-check set was a hand-written list and
+    a count in three pointers, and the two came apart on 2026-11-15: the matrix
+    went to six shards, the list was reshaped to the workflows' shape — which is
+    seventeen names — and the protection on GitHub stayed at the fifteen the
+    2026-11-11 call returned. **Nothing could tell, because every name in the
+    list was a name some job reports**: the shape check and the reading check
+    said the same thing, and the shape was the thing that had changed.
+
+    **What this witness checks.** `docs/ci/required-checks-reading.json` holds
+    the reading in a form a program can read: the instant it was taken, the
+    revision it was taken at, the names it returned, the names every workflow
+    in the tree reports, and the names that are reported and not required. The
+    witness checks that the file agrees with itself and with the tree — the
+    checks are in `_check_reading_record`, so the mutation witness below drives
+    the same ones.
+
+    **What it cannot check.** GitHub's actual protection. CI holds no
+    credentials, so nothing here re-reads branch protection; a context added or
+    removed on GitHub is invisible until somebody re-reads it with credentials
+    and rewrites the file. The file says so in its own `cannot_verify` field,
+    because a record that does not say what it cannot decide is a record that
+    reads as more than it is.
+    """
+    _check_reading_record(repo_root, repo_root / REQUIRED_CHECK_READING)
+
+
+def test_the_reading_witness_fails_for_each_way_the_reading_can_be_wrong(
+    tmp_path: Path,
+) -> None:
+    """Three wrong readings, and the witness catches each one.
+
+    **Why the demonstration.** A witness that cannot fail is a witness that has
+    been turned off, and this one reads a file a person writes by hand. So the
+    same `_check_reading_record` is driven against three edited copies of the
+    real reading:
+
+    * **a context no job reports** — the edit that hangs a merge;
+    * **a real context dropped** — the edit that lets a merge through without a
+      gate, and the one this project actually made on 2026-11-15;
+    * **a revision that is not in this checkout** — the edit that turns a
+      dated reading into an undated one.
+
+    **The control.** The unedited reading passes, so the failures below are the
+    edits and not the reader. Each failure is matched on its message as well as
+    on the exception, so a check that fails for an unrelated reason is not
+    mistaken for the one under demonstration.
+    """
+    repo_root = _this_repo_root()
+    source = repo_root / REQUIRED_CHECK_READING
+    original = _reading_record(source)
+
+    def edited(record: dict[str, Any]) -> Path:
+        path = tmp_path / "reading.json"
+        path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return path
+
+    # The control: the reading as it stands passes.
+    _check_reading_record(repo_root, source)
+
+    invented = copy.deepcopy(original)
+    invented["required_contexts"] = sorted(
+        [*invented["required_contexts"], "python-quality (ubuntu-latest, shard 9)"]
+    )
+    with pytest.raises(AssertionError, match="no job in"):
+        _check_reading_record(repo_root, edited(invented))
+
+    dropped = copy.deepcopy(original)
+    dropped["required_contexts"] = [name for name in dropped["required_contexts"] if name != "lint"]
+    with pytest.raises(AssertionError, match="unprotected"):
+        _check_reading_record(repo_root, edited(dropped))
+
+    moved = copy.deepcopy(original)
+    moved["read_at_revision"] = "0" * 40
+    with pytest.raises(AssertionError, match="not a commit in this checkout"):
+        _check_reading_record(repo_root, edited(moved))

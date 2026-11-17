@@ -54,18 +54,20 @@ most expensive thing this project does — it is the gate, and it should be
 spent on the whole of a body of work rather than on each piece of it.
 
 **What it does not change.** `main` is a protected branch, so a pull
-request is how anything reaches it, and the **seventeen required checks**
+request is how anything reaches it, and the **fifteen required checks**
 (reading taken from GitHub on 2026-11-11 at
-`6b3211ae631c7c9548ca160615f88daa6da7d5dd`) have to pass on it. The count
-is a **reading, not a constant**:
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd`, re-read on 2026-11-18 at
+`69be18efc52e08c19087db61de9ecdc9a8257772` with the same result) have to pass
+on it. The count is a **reading, not a constant**:
 
 ```
 gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
-  --jq '.required_status_checks.contexts | length'    # 17
+  --jq '.required_status_checks.contexts | length'    # 15
 ```
 
-and the seventeen contexts are listed one per line in `.github/CI.md`, at the
-same revision. Branch protection lives on GitHub, so no file here sets it;
+The reading itself is a file — `docs/ci/required-checks-reading.json` — and
+the fifteen contexts are listed one per line in `.github/CI.md`, at the same
+revision. Branch protection lives on GitHub, so no file here sets it;
 `tests/test_ci_shard_coverage.py` is what notices when this document's
 reading names a check no job reports, or states a count without the revision
 it was read at. **The reduction is in the number of pull requests and runs,
@@ -188,10 +190,11 @@ run in every shard job (2026-11-02, when the shard matrix was the five-way
 one: `e5472f8fdb5739d37e1c997546784aa38255329c`): one lint error turned
 every shard red, and the work was paid for once per shard. **`lint` is a
 required check**: it is one of the
-seventeen required contexts read from GitHub on 2026-11-11 at
+fifteen required contexts read from GitHub on 2026-11-11 at
 `6b3211ae631c7c9548ca160615f88daa6da7d5dd` and recorded in
-`.github/CI.md`. Before that reading this document said it "is not a required
-check until the owner adds it", and the owner had. **No workflow file can
+`.github/CI.md` and in the reading file
+`docs/ci/required-checks-reading.json`. Before that reading this document
+recorded the job as optional until the owner added it, and the owner had. **No workflow file can
 make a check required** — that is the owner's setting on GitHub, and a
 re-measurement of the protection is what renews the sentence. Whether
 `shell-test (windows-latest)` and `shell-test (ubuntu-latest)` join the list
@@ -204,8 +207,8 @@ runs, not minutes.
 (the six-shard matrix `d8f5788512318c8e9b8b85d13357867749a353f6`), and the
 best arrangement their costs allow was a balance factor of 1.603; five is
 better, and a sixth shard only adds a job without shortening the wall clock.
-**The workflow's matrix is the authority** — `shard: [0, 1, 2, 3,
-4]` — and `tests/test_ci_shard_coverage.py` checks the partition against it.
+**The workflow's matrix is the authority** — `shard: [0, 1, 2, 3, 4,
+5]` — and `tests/test_ci_shard_coverage.py` checks the partition against it.
 
 **Adding a test file means adding it to the shard list**, and
 `tests/test_ci_shard_coverage.py` is what says so: it fails if a test file
