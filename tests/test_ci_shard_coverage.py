@@ -997,9 +997,7 @@ def test_the_ancestor_check_says_which_accident_happened(tmp_path: Path) -> None
     )
 
 
-def test_the_ancestor_witness_fails_on_a_rewritten_anchor(
-    repo_root: Path, tmp_path: Path
-) -> None:
+def test_the_ancestor_witness_fails_on_a_rewritten_anchor(repo_root: Path, tmp_path: Path) -> None:
     """The witness must fail when the shard file names a rewritten anchor.
 
     **This is the mutation.** The accident of 2026-11-17 was a shard file
@@ -1018,12 +1016,8 @@ def test_the_ancestor_witness_fails_on_a_rewritten_anchor(
     with pytest.raises(AssertionError) as caught:
         test_the_costs_were_measured_on_an_ancestor_of_this_tree(repo)
     message = str(caught.value)
-    assert side_sha in message, (
-        f"the failure must name the revision it is about, not {message!r}"
-    )
-    assert "re-anchor" in message, (
-        f"the failure must say what to do about it, not {message!r}"
-    )
+    assert side_sha in message, f"the failure must name the revision it is about, not {message!r}"
+    assert "re-anchor" in message, f"the failure must say what to do about it, not {message!r}"
 
 
 def test_a_shard_names_files_that_exist(repo_root: Path) -> None:
