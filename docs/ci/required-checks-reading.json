@@ -1,0 +1,84 @@
+{
+  "record": "Branch protection's required status checks, read from GitHub.",
+  "read_at_utc": "2026-11-17T19:59:51Z",
+  "read_at_revision": "69be18efc52e08c19087db61de9ecdc9a8257772",
+  "read_at_revision_meaning": "the tip of origin/main when the reading was taken",
+  "read_via": "gh api repos/gg320324492-lgtm/labcairn/branches/main/protection --jq '.required_status_checks.contexts'",
+  "read_with": "a local session holding GitHub credentials",
+  "shard_count": 6,
+  "required_contexts": [
+    "lint",
+    "lockfile-consistency",
+    "python-quality (ubuntu-latest, shard 0)",
+    "python-quality (ubuntu-latest, shard 1)",
+    "python-quality (ubuntu-latest, shard 2)",
+    "python-quality (ubuntu-latest, shard 3)",
+    "python-quality (ubuntu-latest, shard 4)",
+    "python-quality (windows-latest, shard 0)",
+    "python-quality (windows-latest, shard 1)",
+    "python-quality (windows-latest, shard 2)",
+    "python-quality (windows-latest, shard 3)",
+    "python-quality (windows-latest, shard 4)",
+    "reference-exclusion",
+    "secret-scan",
+    "web-quality"
+  ],
+  "unprotected_jobs": [
+    "evaluation",
+    "python-quality (ubuntu-latest, shard 5)",
+    "python-quality (windows-latest, shard 5)",
+    "real-model smoke",
+    "release-contents",
+    "release-dependency-licences (ubuntu-latest)",
+    "release-dependency-licences (windows-latest)",
+    "shell-test (ubuntu-latest)",
+    "shell-test (windows-latest)"
+  ],
+  "workflow_jobs": {
+    "lockfiles.yml": [
+      "lockfile-consistency"
+    ],
+    "provider-smoke.yml": [
+      "real-model smoke"
+    ],
+    "python.yml": [
+      "evaluation",
+      "lint",
+      "python-quality (ubuntu-latest, shard 0)",
+      "python-quality (ubuntu-latest, shard 1)",
+      "python-quality (ubuntu-latest, shard 2)",
+      "python-quality (ubuntu-latest, shard 3)",
+      "python-quality (ubuntu-latest, shard 4)",
+      "python-quality (ubuntu-latest, shard 5)",
+      "python-quality (windows-latest, shard 0)",
+      "python-quality (windows-latest, shard 1)",
+      "python-quality (windows-latest, shard 2)",
+      "python-quality (windows-latest, shard 3)",
+      "python-quality (windows-latest, shard 4)",
+      "python-quality (windows-latest, shard 5)"
+    ],
+    "reference-exclusion.yml": [
+      "reference-exclusion"
+    ],
+    "release.yml": [
+      "release-contents",
+      "release-dependency-licences (ubuntu-latest)",
+      "release-dependency-licences (windows-latest)"
+    ],
+    "security.yml": [
+      "secret-scan"
+    ],
+    "shell.yml": [
+      "shell-test (ubuntu-latest)",
+      "shell-test (windows-latest)"
+    ],
+    "web.yml": [
+      "web-quality"
+    ]
+  },
+  "cannot_verify": [
+    "This file is a reading, not the protection itself. CI holds no GitHub credentials, so nothing in the test suite re-reads branch protection.",
+    "What the suite checks is that this file agrees with itself and with the tree: every required context is a name a workflow in this repository reports, every unprotected job is named here, the revision this reading was taken at is a commit this checkout still has, and the shard count is the workflow matrix's.",
+    "What it cannot check is the real protection on GitHub. A context added to branch protection after this reading, or removed from it, is invisible here until somebody re-reads it with credentials and rewrites this file."
+  ]
+}
