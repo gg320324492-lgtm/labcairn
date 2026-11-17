@@ -46,12 +46,12 @@ that is not there.
 
 ### 2.2 The repository ledger
 
-**222 distinct paths** are named by **88 tracked files**, at **345
+**223 distinct paths** are named by **90 tracked files**, at **349
 reference sites**.
 
 | the ledger's expectation | paths | what it means |
 |---|---|---|
-| `present` | **144** | the path is on disk, and the record may offer it |
+| `present` | **145** | the path is on disk, and the record may offer it |
 | `absent` | **76** | the path is not on disk and is not expected to be |
 | `renamed` | **2** | the path moved; the ledger names where it went |
 
@@ -60,7 +60,7 @@ kind says what the record is doing:
 
 | the ledger's kind | paths | what the record is doing |
 |---|---|---|
-| `material` | 148 in total | the path held something a reader was sent to |
+| `material` | 149 in total | the path held something a reader was sent to |
 | `scratch` | 40 | a directory a run used and cleaned up |
 | `created` | 23 | a path a script creates |
 | `pattern` | 8 | the record wrote a shape — a wildcard or a placeholder — not an address |
