@@ -1,6 +1,25 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-18 - the shard-anchor incident of 2026-11-17 is on the record
+
+- A squash merge rewrote the revision the shard costs were anchored to, so
+  the cost witness could not find that revision and `main` and the open pull
+  requests went red until the costs were re-measured on the merged tree and
+  re-anchored. Repaired by PR #197, guarded by PR #199.
+- The record is
+  [`LC-P3-02-shard-anchor-incident-2026-11-17.md`](../acceptance/LC-P3-02-shard-anchor-incident-2026-11-17.md):
+  the timeline, the root cause (the re-measure tool's default anchors the
+  costs at a pull request's branch head, and the squash merge rewrote it),
+  the two failing runs — `44092424276` on `main` and `44095579632` on PR
+  #194 — with the same message, the measured tree equality between
+  `b2e3661…` and `e16d82d…` (`340083a0f42602caae52427712a63f40587d6c86`),
+  and the two-clone reproduction, including the checkout where the old
+  witness passes and only PR #199's ancestor witness fails.
+- The tool convention that came out of it: re-measure with `--measured-at`
+  naming a commit already in `main`'s history, rather than the run's head.
+
+
 ## 2026-11-17 - the fifth-version 44-row dual-host checklist is complete (44/44 rows)
 
 - The external fillable ledger `reopen-rows-filled-2026-11-10.csv` is now
