@@ -35,6 +35,25 @@
   the repository, under `E:/labcairn-local/rerun12-exec-20261117/`. Until
   that re-run lands, the G1 gate is open and the `LC-P3-01` and `LC-P3-02`
   board rows stay `IN PROGRESS`.
+  **Read 2026-11-18:** the pack named above is **superseded for the rerun's
+  artifacts** by `E:/labcairn-local/rerun12-opaque-20261118/`, whose media
+  pixel is opaque. The 2026-11-17 pack's artifacts carry a **fully transparent**
+  pixel, so the `images` token of the `05`, `07` and `08` families could never
+  be `yes` there — and **that pack's own cards name its own artifacts' hashes**,
+  so opening it raises no error and the wrong reading is silent (re-measured
+  2026-11-18: its `08-refusals-elsewhere-in-the-document-surgical-clean.docx`
+  hashes to `cc50411c…`, exactly what its `R01` card names, while the opaque
+  pack's same artifact hashes to `cbf08be1…`). **The rerun runs from the
+  opaque pack**; the 2026-11-17 pack is kept for its order, its timing and its
+  pause/resume rules. **PR #201 is on `main` as `50f7110`** (merged 2026-11-18
+  01:55) and its tree is identical to the pack's source tree `4f311bc…`, so the
+  pack's artifacts are reproducible from `main` now. The rerun is also **no
+  longer a window of a W1–W6 day**:
+  the owner split the trial-day work into three dates on 2026-11-18 — the
+  twelve rows alone on 2026-11-19, AC-6 + G4 T0–T8 on 2026-11-20, T9 + T10 on
+  2026-11-23 — with the six prerequisites in front of all three. The plan is
+  `E:/labcairn-local/one-page-trial-day-20261118/ONE-PAGE-DAY-PLAN.md`, and
+  its hand-over cards are in the same folder's `HANDOVER-CHECKPOINTS.md`.
 
 ## 2026-11-17 - the logfire decision lands as PR #186; the dual-host reopen ledger is 16/16 PASS
 

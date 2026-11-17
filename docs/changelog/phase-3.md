@@ -1,5 +1,35 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The trial-day work is split into three dates, and the source packs are reconciled (2026-11-18)
+
+- The owner split the trial-day work into **three provisional dates**: the twelve
+  LC-P3-02 reopen rows **alone** on 2026-11-19; AC-6 in the morning and G4
+  T0–T8 in the afternoon on 2026-11-20, **with no T9/T10**; and the T9 review
+  plus the T10 exit decision on 2026-11-23 — with the six prerequisites in
+  front of all three. The plan and its seven hand-over cards live outside the
+  repository at `E:/labcairn-local/one-page-trial-day-20261118/`.
+- **PR #201 landed** as `50f7110` (2026-11-18 01:55): the corpus's media pixel
+  is opaque now, so the image/media rows can record a pass on the `images`
+  token. The pack regenerated from it is
+  `E:/labcairn-local/rerun12-opaque-20261118/`; the earlier pack at
+  `E:/labcairn-local/rerun12-exec-20261117/` carries a fully transparent pixel
+  **and its own cards name its own artifacts' hashes**, so opening it raises no
+  error and the wrong reading would be silent. The live pointers — in
+  [`docs/handoff/CURRENT.md`](../handoff/CURRENT.md) and in the §4.9 board row
+  of [`PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md) — now name the
+  opaque pack and say why the earlier one must not be opened.
+- A **consistency sweep** of the twelve source inconsistencies the one-page
+  re-write reported (`REPORT.md` §3, items R-1…R-12) re-measured each one,
+  settled the ones the material could settle, and named the ones it could not;
+  the per-item disposition is in
+  `E:/labcairn-local/one-page-trial-day-20261118/INCONSISTENCY-RESOLUTION.md`.
+  Two findings reached outside this repository and were corrected there with
+  dated notes, not deletions: the trial card's stale `human dual-host reopen
+  NOT RUN` — the half **ran** on 2026-11-16/17, sixteen rows, `PASS` ×16, and
+  this repository's own record has said so three times since 2026-11-17 — and
+  the `~6–8 h` time budget in that card's header, which does not agree with the
+  sum of the same card's per-stage figures (545–605 min ≈ 9.1–10.1 h).
+
 ### The fifth-version 44-row dual-host checklist is complete (2026-11-17)
 
 - The external 44-row checklist ledger reached 44/44 completion with
