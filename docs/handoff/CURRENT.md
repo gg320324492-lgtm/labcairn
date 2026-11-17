@@ -1,6 +1,26 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-17 - the fifth-version 44-row dual-host checklist is complete (44/44 rows)
+
+- The external fillable ledger `reopen-rows-filled-2026-11-10.csv` is now
+  44/44 completed and format-validated; the validator reports
+  `VALIDATOR RESULT: PASS`, 44/44 rows, 27/27 columns, 22/22 ordered WPS/Word
+  pairs, 4/4 grandfathered rows preserved, and no issue.
+- The measured outcome is **31 PASS, 11 PRESENCE-LOSS, 2 REFUSAL-RECORDED**,
+  not 44 PASS. WPS Office 12.1.0.29690 contributed 15 PASS and 7
+  PRESENCE-LOSS; Word 2019 16.0.17932.21140 contributed 14 PASS, 4
+  PRESENCE-LOSS and 2 REFUSAL-RECORDED; the two historical Word 2010 rows
+  remain PASS by the owner's grandfathering ruling. All 44 files re-hashed
+  unchanged, and `hash_changed = no` in every row.
+- The named findings are recorded in
+  [`LC-P3-02-fifth-version-44-rows-2026-11-17.md`](../acceptance/LC-P3-02-fifth-version-44-rows-2026-11-17.md):
+  the eight image/media row pairs with a blank 1×1 PNG, one WPS marked
+  hyperlink-in-revision loss, two `08-refusals-elsewhere` refusals on Word,
+  and the content-control/field/text-box observations. The ledger SHA-256 is
+  `b24f22e5a163bfb9d6663a8f049b0f9d11adda84bc33ef01166868e10a2354aa`
+  (47,156 bytes, 44 data rows). No WPS result was copied into a Word row.
+
 ## 2026-11-17 - the logfire decision lands as PR #186; the dual-host reopen ledger is 16/16 PASS
 
 - **The `logfire` decision is decided and landed.** The owner decided on
