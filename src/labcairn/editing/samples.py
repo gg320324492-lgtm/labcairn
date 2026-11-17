@@ -162,16 +162,31 @@ def equation(text: str) -> str:
     return f"<w:p><m:oMathPara><m:oMath><m:r><m:t>{text}</m:t></m:r></m:oMath></m:oMathPara></w:p>"
 
 
-def image(rid: str, name: str) -> str:
-    """An inline picture, reached through a relationship and a media part."""
+def image(rid: str, name: str, ident: str = "1") -> str:
+    """An inline picture, reached through a relationship and a media part.
+
+    ``ident`` is the ``wp:docPr`` id; two drawings in one sample must not
+    share one (the 08 sample carries this picture beside its text box, whose
+    ``wp:docPr`` is id 1, so 08 passes ``ident="2"``).
+    """
     return (
         '<w:p><w:r><w:drawing><wp:inline><wp:extent cx="360000" cy="360000"/>'
-        f'<wp:docPr id="1" name="{name}"/><a:graphic><a:graphicData uri="{PIC}">'
+        f'<wp:docPr id="{ident}" name="{name}"/><a:graphic><a:graphicData uri="{PIC}">'
         f'<pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="{name}"/><pic:cNvPicPr/>'
         f'</pic:nvPicPr><pic:blipFill><a:blip r:embed="{rid}"/><a:stretch>'
         "<a:fillRect/></a:stretch></pic:blipFill><pic:spPr/></pic:pic>"
         "</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
     )
+
+
+#: The anchored text box's size, in EMU (10 cm x 2.5 cm). The previous value
+#: was 1 x 1, and a one-EMU box is why WPS could not see the 08 family's
+#: caption (findings F-10/F-12, D-3). Word requires every ``wp:anchor`` to
+#: carry a ``wp:docPr`` and every ``wps:wsp`` a ``wps:spPr`` (ECMA-376
+#: CT_Anchor and CT_WordprocessingShape); both were missing and Word 2019
+#: refused to open the 08 family at all (findings F-11/F-13, D-4).
+BOX_CX: Final[int] = 3600000
+BOX_CY: Final[int] = 900000
 
 
 def text_box(text: str) -> str:
@@ -181,14 +196,26 @@ def text_box(text: str) -> str:
     of the modern branch alone leaves a document whose legacy spelling of the
     same caption says something else, and no measurement of "the box survived"
     would see the disagreement.
+
+    **The anchor is schema-complete.** ``wp:docPr`` is required by
+    CT_Anchor and ``wps:spPr`` by CT_WordprocessingShape (with ``spPr``
+    before ``txbx``); the ``docPr`` id is 1 here, and the 08 sample's inline
+    picture takes id 2 so the ids stay unique within the sample.
     """
     inner = para(text)
+    shape_props = (
+        f'<wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{BOX_CX}" cy="{BOX_CY}"/>'
+        '</a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></wps:spPr>'
+    )
     return (
         '<w:p><mc:AlternateContent><mc:Choice Requires="wps">'
-        '<w:drawing><wp:anchor><wp:extent cx="1" cy="1"/><a:graphic>'
-        f'<a:graphicData uri="{WPS}"><wps:wsp><wps:txbx><w:txbxContent>{inner}'
-        f"</w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
-        f'</w:drawing></mc:Choice><mc:Fallback><w:pict><v:shape id="box"><v:textbox>'
+        f'<w:drawing><wp:anchor><wp:extent cx="{BOX_CX}" cy="{BOX_CY}"/>'
+        f'<wp:docPr id="1" name="text-box"/><a:graphic>'
+        f'<a:graphicData uri="{WPS}"><wps:wsp>{shape_props}<wps:txbx>'
+        f"<w:txbxContent>{inner}</w:txbxContent></wps:txbx></wps:wsp></a:graphicData>"
+        f"</a:graphic></wp:anchor></w:drawing></mc:Choice>"
+        f'<mc:Fallback><w:pict><v:shape id="box" style="width:{BOX_CX // 12700}pt;'
+        f'height:{BOX_CY // 12700}pt"><v:textbox>'
         f"<w:txbxContent>{inner}</w:txbxContent></v:textbox></v:shape></w:pict>"
         "</mc:Fallback></mc:AlternateContent></w:p>"
     )
@@ -711,12 +738,21 @@ _SAMPLES: Final[tuple[Sample, ...]] = (
     _sample(
         "08-refusals-elsewhere-in-the-document",
         "a text box, a field and a content control, none of them where the edit goes",
-        (_B.BODY_TEXT, _B.TEXT_BOXES, _B.FIELDS, _B.CONTENT_CONTROLS, _B.IMAGES),
+        (
+            _B.BODY_TEXT,
+            _B.TEXT_BOXES,
+            _B.FIELDS,
+            _B.CONTENT_CONTROLS,
+            _B.IMAGES,
+            _B.MEDIA,
+        ),
         para(TARGET)
         + box_beside(SIDE, BOXED)
         + field(INSTRUCTION, CACHED)
-        + content_control(BOUND),
+        + content_control(BOUND)
+        + image("rId4", "figure-2.png", ident="2"),
         _edit(1, TARGET, REPLACED),
+        media=True,
     ),
     _sample(
         "09-target-inside-another-reviewers-insertion",

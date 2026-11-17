@@ -29,6 +29,8 @@ markers.
 | the AlternateContent branches agree | a straw-man refusal against a file no host writes |
 | the hostile inputs are hostile | a refusal branch reached by nothing |
 | the reasons are reached and documented | a refusal nobody raises; a raise nobody tells |
+| the text-box anchors are schema-complete | a sample Word 2019 refuses to open (D-4) |
+| the text-box extent is a readable size | a box WPS cannot see (D-3) |
 """
 
 from __future__ import annotations
@@ -56,6 +58,8 @@ M: Final[str] = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 VML: Final[str] = "urn:schemas-microsoft-com:vml"
 WPS: Final[str] = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
 MC: Final[str] = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+WP: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+A: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 EVIDENCE: Final[dict[str, frozenset[str]]] = {
     "body-text": frozenset({f"{{{W}}}t", f"{{{W}}}r"}),
@@ -453,4 +457,85 @@ def test_the_refusal_samples_name_the_class_or_the_gate_they_refuse_on() -> None
         elif sample.focus is not None:
             assert sample.focus in StructureClass, (
                 f"{sample.name}: {sample.focus!r} is not a structure class"
+            )
+
+
+def test_the_text_box_anchor_is_schema_complete() -> None:
+    """Every anchored text box carries the elements ECMA-376 requires.
+
+    **What this watches.** ``wp:docPr`` is required by CT_Anchor and
+    ``wps:spPr`` by CT_WordprocessingShape (where it precedes ``wps:txbx``).
+    Both were missing from ``text_box()``, and Word 2019 refused to open the
+    08 family outright (findings F-11/F-13, defect D-4) while every other
+    family stayed open. A test that only asked whether the text box exists
+    stayed green through all of that, so this one reads the anchor's children
+    and names the element that is missing.
+
+    **Within one sample the ids stay unique.** Two drawings sharing a
+    ``wp:docPr`` id is a second way to make a host refuse.
+
+    **Only the anchors.** A VML-only text box (``v:shape > v:textbox``) is not
+    an ``mc:Choice`` drawing and carries no ``wp:anchor``; the 12b sample is
+    that shape on purpose, so the witness walks the anchors a document has
+    rather than demanding one from every text-box declaration.
+    """
+    for sample in SAMPLES:
+        if sample.hostile or "text-boxes" not in {structure.value for structure in sample.carries}:
+            continue
+        with zipfile.ZipFile(io.BytesIO(sample_bytes(sample))) as archive:
+            root = ElementTree.fromstring(archive.read("word/document.xml"))
+        anchors = root.findall(f".//{{{WP}}}anchor")
+        if not anchors:
+            continue
+        ids: list[str] = []
+        for anchor in anchors:
+            children = list(anchor)
+            missing = [
+                name
+                for name in (f"{{{WP}}}docPr", f"{{{WP}}}extent", f"{{{A}}}graphic")
+                if name not in {child.tag for child in children}
+            ]
+            assert not missing, (
+                f"{sample.name}: wp:anchor is missing required child(ren) "
+                f"{[tag.split('}')[1] for tag in missing]}"
+            )
+            extent = anchor.find(f"{{{WP}}}extent")
+            assert extent is not None and extent.get("cx") and extent.get("cy"), (
+                f"{sample.name}: wp:extent does not state a size"
+            )
+            ids.append(anchor.find(f"{{{WP}}}docPr").get("id", ""))  # type: ignore[union-attr]
+            for wsp in anchor.findall(f".//{{{WPS}}}wsp"):
+                shape_children = [child.tag for child in wsp]
+                if f"{{{WPS}}}txbx" not in shape_children:
+                    continue
+                assert f"{{{WPS}}}spPr" in shape_children, (
+                    f"{sample.name}: wps:wsp is missing its required wps:spPr"
+                )
+                assert shape_children.index(f"{{{WPS}}}spPr") < shape_children.index(
+                    f"{{{WPS}}}txbx"
+                ), f"{sample.name}: wps:spPr must precede wps:txbx"
+        assert len(ids) == len(set(ids)), f"{sample.name}: duplicate wp:docPr ids {ids}"
+
+
+def test_the_text_box_extent_is_a_readable_size() -> None:
+    """A one-EMU extent is why WPS could not see the 08 family's caption.
+
+    **What this watches.** The generator used to write
+    ``<wp:extent cx="1" cy="1"/>`` (defect D-3, findings F-10/F-12), and no
+    test anchored the number, so the box existed in the XML and was invisible
+    on the screen it was written for. A readable box is at least a couple of
+    centimetres on a side; the exact size stays the generator's choice.
+    """
+    for sample in SAMPLES:
+        if sample.hostile or "text-boxes" not in {structure.value for structure in sample.carries}:
+            continue
+        with zipfile.ZipFile(io.BytesIO(sample_bytes(sample))) as archive:
+            root = ElementTree.fromstring(archive.read("word/document.xml"))
+        for extent in root.findall(f".//{{{WP}}}anchor/{{{WP}}}extent"):
+            cx = int(extent.get("cx", "0"))
+            cy = int(extent.get("cy", "0"))
+            assert cx >= 360000 and cy >= 360000, (
+                f"{sample.name}: wp:extent is {cx}x{cy} EMU, which is "
+                f"{cx / 360000:.2f}x{cy / 360000:.2f} cm; a box this small is "
+                "invisible to the hosts the corpus is measured on"
             )
