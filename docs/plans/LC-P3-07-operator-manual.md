@@ -7,6 +7,15 @@ under `resources/backend/labcairn/`). The drill evidence is
 the known limits live beside it in
 [LC-P3-07-known-limits-2026-11-14.md](LC-P3-07-known-limits-2026-11-14.md).
 
+> **Trial-package note (added 2026-11-17):** this manual describes the
+> 2026-11-14 drill of the 0.0.0 package. The trial runs the **rebuilt
+> 0.0.1 package** (sha256 `79b7f0bd…`, 234,466,054 B, built from `main`
+> `da433d5`; see the trial pack's `installer/BUILD-SOURCE.txt`), which
+> **materializes `shell-env.json` at install time** (O3 decision C — there
+> is no manual supply step) and **defaults the workspace to
+> `%APPDATA%\@labcairn\workspace`** (O3 decision B). The trial protocol is
+> [`LC-P3-08-trial-protocol-2026-11-14.md`](../acceptance/LC-P3-08-trial-protocol-2026-11-14.md).
+
 ## 0. About this manual
 
 - **Who it is for:** the trial participant running the revision loop, and the
@@ -27,11 +36,13 @@ deliverable; their preservation claims are drilled in
 [LC-P3-07-drill-run-2026-11-14.md](../acceptance/LC-P3-07-drill-run-2026-11-14.md)
 §backup. What the operator needs:
 
-- Install from `LabCairn Setup 0.0.0.exe`. The package carries no Python; the
+- Install from the trial package `LabCairn Setup 0.0.1.exe` (the drill this
+  manual records used `0.0.0`). The package carries no Python; the
   backend is the frozen `labcairn.exe` the shell spawns exactly as its
   supervisor does.
-- The workspace lands where the package's `shell-env.json` names it
-  (`LabCairn-workspace` beside the install). The first run initialises it;
+- The workspace lands where the package's materialized `shell-env.json`
+  names it — `%APPDATA%\@labcairn\workspace` on the trial package (the
+  0.0.0 drill put it beside the install). The first run initialises it;
   the product refuses a directory with no `workspace.json`
   (`workspace_not_initialised`).
 - The backend needs `PYDANTIC_DISABLE_PLUGINS=1` in its environment — the

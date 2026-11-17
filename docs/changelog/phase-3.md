@@ -1,5 +1,29 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The trial's T0 evidence base stands on the rebuilt package (2026-11-17)
+
+- The 2026-11-16 new-package T0 rehearsal
+  (`E:\labcairn-local\p308-trial-run\t0-rehearsal\T0-REHEARSAL-SUMMARY-NEWPKG-2026-11-16.md`)
+  re-ran all four arms on the rebuilt installer `LabCairn Setup 0.0.1.exe`
+  (sha256 `79b7f0bd21b741243dfd59f86419ccacabd279a0c943b0ac55213c1654764ed3`,
+  234,466,054 B, built from `main` `da433d5` with the F-1 fix): install,
+  first launch with no manual supply, uninstall with workspace survival,
+  reinstall, and launch after reinstall — **all PASS** (install carries
+  one superseded legacy assertion). B7 (workbench renders in the window)
+  is NOT OBSERVED on this rerun and stays a HUMAN-CHECK for trial day.
+  The first rerun attempt FAILED and is recorded: the pre-clean found a
+  stray D:-drive install of the rebuilt package itself (left by the
+  frozen-smoke verification window while `%LOCALAPPDATA%` still resolved
+  to D:), uninstalled with its own uninstaller before the arms ran.
+- The frozen-package smoke test was re-run against the rebuilt installer
+  (`frozen-smoke/RESULT-REBUILD-2026-11-16.md`): **PASS** (`.txt` ingest
+  end-to-end, idempotent second `task create`, `doctor` exit 0, no
+  `ExtractionVersionError`).
+- The previous package (`c1b1d79f…`, from `3523bc4`) is preserved under
+  `installer/previous-3523bc4/` and is not the trial package. These
+  entries were recorded 2026-11-17; the facts they carry were measured
+  2026-11-16 and live outside the tree.
+
 ### The real-sample dual-host reopen half is complete (2026-11-17)
 
 - All 16 rows of the external LC-P3-02 real-sample reopen ledger are now
@@ -1079,6 +1103,13 @@ WPS host only. That ruling applies to the 44-row checklist and not to the
 real-sample half-loop's separate 16 human-reopen rows. Word 2010 rows stay
 `PENDING-HUMAN`; the owner will install that host later and observe its
 remaining rows with the same screenshot mode, so they are deferred, not cut.
+*(Dated reading, written 2026-11-12: superseded on 2026-11-16 — Word 2010
+is gone from the machine and will not be installed; the reference host was
+re-measured as Microsoft Office Home & Student 2019, WINWORD
+`16.0.17932.21140`, and the real-sample reopen ledger closed 16/16 `PASS`
+with the Word 2019 reference rows judged on that host. See the
+2026-11-17 entries above and
+[`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md).)*
 A WPS observation is never copied into them or treated as a Word result. If
 the owner supplies a WPS screenshot, the conductor reads only the visible
 structure's presence and waits for a separate confirmation before filling any
