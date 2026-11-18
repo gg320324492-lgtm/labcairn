@@ -1,5 +1,33 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The second reader's memory boundary is restated as what the harness delivers (2026-11-18)
+
+- **The "no project memory" qualifier is superseded by an entry-and-
+  disclosure boundary.** The Phase 3 review rules
+  ([`LC-P3-08-reviewer-form-design.md`](../plans/LC-P3-08-reviewer-form-design.md)
+  §0 and F-09, the fillable form of 2026-11-14, execution plan §4,
+  [`LC-P3-00-board-opening-decisions.md`](../acceptance/LC-P3-00-board-opening-decisions.md)
+  §3, and work orders §13 decision 7) described the agent second reader as
+  one "with no project memory". The independent second-reader session of
+  2026-11-18 measured in its own context that this harness injects every
+  in-repository session with the repository's `CLAUDE.md` and the
+  auto-memory index at start and directs it to read siblings' hand-over
+  notes first
+  (`E:/labcairn-local/g4-t9-review-prep-20261118/reader-b/READER-B-PREP-NOTES-2026-11-18.md`
+  §2), and it declined to sign a template sentence asserting otherwise; the
+  owner ruled the same day that the wording must say what the harness
+  actually delivers. The live rule now reads: the second reader enters with
+  **zero finding ids, zero verdicts, zero expected answers, zero recorded
+  expected SHAs and zero prior readers' classifications**; it discloses
+  what its session start injected or directed it to read and what it
+  deliberately did not read; and every pre-exposed thread (this trial's one
+  is the `LC-P3-02` human dual-host reopen status) is re-derived from the
+  record and the on-disk evidence, with findings on such a thread marked
+  pre-exposed / re-derived. The disclosure sentence, the F-08/B-03
+  byte-equality, the no-simulation rule for real advisor and student rows
+  and the third-reader arbiter rule are unchanged; work-order decision 7
+  keeps its accepted 2026-11-10 text with a dated rider.
+
 ### The trial day has three dates, one template set and one 16-row reopen half (2026-11-18)
 
 - **Three provisional dates.** The owner split the trial-day work: the twelve

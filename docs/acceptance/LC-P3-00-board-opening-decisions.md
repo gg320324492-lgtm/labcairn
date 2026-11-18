@@ -33,12 +33,31 @@ distribution remains deferred to `W28`.
 ## 3. Reviewer form
 
 The existing project rules govern Phase 3 reviews verbatim: an independent
-agent session with no project memory may stand in for one human reader only
-when the record carries the literal disclosure sentence (independent agent
-session stood in for a human reader; no human being performed this
-reading); the arbiter of a disagreement must be a third reader; and the
-internal-trial rows that are defined by real advisor use cannot be
-simulated by any substitute.
+agent session may stand in for one human reader only when the record
+carries the literal disclosure sentence (independent agent session stood in
+for a human reader; no human being performed this reading); the arbiter of
+a disagreement must be a third reader; and the internal-trial rows that are
+defined by real advisor use cannot be simulated by any substitute.
+
+> **Wording amended 2026-11-18.** This section formerly described the agent
+> session as one "with no project memory". In this harness every agent
+> session started in this repository is injected at start with the
+> repository's `CLAUDE.md` and the assistant's auto-memory index, and this
+> project's session-start instructions direct the session to read its
+> siblings' hand-over notes first — the independent second-reader session of
+> 2026-11-18 measured all three exposures
+> (`E:/labcairn-local/g4-t9-review-prep-20261118/reader-b/READER-B-PREP-NOTES-2026-11-18.md`
+> §2) and declined to sign a template asserting otherwise; the owner ruled
+> the same day that the wording must say what the harness actually delivers.
+> The protected property is unchanged and is now stated as the reviewer
+> form's F-09/B-02 entry boundary: zero finding ids, zero verdicts, zero
+> expected answers, zero recorded expected SHAs, zero prior readers'
+> classifications, full disclosure of what the session was given at start,
+> and re-derivation from the record and on-disk evidence for every
+> pre-exposed thread. The disclosure sentence, the third-reader arbiter
+> rule and the no-substitute rule are unchanged. This decision record's own
+> text above keeps the amended wording in place of the phrase; the original
+> decision of 2026-11-07 is not re-decided.
 
 ## 4. Provider policy
 
