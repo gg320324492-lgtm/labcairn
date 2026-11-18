@@ -205,8 +205,10 @@ runs, not minutes.
 
 **And the count is measured as well.** Six shards were tried on 2026-10-25
 (the six-shard matrix `d8f5788512318c8e9b8b85d13357867749a353f6`), and the
-best arrangement their costs allow was a balance factor of 1.603; five is
-better, and a sixth shard only adds a job without shortening the wall clock.
+best arrangement their costs allow was a balance factor of 1.603; on that
+tree five was better, and a sixth shard only added a job without shortening
+the wall clock. **That reading is 2026-10-25's, and it was overtaken**: the
+`test_cli.py` split of 2026-11-15 moved the floor and the matrix became six.
 **The workflow's matrix is the authority** — `shard: [0, 1, 2, 3, 4,
 5]` — and `tests/test_ci_shard_coverage.py` checks the partition against it.
 
