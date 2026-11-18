@@ -135,4 +135,9 @@ What it proved, about the product:
 comparison with the two readings and the arbiter's resolution are the
 owner's paper's business, and they live in the library beside the
 readings they belong to:
-`E:\labcairn-local\materials-library\pilot-model-proposal.json`.
+`E:\labcairn-local\materials-library\corpus-1-mn-bubbles\pilot-model-proposal.json`.
+**Read 2026-11-18:** the library was reorganised into one directory per
+corpus on 2026-10-31 (`E:/labcairn-local/reorganise_library.py` is the
+authority for the move), so that file **moved, not deleted** — it was at
+`E:\labcairn-local\materials-library\pilot-model-proposal.json`, and the
+address above is where it is now.

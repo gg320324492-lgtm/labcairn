@@ -1417,7 +1417,10 @@ was confirmed reverted with `git status --short` before the next.
 **not** run the whole suite and I did **not** run the harness again — the
 coordinator's own harness report on `c362317` is on disk
 (`E:\labcairn-local\harness-final2\evaluation-report.md`), and I read it
-against the records rather than paying for a second run. The base temp
+against the records rather than paying for a second run. **Read 2026-11-18:**
+that path is **not on disk** any more — only
+`E:\labcairn-local\harness-final2.log` survives — so the report this section
+names can no longer be opened. The base temp
 directory was `E:\labcairn-local\bt-verify-final` and each process had its own
 `TEMP`/`TMP`/`MPLCONFIGDIR` under `E:\labcairn-local\tmp-verify-final`, with
 `TMPDIR` unset.
@@ -1555,7 +1558,10 @@ neutralising the negation makes it reported.
 **What is right.** Both records now carry the re-measured table, and I
 checked every row against **the coordinator's own harness report on
 `c362317`** (`E:\labcairn-local\harness-final2\evaluation-report.md`,
-revision `c36231703aded75b…`, exit code 2):
+revision `c36231703aded75b…`, exit code 2) — **Read 2026-11-18: that path is
+not on disk any more**, only `E:\labcairn-local\harness-final2.log` survives,
+so the rows below are the record of a check that cannot be re-run against the
+report:
 
 | The protocol's blocker | The harness on `c362317` | Both records' new tables |
 |---|---|---|

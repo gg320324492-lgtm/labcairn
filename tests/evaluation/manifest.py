@@ -557,6 +557,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_docx_edit_refusal.py": ("negative", "crash-between-write-and-confirm"),
     "test_docx_edit_fidelity.py": ("integration", "artifact-hashes"),
     "test_docx_edit_records.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The external-path ledger: a record that names a path under
+    # E:/labcairn-local has to be answerable for, and a path that is not
+    # there has to be announced. The witness is filed under the
+    # repository's own gates, not under a protocol class: it checks the
+    # repository's records, not the protocol's five.
+    "test_external_path_references.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_public_fixtures.py": ("unit", "dataset-locators"),
     # -- LC-P2-14's mechanical preparation ----------------------------------
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),
