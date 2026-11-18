@@ -1,6 +1,31 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-18 - the two `shard 5` legs are required, and the protection reading is re-taken
+
+- **Branch protection waits for seventeen contexts now.** The owner added
+  `python-quality (ubuntu-latest, shard 5)` and `python-quality (windows-latest,
+  shard 5)` to GitHub's required status checks on 2026-11-18. None of the
+  fifteen of 2026-11-11 was lost, `strict` is still `true`, `enforce_admins` is
+  still on, and the seven jobs the tree reports that the gate does not wait for
+  are the same seven as before — `evaluation`, `real-model smoke`,
+  `release-contents`, both `release-dependency-licences (…)` legs and both
+  `shell-test (…)` legs, which stay outside the gate by the owner's decision
+  of 2026-11-11. The reading was taken again afterwards, at
+  `ac362d2cb5536d05372cf02b49a499036efd2952`, and
+  [`docs/ci/required-checks-reading.json`](../ci/required-checks-reading.json)
+  carries it: `pending_protection_additions` is **empty**, and the two legs are
+  no longer in the `unprotected-jobs` list.
+- **The record of it** is
+  [`docs/ci/protection-reading-2026-11-18.md`](../ci/protection-reading-2026-11-18.md):
+  the reading, the two ways the write goes wrong — the total endpoint answers
+  404, and the sub-resource answers 200 and changes nothing — and how the next
+  reader knows the setting has drifted again. **What the reading still cannot
+  decide** it still says: CI holds no GitHub credentials, so a context added or
+  removed on GitHub is invisible to the suite until somebody re-reads it with
+  credentials and rewrites the file.
+
+
 ## 2026-11-18 - the trial-day record templates are the prefilled set, and the 16-row reopen's cross-references say so
 
 - **Which templates the trial day fills is now stated in the repository, not
@@ -1016,19 +1041,21 @@ now run pytest only. The witness in
 a matrix, that all three commands live there, that no shard job repeats
 them, and that no two jobs share a check name. What this entry said on
 2026-11-02 — that the new name reports without blocking until the owner lists
-it — has been overtaken: **`lint` is a required check**, one of the **fifteen
-required contexts** read from GitHub on 2026-11-11 with `gh api
+it — has been overtaken: **`lint` is a required check**, one of the **seventeen
+required contexts** read from GitHub on 2026-11-18 at
+`ac362d2cb5536d05372cf02b49a499036efd2952` with `gh api
 repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
 '.required_status_checks.contexts | length'`, which prints **17** for the
-current six-shard matrix (it printed **15** at that reading, when the matrix
-was five shards; the list in `.github/CI.md` carries both readings), and the
+current six-shard matrix (it printed **15** at the 2026-11-11 reading, when
+the matrix was five shards; the list in `.github/CI.md` carries both
+readings), and the
 same call's list names `lint` among them. **When the owner added it is not
 recorded anywhere in this repository** — only that the 2026-11-02 sentence was
 true when written and is not true now — and that gap is the finding: a setting
 outside the repository changed, a current pointer kept asserting the old state,
 and nothing read GitHub. `.github/CI.md` now carries the list with its command
 and the revision it was read at
-(`6b3211ae631c7c9548ca160615f88daa6da7d5dd`), and
+(`ac362d2cb5536d05372cf02b49a499036efd2952`), and
 `tests/test_ci_shard_coverage.py` requires every required-check claim in this
 file to name that revision in its own paragraph. **The wall-clock expectation
 is unchanged** — the

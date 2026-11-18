@@ -190,11 +190,14 @@ re-derives with the shared reader `tests/workflow_job_names.py`. The earlier
 figure of seven is the count before `shell.yml` joined on 2026-11-11. **Which
 names branch protection requires is read from GitHub, not from this
 directory**: the reading taken on 2026-11-11 named fifteen of the tree's
-names, and the 2026-11-18 re-read named the same fifteen — listed in
-`.github/CI.md`, where `lint` is a required check among them. The workflows'
-shape now gives seventeen, and the two `shard 5` legs the matrix grew on
-2026-11-15 are the names the protection does not wait for; `shell-test (…)`'s
-two legs are not in the reading either.
+names, the 2026-11-18 re-read named the same fifteen, and the re-read taken
+later on 2026-11-18 at `ac362d2cb5536d05372cf02b49a499036efd2952` named
+**seventeen required contexts** — those fifteen and the two `shard 5` legs the
+matrix grew on 2026-11-15, which the owner added to GitHub's protection that
+day — listed in `.github/CI.md`, where `lint` is a required check among them.
+The workflows' shape gives seventeen as well, so the reading and the shape
+agree now; `shell-test (…)`'s
+two legs are not in the reading.
 `.github/remeasure_shards.py` and `.github/make_ci_shards.py` maintain the
 measured shard partition from a runner log.
 

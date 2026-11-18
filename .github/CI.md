@@ -29,25 +29,28 @@ The distinction is what `release-dependency-licences (matrix.os)` needed (see
 
 Branch protection lives outside the repository, so the repository can only keep a
 **dated reading** of it — and a dated reading is what lets a later one be compared
-with it. Measured 2026-11-11 at `6b3211ae631c7c9548ca160615f88daa6da7d5dd`:
+with it. The first reading was measured 2026-11-11 at
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd`, when the matrix had five shards and
+every shard leg was among the names:
 
 ```
 gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
-  --jq '.required_status_checks.contexts | length'   # -> 15
+  --jq '.required_status_checks.contexts | length'   # -> 17
 ```
 
-The 15 contexts, printed one per line: the names that call returned. The GitHub
-reading this block carries was taken 2026-11-11 at
-`6b3211ae631c7c9548ca160615f88daa6da7d5dd`, when the matrix was five shards and
-every shard leg was required; it was read again on 2026-11-18 and returned the
-same 15 names, and read once more on 2026-11-18 at
-`d8ec8c9b1ed8f50c18030695e7ede5140469f961` with the same 15 names. The newest
-reading is a file a program can read —
-`docs/ci/required-checks-reading.json` — and it is the file
+The 17 contexts, printed one per line: the names that call returned. It returned
+fifteen on 2026-11-11 at `6b3211ae631c7c9548ca160615f88daa6da7d5dd`; it was
+read again on 2026-11-18 at `d8ec8c9b1ed8f50c18030695e7ede5140469f961` with the
+same fifteen names, the matrix having grown to six shards in the meantime; and
+read once more on 2026-11-18 at
+`ac362d2cb5536d05372cf02b49a499036efd2952` with **seventeen** — the fifteen
+above and the two `shard 5` legs the matrix grew on 2026-11-15, which the owner
+added to GitHub's protection that day. The newest reading is a file a program can
+read — `docs/ci/required-checks-reading.json` — and it is the file
 `tests/test_ci_shard_coverage.py` checks against this block (see 2026-11-18
 below).
 
-<!-- required-status-checks:begin — measured 2026-11-11 at 6b3211ae631c7c9548ca160615f88daa6da7d5dd; re-read 2026-11-18 at d8ec8c9b1ed8f50c18030695e7ede5140469f961, same set -->
+<!-- required-status-checks:begin — measured 2026-11-18 at ac362d2cb5536d05372cf02b49a499036efd2952; the 2026-11-11 reading at 6b3211ae631c7c9548ca160615f88daa6da7d5dd returned fifteen -->
 - `web-quality`
 - `reference-exclusion`
 - `secret-scan`
@@ -57,18 +60,18 @@ below).
 - `python-quality (ubuntu-latest, shard 2)`
 - `python-quality (ubuntu-latest, shard 3)`
 - `python-quality (ubuntu-latest, shard 4)`
+- `python-quality (ubuntu-latest, shard 5)`
 - `python-quality (windows-latest, shard 0)`
 - `python-quality (windows-latest, shard 1)`
 - `python-quality (windows-latest, shard 2)`
 - `python-quality (windows-latest, shard 3)`
 - `python-quality (windows-latest, shard 4)`
+- `python-quality (windows-latest, shard 5)`
 - `lint`
 <!-- required-status-checks:end -->
 
-<!-- unprotected-jobs:begin — read 2026-11-18 at d8ec8c9b1ed8f50c18030695e7ede5140469f961 -->
+<!-- unprotected-jobs:begin — read 2026-11-18 at ac362d2cb5536d05372cf02b49a499036efd2952 -->
 - `evaluation`
-- `python-quality (ubuntu-latest, shard 5)`
-- `python-quality (windows-latest, shard 5)`
 - `real-model smoke`
 - `release-contents`
 - `release-dependency-licences (ubuntu-latest)`
@@ -101,20 +104,19 @@ gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
   required review is added**, so this stays `null`; nothing here changes it.
 - **`strict: true`** — the required checks must be re-passed on the branch's tip
   before a merge, so a merge cannot carry a green set measured on an older commit.
-- **`admins: {"enabled": true}`** (`enforce_admins`) — the fifteen checks bind
+- **`admins: {"enabled": true}`** (`enforce_admins`) — the seventeen checks bind
   administrators as well.
 
-**Nine names the tree offers are not in the list:** the two `shard 5` legs
-(`python-quality (ubuntu-latest, shard 5)` and `python-quality (windows-latest,
-shard 5)`), `evaluation` and `real-model smoke` (schedule-only, so branch
-protection cannot see them at all), `release-contents` and both
-`release-dependency-licences (…)` legs (tag-triggered; they run on pull
-requests but are not required), and both `shell-test (…)` legs. They are listed
+**Seven names the tree offers are not in the list:** `evaluation` and
+`real-model smoke` (schedule-only, so branch protection cannot see them at
+all), `release-contents` and both `release-dependency-licences (…)` legs
+(tag-triggered; they run on pull requests but are not required), and both
+`shell-test (…)` legs. They are listed
 in the `unprotected-jobs` block above, so the gap is a list and not a silence.
 `tests/test_ci_shard_coverage.py` watches the direction that can actually break
 a merge — **every name in the list must be a name some job in
 `.github/workflows/` reports**, because a required check naming a name no job
-reports is a check GitHub waits for forever. It does not watch the nine, and it
+reports is a check GitHub waits for forever. It does not watch the seven, and it
 must not: which of them become required is the owner's decision, recorded below.
 
 **The two `shard 5` legs are a gap, not a decision.** The six-shard matrix
@@ -124,6 +126,18 @@ added the two new legs, so **a pull request can merge with `shard 5` red** —
 the tests in those two shards are real tests, and the merge does not wait for
 them. Adding them is the owner's call on GitHub; this repository's part is to
 say so, which is what the `unprotected-jobs` block and the reading record do.
+
+> **Dated snapshot — true when written, superseded since.** The paragraph above
+> is the state as of 2026-11-11, the date of this section, and it is left as
+> written. On 2026-11-18 the owner added both `shard 5` legs to GitHub's
+> required status checks, and the reading taken that day at
+> `ac362d2cb5536d05372cf02b49a499036efd2952` returns seventeen contexts — the
+> fifteen of 2026-11-11 and those two legs, `strict` still true and none of the
+> fifteen lost (`gh api
+> repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
+> '.required_status_checks.contexts | length'` → 17 at that reading). The two
+> legs are therefore no longer named in the `unprotected-jobs` block, and the
+> reading record's `pending_protection_additions` is empty.
 
 **The owner's decision, taken 2026-11-11.** `shell-test
 (windows-latest)` and `shell-test (ubuntu-latest)` run on every pull request
@@ -174,6 +188,18 @@ statement it ends with and watches that number against the matrix, and the
 reading's own number against this block. **The file's sentence should be
 corrected to fifteen**, and that correction is not this change's to make.
 
+> **Dated snapshot — true when written, superseded since.** The paragraph above
+> is the state as of 2026-11-18, and it is left as written: at that reading the
+> required-check set was fifteen and the workflows' shape seventeen, and the two
+> numbers in one sentence were the mismatch this paragraph recorded. On
+> 2026-11-18 the owner added the two `shard 5` legs, so the reading and the
+> shape are now the same seventeen, and `docs/REPOSITORY-MAP.md`'s sentence was
+> corrected to name seventeen — the reading — rather than the shape. The
+> reading is `docs/ci/required-checks-reading.json`, taken at
+> `ac362d2cb5536d05372cf02b49a499036efd2952` (`gh api
+> repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
+> '.required_status_checks.contexts | length'` → 17 at that reading).
+
 ## 2026-11-18 — every test file is in a leg a merge waits for
 
 **What was wrong.** The reading above names fifteen contexts, and two of the
@@ -184,6 +210,16 @@ runs**: the same hole as a file in no shard at all, wearing a different hat.
 On the partition built from the costs measured at
 `2bf0ce097d8fcd572c4cc9c5a0aad4b6d652baee`, **nine** test files sat only in
 the two unprotected legs.
+
+> **Dated snapshot — true when written, superseded since.** The paragraph above
+> is the state as of 2026-11-18, and it is left as written: the reading then
+> named fifteen contexts, and the two `shard 5` legs were among the names the
+> tree reported and the protection did not wait for. The owner added both legs
+> on 2026-11-18, and the reading taken that day at
+> `ac362d2cb5536d05372cf02b49a499036efd2952` names seventeen contexts — all
+> twelve shard legs among them. The constraint `.github/make_ci_shards.py`
+> enforces therefore has nothing left to repair: every leg the matrix expands
+> to is a leg the reading names, so the partition is the plain balance again.
 
 **What the partition does now.** `.github/make_ci_shards.py` reads the same
 dated reading, and keeps every test file in at least one leg the reading
@@ -203,6 +239,70 @@ the owner's: the reading of 2026-11-18 at
 `shard 5` legs among the fifteen. When the owner adds them, the reading
 changes, the constraint has nothing left to repair, and the partition returns
 to being the plain balance.
+
+> **Dated snapshot — true when written, superseded since.** The paragraph above
+> is the state as of 2026-11-18, and it is left as written: the reading of that
+> day at `d8ec8c9b1ed8f50c18030695e7ede5140469f961` did not find the two
+> `shard 5` legs among the fifteen. The owner added them on 2026-11-18, so the
+> reading taken that day at
+> `ac362d2cb5536d05372cf02b49a499036efd2952` returns seventeen contexts,
+> `strict` still true and none of the fifteen lost (`gh api
+> repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
+> '.required_status_checks.contexts | length'` → 17 at that reading). The
+> partition is the plain balance again, and `pending_protection_additions` in
+> the reading record is empty.
+
+## 2026-11-18 — the two `shard 5` legs are required, and the reading is re-taken
+
+**What happened.** The owner added `python-quality (ubuntu-latest, shard 5)`
+and `python-quality (windows-latest, shard 5)` to GitHub's required status
+checks on 2026-11-18. The protection requires **seventeen** contexts now: the
+fifteen of 2026-11-11 and those two legs, `strict` still `true`,
+`enforce_admins` still on, every one of the seventeen bound to app `15368`,
+and none of the fifteen lost. The reading was taken again afterwards, at
+`ac362d2cb5536d05372cf02b49a499036efd2952`, and that is the reading
+`docs/ci/required-checks-reading.json` now carries:
+`pending_protection_additions` is empty, and the two legs are no longer named
+in the `unprotected-jobs` block above.
+
+**Two ways the write goes wrong, and both of them look like success.** The
+endpoint that reads the protection is not the endpoint that writes it.
+
+1. `PATCH /repos/{owner}/{repo}/branches/{branch}/protection` — the total
+   endpoint — answers **404 Not Found**, while a `GET` on the same path
+   answers normally. A write has to go to the sub-resource
+   `PATCH /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks`.
+2. That sub-resource wants the **inner** body, `{"strict": true, "contexts":
+   [...]}`. The outer wrapper, `{"required_status_checks": {...}}`, is
+   answered with **200** and changes nothing at all.
+
+So a write that reports success has to be followed by a **re-read**: the count
+of the returned contexts, and the difference between the old set and the new
+one, are the only evidence that it landed. The before and after states of that
+change were kept in the owner's local workspace under `E:/labcairn-local/`,
+outside this repository.
+
+**How to know it has drifted again.** Two mechanisms, and neither substitutes
+for the other.
+
+* `docs/ci/required-checks-reading.json` is the reading: the instant it was
+  taken, the revision it was taken at, the names it returned, and the names
+  that are reported and not required. It is rewritten when somebody re-reads
+  the protection with credentials.
+* `tests/test_ci_shard_coverage.py` watches the tree against that file: every
+  required context is a name a workflow reports, the required list and the
+  unprotected list together are exactly the names the tree reports, every leg
+  the matrix expands to is either required or named in
+  `pending_protection_additions`, and the counts the pointers state are the
+  count of the block above. **A leg that is neither required nor pending fails
+  the suite** — that is how the 2026-11-15 drift was caught, and it is what
+  catches the next one.
+
+**What neither mechanism can do.** CI holds no GitHub credentials, so a
+context added to or removed from the protection on GitHub is invisible to the
+suite until somebody re-reads it and rewrites the reading. That is why the
+reading carries the command that re-reads it, and why this record names the
+moment it was last taken.
 
 ## 2026-11-11 — the shell's Node witnesses get a job, and two name defects close
 
