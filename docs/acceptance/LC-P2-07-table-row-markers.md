@@ -228,7 +228,10 @@ repository (`E:\labcairn-local\row-marker-measure\mut\`) and run through
 `PYTHONPATH`, so the measured tree never changed while a measurement was in
 flight — the rule this project learned the hard way (CLAUDE.md: a run showing
 a failure is re-measured before it is believed, and a tree edited mid-run
-invalidates the run). **The copy needs `migrations/` beside it**: `REPO_ROOT`
+invalidates the run). **Read 2026-11-18:** the copy above is **not on disk**
+any more; the scripts that made it are still there, under
+`E:\labcairn-local\row-marker-measure\`, and `run_mutations.sh` is the entry
+point. **The copy needs `migrations/` beside it**: `REPO_ROOT`
 in `db/migrations.py` is derived from the package location, so a copy of
 `src/` alone makes the writer's 52 database fixtures error out — and an error
 count is not a witness result. The first battery run of this section had

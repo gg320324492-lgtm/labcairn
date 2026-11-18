@@ -15,8 +15,10 @@ material's bytes.
 `f85181efb8318980f747cadb5f4843b8bedd4651c96cfc32842fb7cad230526a`. The
 rollback point is
 `E:\labcairn-local\pilot-ws\labcairn.db.backup.before-batch11-graph-20261105T171744Z`,
-a full SQLite backup taken before the run. The rehearsal copy is at
-`E:\labcairn-local\batch11-graph\rehearsal.db`; the plan and the execution log
+a full SQLite backup taken before the run. The rehearsal copy was at
+`E:\labcairn-local\batch11-graph\rehearsal.db` — **that copy is not on disk
+as of 2026-11-18; the digests the write plan records are what survive** —
+so the plan and the execution log
 are `E:\labcairn-local\batch11-graph\write-plan.md` and
 `E:\labcairn-local\batch11-graph\real-write.out`. The write plan's status is
 **EXECUTED**.

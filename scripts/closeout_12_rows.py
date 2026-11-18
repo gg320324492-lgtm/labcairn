@@ -3,11 +3,11 @@
 
 **What this is.** The twelve-row rerun of the reopen ledger was finished on a
 regenerated artefact pack on 2026-11-18, and the machinery that turned it into
-a record lived *outside* this repository, in
-``E:/labcairn-local/rerun12-merge-kit-20261118/``. A tool that exists only in
-one directory on one machine is a tool that stops existing the day that
-directory is moved, copied to another laptop, or cleaned up. This script is
-that tool, inside the repository, and it runs anywhere the pack is.
+a record lived *outside* this repository, in a directory under
+``E:/labcairn-local``. A tool that exists only in one directory on one
+machine is a tool that stops existing the day that directory is moved,
+copied to another laptop, or cleaned up. This script is that tool, inside the
+repository, and it runs anywhere the pack is.
 
 **What it does, in this order.**
 
