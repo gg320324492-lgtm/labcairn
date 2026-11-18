@@ -41,6 +41,7 @@ import copy
 import importlib.util
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -1854,6 +1855,32 @@ def _required_check_shape(repo_root: Path) -> set[str]:
     return expected
 
 
+def _matrix_leg_names(repo_root: Path) -> list[str]:
+    """The shard legs the workflow's matrix expands to, as GitHub names them.
+
+    **A leg is one (platform, shard) pair** — the job GitHub renders as
+    `python-quality (ubuntu-latest, shard 3)`. The matrix grows when a shard is
+    added; GitHub's protection list grows only when somebody adds the name
+    there. The two have to be compared, because one of them can move without
+    the other.
+
+    **The names come from the matrix, not from a list.** A list written by hand
+    is the thing that drifts: on 2026-11-15 the matrix grew from five shards to
+    six, this repository's record was rewritten to name the new legs, and
+    GitHub's protection was not — and every name in the rewritten list was a
+    name some job reports, so no check could see it.
+    """
+    workflow = yaml.safe_load((repo_root / WORKFLOW_FILE).read_text(encoding="utf-8"))
+    matrix = workflow["jobs"]["python-quality"]["strategy"]["matrix"]
+    legs = [
+        f"python-quality ({os_value}, shard {shard})"
+        for os_value in matrix["os"]
+        for shard in matrix["shard"]
+    ]
+    assert legs, "the workflow matrix expands to no shard legs at all"
+    return sorted(legs)
+
+
 def _check_reading_record(repo_root: Path, reading_path: Path) -> None:
     """Every consistency the reading claims, checked against the tree.
 
@@ -1885,8 +1912,10 @@ def _check_reading_record(repo_root: Path, reading_path: Path) -> None:
         "read_at_utc",
         "read_at_revision",
         "shard_count",
+        "matrix_leg_count",
         "required_contexts",
         "unprotected_jobs",
+        "pending_protection_additions",
         "workflow_jobs",
     ):
         assert field in record, (
@@ -2011,6 +2040,74 @@ def _check_reading_record(repo_root: Path, reading_path: Path) -> None:
         f"{sorted(set(recorded_unprotected) - set(unprotected))}\n"
         f"  in the reading but not in the record: "
         f"{sorted(set(unprotected) - set(recorded_unprotected))}"
+    )
+
+    # The matrix's legs, and the ones protection has not caught up with.
+    #
+    # **What this decides.** The checks above accept a job the tree reports and
+    # the gate does not wait for — that is a real category, and `shell-test` is
+    # in it by the owner's decision of 2026-11-11. But a leg the *matrix* grew
+    # is a different thing: the gate is supposed to include every leg, and on
+    # 2026-11-15 the matrix grew from five shards to six and GitHub's list did
+    # not. Filing the new legs as "reported and not required" put them in a
+    # category the checks accept, which is why nothing saw it.
+    legs = _matrix_leg_names(repo_root)
+    recorded_leg_count = record.get("matrix_leg_count")
+    assert recorded_leg_count == len(legs), (
+        f"the workflow matrix expands to {len(legs)} shard legs and the reading "
+        f"records {recorded_leg_count!r} of them. The count is what says whether "
+        "the protection has caught up with the matrix, and a count that is not "
+        "the matrix's own says nothing."
+    )
+
+    pending = record.get("pending_protection_additions")
+    assert isinstance(pending, list) and all(isinstance(name, str) for name in pending), (
+        f"pending_protection_additions is {pending!r}, which is not a list of names"
+    )
+    assert pending == sorted(pending), (
+        "pending_protection_additions is not in sorted order — an unsorted list "
+        "makes every re-reading of the same set look like a change"
+    )
+    assert len(set(pending)) == len(pending), "pending_protection_additions names a leg twice"
+
+    contradiction = sorted(set(pending) & set(required))
+    assert not contradiction, (
+        f"{contradiction} are recorded as required and as legs the protection has "
+        "not caught up with, at once. A leg cannot be both waiting for and not "
+        "waiting for, so one of the two accounts is ahead of GitHub: the reading "
+        "claims a protection that has not been made yet, or the required list is "
+        "behind. Re-read the protection with the `gh api` command in this record "
+        "and correct whichever side is behind."
+    )
+
+    not_legs = sorted(set(pending) - set(legs))
+    assert not not_legs, (
+        f"{not_legs} are recorded as legs the protection has not caught up with, "
+        "but the matrix does not expand to them. A leg the matrix grew is a "
+        "drift; a job the owner decided not to require is a decision. The two do "
+        "not share a list, because a decision is not a gap and a gap is not a "
+        "decision."
+    )
+
+    not_unprotected = sorted(set(pending) - set(unprotected))
+    assert not not_unprotected, (
+        f"{not_unprotected} are recorded as legs the protection has not caught up "
+        "with, but the reading's unprotected list does not name them. A leg in "
+        "this list is a leg the reading says GitHub does not wait for, and if "
+        "the unprotected list does not say so, the two accounts disagree about "
+        "the same gate."
+    )
+
+    uncovered = sorted(set(legs) - set(required) - set(pending))
+    assert not uncovered, (
+        f"the matrix expands to {len(legs)} shard legs, and {uncovered} are in "
+        "neither the required list nor the pending list. This is the shape of "
+        "2026-11-15: the matrix grew, GitHub's protection was never updated, and "
+        "the new legs were filed as jobs nobody waits for instead of as legs the "
+        "gate has not caught up with. Either add the leg to GitHub's required "
+        "status checks and re-read the protection with the `gh api` command in "
+        "this record, or name it in `pending_protection_additions` so the gap is "
+        "written down instead of invisible."
     )
 
 
@@ -4850,3 +4947,198 @@ def test_the_reading_witness_fails_for_each_way_the_reading_can_be_wrong(
     moved["read_at_revision"] = "0" * 40
     with pytest.raises(AssertionError, match="not a commit in this checkout"):
         _check_reading_record(repo_root, edited(moved))
+
+
+def _a_tree_with_one_more_shard(tmp_path: Path, repo_root: Path) -> tuple[Path, str]:
+    """A copy of the tree whose shard matrix has grown from six to seven.
+
+    **What the copy holds.** The workflow directory — the matrix lives there —
+    and the required-check record, which is where this repository's account of
+    the gate is written down. The copy is a git repository of its own, because
+    the reading names the revision it was taken at and the witness checks that
+    the tree can show that revision.
+
+    **What it does not hold.** The rest of the repository. The checks this
+    demonstration drives read the workflows, the record, and the reading, and
+    nothing else.
+    """
+    tree = tmp_path / "tree"
+    (tree / ".github").mkdir(parents=True)
+    shutil.copytree(repo_root / WORKFLOWS_DIR, tree / WORKFLOWS_DIR)
+    shutil.copy2(repo_root / REQUIRED_CHECK_RECORD, tree / REQUIRED_CHECK_RECORD)
+
+    workflow_path = tree / WORKFLOW_FILE
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+    grown = workflow_text.replace(
+        "shard: [0, 1, 2, 3, 4, 5]",
+        "shard: [0, 1, 2, 3, 4, 5, 6]",
+    )
+    assert grown != workflow_text, (
+        "the matrix mutation did not apply to the copy, so the demonstration "
+        "would be testing the tree as it stands"
+    )
+    workflow_path.write_text(grown, encoding="utf-8")
+
+    git = [
+        "git",
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "user.name=witness",
+        "-c",
+        "user.email=witness@example.invalid",
+    ]
+    subprocess.run(["git", "init", "-q"], cwd=tree, check=True, capture_output=True)
+    subprocess.run([*git, "add", "-A"], cwd=tree, check=True, capture_output=True)
+    subprocess.run(
+        [*git, "commit", "-q", "-m", "a tree with a seventh shard"],
+        cwd=tree,
+        check=True,
+        capture_output=True,
+    )
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=tree,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert FULL_SHA.fullmatch(revision) is not None, (
+        f"the copy's commit is {revision!r}, which is not a full revision"
+    )
+    return tree, revision
+
+
+def _the_record_of_a_copy(tree: Path, revision: str, extra: list[str]) -> None:
+    """Write the copy's required-check record.
+
+    The anchor moves to the copy's own commit — the reading's revision has to
+    name a commit the copy can show — and the unprotected list names the legs
+    the copy's matrix grew.
+    """
+    path = tree / REQUIRED_CHECK_RECORD
+    text = path.read_text(encoding="utf-8")
+    anchored = FULL_SHA.sub(revision, text)
+    assert anchored != text, "the anchor substitution did not apply to the copy"
+    written: list[str] = []
+    for line in anchored.splitlines():
+        written.append(line)
+        if line.strip() == "- `python-quality (windows-latest, shard 5)`":
+            written.extend(f"- `{name}`" for name in extra)
+    path.write_text("\n".join(written) + "\n", encoding="utf-8")
+
+
+def test_the_reading_witness_fails_when_the_matrix_grows_and_the_gate_does_not(
+    tmp_path: Path,
+) -> None:
+    """The drift of 2026-11-15, reproduced: the matrix grows, the gate does not.
+
+    **Why this demonstration.** The reading and the tree were checked against
+    each other on 2026-11-18 and they agreed — because the two legs the matrix
+    grew on 2026-11-15 had been filed as "reported and not required", which is
+    a category the checks accept. So the drift had a shape no check could see:
+    a leg the matrix grew, filed as a job nobody waits for.
+
+    **The demonstration.** A copy of the tree is made, its matrix grows from six
+    shards per platform to seven, and the two new legs are filed the way the
+    2026-11-15 ones were: as jobs the tree reports and the gate does not wait
+    for. The witness is driven against that copy and fails.
+
+    **The control.** The same copy, with the two new legs also named in
+    `pending_protection_additions`, passes. A gap written down is a gap the
+    record can carry; the same gap unnamed is the one that happened.
+    """
+    repo_root = _this_repo_root()
+    tree, revision = _a_tree_with_one_more_shard(tmp_path, repo_root)
+    new_legs = [
+        "python-quality (ubuntu-latest, shard 6)",
+        "python-quality (windows-latest, shard 6)",
+    ]
+    _the_record_of_a_copy(tree, revision, new_legs)
+    original = _reading_record(repo_root / REQUIRED_CHECK_READING)
+
+    def reading_of(unprotected: list[str], pending: list[str]) -> Path:
+        record = copy.deepcopy(original)
+        record["read_at_revision"] = revision
+        record["shard_count"] = 7
+        record["matrix_leg_count"] = 14
+        record["unprotected_jobs"] = sorted([*record["unprotected_jobs"], *unprotected])
+        record["pending_protection_additions"] = sorted(pending)
+        record["workflow_jobs"]["python.yml"] = sorted(
+            [*record["workflow_jobs"]["python.yml"], *new_legs]
+        )
+        path = tmp_path / "reading.json"
+        path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return path
+
+    # The drift: the new legs are filed as jobs nobody waits for, and are named
+    # nowhere else.
+    with pytest.raises(AssertionError, match="neither the required list nor the pending list"):
+        _check_reading_record(
+            tree,
+            reading_of(new_legs, list(original["pending_protection_additions"])),
+        )
+
+    # The control: the same tree, the same gate, the gap written down.
+    _check_reading_record(
+        tree,
+        reading_of(
+            new_legs,
+            sorted([*original["pending_protection_additions"], *new_legs]),
+        ),
+    )
+
+
+def test_the_reading_witness_fails_for_each_way_the_leg_count_can_be_wrong(
+    tmp_path: Path,
+) -> None:
+    """Four wrong accountings of the legs, and the witness catches each one.
+
+    **Why the demonstration.** The checks that decide whether the protection has
+    caught up with the matrix are new, and a check that has never been seen to
+    fail is a check nobody knows works. The same `_check_reading_record` is
+    driven against four edited copies of the real reading:
+
+    * **a leg count that is not the matrix's** — the record stops describing
+      the shape it is about;
+    * **a pending list emptied while the matrix still has legs the gate has not
+      caught up with** — the drift of 2026-11-15, with the gap unnamed;
+    * **a leg recorded as required and as not yet required at once** — the
+      reading claims a protection that has not been made;
+    * **an unprotected list that loses a leg** — the reading stops saying what
+      the gate does not wait for.
+
+    **The control.** The unedited reading passes, so the failures below are the
+    edits and not the reader.
+    """
+    repo_root = _this_repo_root()
+    source = repo_root / REQUIRED_CHECK_READING
+    original = _reading_record(source)
+
+    def edited(record: dict[str, Any]) -> Path:
+        path = tmp_path / "reading.json"
+        path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return path
+
+    # The control: the reading as it stands passes.
+    _check_reading_record(repo_root, source)
+
+    wrong_count = copy.deepcopy(original)
+    wrong_count["matrix_leg_count"] = 11
+    with pytest.raises(AssertionError, match="records 11 of them"):
+        _check_reading_record(repo_root, edited(wrong_count))
+
+    emptied = copy.deepcopy(original)
+    emptied["pending_protection_additions"] = []
+    with pytest.raises(AssertionError, match="neither the required list nor the pending list"):
+        _check_reading_record(repo_root, edited(emptied))
+
+    contradiction = copy.deepcopy(original)
+    contradiction["pending_protection_additions"] = ["lint"]
+    with pytest.raises(AssertionError, match="at once"):
+        _check_reading_record(repo_root, edited(contradiction))
+
+    lost = copy.deepcopy(original)
+    lost["unprotected_jobs"] = [name for name in lost["unprotected_jobs"] if "shard 5" not in name]
+    with pytest.raises(AssertionError, match="does not classify them"):
+        _check_reading_record(repo_root, edited(lost))
