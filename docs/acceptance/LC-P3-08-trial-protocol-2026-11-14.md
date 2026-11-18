@@ -369,7 +369,7 @@ batch pretends to hold it.
 | 1 | Real advisor supplying the sample | §13 §6.5; execution plan §2 T1 | PENDING-OWNER — the advisor's live supply act on the trial machine (the sample's fingerprint is fixed in §1; the supply receipt is written at trial time) |
 | 2 | Real trial participant running the loop | §13 §6.5; T2–T5 | PENDING-OWNER — the owner designates the authorised participant; no agent fills the role |
 | 3 | Real advisor reopen of the marked-up draft | T6; §3 rule 2 | PENDING-OWNER — human-performed open/reopen on the supported hosts; no COM/ProgID/UI automation, no agent |
-| 4 | Named human reviewer | §13 decision 7; reviewer form F-05 | PENDING-OWNER — the owner designates the name; an agent session is only the second reader |
+| 4 | Named human reviewer | §13 decision 7; reviewer form F-05 | PENDING-OWNER — the owner designates the name; an agent session is only the second reader, entering under the form's F-09/B-02 memory-and-entry boundary (zero finding ids, verdicts, expected answers, recorded expected SHAs or prior classifications; injected start context disclosed; pre-exposed threads re-derived from the record and the on-disk evidence) |
 | 5 | Named trial participant's human review of model suggestions | Row 7; execution plan §4 | PENDING-OWNER — "a person reviews it" bites here, per [`LC-P3-06-real-half-2026-11-10.md`](LC-P3-06-real-half-2026-11-10.md) gap G7 |
 | 6 | Exit decision | §13 §6.2; execution plan §2 | PENDING-OWNER — the owner decides from the evidence; this protocol claims no verdict |
 | 7 | The "One real model" row's own evidence | §14 item 7 | PENDING-OWNER as a named gap — held open if `LC-P3-06` is still `BLOCKED` at trial time; never passed on a substitute |

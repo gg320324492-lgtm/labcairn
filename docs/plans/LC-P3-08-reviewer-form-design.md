@@ -20,20 +20,50 @@ the mutual-citation rules it checks are in
 ## 0. The two rules this form must carry
 
 [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §3 governs
-Phase 3 reviews verbatim: an independent agent session with no project memory
-may stand in for **one human reader only** when the record carries the literal
-disclosure sentence; the arbiter of a disagreement **must be a third reader**;
-and the internal-trial rows defined by real advisor use **cannot be simulated
-by any substitute**. Execution plan §4's closing rule repeats the disclosure
-sentence and adds that real advisor and student trial use cannot be simulated
-by an agent and reported as human use. Execution plan §9 requires
+Phase 3 reviews verbatim: an independent agent session may stand in for
+**one human reader only** when the record carries the literal disclosure
+sentence; the arbiter of a disagreement **must be a third reader**; and the
+internal-trial rows defined by real advisor use **cannot be simulated by any
+substitute**. Execution plan §4's closing rule repeats the disclosure
+sentence and adds that real advisor and student trial use cannot be
+simulated by an agent and reported as human use. Execution plan §9 requires
 independent review at a named commit and forbids quoting an unprinted SHA.
 
+> **Wording amended 2026-11-18 — the "no project memory" phrase.** The
+> paragraph above and Owner decision 7 below formerly described the agent
+> second reader as one "with no project memory". As written that condition
+> was not satisfiable in this harness: every agent session started in this
+> repository is injected with the repository's `CLAUDE.md` and the
+> assistant's auto-memory index at start, and this project's session-start
+> instructions direct the session to read its siblings' hand-over notes
+> first. The independent second-reader session of 2026-11-18 measured all
+> three exposures in its own context and refused to sign a template sentence
+> asserting the opposite
+> (its statement: `E:/labcairn-local/g4-t9-review-prep-20261118/reader-b/READER-B-PREP-NOTES-2026-11-18.md`
+> §2). The owner ruled the same day that the wording must say what the
+> harness actually delivers. **What the rule protects is unchanged**: the
+> reader must not enter the review carrying the trial's conclusions. The
+> operative boundary is now stated in F-09 and B-02: zero finding ids, zero
+> verdicts, zero expected answers, zero recorded expected SHAs and zero
+> prior readers' classifications received before the reading; a full
+> disclosure of what the session start injected or directed it to read; and
+> a re-derivation from the record and the on-disk evidence for every thread
+> the session was pre-exposed to. Nothing in this amendment touches the
+> disclosure sentence, the byte-equality of F-08 and B-03, the
+> no-simulation rule for real advisor and student rows, or the third-reader
+> arbitration rule.
+
 Owner decision 7 (§13) fixes the reading shape: **one named human reviewer
-designated by the owner, plus one independent agent session with no project
-memory as a second reader, carrying the literal disclosure sentence where an
-agent stands in for a human reader. The arbiter of a disagreement is a third
-reader. The trial's real-advisor rows are not read by agents alone.**
+designated by the owner, plus one independent agent session as a second
+reader, carrying the literal disclosure sentence where an agent stands in
+for a human reader. The arbiter of a disagreement is a third reader. The
+trial's real-advisor rows are not read by agents alone.** (Wording amended
+2026-11-18: the former "with no project memory" qualifier is superseded by
+the F-09/B-02 entry-and-disclosure boundary; see the note above. The
+decision's own record in
+[`PHASE_3-work-orders.md`](PHASE_3-work-orders.md) §13 keeps its original
+words; this is where the live rule is read from.)
+
 Owner decision 6 fixes the classification shape: **the named reviewer
 classifies each finding (`blocker` / `measured gap` / `routed defect`) at a
 named commit; a disagreement goes to a third reader as arbiter; the owner
@@ -55,9 +85,9 @@ away:
 | F-04 Trial protocol record | `[enter: repository-relative path]` | The protocol whose per-row map and seam statement this review checks. |
 | F-05 Named human reviewer | `[enter: owner-designated name]` | Designated by the owner. Not filled by an agent session. |
 | F-06 Human reader's independence | `[enter: what this reader did not implement/write, and what was re-run]` | Execution plan §4: a reviewer who did not implement the work re-runs key cases at a named commit. |
-| F-07 Second reader's identity | `[enter: independent agent session id]` | Independent agent session with no project memory. |
+| F-07 Second reader's identity | `[enter: independent agent session id]` | Independent agent session; its independence is the entry boundary of F-09, not an absence of injected context. |
 | F-08 Second reader's disclosure | `independent agent session stood in for a human reader; no human being performed this reading` | Decision 7 fixes the agent second reader, so this field is required and must equal B-03 verbatim. A paraphrase or a blank is a failed disclosure check. |
-| F-09 Memory boundary | `[enter: how the agent session's lack of project memory was established]` | The second reader reads the named record and its evidence, not the project's prior conclusions as instructions. |
+| F-09 Memory and entry boundary | `[enter: (1) what this session was given at start — injected context such as the repository's CLAUDE.md, the auto-memory index, and any hand-over or sibling note the start instructions directed it to read; (2) what it deliberately did NOT read — the files that carry the trial's or the preparation's prior conclusions; (3) which threads it was pre-exposed to, and how each is re-derived from the record and the on-disk evidence]` | The second reader enters with **zero finding ids, zero verdicts, zero expected answers, zero recorded expected SHAs and zero prior readers' classifications** for this review. The second reader reads the named record and its evidence, not the project's prior conclusions as instructions. A session that received none of the five is the clean case; a session that received one discloses it here and re-derives that thread from the record — the disclosure is the requirement, not the exposure. H-07 fails only when the session carried a conclusion in and reports it as a reading. |
 | F-10 Real-advisor rows' human coverage | `[enter: which real-advisor rows the named human reviewer read]` | Decision 7: those rows are not read by agents alone. If any was read only by the agent session, the review is incomplete. |
 | F-11 Arbiter | `[enter: third reader's name, or NONE — no disagreement]` | A third reader, never one of the two readers, and required when a §5.1 disagreement row (D-01…) records a disagreement. With no such row, the only allowed value is `NONE — no disagreement`. |
 | F-12 Owner signature | `[enter: owner's decision and date, or PENDING]` | The owner signs the classification with the exit decision. The reviewer does not sign for the owner. |
@@ -81,7 +111,7 @@ away:
 | Field | Value to enter |
 |---|---|
 | B-01 Session id and date | `[enter]` |
-| B-02 Project memory | `[enter: NONE, and how the session was started without it]` |
+| B-02 Memory and entry boundary | `[enter: what the session start injected or directed this session to read; what was deliberately not read; which threads were pre-exposed and how each was re-derived from the record and the on-disk evidence]` |
 | B-03 Literal disclosure | `independent agent session stood in for a human reader; no human being performed this reading` |
 | B-04 Commit actually read | `[enter: full SHA printed at the read]` |
 | B-05 Evidence addresses opened | `[enter: one row per §4 row — path + section anchor + digest/count/refusal class]` |
@@ -159,7 +189,7 @@ NOTES" is not a classification and is returned to the reader.
 | H-04 Mutual citation | A row claimed from `LC-P3-02`'s evidence alone, or a 02 citation without the record path + section anchor. The checklist is in [`LC-P3-08-evidence-mapping-design.md`](LC-P3-08-evidence-mapping-design.md). |
 | H-05 Seam statement | The trial protocol's seam statement absent, or the root-kinds limit reclassified as a defect without a measurement; see [`LC-P3-08-trial-protocol-design.md`](LC-P3-08-trial-protocol-design.md) §4.1. |
 | H-06 Role boundary | The reviewer or agent writing the owner's decision, the owner writing the reader's classification, or 08 repairing a product defect. |
-| H-07 Independence | Either reader implementing the work under review; the arbiter being one of the two readers; the agent session carrying project memory. |
+| H-07 Independence | Either reader implementing the work under review; the arbiter being one of the two readers; the agent session carrying a conclusion about the trial into the review and reporting it as a reading (F-09/B-02 define the disclosure that keeps an exposed session honest; the disclosure sentence of §0 is unchanged). |
 
 A failed honesty check is itself a finding with its own evidence address and
 class. H-01, H-03 and H-06 failures are `blocker`s of the record's honesty.
@@ -217,3 +247,58 @@ table stays empty. An empty table with two conflicting classifications in
 The owner's decision is not a field the reviewers fill. This form ends with
 `R-09 PENDING` until the owner signs the classification with the exit
 decision; a design document never fills it.
+
+## 7. Why the memory-boundary rule reads as it does (added 2026-11-18)
+
+**The former wording.** The second reader was described as an independent
+agent session "with no project memory", and F-09 asked how that lack of
+project memory "was established".
+
+**Why that wording was not satisfiable here.** In this harness every agent
+session started in this repository is **injected at start** with the
+repository's `CLAUDE.md` and the assistant's auto-memory index (roughly
+sixty one-line project-history hooks). The session-start instructions also
+direct the session to read its siblings' hand-over notes first. The
+independent second-reader session of 2026-11-18 verified all three exposures
+in its own context
+(`E:/labcairn-local/g4-t9-review-prep-20261118/reader-b/READER-B-PREP-NOTES-2026-11-18.md`
+§2): the injected `CLAUDE.md`, the injected memory index, and the sibling
+hand-over note `T9-REVIEW-PREP-HANDOVER.md` — whose own first finding and
+some measured ledger values it therefore carried. A session cannot honestly
+sign a sentence asserting none of that happened, so the template's required
+answer was structurally impossible, and the reader refused it. The owner
+ruled on 2026-11-18 that the wording must be changed to what the harness
+actually delivers.
+
+**What the rule was protecting, and what still protects it.** The rule's
+purpose was never the absence of text in a context window; it was that the
+reader must not enter the review **carrying the trial's conclusions** — no
+finding ids, no verdicts, no expected answers, no recorded expected SHAs, no
+prior readers' classifications. That purpose is now stated directly as the
+F-09/B-02 entry boundary: the reader discloses **what it was given at
+start**, **what it deliberately did not read** (the files carrying prior
+conclusions), and **which threads it was pre-exposed to and how each is
+re-derived from the record and the on-disk evidence**. An exposed session
+that discloses and re-derives satisfies the rule; a session that carries a
+conclusion in and reports it as a reading fails H-07.
+
+**How this was applied to the one thread actually pre-exposed.** The
+`LC-P3-02` human dual-host reopen status is the one thread where recollection
+could substitute for reading, because the trial protocol carries its
+2026-11-14 `NOT RUN` reading alongside a dated note that the record now says
+`16/16 PASS`. Per the second reader's own statement, that thread is read
+from the trial record and from `reopen-rows.csv` on disk, never from memory,
+and any finding landing on it is marked **pre-exposed / re-derived**.
+
+**How this rule is witnessed.** The repository has no test that reads this
+document's clauses, and adding one would only assert that sentences exist.
+The checkable parts of the rule are witnessed elsewhere: the disclosure
+sentence's byte-equality is H-01/R-08's check at review time, the
+evidence-address discipline is H-02, and the arbiter rule is F-11. The
+boundary itself — what a session was given, what it refused to read, what it
+re-derived — is a fact about that session's transcript, so it is witnessed
+by the reader's own disclosure in the filled form (B-02), anchored by
+B-09's transcript reference, and confirmed by the human reviewer's A-08
+check. A document-level rule whose subject is a session's own context can
+only be verified against that session's record; it cannot be verified from
+the repository alone.

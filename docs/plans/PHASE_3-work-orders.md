@@ -1178,6 +1178,23 @@ block above.
   disclosure sentence where an agent stands in for a human reader. The
   arbiter of a disagreement is a third reader. The trial's real-advisor
   rows are not read by agents alone.
+  > **Wording rider, 2026-11-18.** The decision above is kept as it was
+  > accepted on 2026-11-10; the phrase "with no project memory" is
+  > superseded by the reviewer form's F-09/B-02 entry boundary
+  > ([`LC-P3-08-reviewer-form-design.md`](LC-P3-08-reviewer-form-design.md)
+  > §0, §7): the second reader enters with zero finding ids, verdicts,
+  > expected answers, recorded expected SHAs and prior readers'
+  > classifications, discloses what its session start injected or directed
+  > it to read, and re-derives every pre-exposed thread from the record and
+  > the on-disk evidence. The original phrase is not satisfiable in this
+  > harness — every in-repository agent session is injected with the
+  > repository's `CLAUDE.md` and the auto-memory index at start, measured
+  > by the 2026-11-18 independent second-reader session
+  > (`E:/labcairn-local/g4-t9-review-prep-20261118/reader-b/READER-B-PREP-NOTES-2026-11-18.md`
+  > §2) — and the owner ruled the same day that the live rule must say what
+  > the harness actually delivers. The disclosure sentence, the no-simulation
+  > rule for real advisor and student rows and the third-reader arbiter rule
+  > are unchanged.
 
 ---
 

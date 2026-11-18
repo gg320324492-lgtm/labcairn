@@ -1,6 +1,33 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-18 - the second reader's memory boundary is stated as what the harness actually delivers
+
+- **The "no project memory" wording was measured unsatisfiable and is
+  superseded.** The Phase 3 review rules described the agent second reader
+  as an independent agent session "with no project memory"
+  ([`LC-P3-08-reviewer-form-design.md`](../plans/LC-P3-08-reviewer-form-design.md)
+  §0, the fillable form's F-09, execution plan §4, `LC-P3-00` §3, work
+  orders §13 decision 7). In this harness every in-repository agent session
+  is injected at start with the repository's `CLAUDE.md` and the
+  assistant's auto-memory index, and the session-start instructions direct
+  it to read its siblings' hand-over notes first. The independent
+  second-reader session of 2026-11-18 measured all three exposures in its
+  own context and declined to sign the template sentence
+  (`E:/labcairn-local/g4-t9-review-prep-20261118/reader-b/READER-B-PREP-NOTES-2026-11-18.md`
+  §2); the owner ruled the same day that the wording must say what the
+  harness actually delivers. The protected property is unchanged — the
+  reader enters with zero finding ids, zero verdicts, zero expected
+  answers, zero recorded expected SHAs and zero prior readers'
+  classifications — and is now carried by the form's F-09/B-02
+  memory-and-entry boundary: disclose what the session start injected or
+  directed it to read, name what was deliberately not read, and re-derive
+  every pre-exposed thread from the record and the on-disk evidence. The
+  disclosure sentence, the F-08/B-03 byte-equality, the no-simulation rule
+  for real advisor and student rows and the third-reader arbiter rule are
+  unchanged. Owner decision 7's own text in the work orders keeps its
+  original words with a dated rider.
+
 ## 2026-11-18 - the trial-day record templates are the prefilled set, and the 16-row reopen's cross-references say so
 
 - **Which templates the trial day fills is now stated in the repository, not
