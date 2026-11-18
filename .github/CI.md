@@ -40,12 +40,14 @@ The 15 contexts, printed one per line: the names that call returned. The GitHub
 reading this block carries was taken 2026-11-11 at
 `6b3211ae631c7c9548ca160615f88daa6da7d5dd`, when the matrix was five shards and
 every shard leg was required; it was read again on 2026-11-18 and returned the
-same 15 names. The newest reading is a file a program can read —
+same 15 names, and read once more on 2026-11-18 at
+`d8ec8c9b1ed8f50c18030695e7ede5140469f961` with the same 15 names. The newest
+reading is a file a program can read —
 `docs/ci/required-checks-reading.json` — and it is the file
 `tests/test_ci_shard_coverage.py` checks against this block (see 2026-11-18
 below).
 
-<!-- required-status-checks:begin — measured 2026-11-11 at 6b3211ae631c7c9548ca160615f88daa6da7d5dd; re-read 2026-11-18, same set -->
+<!-- required-status-checks:begin — measured 2026-11-11 at 6b3211ae631c7c9548ca160615f88daa6da7d5dd; re-read 2026-11-18 at d8ec8c9b1ed8f50c18030695e7ede5140469f961, same set -->
 - `web-quality`
 - `reference-exclusion`
 - `secret-scan`
@@ -63,7 +65,7 @@ below).
 - `lint`
 <!-- required-status-checks:end -->
 
-<!-- unprotected-jobs:begin — read 2026-11-18 at 69be18efc52e08c19087db61de9ecdc9a8257772 -->
+<!-- unprotected-jobs:begin — read 2026-11-18 at d8ec8c9b1ed8f50c18030695e7ede5140469f961 -->
 - `evaluation`
 - `python-quality (ubuntu-latest, shard 5)`
 - `python-quality (windows-latest, shard 5)`
@@ -171,6 +173,36 @@ this change, so the sentence is still there; the witness reads it as the shape
 statement it ends with and watches that number against the matrix, and the
 reading's own number against this block. **The file's sentence should be
 corrected to fifteen**, and that correction is not this change's to make.
+
+## 2026-11-18 — every test file is in a leg a merge waits for
+
+**What was wrong.** The reading above names fifteen contexts, and two of the
+twelve shard legs — `python-quality (ubuntu-latest, shard 5)` and
+`python-quality (windows-latest, shard 5)` — are not among them. A test file
+that sits **only** in one of those legs is a test file **no required check
+runs**: the same hole as a file in no shard at all, wearing a different hat.
+On the partition built from the costs measured at
+`2bf0ce097d8fcd572c4cc9c5a0aad4b6d652baee`, **nine** test files sat only in
+the two unprotected legs.
+
+**What the partition does now.** `.github/make_ci_shards.py` reads the same
+dated reading, and keeps every test file in at least one leg the reading
+names: a file is taken out of an unprotected leg and put into a protected one,
+and a file of nearly the same measured cost takes its place, so the balance the
+measurement implies survives the move — on 2026-11-18 the nine moves changed
+each leg's measured load by less than a tenth of a second.
+
+**What watches it.** `python .github/make_ci_shards.py --check` asks the
+question the other way round — which files are in no leg the reading names —
+and **the `lint` job runs it on every pull request**, so the property is
+checked on every change instead of being a fact that was true once.
+
+**What it does not do.** It does not change the protection setting, which is
+the owner's: the reading of 2026-11-18 at
+`d8ec8c9b1ed8f50c18030695e7ede5140469f961` still does not find the two
+`shard 5` legs among the fifteen. When the owner adds them, the reading
+changes, the constraint has nothing left to repair, and the partition returns
+to being the plain balance.
 
 ## 2026-11-11 — the shell's Node witnesses get a job, and two name defects close
 
