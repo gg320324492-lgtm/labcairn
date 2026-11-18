@@ -23,9 +23,11 @@ repository, and it runs anywhere the pack is.
 
 **What it never does.** It never writes to the 44-row ledger of 2026-11-10.
 That ledger is the record of a *different* observation, on *different* bytes;
-this rerun is recorded beside it, not merged into it. ``--write`` writes into
-``--out-dir`` and nowhere else, and it backs up any file it is about to
-replace.
+this rerun is recorded beside it, not merged into it. **It writes no combined
+ledger**: a file holding the 44 rows and the 12 together would be read by the
+44-row validator as a 44-row ledger with twelve rows too many, and the
+append record is not that. ``--write`` writes into ``--out-dir`` and nowhere
+else, and it backs up any file it is about to replace.
 
 **The failure it exists to prevent.** A row-level ``PASS`` is not an issue
 closing. #191's fix is a change to an OOXML construct, and a construct fix is

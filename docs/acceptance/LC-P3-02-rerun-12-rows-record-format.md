@@ -31,6 +31,10 @@ one -- or the other way round -- reads a date where there is none.
 - It is **not** a replacement for the 44-row ledger of 2026-11-10, and it does
   not amend it. The 44-row ledger's bytes and digest are unchanged by it, and
   the record says so.
+- It is **not** a combined ledger. The tool writes the twelve-row append
+  record as a file of its own and writes no file holding the 44 rows and the
+  12 together: such a file would be read by the 44-row validator as a
+  44-row ledger with twelve rows too many.
 - It is **not** a claim that any issue is closed. The tool judges each issue
   against **its own closure condition** and prints one of three verdicts;
   the record carries that judgement verbatim, including the gaps.
