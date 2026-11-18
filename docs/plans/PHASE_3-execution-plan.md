@@ -134,7 +134,20 @@ re-runs key cases at a named commit. If an independent agent session stands
 in for a human reader, the record must literally say
 `independent agent session stood in for a human reader; no human being
 performed this reading`; real advisor and student trial use cannot be
-simulated by an agent and reported as human use.
+simulated by an agent and reported as human use. If the agent session is
+the second reader, its entry boundary is the reviewer form's F-09/B-02
+(`LC-P3-08-reviewer-form-design.md`): it enters with zero finding ids, zero
+verdicts, zero expected answers, zero recorded expected SHAs and zero prior
+readers' classifications; it discloses what its session start injected or
+directed it to read; and it re-derives every pre-exposed thread from the
+record and the on-disk evidence. (Wording added 2026-11-18: the former
+"no project memory" qualifier was not satisfiable in this harness, where
+every in-repository agent session is injected with the repository's
+`CLAUDE.md` and the auto-memory index at start; the protected property —
+no conclusions carried in — is unchanged. Measured by the 2026-11-18
+independent second-reader session,
+`E:/labcairn-local/g4-t9-review-prep-20261118/reader-b/READER-B-PREP-NOTES-2026-11-18.md`
+§2, on the owner's ruling of the same date.)
 
 ## 5. Board-opening prerequisites and external resources
 
