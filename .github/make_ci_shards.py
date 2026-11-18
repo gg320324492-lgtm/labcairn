@@ -36,8 +36,9 @@ in under five milliseconds, which is most of a fast file's tests.)
 names the legs it waits for, and a leg it does not name is a leg a merge can
 go without. So a test file that sits **only** in an unnamed leg is a test file
 no required check runs — the same hole as a file in no shard at all, wearing a
-different hat. Reading the protection on 2026-11-18 found the two ``shard 5``
-legs unnamed, and nine test files sat only in them.
+different hat. The reading of the protection taken on 2026-11-18 before the
+owner added the two ``shard 5`` legs found those legs unnamed, and nine test
+files sat only in them.
 
 So the partition this script writes keeps **every** test file in at least one
 leg branch protection waits for, on at least one platform. The unprotected
@@ -48,11 +49,13 @@ fraction of a second, and the legs keep their loads to within that).
 
 **Which legs are protected is read, not assumed.** The set of protected legs
 is a setting on GitHub, and the repository keeps a **dated reading** of it in
-``docs/ci/required-checks-reading.json``; this script reads that. When the
-owner adds the two missing legs to branch protection, the reading changes,
-the constraint has nothing left to repair, and the partition returns to being
-the plain balance. Nothing here reads GitHub, so the reading is the only
-place that can be out of date — and ``tests/test_ci_shard_coverage.py``
+``docs/ci/required-checks-reading.json``; this script reads that. The owner
+added the two ``shard 5`` legs to branch protection on 2026-11-18, so the
+reading changed, the constraint has nothing left to repair, and the partition
+is the plain balance. **The next matrix growth puts the shape back**: a leg
+the matrix grows and the gate has not caught up with is a leg the reading has
+to name, or the witness says so. Nothing here reads GitHub, so the reading is
+the only place that can be out of date — and ``tests/test_ci_shard_coverage.py``
 watches that the reading and the tree agree.
 
 **Usage:**

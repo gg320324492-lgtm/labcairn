@@ -1,7 +1,7 @@
 {
   "record": "Branch protection's required status checks, read from GitHub.",
-  "read_at_utc": "2026-11-18T01:29:35Z",
-  "read_at_revision": "d8ec8c9b1ed8f50c18030695e7ede5140469f961",
+  "read_at_utc": "2026-11-18T03:48:46Z",
+  "read_at_revision": "ac362d2cb5536d05372cf02b49a499036efd2952",
   "read_at_revision_meaning": "the tip of origin/main when the reading was taken",
   "read_via": "gh api repos/gg320324492-lgtm/labcairn/branches/main/protection --jq '.required_status_checks.contexts'",
   "read_with": "a local session holding GitHub credentials",
@@ -16,19 +16,19 @@
     "python-quality (ubuntu-latest, shard 2)",
     "python-quality (ubuntu-latest, shard 3)",
     "python-quality (ubuntu-latest, shard 4)",
+    "python-quality (ubuntu-latest, shard 5)",
     "python-quality (windows-latest, shard 0)",
     "python-quality (windows-latest, shard 1)",
     "python-quality (windows-latest, shard 2)",
     "python-quality (windows-latest, shard 3)",
     "python-quality (windows-latest, shard 4)",
+    "python-quality (windows-latest, shard 5)",
     "reference-exclusion",
     "secret-scan",
     "web-quality"
   ],
   "unprotected_jobs": [
     "evaluation",
-    "python-quality (ubuntu-latest, shard 5)",
-    "python-quality (windows-latest, shard 5)",
     "real-model smoke",
     "release-contents",
     "release-dependency-licences (ubuntu-latest)",
@@ -36,12 +36,9 @@
     "shell-test (ubuntu-latest)",
     "shell-test (windows-latest)"
   ],
-  "pending_protection_additions": [
-    "python-quality (ubuntu-latest, shard 5)",
-    "python-quality (windows-latest, shard 5)"
-  ],
-  "pending_protection_additions_meaning": "shard legs the matrix grew and GitHub's protection has not caught up with: the tree reports them, the reading says GitHub does not wait for them, and they are not a decision the owner made but a setting nobody updated. Every leg the matrix expands to is in exactly one of the two lists above; a leg in neither is a leg no list is watching.",
-  "owner_note": "When the shard matrix grows, the protection list has to grow with it. On 2026-11-15 the matrix went from five shards to six per platform, this repository's own record was rewritten that day to name the two new legs, and GitHub's branch protection was never updated to match — so `python-quality (..., shard 5)` runs on every pull request and no merge waits for it. The shape of that drift is now watched: every leg the matrix expands to is either required or named in `pending_protection_additions`, and a leg that is neither fails the suite. Adding the two legs to GitHub's required status checks is the owner's act; this repository cannot do it, and it cannot see that it has been done until somebody re-reads the protection with credentials and rewrites this file.",
+  "pending_protection_additions": [],
+  "pending_protection_additions_meaning": "shard legs the matrix grew and GitHub's protection has not caught up with: the tree reports them, the reading says GitHub does not wait for them, and they are not a decision the owner made but a setting nobody updated. Every leg the matrix expands to is in exactly one of the two lists above; a leg in neither is a leg no list is watching. Empty since 2026-11-18: the owner added both shard-5 legs to GitHub's required status checks that day, so the protection now waits for every leg the matrix expands to and there is nothing left pending. The list stays in the file because the invariant is the point, not the entries: an empty list is the statement that the gap is closed, and a leg that is neither required nor pending is a leg no list is watching.",
+  "owner_note": "When the shard matrix grows, the protection list has to grow with it. On 2026-11-15 the matrix went from five shards to six per platform, this repository's own record was rewritten that day to name the two new legs, and GitHub's branch protection was never updated to match — so `python-quality (..., shard 5)` ran on every pull request and no merge waited for it. On 2026-11-18 the owner added both legs to GitHub's required status checks, and this file is the re-read that records it: seventeen contexts, `strict` still true, both shard-5 legs among them, and none of the fifteen lost. The shape of that drift stays watched: every leg the matrix expands to is either required or named in `pending_protection_additions`, and a leg that is neither fails the suite. Adding legs to GitHub's required status checks is the owner's act; this repository cannot do it, and it cannot see that it has been done until somebody re-reads the protection with credentials and rewrites this file.",
   "workflow_jobs": {
     "lockfiles.yml": [
       "lockfile-consistency"
@@ -88,7 +85,7 @@
     "This file is a reading, not the protection itself. CI holds no GitHub credentials, so nothing in the test suite re-reads branch protection.",
     "What the suite checks is that this file agrees with itself and with the tree: every required context is a name a workflow in this repository reports, every unprotected job is named here, the revision this reading was taken at is a commit this checkout still has, and the shard count is the workflow matrix's.",
     "What it cannot check is the real protection on GitHub. A context added to branch protection after this reading, or removed from it, is invisible here until somebody re-reads it with credentials and rewrites this file.",
-    "The two shard-5 legs are named in the unprotected list because the reading of 2026-11-18 still does not find them in the required list. The owner has decided to add them; until that happens, the partition in .github/ci-shards.json keeps every test file in at least one leg this file names, so no test file waits for a leg a merge does not wait for.",
+    "The reading of 2026-11-18 finds both shard-5 legs in the required list, so they are not in the unprotected list; the seven jobs named there are the ones the tree reports and GitHub still does not wait for. The partition in .github/ci-shards.json keeps every test file in at least one leg the required list names, so no test file waits for a leg a merge does not wait for.",
     "This file names the legs, not what runs in them. The partition is .github/ci-shards.json, and the check that keeps every test file in a leg named here is `python .github/make_ci_shards.py --check`, which the lint job runs on every pull request."
   ]
 }

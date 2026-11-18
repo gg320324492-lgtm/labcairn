@@ -54,19 +54,22 @@ most expensive thing this project does — it is the gate, and it should be
 spent on the whole of a body of work rather than on each piece of it.
 
 **What it does not change.** `main` is a protected branch, so a pull
-request is how anything reaches it, and the **fifteen required checks**
+request is how anything reaches it, and the **seventeen required checks**
 (reading taken from GitHub on 2026-11-11 at
 `6b3211ae631c7c9548ca160615f88daa6da7d5dd`, re-read on 2026-11-18 at
-`69be18efc52e08c19087db61de9ecdc9a8257772` with the same result) have to pass
+`69be18efc52e08c19087db61de9ecdc9a8257772` with the same fifteen names, and
+read again on 2026-11-18 at
+`ac362d2cb5536d05372cf02b49a499036efd2952` with seventeen — the owner added
+the two `shard 5` legs that day) have to pass
 on it. The count is a **reading, not a constant**:
 
 ```
 gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
-  --jq '.required_status_checks.contexts | length'    # 15
+  --jq '.required_status_checks.contexts | length'    # 17
 ```
 
 The reading itself is a file — `docs/ci/required-checks-reading.json` — and
-the fifteen contexts are listed one per line in `.github/CI.md`, at the same
+the seventeen contexts are listed one per line in `.github/CI.md`, at the same
 revision. Branch protection lives on GitHub, so no file here sets it;
 `tests/test_ci_shard_coverage.py` is what notices when this document's
 reading names a check no job reports, or states a count without the revision
@@ -190,8 +193,8 @@ run in every shard job (2026-11-02, when the shard matrix was the five-way
 one: `e5472f8fdb5739d37e1c997546784aa38255329c`): one lint error turned
 every shard red, and the work was paid for once per shard. **`lint` is a
 required check**: it is one of the
-fifteen required contexts read from GitHub on 2026-11-11 at
-`6b3211ae631c7c9548ca160615f88daa6da7d5dd` and recorded in
+seventeen required contexts read from GitHub on 2026-11-18 at
+`ac362d2cb5536d05372cf02b49a499036efd2952` and recorded in
 `.github/CI.md` and in the reading file
 `docs/ci/required-checks-reading.json`. Before that reading this document
 recorded the job as optional until the owner added it, and the owner had. **No workflow file can

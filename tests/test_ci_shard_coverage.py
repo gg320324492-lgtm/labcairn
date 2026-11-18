@@ -5013,19 +5013,31 @@ def _the_record_of_a_copy(tree: Path, revision: str, extra: list[str]) -> None:
     """Write the copy's required-check record.
 
     The anchor moves to the copy's own commit — the reading's revision has to
-    name a commit the copy can show — and the unprotected list names the legs
-    the copy's matrix grew.
+    name a commit the copy can show — and the **unprotected** list names the
+    legs the copy's matrix grew. Those legs are the ones the gate has not
+    caught up with, which is the shape of the drift the demonstration is for.
+
+    **The list is rebuilt, not appended to.** The witness reads the unprotected
+    list as a sorted list, so the new legs go in where the sort puts them: a
+    list written out of order would fail the witness for the wrong reason, and
+    a demonstration that fails for the wrong reason proves nothing.
     """
     path = tree / REQUIRED_CHECK_RECORD
     text = path.read_text(encoding="utf-8")
     anchored = FULL_SHA.sub(revision, text)
     assert anchored != text, "the anchor substitution did not apply to the copy"
-    written: list[str] = []
-    for line in anchored.splitlines():
-        written.append(line)
-        if line.strip() == "- `python-quality (windows-latest, shard 5)`":
-            written.extend(f"- `{name}`" for name in extra)
-    path.write_text("\n".join(written) + "\n", encoding="utf-8")
+    lines = anchored.splitlines()
+    begin = next(
+        number for number, line in enumerate(lines) if line.startswith(UNPROTECTED_LIST_BEGIN)
+    )
+    end = next(number for number, line in enumerate(lines) if line.startswith(UNPROTECTED_LIST_END))
+    names = [
+        match.group(1)
+        for line in lines[begin + 1 : end]
+        if (match := re.match(r"\s*-\s*`([^`]+)`\s*$", line))
+    ]
+    lines[begin + 1 : end] = [f"- `{name}`" for name in sorted([*names, *extra])]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def test_the_reading_witness_fails_when_the_matrix_grows_and_the_gate_does_not(
@@ -5101,12 +5113,21 @@ def test_the_reading_witness_fails_for_each_way_the_leg_count_can_be_wrong(
 
     * **a leg count that is not the matrix's** — the record stops describing
       the shape it is about;
-    * **a pending list emptied while the matrix still has legs the gate has not
-      caught up with** — the drift of 2026-11-15, with the gap unnamed;
+    * **a leg moved out of the required list while the record still lists it** —
+      the reading and the record stop being two accounts of one reading;
     * **a leg recorded as required and as not yet required at once** — the
-      reading claims a protection that has not been made;
+      reading claims a protection that has not been made, which is the form the
+      record took before the owner added the two `shard 5` legs on 2026-11-18;
     * **an unprotected list that loses a leg** — the reading stops saying what
       the gate does not wait for.
+
+    **The shape the reading file alone cannot express.** A leg that is neither
+    required nor named in `pending_protection_additions` — the drift of
+    2026-11-15 — cannot be produced by editing the reading file alone: the
+    reading and the record have to agree, and the record is what says which
+    legs the gate does not wait for. That demonstration lives in
+    `test_the_reading_witness_fails_when_the_matrix_grows_and_the_gate_does_not`,
+    which drives the same check against a copy of the tree.
 
     **The control.** The unedited reading passes, so the failures below are the
     edits and not the reader.
@@ -5128,17 +5149,26 @@ def test_the_reading_witness_fails_for_each_way_the_leg_count_can_be_wrong(
     with pytest.raises(AssertionError, match="records 11 of them"):
         _check_reading_record(repo_root, edited(wrong_count))
 
-    emptied = copy.deepcopy(original)
-    emptied["pending_protection_additions"] = []
-    with pytest.raises(AssertionError, match="neither the required list nor the pending list"):
-        _check_reading_record(repo_root, edited(emptied))
+    moved_leg = copy.deepcopy(original)
+    moved_leg["required_contexts"] = [
+        name for name in moved_leg["required_contexts"] if "shard 5" not in name
+    ]
+    moved_leg["unprotected_jobs"] = sorted(
+        [
+            *moved_leg["unprotected_jobs"],
+            "python-quality (ubuntu-latest, shard 5)",
+            "python-quality (windows-latest, shard 5)",
+        ]
+    )
+    with pytest.raises(AssertionError, match="two accounts of one reading"):
+        _check_reading_record(repo_root, edited(moved_leg))
 
     contradiction = copy.deepcopy(original)
-    contradiction["pending_protection_additions"] = ["lint"]
+    contradiction["pending_protection_additions"] = ["python-quality (ubuntu-latest, shard 5)"]
     with pytest.raises(AssertionError, match="at once"):
         _check_reading_record(repo_root, edited(contradiction))
 
     lost = copy.deepcopy(original)
-    lost["unprotected_jobs"] = [name for name in lost["unprotected_jobs"] if "shard 5" not in name]
+    lost["unprotected_jobs"] = [name for name in lost["unprotected_jobs"] if name != "evaluation"]
     with pytest.raises(AssertionError, match="does not classify them"):
         _check_reading_record(repo_root, edited(lost))
