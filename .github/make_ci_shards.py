@@ -254,9 +254,14 @@ def repair_protected_legs(
                     if partner == name:
                         continue
                     partner_where = _locations(partitions)[partner]
-                    if not all(
+                    # After the swap the partner sits in this platform's
+                    # unprotected leg, so it needs a protected leg on some
+                    # *other* platform — otherwise the swap would move the
+                    # hole rather than fill it.
+                    if not any(
                         other_index in protected.get(other, set())
                         for other, other_index in partner_where.items()
+                        if other != platform
                     ):
                         continue
                     partner_cost = platform_costs.get(Path(partner).name, 0.0)
@@ -296,6 +301,14 @@ def _check(partitions: dict[str, list[list[str]]], protected: dict[str, set[int]
             f"{platform}: the reading names "
             f"{', '.join(str(index) for index in shards)} as protected legs"
         )
+    files = len(_locations(partitions))
+    if not files:
+        print(
+            "the partition is empty, so the question cannot be answered: a check "
+            "that finds no files finds nothing outside a protected leg.",
+            file=sys.stderr,
+        )
+        return 1
     if outside:
         print(
             f"\n{len(outside)} test file(s) are in no leg branch protection "
@@ -303,7 +316,6 @@ def _check(partitions: dict[str, list[list[str]]], protected: dict[str, set[int]
             file=sys.stderr,
         )
         return 1
-    files = len(_locations(partitions))
     print(f"\nevery one of the {files} test files is in a leg branch protection waits for")
     return 0
 
