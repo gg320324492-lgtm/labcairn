@@ -557,6 +557,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_docx_edit_refusal.py": ("negative", "crash-between-write-and-confirm"),
     "test_docx_edit_fidelity.py": ("integration", "artifact-hashes"),
     "test_docx_edit_records.py": (REPOSITORY_CLASS, "repository-gate"),
+    # LC-P3-02's twelve-row closeout: the tool that turns a finished rerun
+    # into a record, and the issue verdicts it reaches. Its clause is the
+    # insufficient evidence, because the property it watches is that an
+    # issue is **not** closed on rows that do not support it -- #191 needs
+    # all four of the 08 rows, and the two Word rows among them are #192's.
+    "test_closeout_12_rows.py": ("negative", "insufficient-evidence"),
     "test_public_fixtures.py": ("unit", "dataset-locators"),
     # -- LC-P2-14's mechanical preparation ----------------------------------
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),
