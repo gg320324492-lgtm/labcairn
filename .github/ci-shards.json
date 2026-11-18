@@ -31,7 +31,6 @@
         "tests/test_store_atomicity.py",
         "tests/test_role_guidance.py",
         "tests/test_agent_role_specs.py",
-        "tests/test_approval_binding.py",
         "tests/test_drill_known_errors_recovery.py",
         "tests/test_event_payload_vocabulary.py",
         "tests/test_cli_path_refused_catch.py",
@@ -47,7 +46,8 @@
         "tests/test_baseline_document.py",
         "tests/test_analysis_report_build.py",
         "tests/test_evidence_retrieval.py",
-        "tests/test_workspace_boundaries.py"
+        "tests/test_workspace_boundaries.py",
+        "tests/test_artifact_ledger_persistence.py"
       ],
       [
         "tests/test_cli_workspace_refusals.py",
@@ -85,9 +85,9 @@
         "tests/test_docx_edit_samples.py",
         "tests/test_provider_adapter.py",
         "tests/test_paperqa_adapter.py",
-        "tests/test_analysis_selection.py",
         "tests/test_material_adapters.py",
-        "tests/test_workspace_path_length.py"
+        "tests/test_workspace_path_length.py",
+        "tests/test_docx_fixture_corpus.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -97,12 +97,10 @@
         "tests/test_store_events.py",
         "tests/test_cli_refusals.py",
         "tests/test_retrieval_ground_truth.py",
-        "tests/test_analysis_render.py",
         "tests/test_workbench_live_service.py",
         "tests/test_api_concurrency.py",
         "tests/test_guidance_revision_distillation.py",
         "tests/test_external_path_references.py",
-        "tests/test_ci_shard_coverage.py",
         "tests/test_material_schema.py",
         "tests/test_store_concurrency.py",
         "tests/test_binding_loop_refusals.py",
@@ -111,23 +109,19 @@
         "tests/test_outbound_consent_bridge.py",
         "tests/test_application_approvals.py",
         "tests/test_identifier_records.py",
-        "tests/test_cli.py",
         "tests/test_role_trajectory.py",
         "tests/test_analysis_demo.py",
         "tests/test_recovery_stage_bridge.py",
         "tests/test_cite_c3.py",
-        "tests/test_drill_backup_rollback.py",
         "tests/test_analysis_dependency.py",
         "tests/test_blind_evaluation_preparation.py",
         "tests/test_material_walk.py",
-        "tests/test_evidence_gate.py",
         "tests/test_scaffolding.py",
         "tests/test_closeout_12_rows.py",
         "tests/test_fake_provider_isolation.py",
         "tests/test_analysis_report_manifest.py",
         "tests/test_intake_guards.py",
         "tests/test_capability_namespaces.py",
-        "tests/test_material_regressions.py",
         "tests/test_analysis_catalog.py",
         "tests/test_analysis_descriptive.py",
         "tests/test_analysis_operator_contract.py",
@@ -167,7 +161,13 @@
         "tests/test_version_confirmation.py",
         "tests/test_version_contracts.py",
         "tests/test_version_duplicates.py",
-        "tests/test_workbench_real_browser.py"
+        "tests/test_workbench_real_browser.py",
+        "tests/test_analysis_manifest.py",
+        "tests/test_analysis_report_checks.py",
+        "tests/test_analysis_report_revisions.py",
+        "tests/test_repo_root_guard.py",
+        "tests/test_role_critique.py",
+        "tests/test_store_queries.py"
       ],
       [
         "tests/test_material_pdf.py",
@@ -177,12 +177,10 @@
         "tests/test_workbench_serve_helper.py",
         "tests/test_cite_c2.py",
         "tests/test_cli_refusal_enumeration.py",
-        "tests/test_analysis_report_checks.py",
         "tests/test_id_aliases_are_nominal.py",
         "tests/test_guidance_rules.py",
         "tests/test_followup_assessments.py",
         "tests/test_material_walk_paths.py",
-        "tests/test_store_queries.py",
         "tests/test_guidance_distillation.py",
         "tests/test_evaluation_harness.py",
         "tests/test_response_links.py",
@@ -191,23 +189,25 @@
         "tests/test_feedback_event_stream.py",
         "tests/test_threat_model.py",
         "tests/test_feedback_demo.py",
-        "tests/test_analysis_report_revisions.py",
-        "tests/test_artifact_ledger_persistence.py",
         "tests/test_material_ingest.py",
         "tests/test_loop_source_id_alignment.py",
         "tests/test_fake_provider_invariants.py",
-        "tests/test_role_critique.py",
         "tests/test_provider_credentials.py",
         "tests/test_access_grant_schema.py",
         "tests/test_cli_serve_bind_refusal.py",
-        "tests/test_repo_root_guard.py",
         "tests/test_analysis_fixtures.py",
         "tests/test_shell_ci.py",
         "tests/test_runtime_contracts.py",
         "tests/test_refusal_witnesses.py",
-        "tests/test_analysis_manifest.py",
-        "tests/test_docx_fixture_corpus.py",
-        "tests/test_review_dossier.py"
+        "tests/test_review_dossier.py",
+        "tests/test_material_regressions.py",
+        "tests/test_analysis_render.py",
+        "tests/test_cli.py",
+        "tests/test_approval_binding.py",
+        "tests/test_analysis_selection.py",
+        "tests/test_evidence_gate.py",
+        "tests/test_drill_backup_rollback.py",
+        "tests/test_ci_shard_coverage.py"
       ]
     ],
     "windows-latest": [
@@ -336,7 +336,6 @@
         "tests/test_id_aliases_are_nominal.py",
         "tests/test_role_trajectory.py",
         "tests/test_paper_fixtures.py",
-        "tests/test_evidence_schema.py",
         "tests/test_analysis_demo.py",
         "tests/test_parallel_temp_isolation.py",
         "tests/test_cli_serve_bind_refusal.py",
@@ -351,7 +350,8 @@
         "tests/test_docx_edit_refusal.py",
         "tests/test_material_adapters.py",
         "tests/test_material_addressing.py",
-        "tests/test_security_approval.py"
+        "tests/test_security_approval.py",
+        "tests/test_evaluation_harness.py"
       ],
       [
         "tests/test_analysis_report_checks.py",
@@ -373,7 +373,6 @@
         "tests/test_role_critique.py",
         "tests/test_source_id_type.py",
         "tests/test_no_reference_leakage.py",
-        "tests/test_evaluation_harness.py",
         "tests/test_drill_locked_files.py",
         "tests/test_cite_c3.py",
         "tests/test_evidence_anchor_registry.py",
@@ -416,7 +415,8 @@
         "tests/test_version_alignment.py",
         "tests/test_version_confirmation.py",
         "tests/test_version_contracts.py",
-        "tests/test_version_duplicates.py"
+        "tests/test_version_duplicates.py",
+        "tests/test_evidence_schema.py"
       ]
     ]
   },

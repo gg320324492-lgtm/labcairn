@@ -150,6 +150,16 @@ jobs:
       - name: mypy --strict
         run: uv run mypy
 
+      # Every test file has to be in a leg branch protection waits for: a file
+      # that sits only in a leg protection does not name is a file no required
+      # check runs. The check reads the dated reading of branch protection
+      # (`docs/ci/required-checks-reading.json`) and reports the files that
+      # are in no leg it names. It needs nothing beyond the standard library,
+      # so it runs on the interpreter `actions/setup-python` installed rather
+      # than on a second environment.
+      - name: every test file is in a protected leg
+        run: python .github/make_ci_shards.py --check
+
   python-quality:
     # **The name carries the shard and the worker count, and it has to.**
     # GitHub identifies a check by its name, so jobs that share a name are

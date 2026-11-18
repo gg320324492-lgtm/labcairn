@@ -1,7 +1,7 @@
 {
   "record": "Branch protection's required status checks, read from GitHub.",
-  "read_at_utc": "2026-11-17T19:59:51Z",
-  "read_at_revision": "69be18efc52e08c19087db61de9ecdc9a8257772",
+  "read_at_utc": "2026-11-18T01:29:35Z",
+  "read_at_revision": "d8ec8c9b1ed8f50c18030695e7ede5140469f961",
   "read_at_revision_meaning": "the tip of origin/main when the reading was taken",
   "read_via": "gh api repos/gg320324492-lgtm/labcairn/branches/main/protection --jq '.required_status_checks.contexts'",
   "read_with": "a local session holding GitHub credentials",
@@ -79,6 +79,8 @@
   "cannot_verify": [
     "This file is a reading, not the protection itself. CI holds no GitHub credentials, so nothing in the test suite re-reads branch protection.",
     "What the suite checks is that this file agrees with itself and with the tree: every required context is a name a workflow in this repository reports, every unprotected job is named here, the revision this reading was taken at is a commit this checkout still has, and the shard count is the workflow matrix's.",
-    "What it cannot check is the real protection on GitHub. A context added to branch protection after this reading, or removed from it, is invisible here until somebody re-reads it with credentials and rewrites this file."
+    "What it cannot check is the real protection on GitHub. A context added to branch protection after this reading, or removed from it, is invisible here until somebody re-reads it with credentials and rewrites this file.",
+    "The two shard-5 legs are named in the unprotected list because the reading of 2026-11-18 still does not find them in the required list. The owner has decided to add them; until that happens, the partition in .github/ci-shards.json keeps every test file in at least one leg this file names, so no test file waits for a leg a merge does not wait for.",
+    "This file names the legs, not what runs in them. The partition is .github/ci-shards.json, and the check that keeps every test file in a leg named here is `python .github/make_ci_shards.py --check`, which the lint job runs on every pull request."
   ]
 }
