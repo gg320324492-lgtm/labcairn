@@ -38,8 +38,51 @@
   ones were kept in a dated folder rather than deleted, the ledger's hash
   columns were re-baselined, and the affected rows' observation cells were
   **cleared, not re-filled**. The other twenty artifacts are byte-identical,
-  so rows R05–R12 stand. **Rows R01–R04 are open, and R01 — the one
-  completed row — is void.**
+  so rows R05–R12 stood at that point.
+- **The rerun's own progress, measured on 2026-11-19.** Three rows are
+  recorded and **all three are PASS**: R01 (WPS, the `08` clean artifact),
+  R02 (Word 2019, the same artifact) and R04 (Word 2019, the marked one).
+  R03's first look is recorded — every token answered — and it waits on
+  its second look. R05–R12 have not been run.
+- **The version strings must be read today, not copied.** The pack's guide
+  says so in so many words — *"Do not copy last round's numbers — read the
+  About box today"* — and the four recorded rows carry **last round's**
+  readings. And `host_version_measured_at` is **one value for the whole
+  run**, not one per row: the 44-row ledger's twenty-two pairs all carry
+  the same timestamp, and the 44-row validator compares it between a pair's
+  two rows. The owner reads both hosts' About boxes and gives the two
+  strings and the moment.
+- **#192's observation half is met; its AC1 is not.** The issue's own
+  closing comment asks for *"a Word 2019 open that no longer shows the
+  severe-error dialog"*, and R02 and R04 are exactly that, on the
+  repaired bytes, with the digest unchanged. The rest of #192 is the
+  owner's **AC1** decision — which construct Word refused — and the
+  closure map says how to settle it: *"rebuild the artifact with one
+  repair held back, open it in Word 2019, and say which construct Word
+  refused."* **Two probes are built for it**, in
+  `E:/labcairn-local/ablation-probe-20261119/`: each the repaired
+  artifact with exactly one violation put back, each validated against the
+  schemas so that it carries that one violation and nothing else.
+- **#191 was closed with its own closing condition unmet**, on 2026-11-18,
+  on the strength of PR #195 — and PR #195's fix was incomplete, so the
+  caption stayed invisible in WPS until this repair. **#189** waits on the
+  eight `05`/`07` rows, and the picture repair is what makes them
+  answerable: before it, Word reserved the frame and drew no image.
+- **The closeout was dry-run end to end, and it found a crash.** The
+  merge tool's `collect_reviews` reads an `open_result` that no local
+  binds, so a row whose verdict is `REFUSAL-RECORDED` killed it with a
+  `NameError`. This round's table has none, so the crash was latent; the
+  merge kit's own self-test table has one, and running the write path
+  against it brought the crash out. **Fixed**, and both write paths — the
+  merge tool's and the repository's `closeout_12_rows.py`'s — now run and
+  write their artefacts, with the 44-row ledger left untouched.
+- **The evidence scaffolds exist, and both are honest.** The merge tool
+  accepts an entry whose claim is any non-empty string and then
+  overwrites its `state` with `OK`; the repository's tool counts a
+  condition as declared the moment an entry with that condition exists.
+  **Either way a placeholder would settle it**, so the scaffold's claims
+  are empty and the scaffold's `declarations` list is empty, and both
+  tools report all eight owner conditions as outstanding.
 - **What the host did with the repaired file, measured on 2026-11-19.**
   **Word 2019 16.0.17932.21140 now opens it** — the severe-open-error dialog
   is gone — **and it draws the caption inside the box**, with the paragraph
