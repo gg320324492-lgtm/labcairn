@@ -1642,6 +1642,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs-08-to-open",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs-defective-20261119",
       "expectation": "present",
       "kind": "material",
