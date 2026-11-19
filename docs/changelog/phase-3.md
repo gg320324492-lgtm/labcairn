@@ -44,8 +44,10 @@
   R01-R04 are open and R01, which was complete, is void.**
 - **What is still open.** Whether Word 2019 opens the repaired file is
   unmeasured, and D-4 stays open with it. The three tables without a
-  `w:tblGrid` are recorded and not fixed: Word tolerates them, and fixing
-  them would re-base four more rows for a defect that blocks nothing.
+  `w:tblGrid` are recorded and **not** fixed — Word tolerates them, and
+  fixing them would re-base four more rows for a defect that blocks
+  nothing. **The owner ruled on 2026-11-19: leave it, and close the
+  twelve rows first.**
 - **The record** is
   [`LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md`](../acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md).
 ### The second reader's memory boundary is restated as what the harness delivers (2026-11-18)

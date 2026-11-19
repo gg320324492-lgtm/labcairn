@@ -201,8 +201,9 @@ missed.
   rejects. **Word tolerates it**: the `07` family's artifact has the
   violation and Word opened it. It is not fixed here, because fixing it
   changes the `07` family's bytes and would re-base four more rows of the
-  rerun for a defect that blocks nothing. That trade is the owner's to
-  settle.
+  rerun for a defect that blocks nothing. **The owner ruled on
+  2026-11-19: leave it, and close the twelve rows first.** It stays an
+  open finding, not a closed one.
 
 ## What the rerun now owes
 
