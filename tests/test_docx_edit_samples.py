@@ -602,6 +602,83 @@ def test_media_png_pixel_is_not_transparent() -> None:
         )
 
 
+PIC: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/picture"
+
+
+def test_every_picture_carries_its_own_size_the_way_word_writes_it() -> None:
+    """A picture with no extent of its own has nothing to draw.
+
+    **What this witnesses.** The corpus's inline picture used to write
+    ``<pic:spPr/>`` -- no ``a:xfrm``, no ``a:prstGeom`` -- and an empty
+    ``<pic:cNvPicPr/>``, with ``pic:cNvPr`` at the id ``0``. The frame
+    was reserved and the picture was absent: the 44-row ledger recorded
+    it as "the empty drawing object is not counted as a visible image",
+    and the owner measured it again on 2026-11-19 in Word 2019
+    16.0.17932.21140, where the page area of the screenshot carried **no
+    pixel** of the corpus blue.
+
+    **The measurement that fixed it.** Two probes of the same artifact:
+    the one whose picture markup was made the way Word writes it, and the
+    same probe with a 16x16 pixel of the same colour. **Both drew the
+    square**, so the markup was the whole of it and the one-pixel image
+    was never the problem. **Every one of the 2,133 ``<pic:spPr>``
+    elements in the real Word documents on this machine carries an
+    ``a:xfrm``** -- there is no counterexample.
+
+    **What is asserted.** That the picture's own shape properties carry
+    an ``a:xfrm`` whose extent is readable and agrees with the frame the
+    drawing reserves; that the non-visual picture properties carry the
+    aspect-ratio lock Word writes; and that the picture's id is a real
+    one.
+    """
+    pictures = 0
+    for sample in SAMPLES:
+        if sample.hostile:
+            continue
+        root = ElementTree.fromstring(_document_of(sample))
+        for picture in root.iter(f"{{{PIC}}}pic"):
+            pictures += 1
+            shape = picture.find(f"{{{PIC}}}spPr")
+            assert shape is not None, (
+                f"{sample.name} has a pic:pic without pic:spPr, which no host draws"
+            )
+            transform = shape.find(f"{{{A_NS}}}xfrm")
+            assert transform is not None, (
+                f"{sample.name} has a pic:spPr without a:xfrm: the picture has no "
+                "extent of its own, so it has nothing to scale into the frame Word "
+                "reserved, and Word draws nothing (measured 2026-11-19)"
+            )
+            extent = transform.find(f"{{{A_NS}}}ext")
+            assert extent is not None, (
+                f"{sample.name} has an a:xfrm without an a:ext, so the picture's "
+                "own size is unknown"
+            )
+            cx, cy = int(extent.get("cx", "0")), int(extent.get("cy", "0"))
+            assert cx > 0 and cy > 0, (
+                f"{sample.name} has a {cx}x{cy}-EMU picture, which no host can draw"
+            )
+            geometry = shape.find(f"{{{A_NS}}}prstGeom")
+            assert geometry is not None, (
+                f"{sample.name} has a pic:spPr without a:prstGeom, which is not the "
+                "shape Word writes"
+            )
+            non_visual = picture.find(f"{{{PIC}}}nvPicPr")
+            assert non_visual is not None, f"{sample.name} has a pic:pic without pic:nvPicPr"
+            locks = non_visual.find(f"{{{PIC}}}cNvPicPr")
+            assert locks is not None and locks.find(f"{{{A_NS}}}picLocks") is not None, (
+                f"{sample.name} has a pic:cNvPicPr without a:picLocks, which is not "
+                "the shape Word writes"
+            )
+            properties = non_visual.find(f"{{{PIC}}}cNvPr")
+            assert properties is not None, f"{sample.name} has a pic:nvPicPr without pic:cNvPr"
+            identifier = int(properties.get("id", "0"))
+            assert identifier > 0, (
+                f"{sample.name} gives its picture the id {identifier}; a host needs a "
+                "real id to tell the picture apart from the drawing's own"
+            )
+    assert pictures > 0, "no sample carries a picture, so nothing witnesses the picture"
+
+
 def test_comments_have_a_body_where_the_mark_says_there_is_one() -> None:
     """A comment marker whose id matches no comment body is damage, not a fixture."""
     for sample in SAMPLES:

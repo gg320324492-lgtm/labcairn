@@ -192,13 +192,36 @@ def equation(text: str) -> str:
 
 
 def image(rid: str, name: str) -> str:
-    """An inline picture, reached through a relationship and a media part."""
+    """An inline picture, reached through a relationship and a media part.
+
+    **The picture carries its own size, the way Word writes it.** The
+    corpus used to write ``<pic:spPr/>`` -- no ``a:xfrm``, no
+    ``a:prstGeom`` -- and an empty ``<pic:cNvPicPr/>``, with
+    ``pic:cNvPr`` at the id ``0``. **Word 2019 then drew nothing at
+    all**: the frame was reserved and the picture was absent, which is
+    what the 44-row ledger recorded as "the empty drawing object is not
+    counted as a visible image".
+
+    Measured on 2026-11-19, with the owner opening two probes of the
+    re-based artifact in Word 2019 16.0.17932.21140: the probe whose
+    picture markup was made the way Word writes it **drew the blue
+    square**, and so did the same probe with a 16x16 pixel of the same
+    colour -- **so the markup was the whole of it and the one-pixel
+    image was never the problem.** A picture with no extent of its own
+    has nothing to scale into the frame. **Every one of the 2,133
+    ``<pic:spPr>`` elements in the real Word documents on this machine
+    carries an ``a:xfrm``**; there is no counterexample.
+    """
     return (
         '<w:p><w:r><w:drawing><wp:inline><wp:extent cx="360000" cy="360000"/>'
         f'<wp:docPr id="1" name="{name}"/><a:graphic><a:graphicData uri="{PIC}">'
-        f'<pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="{name}"/><pic:cNvPicPr/>'
+        f'<pic:pic><pic:nvPicPr><pic:cNvPr id="1" name="{name}"/>'
+        '<pic:cNvPicPr><a:picLocks noChangeAspect="1"/></pic:cNvPicPr>'
         f'</pic:nvPicPr><pic:blipFill><a:blip r:embed="{rid}"/><a:stretch>'
-        "<a:fillRect/></a:stretch></pic:blipFill><pic:spPr/></pic:pic>"
+        "<a:fillRect/></a:stretch></pic:blipFill>"
+        '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="360000" cy="360000"/>'
+        '</a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+        "</pic:pic>"
         "</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
     )
 

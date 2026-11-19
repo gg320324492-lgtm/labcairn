@@ -26,8 +26,42 @@ allowed, and its `wp:anchor` carried none of the five attributes
 Word writes, a witness holds it there, and the artifacts the twelve-row
 rerun measures have been re-based onto the repaired corpus. Word 2019 now
 opens the repaired file and draws the caption, so the refusal the 44-row
-ledger's D-4 recorded is gone; the picture inside the same file still does
-not draw, which is a separate and open finding.**
+ledger's D-4 recorded is gone. A second defect sat in the same document:
+the inline picture's own shape properties were empty, so Word drew the
+frame and no picture. That is fixed too, and Word now draws the blue
+square.**
+
+## The picture, which was empty of everything but its frame
+
+**What was measured.** The owner's screenshot of the repaired file carries
+**no pixel** of the corpus blue anywhere in the page area -- the only
+blue on the screen is an 11 × 35-pixel accent in the ribbon -- while the
+media part itself is sound: 70 bytes, IHDR 1 × 1 colour type 6 depth 8,
+all three chunk CRCs correct, and the IDAT inflating to one filter byte
+and the pixel (46, 116, 181, 255). The relationship and the `r:embed` are
+intact. So the picture was not missing, and it was not transparent: it
+was **not drawn**.
+
+**The cause.** The corpus wrote the picture's own shape properties empty:
+`<pic:spPr/>` with no `a:xfrm` and no `a:prstGeom`, an empty
+`<pic:cNvPicPr/>`, and a `pic:cNvPr` at the id `0`. A picture with no
+extent of its own has nothing to scale into the frame the drawing
+reserved. **Every one of the 2,133 `<pic:spPr>` elements in the real Word
+documents on this machine carries an `a:xfrm`** -- there is no
+counterexample.
+
+**The measurement that fixed it.** Two probes of the same artifact, opened
+by the owner in Word 2019 16.0.17932.21140 on 2026-11-19: one whose
+picture markup was made the way Word writes it, and the same one with a
+16x16 pixel of the same colour. **Both drew the blue square**, so the
+markup was the whole of it and the one-pixel image was never the
+problem. The second probe is what rules the other suspect out: if the
+size had been the cause, the one-pixel probe would have stayed blank.
+
+**The repair.** `src/labcairn/editing/samples.py`'s `image()` now writes
+`pic:spPr` with an `a:xfrm` -- the offset and the extent -- and an
+`a:prstGeom`, `pic:cNvPicPr` with the `a:picLocks` Word writes, and a
+`pic:cNvPr` with the id `1`.
 
 ## What the host did with the repaired file
 
@@ -195,7 +229,11 @@ asserts on every anchored drawing in the corpus:
 A second witness, `test_the_markup_compatibility_element_sits_inside_a_run`,
 asserts that every `mc:AlternateContent` is inside a `w:r` and that every
 `w:drawing` and `w:pict` ends up inside a `w:r` once the
-markup-compatibility branches are resolved.
+markup-compatibility branches are resolved. A third,
+`test_every_picture_carries_its_own_size_the_way_word_writes_it`, asserts
+that every picture's `pic:spPr` carries an `a:xfrm` with a readable
+extent, an `a:prstGeom`, a `pic:cNvPicPr` carrying the `a:picLocks` Word
+writes, and a `pic:cNvPr` with a real id.
 
 **The witnesses were mutation-checked on 2026-11-19.** Six mutations of
 the generator, each applied to the source and then reverted from a
@@ -203,34 +241,22 @@ byte-for-byte backup rather than from git:
 
 | mutation | the suite |
 |---|---|
-| baseline, unmutated | 19 passed |
-| `wp:positionH` dropped | 1 failed, 18 passed |
-| `wp:wrapSquare` dropped | 1 failed, 18 passed |
-| `wp:positionH` moved after `wp:extent` | 1 failed, 18 passed |
-| the anchor's `relativeHeight` attribute dropped | 1 failed, 18 passed |
-| the `mc:AlternateContent` moved back out of the `w:r` | 1 failed, 18 passed |
-| `wps:bodyPr` dropped | 1 failed, 18 passed |
+| baseline, unmutated | 20 passed |
+| `wp:positionH` dropped | 1 failed, 19 passed |
+| `wp:wrapSquare` dropped | 1 failed, 19 passed |
+| `wp:positionH` moved after `wp:extent` | 1 failed, 19 passed |
+| the anchor's `relativeHeight` attribute dropped | 1 failed, 19 passed |
+| the `mc:AlternateContent` moved back out of the `w:r` | 1 failed, 19 passed |
+| `wps:bodyPr` dropped | 1 failed, 19 passed |
+| the picture's `a:xfrm` dropped | 1 failed, 19 passed |
+| the picture's `a:picLocks` dropped | 1 failed, 19 passed |
+| the picture's id put back to `0` | 1 failed, 19 passed |
 
-All six were caught, and the fifth is the finding the earlier repair
+All nine were caught, and the fifth is the finding the earlier repair
 missed.
 
 ## What is still open
 
-- **The picture does not draw in Word.** The media part is sound --
-  70 bytes, IHDR 1 × 1 colour type 6, all three chunk CRCs correct, and
-  the IDAT inflates to one filter byte and the pixel (46, 116, 181, 255)
-  -- and the relationship and the `r:embed` are intact, but the page area
-  of the owner's screenshot carries no pixel of that colour. Two suspects,
-  and two probes, are in `E:/labcairn-local/picture-probe-20261119/`:
-  the corpus writes `<pic:spPr/>` with no `a:xfrm` and no `a:prstGeom`,
-  an empty `<pic:cNvPicPr/>`, and a `pic:cNvPr` with the id `0`, while
-  **every one of the 2,133 `<pic:spPr>` elements in the real Word
-  documents on this machine carries an `a:xfrm`**; and the image is one
-  pixel wide. `P1` carries the picture's markup made the way Word writes
-  it, `P2` carries `P1` with a 16 × 16 pixel of the same colour. **The
-  twelve-row rerun waits on this**: the blue square is one of the two
-  things the rerun is for, and running the rows before it settles would
-  run them on bytes a picture fix would invalidate.
 - **The tables without a `w:tblGrid`.** Three corpus samples -- `02`,
   `03` and `07` -- carry a `w:tbl` with no `w:tblGrid`, which the schema
   rejects. **Word tolerates it**: the `07` family's artifact has the
@@ -241,8 +267,13 @@ missed.
   open finding, not a closed one.
 - **D-4.** The 44-row ledger's D-4 finding is **closed by the measurement
   above**: the file opens, and the cause was the two schema violations
-  this record names. The *ledger row* that recorded the refusal is
-  R02's, and it is re-run against the repaired bytes.
+  this record names. The *ledger row* that recorded the refusal is R02's,
+  and it is re-run against the repaired bytes.
+- **Whether the repaired picture draws in Word.** The schema has no
+  opinion -- the corpus's picture markup was legal, just empty -- so the
+  owner's two probes are the measurement, and they say it draws. **The
+  corpus's own witness now holds the shape**, so a later change to the
+  generator that empties it again turns the suite red.
 
 ## What the rerun now owes
 

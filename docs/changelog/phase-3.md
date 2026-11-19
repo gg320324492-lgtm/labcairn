@@ -30,11 +30,12 @@
   writes: the `mc:AlternateContent` inside a `w:r`, the anchor with its
   five required attributes and the schema's child order, and the
   `wps:cNvSpPr` and `wps:bodyPr` every real Word text box carries.
-  `tests/test_docx_edit_samples.py` asserts all of it, and **six mutations
+  `tests/test_docx_edit_samples.py` asserts all of it, and **nine mutations
   of the generator each turn the suite red** — dropping `wp:positionH`,
   dropping `wp:wrapSquare`, moving `wp:positionH` after `wp:extent`,
   dropping `relativeHeight`, moving the `mc:AlternateContent` back out of
-  the run, and dropping `wps:bodyPr`.
+  the run, dropping `wps:bodyPr`, and three that empty the picture's own
+  shape properties again.
 - **The rerun was re-based onto the repaired corpus.** The `08` family's
   two artifacts were regenerated (2,789 B, `c5404ec6…`, and 2,885 B,
   `938e6b25…`); the superseded ones were kept in a dated folder, not
@@ -49,20 +50,23 @@
   width. The word count reads **34**, which is the five sentences with the
   caption, so the text box's words are counted. **D-4's cause is
   established and the refusal is fixed.**
-- **What is still open.** **The picture does not draw.** The media part is
-  sound — 70 bytes, IHDR 1 × 1 colour type 6, all three chunk CRCs
-  correct, the IDAT inflating to the pixel (46, 116, 181, 255) — and the
-  relationship is intact, but the page area of the owner's screenshot
-  carries no pixel of that colour. Two suspects, and two probes in
-  `E:/labcairn-local/picture-probe-20261119/`: the corpus writes
-  `<pic:spPr/>` with no `a:xfrm` (and **every one of the 2,133
-  `<pic:spPr>` elements in the real Word documents on this machine carries
-  one**), and the image is one pixel wide. **The rerun waits on this** —
-  the blue square is one of the two things the rerun is for. The three
-  tables without a `w:tblGrid` are recorded and **not** fixed — Word
-  tolerates them, and fixing them would re-base four more rows for a
-  defect that blocks nothing; **the owner ruled on 2026-11-19: leave it,
-  and close the twelve rows first.**
+- **The picture was empty of everything but its frame, and that is fixed
+  too.** The corpus wrote `<pic:spPr/>` — no `a:xfrm`, no `a:prstGeom` —
+  an empty `<pic:cNvPicPr/>`, and a `pic:cNvPr` at the id `0`, so Word
+  reserved the frame and drew no picture. The owner's screenshot of the
+  repaired file carried **no pixel** of the corpus blue in the page area,
+  while the media part itself was sound (70 bytes, IHDR 1×1 colour type 6,
+  all three chunk CRCs correct, the IDAT inflating to the pixel
+  (46,116,181,255)). Two probes settled it: **both** the probe whose
+  picture markup was made the way Word writes it and the same probe with
+  a 16x16 pixel **drew the blue square**, so the markup was the whole of
+  it and the one-pixel image was never the problem. `image()` now writes
+  the `a:xfrm`, the `a:prstGeom`, the `a:picLocks` and a real id, and a
+  third witness holds that shape.
+- **What is still open.** The three tables without a `w:tblGrid` are
+  recorded and **not** fixed — Word tolerates them, and fixing them would
+  re-base four more rows for a defect that blocks nothing; **the owner
+  ruled on 2026-11-19: leave it, and close the twelve rows first.**
 - **The record** is
   [`LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md`](../acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md).
 ### The second reader's memory boundary is restated as what the harness delivers (2026-11-18)

@@ -47,20 +47,21 @@
   word count reads **34**: the five sentences with the caption, so the text
   box's words are counted. **D-4's cause is established and the refusal is
   fixed.**
-- **What is still open.** **The picture does not draw.** The media part is
-  sound — 70 bytes, IHDR 1 × 1 colour type 6, all three chunk CRCs
-  correct, the IDAT inflating to the pixel (46, 116, 181, 255) — and the
-  relationship is intact, but the page area of the owner's screenshot
-  carries no pixel of that colour. Two suspects, and two probes in
-  `E:/labcairn-local/picture-probe-20261119/`: the corpus writes
-  `<pic:spPr/>` with no `a:xfrm` — **every one of the 2,133 `<pic:spPr>`
-  elements in the real Word documents on this machine carries one** — and
-  the image is one pixel wide. **The rerun waits on this**, because the
-  blue square is one of the two things the rerun is for. The three corpus
-  tables without a `w:tblGrid` are recorded and not fixed: Word tolerates
-  them, and fixing them would re-base four more rows for a defect that
-  blocks nothing. **The owner ruled on 2026-11-19: leave it, and close the
-  twelve rows first.**
+- **The picture was empty of everything but its frame, and that is fixed
+  too.** The corpus wrote `<pic:spPr/>` — no `a:xfrm`, no `a:prstGeom` —
+  an empty `<pic:cNvPicPr/>`, and a `pic:cNvPr` at the id `0`, so Word
+  reserved the frame and drew no picture. The media part itself was sound
+  (70 bytes, IHDR 1×1 colour type 6, all three chunk CRCs correct, the
+  IDAT inflating to the pixel (46,116,181,255)). Two probes settled it:
+  **both** the probe whose picture markup was made the way Word writes it
+  and the same probe with a 16x16 pixel **drew the blue square**, so the
+  markup was the whole of it and the one-pixel image was never the
+  problem. `image()` now writes the `a:xfrm`, the `a:prstGeom`, the
+  `a:picLocks` and a real id, and a third witness holds that shape.
+- **What is still open.** The three corpus tables without a `w:tblGrid`
+  are recorded and not fixed: Word tolerates them, and fixing them would
+  re-base four more rows for a defect that blocks nothing. **The owner
+  ruled on 2026-11-19: leave it, and close the twelve rows first.**
 - **The record** is
   [`docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md`](../acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md);
   the schemas and the scripts that took its readings live outside the
