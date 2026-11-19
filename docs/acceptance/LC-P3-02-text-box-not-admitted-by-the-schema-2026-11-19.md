@@ -285,6 +285,18 @@ missed.
   above**: the file opens, and the cause was the two schema violations
   this record names. The *ledger row* that recorded the refusal is R02's,
   and it is re-run against the repaired bytes.
+- **Issue #192's observation half is met.** Its own closing comment asks
+  for "a Word 2019 open that no longer shows the severe-error dialog",
+  and the rerun's two Word rows -- R02 and R04 -- record exactly that, on
+  the repaired bytes, with the digest unchanged. What remains for #192 is
+  its acceptance condition AC1, the identification of the triggering
+  construct, which the two ablation probes settle.
+- **Issue #191 was closed with its own closing condition unmet**, on
+  2026-11-18, on the strength of PR #195 -- and PR #195's fix was
+  incomplete: the anchor still had none of its five required attributes
+  and the `mc:AlternateContent` was still at paragraph level, so the
+  caption stayed invisible in WPS. The four 08 rows are the completion of
+  that deferred closure, not a repetition of it.
 - **Which of the two violations Word was refusing on.** Issue #192's first
   acceptance criterion is *"the triggering OOXML construct is identified"*,
   and its own wording says "bisect the artefact content if needed". The
