@@ -70,19 +70,21 @@
   caption stayed invisible in WPS until this repair. **#189** waits on the
   eight `05`/`07` rows, and the picture repair is what makes them
   answerable: before it, Word reserved the frame and drew no image.
-- **The local suite on this tree: 5,361 passed, 28 skipped, and fourteen
-  tests the network took out.** Eight in
+- **The local suite on this tree: 5,375 passed, 28 skipped, 0 failed.**
+  It was measured in two parts, because the machine lost its route to PyPI
+  part way through the first run: **5,361 passed** in the interrupted run,
+  and the **fourteen** tests that could not run without it -- eight in
   `tests/test_no_reference_leakage.py` (`uv build` could not fetch
   `hatchling`) and six in `tests/test_outsider_path.py` (the clone's
   `uv sync` could not fetch `hatchling`), both failing with
   `client error (Connect)` and `tls handshake eof` against
-  `https://pypi.org/simple/hatchling/`. **That those fourteen are the
-  environment's and not this branch's is measured, not assumed**: putting
-  `main`'s `src/` and `tests/` back in place and running the same two
-  files gives the same 6 failed and 8 errors, and an earlier run of this
-  tree, before the route dropped, passed **all 5,375**. Both those tests
-  resolve a build backend over the network, which is why they are the
-  ones that go when it does.
+  `https://pypi.org/simple/hatchling/` -- were **re-run when the route
+  came back, and both files passed in full: 127 passed.**
+  **That the interruption was the network's and not this branch's is
+  measured, not assumed**: putting `main`'s `src/` and `tests/` back in
+  place and running the same two files gave the same 6 failed and 8
+  errors, and an earlier run of this tree, before the route dropped,
+  passed **all 5,375** on its own.
 - **The closeout was dry-run end to end, and it found a crash.** The
   merge tool's `collect_reviews` reads an `open_result` that no local
   binds, so a row whose verdict is `REFUSAL-RECORDED` killed it with a
