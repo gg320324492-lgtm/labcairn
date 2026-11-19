@@ -1,47 +1,53 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
-### The corpus's anchored text box was missing four children the schema requires (2026-11-19)
+### The corpus's text box was not a shape Word admits (2026-11-19)
 
-- **The corpus wrote a `wp:anchor` the schema does not admit.** ECMA-376
-  Part 1 §20.4.2.1 requires `CT_Anchor` to carry `wp:simplePos`,
-  `wp:positionH`, `wp:positionV`, `wp:extent`, exactly one of the five wrap
-  elements, `wp:docPr` and `a:graphic`, in that order. The generator's
-  `text_box()` wrote three of those six and **no wrap element at all**:
-  `extent`, `docPr`, `graphic`, and nothing else. The bytes that reached
-  WPS and Word 2019 in the twelve-row rerun carried exactly that anchor —
-  2,531 B, SHA-256 `cbf08be135b26c8876075641421d9c4ee881bcb3387d80e14c8875585bc746dd`,
-  unchanged since 2026-11-18.
-- **Two symptoms were measured on that file by the owner.** WPS Office
-  12.1.0.29690 opened it and drew the body text and the picture but **not
-  the caption**; Microsoft Word 2019 16.0.17932.21140 **refused it
-  outright**. The defect is consistent with both — an anchor with no
-  position has nowhere to put the box — but consistency is not causation,
-  and **the record does not claim that restoring the four children makes
-  Word open the file.** That reading has not been taken, and the ledger's
-  D-4 stays open with it.
-- **Why PR #195 did not close it.** The repair that merge `b2e3661` carried
-  added `wp:docPr`, `wps:spPr` and a readable extent, and its witness
-  checked those three. It said nothing about the position children or the
-  wrap, because they had not been read off the schema; a search of `src/`,
-  `tests/` and `docs/` for those four names returned **nothing**. The
-  defect therefore survived the repair meant to close it, and every later
-  change to the same generator kept it.
-- **The repair and its witness.** `text_box()` now writes the complete
-  anchor in the schema's order, and
-  `tests/test_docx_edit_samples.py` asserts on every anchored drawing that
-  each required child is present exactly once, that exactly one of the five
-  wrap elements is present, and that the children appear in the schema's
-  order. The witness was **mutation-checked**: dropping `wp:positionH`,
-  dropping `wp:wrapSquare`, and moving `wp:positionH` after `wp:extent` each
-  turn the suite red, and the third one matters — every child was present
-  there, and only the order was wrong.
-- **What the rerun now owes.** The corpus's bytes changed, so the four rows
-  of the `08` family are measured on bytes that no longer exist, and the
-  completed row R01 has to be run again. The other eight rows carry no
-  anchored drawing and are byte-identical.
+- **The corpus wrote a text box that the WordprocessingML content model
+  does not admit, in two ways at once.** Its `mc:AlternateContent` sat
+  directly in a `w:p`, where the run-level `w:drawing` and `w:pict` it
+  carries are not allowed — a consumer resolves the markup-compatibility
+  branches **before** the content model applies, and the resolved
+  `w:drawing` then stood at paragraph level. And its `wp:anchor` carried
+  **none** of the five attributes `CT_Anchor` marks `use="required"`:
+  `relativeHeight`, `behindDoc`, `locked`, `layoutInCell` and
+  `allowOverlap`.
+- **The measurement that names it.** The ECMA-376 Part 4 transitional
+  schemas were fetched, and all 24 of the rerun's artifacts were validated
+  against `wml.xsd`. **The control is the twenty-two artifacts Word 2019
+  opened**: they carry neither violation. The two Word refused — the `08`
+  family's pair — carry both, and they are the only two with an anchored
+  drawing at all. A third violation was found and is **not** fatal: three
+  samples' tables carry no `w:tblGrid`, and the `07` family's artifact has
+  that violation and Word opened it.
+- **The first diagnosis was refuted, and the refutation is part of the
+  record.** The earlier reading held that the anchor's missing children
+  were the cause. A probe that restored those children and changed
+  nothing else — 2,620 B, SHA-256 `77d7a1ba366088faae99c625290f1cc54e31621178afcc5e73dab5302720d3eb`
+  — was **refused by Word with the same dialog**. The children were not
+  the whole of it; the probe had left the attributes missing and the
+  placement wrong, and the schema says both are violations.
+- **The repair and its witness.** The generator now writes the shape Word
+  writes: the `mc:AlternateContent` inside a `w:r`, the anchor with its
+  five required attributes and the schema's child order, and the
+  `wps:cNvSpPr` and `wps:bodyPr` every real Word text box carries.
+  `tests/test_docx_edit_samples.py` asserts all of it, and **six mutations
+  of the generator each turn the suite red** — dropping `wp:positionH`,
+  dropping `wp:wrapSquare`, moving `wp:positionH` after `wp:extent`,
+  dropping `relativeHeight`, moving the `mc:AlternateContent` back out of
+  the run, and dropping `wps:bodyPr`.
+- **The rerun was re-based onto the repaired corpus.** The `08` family's
+  two artifacts were regenerated (2,789 B, `c5404ec6…`, and 2,885 B,
+  `938e6b25…`); the superseded ones were kept in a dated folder, not
+  deleted; the ledger's hash columns were re-baselined and the affected
+  rows' observation cells were **cleared, not re-filled**. The other
+  twenty artifacts are byte-identical, so rows R05-R12 stand. **Rows
+  R01-R04 are open and R01, which was complete, is void.**
+- **What is still open.** Whether Word 2019 opens the repaired file is
+  unmeasured, and D-4 stays open with it. The three tables without a
+  `w:tblGrid` are recorded and not fixed: Word tolerates them, and fixing
+  them would re-base four more rows for a defect that blocks nothing.
 - **The record** is
-  [`LC-P3-02-anchor-required-children-2026-11-19.md`](../acceptance/LC-P3-02-anchor-required-children-2026-11-19.md).
-
+  [`LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md`](../acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md).
 ### The second reader's memory boundary is restated as what the harness delivers (2026-11-18)
 
 - **The "no project memory" qualifier is superseded by an entry-and-

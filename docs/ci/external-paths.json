@@ -20,7 +20,7 @@
       "sites": [
         ".github/CI.md",
         "docs/acceptance/LC-P2-14-cej-pilot.md",
-        "docs/acceptance/LC-P3-02-anchor-required-children-2026-11-19.md",
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
         "docs/changelog/phase-3.md",
         "docs/ci/external-path-reading.md",
         "docs/ci/protection-reading-2026-11-18.md",
@@ -107,7 +107,18 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
-        "docs/acceptance/LC-P3-02-anchor-required-children-2026-11-19.md"
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/ac6-anchor-probe-20261119/probe-20261119-word-refusal.png",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
       ]
     },
     {
@@ -118,19 +129,8 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
-        "docs/acceptance/LC-P3-02-anchor-required-children-2026-11-19.md",
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
         "docs/handoff/CURRENT.md"
-      ]
-    },
-    {
-      "path": "E:/labcairn-local/anchor-defect-20261119/measure_anchor_children.py",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "named by a record and found on disk when the ledger was built",
-      "announcements": [],
-      "sites": [
-        "docs/acceptance/LC-P3-02-anchor-required-children-2026-11-19.md"
       ]
     },
     {
@@ -141,7 +141,29 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
-        "docs/acceptance/LC-P3-02-anchor-required-children-2026-11-19.md"
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/anchor-defect-20261119/validate_against_ooxml_schema.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/anchor-defect-20261119/validate_corpus_against_ooxml_schema.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
       ]
     },
     {
@@ -1118,6 +1140,18 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/ooxml-schemas",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/outsider",
       "expectation": "absent",
       "kind": "created",
@@ -1600,11 +1634,22 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
-        "docs/acceptance/LC-P3-02-anchor-required-children-2026-11-19.md",
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
         "docs/changelog/phase-3.md",
         "docs/handoff/CURRENT.md",
         "docs/plans/PHASE_3-work-orders.md",
         "scripts/closeout_12_rows.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs-defective-20261119",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
       ]
     },
     {

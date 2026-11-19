@@ -1,40 +1,55 @@
 # LabCairn — Current handoff
 
 
-## 2026-11-19 - the corpus's anchored text box was missing four children the schema requires
+## 2026-11-19 - the corpus's text box was not a shape Word admits
 
-- **The corpus wrote an anchor the schema does not admit, and the
-  twelve-row rerun measured it.** `CT_Anchor` (ECMA-376 Part 1 §20.4.2.1)
-  requires `wp:simplePos`, `wp:positionH`, `wp:positionV`, `wp:extent`,
-  exactly one of the five wrap elements, `wp:docPr` and `a:graphic`. The
-  generator wrote three of the six and **no wrap element**. The artifact
-  the rerun put in front of the hosts still carries that anchor — 2,531 B,
-  SHA-256 `cbf08be135b26c8876075641421d9c4ee881bcb3387d80e14c8875585bc746dd`
-  — and it is the file row R01 opened in WPS and row R02 opened in Word.
+- **The corpus wrote a text box the WordprocessingML content model does
+  not admit, in two ways at once.** The `mc:AlternateContent` sat
+  directly in a `w:p`, where the run-level `w:drawing` and `w:pict` it
+  carries are not allowed — a consumer resolves the markup-compatibility
+  branches *before* the content model applies, and the resolved
+  `w:drawing` then stood at paragraph level. And the `wp:anchor` carried
+  **none** of the five attributes `CT_Anchor` marks `use="required"`:
+  `relativeHeight`, `behindDoc`, `locked`, `layoutInCell`, `allowOverlap`.
 - **What the owner saw on 2026-11-19.** WPS Office 12.1.0.29690 opened the
   file and drew the body text and the picture but **not the caption**;
   Microsoft Word 2019 16.0.17932.21140 **refused the file outright**.
-- **What is still open.** The defect is consistent with both symptoms, but
-  consistency is not causation: **whether restoring the four children makes
-  Word open the file has not been measured**, so the ledger's D-4 stands
-  with a narrower cause, not a closed one.
+- **The measurement that names the cause.** The ECMA-376 Part 4
+  transitional schemas were fetched and all 24 of the rerun's artifacts
+  were validated against `wml.xsd`. **The control is the twenty-two
+  artifacts Word opened**: they carry neither violation. The two Word
+  refused — the `08` family's pair — carry both, and are the only two
+  with an anchored drawing at all.
+- **The first diagnosis was refuted, and the refutation is recorded.** The
+  earlier reading held that the anchor's missing children were the cause.
+  A probe that restored those children and changed nothing else was
+  **refused by Word with the same dialog**; it had left the attributes
+  missing and the placement wrong. The children were not the whole of it.
 - **Why PR #195 did not close it, and what now does.** That repair added
   `wp:docPr`, `wps:spPr` and a readable extent, and its witness checked
   those three; nothing in `src/`, `tests/` or `docs/` named the position
-  children or the wrap. The generator now writes the complete anchor, the
-  witness reads the schema's sequence rather than a remembered list, and the
-  witness was mutation-checked — three mutations, three red suites, the
-  third being a child order that was wrong with every child present.
-- **What the rerun now owes.** The corpus's bytes changed, so the four rows
-  of the `08` family are measured on bytes that no longer exist, and row
-  R01 — the one completed row — has to be run again. The other eight rows
-  carry no anchored drawing and are byte-identical.
+  children, the wrap, the attributes or the placement. The generator now
+  writes the shape Word writes, the witnesses read the schema's rules
+  rather than a remembered list, and **six mutations of the generator
+  each turn the suite red** — the last two being the attributes and the
+  placement.
+- **What the rerun now owes.** The rerun was re-based onto the repaired
+  corpus: the `08` family's two artifacts were regenerated, the superseded
+  ones were kept in a dated folder rather than deleted, the ledger's hash
+  columns were re-baselined, and the affected rows' observation cells were
+  **cleared, not re-filled**. The other twenty artifacts are byte-identical,
+  so rows R05–R12 stand. **Rows R01–R04 are open, and R01 — the one
+  completed row — is void.**
+- **What is still open.** Whether Word 2019 opens the repaired file is
+  unmeasured, and D-4 stays open with it. The three corpus tables without
+  a `w:tblGrid` are recorded and not fixed: Word tolerates them, and
+  fixing them would re-base four more rows for a defect that blocks
+  nothing.
 - **The record** is
-  [`docs/acceptance/LC-P3-02-anchor-required-children-2026-11-19.md`](../acceptance/LC-P3-02-anchor-required-children-2026-11-19.md);
-  the two scripts that took its readings live outside the repository, in
+  [`docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md`](../acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md);
+  the schemas and the scripts that took its readings live outside the
+  repository, in `E:/labcairn-local/ooxml-schemas/` and
   `E:/labcairn-local/anchor-defect-20261119/`.
-
-
 ## 2026-11-18 - the two `shard 5` legs are required, and the protection reading is re-taken
 
 - **Branch protection waits for seventeen contexts now.** The owner added
