@@ -281,20 +281,25 @@ The corpus's bytes changed, so the rerun was **re-based onto them**:
 
 - the `08` family's two artifacts were regenerated; the superseded ones
   were kept, not deleted;
-- the `08` family's two artifacts then moved into a folder of their own,
-  `E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs-08-to-open/`,
-  so that the folder the operator opens holds one document instead of
-  twenty-four; the pack's template, the copy the operator fills and the
-  four cards that print the path all say the new path, and the pack's own
-  validator passes on it;
+- the three families the rerun measures then moved into a folder of their
+  own -- `artifacts/outputs-08-to-open/`, `artifacts/outputs-05-to-open/`
+  and `artifacts/outputs-07-to-open/` -- so that the folder the operator
+  opens holds two documents and never asks them to pick; the pack's
+  template, the copy the operator fills and the twelve cards that print
+  the path all say the new paths, and the pack's own validator passes on
+  the result (0 errors; the warnings are the note-copy heuristic, which
+  stops being a copy once the operator's own observation is appended);
 - the ledger's `sha256_before` and `byte_size_before` were re-baselined
   for the rows whose artifact changed;
 - the observation cells of those rows were **cleared, not re-filled**;
 - the other twenty artifacts are byte-identical, so rows R05-R12 stand.
 
-**Rows R01-R04 are open and are to be run again on the new bytes.** Row
-R01, which was complete, is void: its observation was taken on the broken
-shape. The eight rows that carry no anchored drawing were never affected.
+**All twelve rows are open, and none has been run on the final bytes.**
+Rows R01-R04 were measured on the broken shape and are void; the `05` and
+`07` families were never run on this round's bytes at all. The picture
+repair changed the `05` and `07` families' bytes too, which is why the
+re-basing happened before any row was recorded: **the twelve rows run once,
+on the final bytes, and nothing is wasted.**
 
 ## Evidence location
 
@@ -302,9 +307,10 @@ Nothing in this record's evidence is in the repository. The artifacts, the
 screenshots and the rerun's own CSV live under
 `E:/labcairn-local/rerun12-opaque-20261118/`; the probe copy of the
 repaired `08` artifact and its refusal screenshot live in
-`E:/labcairn-local/ac6-anchor-probe-20261119/`; the schemas and the
-scripts that took the readings live in
-`E:/labcairn-local/ooxml-schemas/` and
+`E:/labcairn-local/ac6-anchor-probe-20261119/`; the two picture probes
+and the screenshots of them drawing the square live in
+`E:/labcairn-local/picture-probe-20261119/`; the schemas and the scripts
+that took the readings live in `E:/labcairn-local/ooxml-schemas/` and
 `E:/labcairn-local/anchor-defect-20261119/`.
 
 ## How to reproduce the measurement
