@@ -285,6 +285,13 @@ missed.
   above**: the file opens, and the cause was the two schema violations
   this record names. The *ledger row* that recorded the refusal is R02's,
   and it is re-run against the repaired bytes.
+- **Which of the two violations Word was refusing on.** Issue #192's first
+  acceptance criterion is *"the triggering OOXML construct is identified"*,
+  and its own wording says "bisect the artefact content if needed". The
+  bisection is built: two probes, each the repaired artefact with exactly
+  one violation put back, in
+  `E:/labcairn-local/ablation-probe-20261119/`. Whichever Word refuses
+  names the trigger.
 - **Whether the repaired picture draws in Word.** The schema has no
   opinion -- the corpus's picture markup was legal, just empty -- so the
   owner's two probes are the measurement, and they say it draws. **The
