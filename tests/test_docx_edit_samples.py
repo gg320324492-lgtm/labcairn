@@ -211,6 +211,81 @@ def test_the_parts_a_docx_needs_are_all_there() -> None:
 WP: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 A_NS: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
+# CT_Anchor's children, in the order ECMA-376 Part 1 §20.4.2.1 puts them.
+# The wrap element is a choice of five, exactly one of which must be
+# present; the rest are required exactly once, except the two marked
+# optional below.
+ANCHOR_ORDER: Final[tuple[str, ...]] = (
+    f"{{{WP}}}simplePos",
+    f"{{{WP}}}positionH",
+    f"{{{WP}}}positionV",
+    f"{{{WP}}}extent",
+    f"{{{WP}}}effectExtent",
+    f"{{{WP}}}wrapNone",
+    f"{{{WP}}}wrapSquare",
+    f"{{{WP}}}wrapTight",
+    f"{{{WP}}}wrapThrough",
+    f"{{{WP}}}wrapTopAndBottom",
+    f"{{{WP}}}docPr",
+    f"{{{WP}}}cNvGraphicFramePr",
+    f"{{{A_NS}}}graphic",
+)
+ANCHOR_REQUIRED: Final[tuple[str, ...]] = (
+    f"{{{WP}}}simplePos",
+    f"{{{WP}}}positionH",
+    f"{{{WP}}}positionV",
+    f"{{{WP}}}extent",
+    f"{{{WP}}}docPr",
+    f"{{{A_NS}}}graphic",
+)
+ANCHOR_OPTIONAL: Final[tuple[str, ...]] = (
+    f"{{{WP}}}effectExtent",
+    f"{{{WP}}}cNvGraphicFramePr",
+)
+ANCHOR_WRAPS: Final[tuple[str, ...]] = (
+    f"{{{WP}}}wrapNone",
+    f"{{{WP}}}wrapSquare",
+    f"{{{WP}}}wrapTight",
+    f"{{{WP}}}wrapThrough",
+    f"{{{WP}}}wrapTopAndBottom",
+)
+
+
+def _anchor_schema_problems(children: list[str]) -> list[str]:
+    """What one anchor's children get wrong, in words.
+
+    **Written out rather than imported.** The corpus must not be checked by
+    the machinery it constrains, and there is no schema validator here: the
+    rules below are the ones ECMA-376 Part 1 §20.4.2.1 states for
+    ``CT_Anchor``, spelled out so that a change in the generator that breaks
+    them is caught here and not by a host.
+    """
+    problems: list[str] = []
+    for required in ANCHOR_REQUIRED:
+        count = children.count(required)
+        if count == 0:
+            problems.append(f"no {_local(required)}")
+        elif count > 1:
+            problems.append(f"{_local(required)} appears {count} times")
+    for optional in ANCHOR_OPTIONAL:
+        if children.count(optional) > 1:
+            problems.append(f"{_local(optional)} appears more than once")
+    wraps = [tag for tag in children if tag in ANCHOR_WRAPS]
+    if len(wraps) != 1:
+        problems.append(f"{len(wraps)} wrap elements, where exactly one of the five is required")
+    present = [tag for tag in children if tag in ANCHOR_ORDER]
+    if present != sorted(present, key=ANCHOR_ORDER.index):
+        problems.append(
+            "the children are out of the schema's order: "
+            + ", ".join(_local(tag) for tag in present)
+        )
+    return problems
+
+
+def _local(tag: str) -> str:
+    """The element's own name, without the namespace."""
+    return tag.rsplit("}", 1)[-1]
+
 
 def test_every_anchored_drawing_carries_its_required_children() -> None:
     """An anchor missing a required child is a file Word refuses, not a fixture.
@@ -224,6 +299,17 @@ def test_every_anchored_drawing_carries_its_required_children() -> None:
     unique per document. The extent must be a readable size: the 1x1-EMU box
     the first version wrote is the ledger's D-3 finding, a caption no host
     can show.
+
+    **And the anchor needs a position and a wrap.** ``CT_Anchor`` also
+    requires ``wp:simplePos``, ``wp:positionH``, ``wp:positionV`` and
+    exactly one of the five wrap elements. Those were missing too, and
+    their absence has two separate symptoms, both measured on 2026-11-19:
+    **WPS 12.1.0.29690 opened sample 08 and drew the body text and the
+    picture but not the caption** -- an anchor with no position has nowhere
+    to put the box -- and **Word 2019 16.0.17932.21140 refused the file
+    outright** with its severe-open-error dialog. The earlier witness
+    checked ``wp:docPr`` and the extent and said nothing about the
+    position, so the defect survived every fix that came after it.
     """
     anchors = 0
     for sample in SAMPLES:
@@ -244,6 +330,13 @@ def test_every_anchored_drawing_carries_its_required_children() -> None:
             assert (cx, cy) != (1, 1) and cx > 0 and cy > 0, (
                 f"{sample.name} has a {cx}x{cy}-EMU anchored drawing, which no host "
                 "can show (the ledger's D-3 finding)"
+            )
+            problems = _anchor_schema_problems(children)
+            assert not problems, (
+                f"{sample.name} has a wp:anchor that CT_Anchor does not admit: "
+                + "; ".join(problems)
+                + ". Word 2019 refuses such a file outright, and WPS opens it "
+                "without drawing the caption (measured 2026-11-19)."
             )
         for shape in root.iter(f"{{{WPS}}}wsp"):
             children = [child.tag for child in shape]

@@ -211,11 +211,20 @@ def text_box(text: str) -> str:
     same caption says something else, and no measurement of "the box survived"
     would see the disagreement.
 
-    **The anchor is schema-complete.** ECMA-376's ``CT_Anchor`` requires a
-    ``wp:docPr`` child, and ``CT_WordprocessingShape`` requires a
-    ``wps:spPr`` child before ``wps:txbx``; Word 2019 refuses the sample
-    outright when either is missing (the 44-row ledger's D-4 finding), while
-    WPS opens it. The extent is a readable 3600000x900000 EMU, not 1x1: a
+    **The anchor is schema-complete.** ECMA-376's ``CT_Anchor`` requires,
+    in this order, ``wp:simplePos``, ``wp:positionH``, ``wp:positionV``,
+    ``wp:extent``, exactly one of the five wrap elements, ``wp:docPr`` and
+    ``a:graphic``; ``wp:effectExtent`` and ``wp:cNvGraphicFramePr`` are
+    optional. ``CT_WordprocessingShape`` requires a ``wps:spPr`` child
+    before ``wps:txbx``. **The anchor was incomplete, and two hosts were
+    measured against the incomplete sample on 2026-11-19**: WPS
+    12.1.0.29690 opened sample 08 and rendered the body text and the
+    picture but not the caption, and Word 2019 16.0.17932.21140 refused
+    the file outright with its severe-open-error dialog. The missing
+    children are consistent with both -- an anchor with no position has
+    nowhere to put the box -- but the refusal is not yet shown to follow
+    from them, and the ledger's D-4 finding stays open. The extent is a
+    readable 3600000x900000 EMU, not 1x1: a
     1x1-EMU box is the 44-row ledger's D-3 finding, a caption no host can
     show. The ``mc:Fallback``'s ``v:shape`` carries the matching style so
     both branches describe the same box.
@@ -223,9 +232,18 @@ def text_box(text: str) -> str:
     inner = para(text)
     return (
         '<w:p><mc:AlternateContent><mc:Choice Requires="wps">'
-        "<w:drawing><wp:anchor>"
+        "<w:drawing>"
+        f'<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"'
+        ' relativeHeight="0" behindDoc="0" locked="0" layoutInCell="1"'
+        ' allowOverlap="1">'
+        '<wp:simplePos x="0" y="0"/>'
+        '<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>'
+        '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
         f'<wp:extent cx="{BOX_CX}" cy="{BOX_CY}"/>'
+        '<wp:effectExtent l="0" t="0" r="0" b="0"/>'
+        '<wp:wrapSquare wrapText="bothSides"/>'
         f'<wp:docPr id="{BOX_DOCPR_ID}" name="Text box 1"/>'
+        "<wp:cNvGraphicFramePr/>"
         "<a:graphic>"
         f'<a:graphicData uri="{WPS}"><wps:wsp>'
         f'<wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{BOX_CX}" cy="{BOX_CY}"/></a:xfrm>'

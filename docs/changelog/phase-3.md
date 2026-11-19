@@ -1,5 +1,47 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The corpus's anchored text box was missing four children the schema requires (2026-11-19)
+
+- **The corpus wrote a `wp:anchor` the schema does not admit.** ECMA-376
+  Part 1 §20.4.2.1 requires `CT_Anchor` to carry `wp:simplePos`,
+  `wp:positionH`, `wp:positionV`, `wp:extent`, exactly one of the five wrap
+  elements, `wp:docPr` and `a:graphic`, in that order. The generator's
+  `text_box()` wrote three of those six and **no wrap element at all**:
+  `extent`, `docPr`, `graphic`, and nothing else. The bytes that reached
+  WPS and Word 2019 in the twelve-row rerun carried exactly that anchor —
+  2,531 B, SHA-256 `cbf08be135b26c8876075641421d9c4ee881bcb3387d80e14c8875585bc746dd`,
+  unchanged since 2026-11-18.
+- **Two symptoms were measured on that file by the owner.** WPS Office
+  12.1.0.29690 opened it and drew the body text and the picture but **not
+  the caption**; Microsoft Word 2019 16.0.17932.21140 **refused it
+  outright**. The defect is consistent with both — an anchor with no
+  position has nowhere to put the box — but consistency is not causation,
+  and **the record does not claim that restoring the four children makes
+  Word open the file.** That reading has not been taken, and the ledger's
+  D-4 stays open with it.
+- **Why PR #195 did not close it.** The repair that merge `b2e3661` carried
+  added `wp:docPr`, `wps:spPr` and a readable extent, and its witness
+  checked those three. It said nothing about the position children or the
+  wrap, because they had not been read off the schema; a search of `src/`,
+  `tests/` and `docs/` for those four names returned **nothing**. The
+  defect therefore survived the repair meant to close it, and every later
+  change to the same generator kept it.
+- **The repair and its witness.** `text_box()` now writes the complete
+  anchor in the schema's order, and
+  `tests/test_docx_edit_samples.py` asserts on every anchored drawing that
+  each required child is present exactly once, that exactly one of the five
+  wrap elements is present, and that the children appear in the schema's
+  order. The witness was **mutation-checked**: dropping `wp:positionH`,
+  dropping `wp:wrapSquare`, and moving `wp:positionH` after `wp:extent` each
+  turn the suite red, and the third one matters — every child was present
+  there, and only the order was wrong.
+- **What the rerun now owes.** The corpus's bytes changed, so the four rows
+  of the `08` family are measured on bytes that no longer exist, and the
+  completed row R01 has to be run again. The other eight rows carry no
+  anchored drawing and are byte-identical.
+- **The record** is
+  [`LC-P3-02-anchor-required-children-2026-11-19.md`](../acceptance/LC-P3-02-anchor-required-children-2026-11-19.md).
+
 ### The second reader's memory boundary is restated as what the harness delivers (2026-11-18)
 
 - **The "no project memory" qualifier is superseded by an entry-and-
