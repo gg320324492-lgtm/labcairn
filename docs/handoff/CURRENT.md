@@ -1,6 +1,132 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-19 - the corpus's text box was not a shape Word admits
+
+- **The corpus wrote a text box the WordprocessingML content model does
+  not admit, in two ways at once.** The `mc:AlternateContent` sat
+  directly in a `w:p`, where the run-level `w:drawing` and `w:pict` it
+  carries are not allowed — a consumer resolves the markup-compatibility
+  branches *before* the content model applies, and the resolved
+  `w:drawing` then stood at paragraph level. And the `wp:anchor` carried
+  **none** of the five attributes `CT_Anchor` marks `use="required"`:
+  `relativeHeight`, `behindDoc`, `locked`, `layoutInCell`, `allowOverlap`.
+- **What the owner saw on 2026-11-19.** WPS Office 12.1.0.29690 opened the
+  file and drew the body text and the picture but **not the caption**;
+  Microsoft Word 2019 16.0.17932.21140 **refused the file outright**.
+- **The measurement that names the cause.** The ECMA-376 Part 4
+  transitional schemas were fetched and all 24 of the rerun's artifacts
+  were validated against `wml.xsd`. **The control is the twenty-two
+  artifacts Word opened**: they carry neither violation. The two Word
+  refused — the `08` family's pair — carry both, and are the only two
+  with an anchored drawing at all.
+- **The first diagnosis was refuted, and the refutation is recorded.** The
+  earlier reading held that the anchor's missing children were the cause.
+  A probe that restored those children and changed nothing else was
+  **refused by Word with the same dialog**; it had left the attributes
+  missing and the placement wrong. The children were not the whole of it.
+- **Why PR #195 did not close it, and what now does.** That repair added
+  `wp:docPr`, `wps:spPr` and a readable extent, and its witness checked
+  those three; nothing in `src/`, `tests/` or `docs/` named the position
+  children, the wrap, the attributes or the placement. The generator now
+  writes the shape Word writes, the witnesses read the schema's rules
+  rather than a remembered list, and **six mutations of the generator
+  each turn the suite red** — the last two being the attributes and the
+  placement.
+- **What the rerun now owes.** The rerun was re-based onto the repaired
+  corpus: the `08` family's two artifacts were regenerated, the superseded
+  ones were kept in a dated folder rather than deleted, the ledger's hash
+  columns were re-baselined, and the affected rows' observation cells were
+  **cleared, not re-filled**. The eighteen artifacts of the families the
+  rerun does not measure are byte-identical. **The picture repair then
+  changed the `05` and `07` families' bytes as well**, so all twelve rows
+  are open, and each is run once, on the final bytes.
+- **The rerun's own progress, measured on 2026-11-19.** Three rows are
+  recorded and **all three are PASS**: R01 (WPS, the `08` clean artifact),
+  R02 (Word 2019, the same artifact) and R04 (Word 2019, the marked one).
+  R03's first look is recorded — every token answered — and it waits on
+  its second look. R05–R12 have not been run.
+- **The version strings must be read today, not copied.** The pack's guide
+  says so in so many words — *"Do not copy last round's numbers — read the
+  About box today"* — and the four recorded rows carry **last round's**
+  readings. And `host_version_measured_at` is **one value for the whole
+  run**, not one per row: the 44-row ledger's twenty-two pairs all carry
+  the same timestamp, and the 44-row validator compares it between a pair's
+  two rows. The owner reads both hosts' About boxes and gives the two
+  strings and the moment.
+- **#192's observation half is met; its AC1 is not.** The issue's own
+  closing comment asks for *"a Word 2019 open that no longer shows the
+  severe-error dialog"*, and R02 and R04 are exactly that, on the
+  repaired bytes, with the digest unchanged. The rest of #192 is the
+  owner's **AC1** decision — which construct Word refused — and the
+  closure map says how to settle it: *"rebuild the artifact with one
+  repair held back, open it in Word 2019, and say which construct Word
+  refused."* **Two probes are built for it**, in
+  `E:/labcairn-local/ablation-probe-20261119/`: each the repaired
+  artifact with exactly one violation put back, each validated against the
+  schemas so that it carries that one violation and nothing else.
+- **#191 was closed with its own closing condition unmet**, on 2026-11-18,
+  on the strength of PR #195 — and PR #195's fix was incomplete, so the
+  caption stayed invisible in WPS until this repair. **#189** waits on the
+  eight `05`/`07` rows, and the picture repair is what makes them
+  answerable: before it, Word reserved the frame and drew no image.
+- **The local suite on this tree: 5,375 passed, 28 skipped, 0 failed.**
+  It was measured in two parts, because the machine lost its route to PyPI
+  part way through the first run: **5,361 passed** in the interrupted run,
+  and the **fourteen** tests that could not run without it -- eight in
+  `tests/test_no_reference_leakage.py` (`uv build` could not fetch
+  `hatchling`) and six in `tests/test_outsider_path.py` (the clone's
+  `uv sync` could not fetch `hatchling`), both failing with
+  `client error (Connect)` and `tls handshake eof` against
+  `https://pypi.org/simple/hatchling/` -- were **re-run when the route
+  came back, and both files passed in full: 127 passed.**
+  **That the interruption was the network's and not this branch's is
+  measured, not assumed**: putting `main`'s `src/` and `tests/` back in
+  place and running the same two files gave the same 6 failed and 8
+  errors, and an earlier run of this tree, before the route dropped,
+  passed **all 5,375** on its own.
+- **The closeout was dry-run end to end, and it found a crash.** The
+  merge tool's `collect_reviews` reads an `open_result` that no local
+  binds, so a row whose verdict is `REFUSAL-RECORDED` killed it with a
+  `NameError`. This round's table has none, so the crash was latent; the
+  merge kit's own self-test table has one, and running the write path
+  against it brought the crash out. **Fixed**, and both write paths — the
+  merge tool's and the repository's `closeout_12_rows.py`'s — now run and
+  write their artefacts, with the 44-row ledger left untouched.
+- **The evidence scaffolds exist, and both are honest.** The merge tool
+  accepts an entry whose claim is any non-empty string and then
+  overwrites its `state` with `OK`; the repository's tool counts a
+  condition as declared the moment an entry with that condition exists.
+  **Either way a placeholder would settle it**, so the scaffold's claims
+  are empty and the scaffold's `declarations` list is empty, and both
+  tools report all eight owner conditions as outstanding.
+- **What the host did with the repaired file, measured on 2026-11-19.**
+  **Word 2019 16.0.17932.21140 now opens it** — the severe-open-error dialog
+  is gone — **and it draws the caption inside the box**, with the paragraph
+  beside the figure pushed to the right of it by the box's 10 cm width. The
+  word count reads **34**: the five sentences with the caption, so the text
+  box's words are counted. **D-4's cause is established and the refusal is
+  fixed.**
+- **The picture was empty of everything but its frame, and that is fixed
+  too.** The corpus wrote `<pic:spPr/>` — no `a:xfrm`, no `a:prstGeom` —
+  an empty `<pic:cNvPicPr/>`, and a `pic:cNvPr` at the id `0`, so Word
+  reserved the frame and drew no picture. The media part itself was sound
+  (70 bytes, IHDR 1×1 colour type 6, all three chunk CRCs correct, the
+  IDAT inflating to the pixel (46,116,181,255)). Two probes settled it:
+  **both** the probe whose picture markup was made the way Word writes it
+  and the same probe with a 16x16 pixel **drew the blue square**, so the
+  markup was the whole of it and the one-pixel image was never the
+  problem. `image()` now writes the `a:xfrm`, the `a:prstGeom`, the
+  `a:picLocks` and a real id, and a third witness holds that shape.
+- **What is still open.** The three corpus tables without a `w:tblGrid`
+  are recorded and not fixed: Word tolerates them, and fixing them would
+  re-base four more rows for a defect that blocks nothing. **The owner
+  ruled on 2026-11-19: leave it, and close the twelve rows first.**
+- **The record** is
+  [`docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md`](../acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md);
+  the schemas and the scripts that took its readings live outside the
+  repository, in `E:/labcairn-local/ooxml-schemas/` and
+  `E:/labcairn-local/anchor-defect-20261119/`.
 ## 2026-11-18 - the two `shard 5` legs are required, and the protection reading is re-taken
 
 - **Branch protection waits for seventeen contexts now.** The owner added

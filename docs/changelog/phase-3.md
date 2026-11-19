@@ -1,5 +1,79 @@
 # Changelog archive — Phase 3 — in flight, recorded newest first
 
+### The corpus's text box was not a shape Word admits (2026-11-19)
+
+- **The corpus wrote a text box that the WordprocessingML content model
+  does not admit, in two ways at once.** Its `mc:AlternateContent` sat
+  directly in a `w:p`, where the run-level `w:drawing` and `w:pict` it
+  carries are not allowed — a consumer resolves the markup-compatibility
+  branches **before** the content model applies, and the resolved
+  `w:drawing` then stood at paragraph level. And its `wp:anchor` carried
+  **none** of the five attributes `CT_Anchor` marks `use="required"`:
+  `relativeHeight`, `behindDoc`, `locked`, `layoutInCell` and
+  `allowOverlap`.
+- **The measurement that names it.** The ECMA-376 Part 4 transitional
+  schemas were fetched, and all 24 of the rerun's artifacts were validated
+  against `wml.xsd`. **The control is the twenty-two artifacts Word 2019
+  opened**: they carry neither violation. The two Word refused — the `08`
+  family's pair — carry both, and they are the only two with an anchored
+  drawing at all. A third violation was found and is **not** fatal: three
+  samples' tables carry no `w:tblGrid`, and the `07` family's artifact has
+  that violation and Word opened it.
+- **The first diagnosis was refuted, and the refutation is part of the
+  record.** The earlier reading held that the anchor's missing children
+  were the cause. A probe that restored those children and changed
+  nothing else — 2,620 B, SHA-256 `77d7a1ba366088faae99c625290f1cc54e31621178afcc5e73dab5302720d3eb`
+  — was **refused by Word with the same dialog**. The children were not
+  the whole of it; the probe had left the attributes missing and the
+  placement wrong, and the schema says both are violations.
+- **The repair and its witness.** The generator now writes the shape Word
+  writes: the `mc:AlternateContent` inside a `w:r`, the anchor with its
+  five required attributes and the schema's child order, and the
+  `wps:cNvSpPr` and `wps:bodyPr` every real Word text box carries.
+  `tests/test_docx_edit_samples.py` asserts all of it, and **nine mutations
+  of the generator each turn the suite red** — dropping `wp:positionH`,
+  dropping `wp:wrapSquare`, moving `wp:positionH` after `wp:extent`,
+  dropping `relativeHeight`, moving the `mc:AlternateContent` back out of
+  the run, dropping `wps:bodyPr`, and three that empty the picture's own
+  shape properties again.
+- **The rerun was re-based onto the repaired corpus.** The `08` family's
+  two artifacts were regenerated (2,789 B, `c5404ec6…`, and 2,885 B,
+  `938e6b25…`); the superseded ones were kept in a dated folder, not
+  deleted; the ledger's hash columns were re-baselined and the affected
+  rows' observation cells were **cleared, not re-filled**. The eighteen
+  artifacts of the families the rerun does not measure are byte-identical.
+  **The picture repair then changed the `05` and `07` families' bytes as
+  well**, so **all twelve rows are open**, and each is run once, on the
+  final bytes. **Three are recorded and all three are PASS**: R01 (WPS, the
+  `08` clean artifact), R02 (Word 2019, the same artifact) and R04 (Word
+  2019, the marked one). R02 and R04 are the two Word rows issue #192
+  asks for, and both record an open with no severe-error dialog.
+- **What the host did with the repaired file, measured on 2026-11-19.**
+  **Word 2019 16.0.17932.21140 now opens the file** — the severe-open-error
+  dialog is gone — **and it draws the caption inside the box**, with the
+  paragraph beside the figure pushed to the right of it by the box's 10 cm
+  width. The word count reads **34**, which is the five sentences with the
+  caption, so the text box's words are counted. **D-4's cause is
+  established and the refusal is fixed.**
+- **The picture was empty of everything but its frame, and that is fixed
+  too.** The corpus wrote `<pic:spPr/>` — no `a:xfrm`, no `a:prstGeom` —
+  an empty `<pic:cNvPicPr/>`, and a `pic:cNvPr` at the id `0`, so Word
+  reserved the frame and drew no picture. The owner's screenshot of the
+  repaired file carried **no pixel** of the corpus blue in the page area,
+  while the media part itself was sound (70 bytes, IHDR 1×1 colour type 6,
+  all three chunk CRCs correct, the IDAT inflating to the pixel
+  (46,116,181,255)). Two probes settled it: **both** the probe whose
+  picture markup was made the way Word writes it and the same probe with
+  a 16x16 pixel **drew the blue square**, so the markup was the whole of
+  it and the one-pixel image was never the problem. `image()` now writes
+  the `a:xfrm`, the `a:prstGeom`, the `a:picLocks` and a real id, and a
+  third witness holds that shape.
+- **What is still open.** The three tables without a `w:tblGrid` are
+  recorded and **not** fixed — Word tolerates them, and fixing them would
+  re-base four more rows for a defect that blocks nothing; **the owner
+  ruled on 2026-11-19: leave it, and close the twelve rows first.**
+- **The record** is
+  [`LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md`](../acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md).
 ### The second reader's memory boundary is restated as what the harness delivers (2026-11-18)
 
 - **The "no project memory" qualifier is superseded by an entry-and-

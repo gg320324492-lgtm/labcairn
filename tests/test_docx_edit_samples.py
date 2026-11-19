@@ -211,6 +211,95 @@ def test_the_parts_a_docx_needs_are_all_there() -> None:
 WP: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 A_NS: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
+# CT_Anchor's children, in the order ECMA-376 Part 1 §20.4.2.1 puts them.
+# The wrap element is a choice of five, exactly one of which must be
+# present; the rest are required exactly once, except the two marked
+# optional below.
+ANCHOR_ORDER: Final[tuple[str, ...]] = (
+    f"{{{WP}}}simplePos",
+    f"{{{WP}}}positionH",
+    f"{{{WP}}}positionV",
+    f"{{{WP}}}extent",
+    f"{{{WP}}}effectExtent",
+    f"{{{WP}}}wrapNone",
+    f"{{{WP}}}wrapSquare",
+    f"{{{WP}}}wrapTight",
+    f"{{{WP}}}wrapThrough",
+    f"{{{WP}}}wrapTopAndBottom",
+    f"{{{WP}}}docPr",
+    f"{{{WP}}}cNvGraphicFramePr",
+    f"{{{A_NS}}}graphic",
+)
+ANCHOR_REQUIRED: Final[tuple[str, ...]] = (
+    f"{{{WP}}}simplePos",
+    f"{{{WP}}}positionH",
+    f"{{{WP}}}positionV",
+    f"{{{WP}}}extent",
+    f"{{{WP}}}docPr",
+    f"{{{A_NS}}}graphic",
+)
+ANCHOR_OPTIONAL: Final[tuple[str, ...]] = (
+    f"{{{WP}}}effectExtent",
+    f"{{{WP}}}cNvGraphicFramePr",
+)
+ANCHOR_WRAPS: Final[tuple[str, ...]] = (
+    f"{{{WP}}}wrapNone",
+    f"{{{WP}}}wrapSquare",
+    f"{{{WP}}}wrapTight",
+    f"{{{WP}}}wrapThrough",
+    f"{{{WP}}}wrapTopAndBottom",
+)
+
+# CT_Anchor's attributes that the schema marks ``use="required"``. The
+# anchor the corpus used to write carried none of them at all.
+ANCHOR_REQUIRED_ATTRIBUTES: Final[tuple[str, ...]] = (
+    "relativeHeight",
+    "behindDoc",
+    "locked",
+    "layoutInCell",
+    "allowOverlap",
+)
+
+
+def _anchor_schema_problems(anchor: ElementTree.Element) -> list[str]:
+    """What one anchor gets wrong, in words.
+
+    **Written out rather than imported.** The corpus must not be checked by
+    the machinery it constrains, and there is no schema validator here: the
+    rules below are the ones ECMA-376 Part 1 §20.4.2.1 states for
+    ``CT_Anchor``, spelled out so that a change in the generator that breaks
+    them is caught here and not by a host.
+    """
+    children = [child.tag for child in anchor]
+    problems: list[str] = []
+    for required in ANCHOR_REQUIRED:
+        count = children.count(required)
+        if count == 0:
+            problems.append(f"no {_local(required)}")
+        elif count > 1:
+            problems.append(f"{_local(required)} appears {count} times")
+    for optional in ANCHOR_OPTIONAL:
+        if children.count(optional) > 1:
+            problems.append(f"{_local(optional)} appears more than once")
+    wraps = [tag for tag in children if tag in ANCHOR_WRAPS]
+    if len(wraps) != 1:
+        problems.append(f"{len(wraps)} wrap elements, where exactly one of the five is required")
+    present = [tag for tag in children if tag in ANCHOR_ORDER]
+    if present != sorted(present, key=ANCHOR_ORDER.index):
+        problems.append(
+            "the children are out of the schema's order: "
+            + ", ".join(_local(tag) for tag in present)
+        )
+    for attribute in ANCHOR_REQUIRED_ATTRIBUTES:
+        if anchor.get(attribute) is None:
+            problems.append(f"no {attribute} attribute")
+    return problems
+
+
+def _local(tag: str) -> str:
+    """The element's own name, without the namespace."""
+    return tag.rsplit("}", 1)[-1]
+
 
 def test_every_anchored_drawing_carries_its_required_children() -> None:
     """An anchor missing a required child is a file Word refuses, not a fixture.
@@ -224,6 +313,21 @@ def test_every_anchored_drawing_carries_its_required_children() -> None:
     unique per document. The extent must be a readable size: the 1x1-EMU box
     the first version wrote is the ledger's D-3 finding, a caption no host
     can show.
+
+    **And the anchor needs a position and a wrap.** ``CT_Anchor`` also
+    requires ``wp:simplePos``, ``wp:positionH``, ``wp:positionV`` and
+    exactly one of the five wrap elements, and it marks five attributes
+    ``use="required"``: ``relativeHeight``, ``behindDoc``, ``locked``,
+    ``layoutInCell`` and ``allowOverlap``. The corpus's anchor carried
+    **none** of the five attributes and three of the six children.
+
+    **What that cost, measured on 2026-11-19.** WPS 12.1.0.29690 opened
+    sample 08 and drew the body text and the picture but not the caption,
+    and Word 2019 16.0.17932.21140 refused the file outright with its
+    severe-open-error dialog. The earlier witness checked ``wp:docPr``
+    and the extent and said nothing about the position, the wrap or the
+    attributes, so the defect survived every fix that came after it --
+    including the one that restored the children and was still refused.
     """
     anchors = 0
     for sample in SAMPLES:
@@ -245,6 +349,13 @@ def test_every_anchored_drawing_carries_its_required_children() -> None:
                 f"{sample.name} has a {cx}x{cy}-EMU anchored drawing, which no host "
                 "can show (the ledger's D-3 finding)"
             )
+            problems = _anchor_schema_problems(anchor)
+            assert not problems, (
+                f"{sample.name} has a wp:anchor that CT_Anchor does not admit: "
+                + "; ".join(problems)
+                + ". Word 2019 refuses such a file outright, and WPS opens it "
+                "without drawing the caption (measured 2026-11-19)."
+            )
         for shape in root.iter(f"{{{WPS}}}wsp"):
             children = [child.tag for child in shape]
             assert f"{{{WPS}}}spPr" in children, (
@@ -255,7 +366,65 @@ def test_every_anchored_drawing_carries_its_required_children() -> None:
                 f"{sample.name}'s wps:spPr does not precede wps:txbx, which the "
                 "CT_WordprocessingShape sequence requires"
             )
+            for required in (f"{{{WPS}}}cNvSpPr", f"{{{WPS}}}bodyPr"):
+                assert required in children, (
+                    f"{sample.name} has a wps:wsp without {required}, which is "
+                    "not the shape Word writes: every real Word text box "
+                    "measured on 2026-11-19 carries both"
+                )
     assert anchors > 0, "no sample carries an anchored drawing, so nothing witnesses the anchor"
+
+
+def test_the_markup_compatibility_element_sits_inside_a_run() -> None:
+    """Run-level content at paragraph level is a file Word refuses.
+
+    **What this witnesses.** ``w:drawing`` and ``w:pict`` are run-level
+    content: they belong in a ``w:r``. ``CT_P`` does not admit them, and
+    the corpus's text box put the whole ``mc:AlternateContent`` -- both
+    branches -- directly into a ``w:p``.
+
+    **What that cost, measured on 2026-11-19.** Word 2019
+    16.0.17932.21140 refused the ``08`` family's artifacts outright. The
+    twenty-two other artifacts of the rerun -- the ones the 44-row ledger
+    records as opened, or as PRESENCE-LOSS rather than
+    REFUSAL-RECORDED -- carry no anchored drawing at all, and none of them
+    has run-level content outside a run.
+
+    **How the rule is read.** A consumer performs the
+    markup-compatibility preprocessing before the content model applies: it
+    replaces the ``mc:AlternateContent`` with the content of the branch it
+    understands, and that content has to be legal where the element stood.
+    So the drawing's place is decided by where the ``mc:AlternateContent``
+    sits, and the rule is stated on the ``mc:AlternateContent``.
+    """
+    for sample in SAMPLES:
+        if sample.hostile:
+            continue
+        root = ElementTree.fromstring(_document_of(sample))
+        parents: dict[ElementTree.Element, ElementTree.Element] = {}
+        for parent in root.iter():
+            for child in parent:
+                parents[child] = parent
+        for element in root.iter(f"{{{MC}}}AlternateContent"):
+            holder = parents.get(element)
+            assert holder is not None and holder.tag == f"{{{W}}}r", (
+                f"{sample.name} has an mc:AlternateContent that is not inside a "
+                "w:r; its branches carry w:drawing and w:pict, which are "
+                "run-level content that CT_P does not admit"
+            )
+        for tag in (f"{{{W}}}drawing", f"{{{W}}}pict"):
+            for element in root.iter(tag):
+                ancestor = parents.get(element)
+                while ancestor is not None and ancestor.tag in (
+                    f"{{{MC}}}Choice",
+                    f"{{{MC}}}Fallback",
+                    f"{{{MC}}}AlternateContent",
+                ):
+                    ancestor = parents.get(ancestor)
+                assert ancestor is not None and ancestor.tag == f"{{{W}}}r", (
+                    f"{sample.name} has a {tag} that is not inside a w:r, which "
+                    "the WordprocessingML content model does not admit"
+                )
 
 
 def test_every_anchored_drawing_mints_distinct_docpr_ids() -> None:
@@ -431,6 +600,83 @@ def test_media_png_pixel_is_not_transparent() -> None:
             f"{sample.name}: the media pixel is RGBA({red}, {green}, {blue}, {alpha}) -- "
             "every colour channel is zero, so there is nothing to draw"
         )
+
+
+PIC: Final[str] = "http://schemas.openxmlformats.org/drawingml/2006/picture"
+
+
+def test_every_picture_carries_its_own_size_the_way_word_writes_it() -> None:
+    """A picture with no extent of its own has nothing to draw.
+
+    **What this witnesses.** The corpus's inline picture used to write
+    ``<pic:spPr/>`` -- no ``a:xfrm``, no ``a:prstGeom`` -- and an empty
+    ``<pic:cNvPicPr/>``, with ``pic:cNvPr`` at the id ``0``. The frame
+    was reserved and the picture was absent: the 44-row ledger recorded
+    it as "the empty drawing object is not counted as a visible image",
+    and the owner measured it again on 2026-11-19 in Word 2019
+    16.0.17932.21140, where the page area of the screenshot carried **no
+    pixel** of the corpus blue.
+
+    **The measurement that fixed it.** Two probes of the same artifact:
+    the one whose picture markup was made the way Word writes it, and the
+    same probe with a 16x16 pixel of the same colour. **Both drew the
+    square**, so the markup was the whole of it and the one-pixel image
+    was never the problem. **Every one of the 2,133 ``<pic:spPr>``
+    elements in the real Word documents on this machine carries an
+    ``a:xfrm``** -- there is no counterexample.
+
+    **What is asserted.** That the picture's own shape properties carry
+    an ``a:xfrm`` whose extent is readable and agrees with the frame the
+    drawing reserves; that the non-visual picture properties carry the
+    aspect-ratio lock Word writes; and that the picture's id is a real
+    one.
+    """
+    pictures = 0
+    for sample in SAMPLES:
+        if sample.hostile:
+            continue
+        root = ElementTree.fromstring(_document_of(sample))
+        for picture in root.iter(f"{{{PIC}}}pic"):
+            pictures += 1
+            shape = picture.find(f"{{{PIC}}}spPr")
+            assert shape is not None, (
+                f"{sample.name} has a pic:pic without pic:spPr, which no host draws"
+            )
+            transform = shape.find(f"{{{A_NS}}}xfrm")
+            assert transform is not None, (
+                f"{sample.name} has a pic:spPr without a:xfrm: the picture has no "
+                "extent of its own, so it has nothing to scale into the frame Word "
+                "reserved, and Word draws nothing (measured 2026-11-19)"
+            )
+            extent = transform.find(f"{{{A_NS}}}ext")
+            assert extent is not None, (
+                f"{sample.name} has an a:xfrm without an a:ext, so the picture's "
+                "own size is unknown"
+            )
+            cx, cy = int(extent.get("cx", "0")), int(extent.get("cy", "0"))
+            assert cx > 0 and cy > 0, (
+                f"{sample.name} has a {cx}x{cy}-EMU picture, which no host can draw"
+            )
+            geometry = shape.find(f"{{{A_NS}}}prstGeom")
+            assert geometry is not None, (
+                f"{sample.name} has a pic:spPr without a:prstGeom, which is not the "
+                "shape Word writes"
+            )
+            non_visual = picture.find(f"{{{PIC}}}nvPicPr")
+            assert non_visual is not None, f"{sample.name} has a pic:pic without pic:nvPicPr"
+            locks = non_visual.find(f"{{{PIC}}}cNvPicPr")
+            assert locks is not None and locks.find(f"{{{A_NS}}}picLocks") is not None, (
+                f"{sample.name} has a pic:cNvPicPr without a:picLocks, which is not "
+                "the shape Word writes"
+            )
+            properties = non_visual.find(f"{{{PIC}}}cNvPr")
+            assert properties is not None, f"{sample.name} has a pic:nvPicPr without pic:cNvPr"
+            identifier = int(properties.get("id", "0"))
+            assert identifier > 0, (
+                f"{sample.name} gives its picture the id {identifier}; a host needs a "
+                "real id to tell the picture apart from the drawing's own"
+            )
+    assert pictures > 0, "no sample carries a picture, so nothing witnesses the picture"
 
 
 def test_comments_have_a_body_where_the_mark_says_there_is_one() -> None:

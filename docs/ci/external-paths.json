@@ -18,9 +18,12 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
+        ".github/CI.md",
         "docs/acceptance/LC-P2-14-cej-pilot.md",
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
         "docs/changelog/phase-3.md",
         "docs/ci/external-path-reading.md",
+        "docs/ci/protection-reading-2026-11-18.md",
         "docs/handoff/CURRENT.md",
         "docs/plans/LC-P3-05-shell-implementation-plan.md",
         "scripts/closeout_12_rows.py",
@@ -94,6 +97,85 @@
         "docs/changelog/phase-3.md",
         "docs/handoff/CURRENT.md",
         "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/ablation-probe-20261119",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/ac6-anchor-probe-20261119",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/ac6-anchor-probe-20261119/probe-20261119-word-refusal.png",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/anchor-defect-20261119",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/anchor-defect-20261119/mutate_anchor_witness.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/anchor-defect-20261119/validate_against_ooxml_schema.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/anchor-defect-20261119/validate_corpus_against_ooxml_schema.py",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
       ]
     },
     {
@@ -1070,6 +1152,18 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/ooxml-schemas",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/outsider",
       "expectation": "absent",
       "kind": "created",
@@ -1395,6 +1489,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/picture-probe-20261119",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/pilot-ws/corrected-scopes-corpus1.txt",
       "expectation": "present",
       "kind": "material",
@@ -1552,10 +1657,33 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
         "docs/changelog/phase-3.md",
         "docs/handoff/CURRENT.md",
         "docs/plans/PHASE_3-work-orders.md",
         "scripts/closeout_12_rows.py"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs-defective-20261119",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/screenshots",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
       ]
     },
     {
@@ -2092,10 +2220,10 @@
     },
     {
       "path": "E:/labcairn-local/tmp/mpl",
-      "expectation": "absent",
+      "expectation": "present",
       "kind": "created",
       "replacement": null,
-      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "note": "a path a script creates: the browser rerun's record names the path the command makes, and the project's own MPLCONFIGDIR convention points there, so it is there once anything has run -- the expectation was 'absent' on 2026-11-18 and was corrected on 2026-11-19",
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md"
