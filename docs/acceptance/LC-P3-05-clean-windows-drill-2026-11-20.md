@@ -17,7 +17,7 @@ the command named under it; none carried from another record):
 | where the two packages came from | both **built on this machine, no transfer, no Mark-of-the-Web** — the SOP's note (`E:\labcairn-local\p307-nsis-arms\SOP.md` §0) names the trial package as the LC-P3-08 one, rebuilt 2026-11-16 from `main` `da433d5`; the 0.0.0 baseline was built 2026-11-14 and the drill's own checklist records its commit. **No package was rebuilt here**, so those provenance statements are cited, not re-measured |
 | the tree this record was written on | `43a2b87ad9c74bde8d9fe32e6a643cc4d3824eb1` (`git rev-parse HEAD`) |
 | the drill folder | `E:\labcairn-local\ac6-host-drill-20261120` — outside the repository; the evidence, the backup and the scripts live there |
-| the evidence runs | `evidence\run-20261120-003558` (the FROM package, all arms), `evidence\run-20261120-003907` (the cross-version upgrade), `evidence\run-20261120-004128` (the trial package, all arms), `evidence\run-20261120-004310` (the D17 launch half over the reinstalled trial tree) — each with its own `RUN-SUMMARY.txt` |
+| the evidence runs | `evidence\run-20261120-003558` (the FROM package, all arms), `evidence\run-20261120-003907` (the cross-version upgrade), `evidence\run-20261120-004128` (the trial package, all arms), `evidence\run-20261120-004310` (the D17 launch half over the reinstalled trial tree), `evidence\run-20261120-005718` (the install arm again, with the corrected check of §3.2) — each with its own `RUN-SUMMARY.txt` |
 | the machine-wide diff | `machinewide-before.txt` and `machinewide-after.txt`, **483 lines each, `diff` reports no difference** (`diff` exit code 0) |
 | the restore | the two trees are **identical byte for byte**: the install tree 2,989 files and the userData tree 124 files, with 0 missing, 0 differing in size, 0 differing in content and 0 extra on both sides (`verify-the-restore.py`, which compares sha256 per file) |
 | run type | **locally measured, on the owner's own machine, on a cleaned baseline**. No CI run was started, no pull request was opened, nothing was pushed (`CLAUDE.md`; `PHASE_3-work-orders.md` §3 rule 7) |
@@ -118,7 +118,7 @@ count unchanged.
 |---|---|
 | silent install, install directory appears, HKCU entry appears, `registry: DisplayName=LabCairn 0.0.1 DisplayVersion=0.0.1`, `ProductVersion 0.0.1.0` | PASS |
 | the six `resources\` entries, the frozen backend and its migrations, web-dist (4 files), the uninstaller | PASS |
-| **no live `shell-env.json` ships (template only)** | **FAIL** — see §3.2 |
+| **no live `shell-env.json` ships (template only)** | **FAIL** — see §3.2; the check was corrected after this run, and the corrected check passes (`run-20261120-005718`) |
 | **`shell-env.json` workspace resolves to the `%APPDATA%` workspace this arm drives** | **PASS** |
 | workspace init + task create (exit 0, current_task bound) | PASS |
 | **launch reaches the service origin line** — service port 62912 | **PASS** |
@@ -178,8 +178,17 @@ shell/test/packaging-config.test.mjs:394
 A package that ships only the template and has the installer materialise it
 is what the tree requires; the check in `run-arms.ps1` was written for the
 2026-11-14 packages, which predates that include, and it is red on every
-package built from the current tree. **The drill's tooling needs that check
-updated** — it is a stale expectation, and the trial package is correct.
+package built from the current tree. **The drill's tooling has been
+corrected, and the correction was run.** The check now reads the live
+`shell-env.json` against the template and requires them to be **identical**
+— which is what the installer's copy produces, and what forbids a
+pre-edited configuration from being shipped in the package — and it stays
+informative for the older packages, which carry no live file at all. The
+premise was verified before the run, on an installed tree (the live file's
+sha256 `B947A584…` is the template's sha256, so the corrected check reads
+true), and the corrected script parses clean. The install arm then ran
+again (`run-20261120-005718`) and read `[PASS] the live shell-env.json is
+the template, copied by the installer`.
 
 ### 3.3 The workbench body was blank — cause not established
 
