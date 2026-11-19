@@ -37,8 +37,10 @@
   corpus: the `08` family's two artifacts were regenerated, the superseded
   ones were kept in a dated folder rather than deleted, the ledger's hash
   columns were re-baselined, and the affected rows' observation cells were
-  **cleared, not re-filled**. The other twenty artifacts are byte-identical,
-  so rows R05–R12 stood at that point.
+  **cleared, not re-filled**. The eighteen artifacts of the families the
+  rerun does not measure are byte-identical. **The picture repair then
+  changed the `05` and `07` families' bytes as well**, so all twelve rows
+  are open, and each is run once, on the final bytes.
 - **The rerun's own progress, measured on 2026-11-19.** Three rows are
   recorded and **all three are PASS**: R01 (WPS, the `08` clean artifact),
   R02 (Word 2019, the same artifact) and R04 (Word 2019, the marked one).

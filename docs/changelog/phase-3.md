@@ -40,9 +40,14 @@
   two artifacts were regenerated (2,789 B, `c5404ec6…`, and 2,885 B,
   `938e6b25…`); the superseded ones were kept in a dated folder, not
   deleted; the ledger's hash columns were re-baselined and the affected
-  rows' observation cells were **cleared, not re-filled**. The other
-  twenty artifacts are byte-identical, so rows R05-R12 stand. **Rows
-  R01-R04 are open and R01, which was complete, is void.**
+  rows' observation cells were **cleared, not re-filled**. The eighteen
+  artifacts of the families the rerun does not measure are byte-identical.
+  **The picture repair then changed the `05` and `07` families' bytes as
+  well**, so **all twelve rows are open**, and each is run once, on the
+  final bytes. **Three are recorded and all three are PASS**: R01 (WPS, the
+  `08` clean artifact), R02 (Word 2019, the same artifact) and R04 (Word
+  2019, the marked one). R02 and R04 are the two Word rows issue #192
+  asks for, and both record an open with no severe-error dialog.
 - **What the host did with the repaired file, measured on 2026-11-19.**
   **Word 2019 16.0.17932.21140 now opens the file** — the severe-open-error
   dialog is gone — **and it draws the caption inside the box**, with the
