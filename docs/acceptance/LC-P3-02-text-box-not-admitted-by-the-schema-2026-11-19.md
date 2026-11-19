@@ -87,6 +87,22 @@ SHA-256
 **So the refusal is fixed, and D-4's cause is established.** What the host
 does with the picture is a different question, and it is open.
 
+**And then, on the final bytes, the twelve-row rerun's own Word row
+confirmed it.** Row R02 -- Microsoft Word 2019 16.0.17932.21140, the `08`
+family's `surgical-clean` artifact at 2,814 bytes, SHA-256
+`30c2d8f9669614a3d192e5093154e3e22afd1ff5912e0e7e1646082d01a5a4bc` -- is
+recorded **PASS**: the file opens, the caption is drawn, the blue square is
+drawn (42 x 43 pixels in the first pass and 44 x 44 in the second), the
+content control shows its own frame and its alias tag "Title" when
+clicked, and the `PAGE` field's result shows Word's grey shading when
+clicked. The artifact's bytes were unchanged after the two looks.
+
+**The two hosts differ on the field, and the difference is the point.**
+Word shows the field's shading; WPS 12.1.0.29690 shows nothing when the
+`3` is clicked, so WPS's answer for `fields` is `not-inspectable` and
+Word's is `yes`. The same six tokens, two hosts, two answers, each bound
+to its own host version.
+
 ## What the schema shows
 
 The ECMA-376 Part 4 archive carries the transitional XSDs. They were
