@@ -1,6 +1,38 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-20 - AC-6's clean-Windows drill, on this machine
+
+- **The drill ran on the owner's own machine, on a cleaned baseline.** The
+  four readings the drill's card S01 asks are all asked **per user**, so a
+  cleaned per-user profile is a clean baseline by construction: the
+  install directory and the userData tree were copied out first
+  (2,989 files / 582.7 MB and 124 files / 17.3 MB), the product's own
+  uninstaller was run, and the four readings read clean. **The machine was
+  put back byte for byte afterwards** — 0 missing, 0 differing in size, 0
+  differing in content, 0 extra on both trees.
+- **The trial package installs, launches, upgrades, uninstalls and
+  reinstalls correctly on a clean machine.** Every automated check of
+  those arms passed except **one check in the drill's own tooling that the
+  tree has outgrown**: the tree requires the installer to copy the
+  template to the live name (`shell/test/packaging-config.test.mjs`), while
+  the drill still asks for a package that ships the template alone.
+- **Two findings.** The **2026-11-14 baseline package cannot launch on a
+  clean machine** — its shipped template names the install-tree workspace,
+  so the service refuses with `workspace_not_initialised`; the delivered
+  package ships the corrected template and launches. And the **workbench
+  body rendered blank** in the two screenshots: the chrome and the status
+  strip render, the guard shows its designed `401 session_required`, the
+  bundle and both its assets answer 200 — and **the cause was not
+  established**.
+- **The machine-wide state was identical before and after** (483 lines
+  each, no difference), so "the installer stayed inside the per-user paths"
+  is argued by difference rather than by the account's privileges — the
+  account is an administrator.
+- The record is
+  [`LC-P3-05-clean-windows-drill-2026-11-20.md`](../acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md);
+  the evidence lives outside the repository.
+
 ## 2026-11-19 - the corpus's text box was not a shape Word admits
 
 - **The corpus wrote a text box the WordprocessingML content model does
