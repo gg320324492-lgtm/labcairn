@@ -211,27 +211,43 @@ def text_box(text: str) -> str:
     same caption says something else, and no measurement of "the box survived"
     would see the disagreement.
 
-    **The anchor is schema-complete.** ECMA-376's ``CT_Anchor`` requires,
-    in this order, ``wp:simplePos``, ``wp:positionH``, ``wp:positionV``,
-    ``wp:extent``, exactly one of the five wrap elements, ``wp:docPr`` and
-    ``a:graphic``; ``wp:effectExtent`` and ``wp:cNvGraphicFramePr`` are
-    optional. ``CT_WordprocessingShape`` requires a ``wps:spPr`` child
-    before ``wps:txbx``. **The anchor was incomplete, and two hosts were
-    measured against the incomplete sample on 2026-11-19**: WPS
-    12.1.0.29690 opened sample 08 and rendered the body text and the
-    picture but not the caption, and Word 2019 16.0.17932.21140 refused
-    the file outright with its severe-open-error dialog. The missing
-    children are consistent with both -- an anchor with no position has
-    nowhere to put the box -- but the refusal is not yet shown to follow
-    from them, and the ledger's D-4 finding stays open. The extent is a
-    readable 3600000x900000 EMU, not 1x1: a
-    1x1-EMU box is the 44-row ledger's D-3 finding, a caption no host can
-    show. The ``mc:Fallback``'s ``v:shape`` carries the matching style so
-    both branches describe the same box.
+    **The shape is Word's own, and the schema agrees.** Three things are
+    required of it, and the corpus used to have none of the three.
+
+    1. **The ``mc:AlternateContent`` sits inside a ``w:r``.** ``w:drawing``
+       and ``w:pict`` are run-level content; ``CT_P`` does not admit them.
+       Measured on 2026-11-19 against the ECMA-376 Part 4 transitional
+       schemas: the ``08`` family's artifacts carry a ``w:drawing`` at
+       paragraph level, and the twenty-two artifacts Word 2019 opened carry
+       none. Every real Word document on this machine puts the
+       ``mc:AlternateContent`` inside a ``w:r``.
+    2. **The ``wp:anchor`` carries its five required attributes** --
+       ``relativeHeight``, ``behindDoc``, ``locked``, ``layoutInCell`` and
+       ``allowOverlap`` -- as well as the required children
+       ``wp:simplePos``, ``wp:positionH``, ``wp:positionV``, ``wp:extent``,
+       exactly one of the five wrap elements, ``wp:docPr`` and
+       ``a:graphic``, in that order. ``wp:effectExtent`` and
+       ``wp:cNvGraphicFramePr`` are optional.
+    3. **The ``wps:wsp`` carries ``wps:cNvSpPr`` and ``wps:bodyPr``,** the
+       way Word writes a text box. Every real Word text box measured on
+       2026-11-19 carries both.
+
+    **What the hosts did with the broken shape.** WPS 12.1.0.29690 opened
+    sample 08 and rendered the body text and the picture but not the
+    caption, and Word 2019 16.0.17932.21140 refused the file outright with
+    its severe-open-error dialog. A probe that restored only the anchor's
+    children -- and left the attributes and the placement alone -- was
+    refused the same way, so the children were not the whole of it.
+
+    The extent is a readable 3600000x900000 EMU, not 1x1: a 1x1-EMU box is
+    the 44-row ledger's D-3 finding, a caption no host can show. The
+    ``mc:Fallback``'s ``v:shape`` carries the matching style so both
+    branches describe the same box.
     """
     inner = para(text)
     return (
-        '<w:p><mc:AlternateContent><mc:Choice Requires="wps">'
+        "<w:p><w:r>"
+        '<mc:AlternateContent><mc:Choice Requires="wps">'
         "<w:drawing>"
         f'<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"'
         ' relativeHeight="0" behindDoc="0" locked="0" layoutInCell="1"'
@@ -246,14 +262,19 @@ def text_box(text: str) -> str:
         "<wp:cNvGraphicFramePr/>"
         "<a:graphic>"
         f'<a:graphicData uri="{WPS}"><wps:wsp>'
+        '<wps:cNvSpPr txBox="1"/>'
         f'<wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{BOX_CX}" cy="{BOX_CY}"/></a:xfrm>'
         '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></wps:spPr>'
         f"<wps:txbx><w:txbxContent>{inner}"
-        f"</w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
+        f"</w:txbxContent></wps:txbx>"
+        '<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720"'
+        ' rIns="91440" bIns="45720" anchor="t" anchorCtr="0"><a:noAutofit/>'
+        "</wps:bodyPr>"
+        "</wps:wsp></a:graphicData></a:graphic></wp:anchor>"
         f'</w:drawing></mc:Choice><mc:Fallback><w:pict><v:shape id="box"'
         f' style="width:{BOX_VML_WIDTH}pt;height:{BOX_VML_HEIGHT}pt"><v:textbox>'
         f"<w:txbxContent>{inner}</w:txbxContent></v:textbox></v:shape></w:pict>"
-        "</mc:Fallback></mc:AlternateContent></w:p>"
+        "</mc:Fallback></mc:AlternateContent></w:r></w:p>"
     )
 
 

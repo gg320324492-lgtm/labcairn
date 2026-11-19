@@ -250,9 +250,19 @@ ANCHOR_WRAPS: Final[tuple[str, ...]] = (
     f"{{{WP}}}wrapTopAndBottom",
 )
 
+# CT_Anchor's attributes that the schema marks ``use="required"``. The
+# anchor the corpus used to write carried none of them at all.
+ANCHOR_REQUIRED_ATTRIBUTES: Final[tuple[str, ...]] = (
+    "relativeHeight",
+    "behindDoc",
+    "locked",
+    "layoutInCell",
+    "allowOverlap",
+)
 
-def _anchor_schema_problems(children: list[str]) -> list[str]:
-    """What one anchor's children get wrong, in words.
+
+def _anchor_schema_problems(anchor: ElementTree.Element) -> list[str]:
+    """What one anchor gets wrong, in words.
 
     **Written out rather than imported.** The corpus must not be checked by
     the machinery it constrains, and there is no schema validator here: the
@@ -260,6 +270,7 @@ def _anchor_schema_problems(children: list[str]) -> list[str]:
     ``CT_Anchor``, spelled out so that a change in the generator that breaks
     them is caught here and not by a host.
     """
+    children = [child.tag for child in anchor]
     problems: list[str] = []
     for required in ANCHOR_REQUIRED:
         count = children.count(required)
@@ -279,6 +290,9 @@ def _anchor_schema_problems(children: list[str]) -> list[str]:
             "the children are out of the schema's order: "
             + ", ".join(_local(tag) for tag in present)
         )
+    for attribute in ANCHOR_REQUIRED_ATTRIBUTES:
+        if anchor.get(attribute) is None:
+            problems.append(f"no {attribute} attribute")
     return problems
 
 
@@ -302,14 +316,18 @@ def test_every_anchored_drawing_carries_its_required_children() -> None:
 
     **And the anchor needs a position and a wrap.** ``CT_Anchor`` also
     requires ``wp:simplePos``, ``wp:positionH``, ``wp:positionV`` and
-    exactly one of the five wrap elements. Those were missing too, and
-    their absence has two separate symptoms, both measured on 2026-11-19:
-    **WPS 12.1.0.29690 opened sample 08 and drew the body text and the
-    picture but not the caption** -- an anchor with no position has nowhere
-    to put the box -- and **Word 2019 16.0.17932.21140 refused the file
-    outright** with its severe-open-error dialog. The earlier witness
-    checked ``wp:docPr`` and the extent and said nothing about the
-    position, so the defect survived every fix that came after it.
+    exactly one of the five wrap elements, and it marks five attributes
+    ``use="required"``: ``relativeHeight``, ``behindDoc``, ``locked``,
+    ``layoutInCell`` and ``allowOverlap``. The corpus's anchor carried
+    **none** of the five attributes and three of the six children.
+
+    **What that cost, measured on 2026-11-19.** WPS 12.1.0.29690 opened
+    sample 08 and drew the body text and the picture but not the caption,
+    and Word 2019 16.0.17932.21140 refused the file outright with its
+    severe-open-error dialog. The earlier witness checked ``wp:docPr``
+    and the extent and said nothing about the position, the wrap or the
+    attributes, so the defect survived every fix that came after it --
+    including the one that restored the children and was still refused.
     """
     anchors = 0
     for sample in SAMPLES:
@@ -331,7 +349,7 @@ def test_every_anchored_drawing_carries_its_required_children() -> None:
                 f"{sample.name} has a {cx}x{cy}-EMU anchored drawing, which no host "
                 "can show (the ledger's D-3 finding)"
             )
-            problems = _anchor_schema_problems(children)
+            problems = _anchor_schema_problems(anchor)
             assert not problems, (
                 f"{sample.name} has a wp:anchor that CT_Anchor does not admit: "
                 + "; ".join(problems)
@@ -348,7 +366,65 @@ def test_every_anchored_drawing_carries_its_required_children() -> None:
                 f"{sample.name}'s wps:spPr does not precede wps:txbx, which the "
                 "CT_WordprocessingShape sequence requires"
             )
+            for required in (f"{{{WPS}}}cNvSpPr", f"{{{WPS}}}bodyPr"):
+                assert required in children, (
+                    f"{sample.name} has a wps:wsp without {required}, which is "
+                    "not the shape Word writes: every real Word text box "
+                    "measured on 2026-11-19 carries both"
+                )
     assert anchors > 0, "no sample carries an anchored drawing, so nothing witnesses the anchor"
+
+
+def test_the_markup_compatibility_element_sits_inside_a_run() -> None:
+    """Run-level content at paragraph level is a file Word refuses.
+
+    **What this witnesses.** ``w:drawing`` and ``w:pict`` are run-level
+    content: they belong in a ``w:r``. ``CT_P`` does not admit them, and
+    the corpus's text box put the whole ``mc:AlternateContent`` -- both
+    branches -- directly into a ``w:p``.
+
+    **What that cost, measured on 2026-11-19.** Word 2019
+    16.0.17932.21140 refused the ``08`` family's artifacts outright. The
+    twenty-two other artifacts of the rerun -- the ones the 44-row ledger
+    records as opened, or as PRESENCE-LOSS rather than
+    REFUSAL-RECORDED -- carry no anchored drawing at all, and none of them
+    has run-level content outside a run.
+
+    **How the rule is read.** A consumer performs the
+    markup-compatibility preprocessing before the content model applies: it
+    replaces the ``mc:AlternateContent`` with the content of the branch it
+    understands, and that content has to be legal where the element stood.
+    So the drawing's place is decided by where the ``mc:AlternateContent``
+    sits, and the rule is stated on the ``mc:AlternateContent``.
+    """
+    for sample in SAMPLES:
+        if sample.hostile:
+            continue
+        root = ElementTree.fromstring(_document_of(sample))
+        parents: dict[ElementTree.Element, ElementTree.Element] = {}
+        for parent in root.iter():
+            for child in parent:
+                parents[child] = parent
+        for element in root.iter(f"{{{MC}}}AlternateContent"):
+            holder = parents.get(element)
+            assert holder is not None and holder.tag == f"{{{W}}}r", (
+                f"{sample.name} has an mc:AlternateContent that is not inside a "
+                "w:r; its branches carry w:drawing and w:pict, which are "
+                "run-level content that CT_P does not admit"
+            )
+        for tag in (f"{{{W}}}drawing", f"{{{W}}}pict"):
+            for element in root.iter(tag):
+                ancestor = parents.get(element)
+                while ancestor is not None and ancestor.tag in (
+                    f"{{{MC}}}Choice",
+                    f"{{{MC}}}Fallback",
+                    f"{{{MC}}}AlternateContent",
+                ):
+                    ancestor = parents.get(ancestor)
+                assert ancestor is not None and ancestor.tag == f"{{{W}}}r", (
+                    f"{sample.name} has a {tag} that is not inside a w:r, which "
+                    "the WordprocessingML content model does not admit"
+                )
 
 
 def test_every_anchored_drawing_mints_distinct_docpr_ids() -> None:
