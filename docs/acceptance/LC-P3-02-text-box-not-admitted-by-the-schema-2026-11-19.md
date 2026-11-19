@@ -297,14 +297,22 @@ The corpus's bytes changed, so the rerun was **re-based onto them**:
 
 - the `08` family's two artifacts were regenerated; the superseded ones
   were kept, not deleted;
-- the three families the rerun measures then moved into a folder of their
-  own -- `artifacts/outputs-08-to-open/`, `artifacts/outputs-05-to-open/`
-  and `artifacts/outputs-07-to-open/` -- so that the folder the operator
-  opens holds two documents and never asks them to pick; the pack's
+- the six artefacts of the three families the rerun measures are the ones
+  in `artifacts/outputs/`, and the eighteen of the families it does not
+  measure were moved to `artifacts/others/`, so the folder the operator
+  opens holds the six documents they are about to open;
+- **an earlier arrangement was tried and withdrawn.** The three families
+  were first given a folder each -- `artifacts/outputs-08-to-open/` and
+  the like -- so that each folder held two documents. **That broke six
+  tools**: the repository's `scripts/closeout_12_rows.py` and the pack's own
+  `validate_pack.py`, `self_check.py` and `check_no_save_mutation.py` all
+  resolve an artefact **by name** under `artifacts/outputs`, and the
+  closeout reported **all twelve rows** as BLOCKERs ("the artefact ... is
+  not in the pack"). A convenience that costs the tools their assumption
+  is the wrong trade, and the arrangement was put back. The pack's
   template, the copy the operator fills and the twelve cards that print
-  the path all say the new paths, and the pack's own validator passes on
-  the result (0 errors; the warnings are the note-copy heuristic, which
-  stops being a copy once the operator's own observation is appended);
+  the path say `artifacts/outputs/`, and the pack's validator and the
+  closeout both find every artefact again;
 - the ledger's `sha256_before` and `byte_size_before` were re-baselined
   for the rows whose artifact changed;
 - the observation cells of those rows were **cleared, not re-filled**;
