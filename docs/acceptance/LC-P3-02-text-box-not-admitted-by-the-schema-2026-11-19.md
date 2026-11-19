@@ -211,6 +211,12 @@ The corpus's bytes changed, so the rerun was **re-based onto them**:
 
 - the `08` family's two artifacts were regenerated; the superseded ones
   were kept, not deleted;
+- the `08` family's two artifacts then moved into a folder of their own,
+  `E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs-08-to-open/`,
+  so that the folder the operator opens holds one document instead of
+  twenty-four; the pack's template, the copy the operator fills and the
+  four cards that print the path all say the new path, and the pack's own
+  validator passes on it;
 - the ledger's `sha256_before` and `byte_size_before` were re-baselined
   for the rows whose artifact changed;
 - the observation cells of those rows were **cleared, not re-filled**;
