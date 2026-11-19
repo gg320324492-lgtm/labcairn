@@ -24,9 +24,34 @@ admits, in two ways at once: its `mc:AlternateContent` sat directly in a
 allowed, and its `wp:anchor` carried none of the five attributes
 `CT_Anchor` marks `use="required"`. The generator now writes the shape
 Word writes, a witness holds it there, and the artifacts the twelve-row
-rerun measures have been re-based onto the repaired corpus. Whether Word
-2019 opens the repaired file is still open, and the ledger's D-4 finding
-stays open with it.**
+rerun measures have been re-based onto the repaired corpus. Word 2019 now
+opens the repaired file and draws the caption, so the refusal the 44-row
+ledger's D-4 recorded is gone; the picture inside the same file still does
+not draw, which is a separate and open finding.**
+
+## What the host did with the repaired file
+
+Measured on 2026-11-19 by the owner, on the re-based artifact (2,789 bytes,
+SHA-256 `c5404ec654969a1fd0b6ed20902f1f3bdc9dba3e95ba6130696c14d62fce3edc`),
+in Microsoft Word 2019 16.0.17932.21140:
+
+| thing | seen |
+|---|---|
+| the file | **opens** -- the severe-open-error dialog is gone |
+| the caption | **"The caption inside the text box repeats itself."** is drawn, inside the box |
+| the paragraph beside the figure | drawn **to the right of the box**, which is where the corpus's own wording puts it and what the box's 10 cm width does to it |
+| the field and the content control | "The page reads 3." and "The sentence bound to a content control." |
+| the word count | **34** -- the five sentences with the caption (7 + 8 + 8 + 4 + 7), so the text box's words are counted |
+| **the picture** | **nothing.** The page area carries **no pixel** of the corpus blue; the only blue on the screen is an 11 × 35-pixel accent in the ribbon |
+| the box's border | none drawn -- the corpus's text box carries no `a:ln`, so the box is invisible as a frame although it is there, and the wrap proves it is there |
+
+The screenshot is outside the repository, under
+`E:/labcairn-local/rerun12-opaque-20261118/screenshots/`, 2858 × 1512,
+SHA-256
+`8c694bbb8609e00c8872a73b9f4ad74ae5040a4e82717223a8448890b9379061`.
+
+**So the refusal is fixed, and D-4's cause is established.** What the host
+does with the picture is a different question, and it is open.
 
 ## What the schema shows
 
@@ -191,11 +216,21 @@ missed.
 
 ## What is still open
 
-- **Whether Word 2019 opens the repaired file.** That is unmeasured. The
-  schema says the old shape was not admissible and the new one is; a host
-  agreeing is a separate reading, and it has not been taken.
-- **D-4.** The 44-row ledger's D-4 finding stands, with its cause now
-  named rather than guessed.
+- **The picture does not draw in Word.** The media part is sound --
+  70 bytes, IHDR 1 × 1 colour type 6, all three chunk CRCs correct, and
+  the IDAT inflates to one filter byte and the pixel (46, 116, 181, 255)
+  -- and the relationship and the `r:embed` are intact, but the page area
+  of the owner's screenshot carries no pixel of that colour. Two suspects,
+  and two probes, are in `E:/labcairn-local/picture-probe-20261119/`:
+  the corpus writes `<pic:spPr/>` with no `a:xfrm` and no `a:prstGeom`,
+  an empty `<pic:cNvPicPr/>`, and a `pic:cNvPr` with the id `0`, while
+  **every one of the 2,133 `<pic:spPr>` elements in the real Word
+  documents on this machine carries an `a:xfrm`**; and the image is one
+  pixel wide. `P1` carries the picture's markup made the way Word writes
+  it, `P2` carries `P1` with a 16 × 16 pixel of the same colour. **The
+  twelve-row rerun waits on this**: the blue square is one of the two
+  things the rerun is for, and running the rows before it settles would
+  run them on bytes a picture fix would invalidate.
 - **The tables without a `w:tblGrid`.** Three corpus samples -- `02`,
   `03` and `07` -- carry a `w:tbl` with no `w:tblGrid`, which the schema
   rejects. **Word tolerates it**: the `07` family's artifact has the
@@ -204,6 +239,10 @@ missed.
   rerun for a defect that blocks nothing. **The owner ruled on
   2026-11-19: leave it, and close the twelve rows first.** It stays an
   open finding, not a closed one.
+- **D-4.** The 44-row ledger's D-4 finding is **closed by the measurement
+  above**: the file opens, and the cause was the two schema violations
+  this record names. The *ledger row* that recorded the refusal is
+  R02's, and it is re-run against the repaired bytes.
 
 ## What the rerun now owes
 

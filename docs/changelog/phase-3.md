@@ -42,12 +42,27 @@
   rows' observation cells were **cleared, not re-filled**. The other
   twenty artifacts are byte-identical, so rows R05-R12 stand. **Rows
   R01-R04 are open and R01, which was complete, is void.**
-- **What is still open.** Whether Word 2019 opens the repaired file is
-  unmeasured, and D-4 stays open with it. The three tables without a
-  `w:tblGrid` are recorded and **not** fixed — Word tolerates them, and
-  fixing them would re-base four more rows for a defect that blocks
-  nothing. **The owner ruled on 2026-11-19: leave it, and close the
-  twelve rows first.**
+- **What the host did with the repaired file, measured on 2026-11-19.**
+  **Word 2019 16.0.17932.21140 now opens the file** — the severe-open-error
+  dialog is gone — **and it draws the caption inside the box**, with the
+  paragraph beside the figure pushed to the right of it by the box's 10 cm
+  width. The word count reads **34**, which is the five sentences with the
+  caption, so the text box's words are counted. **D-4's cause is
+  established and the refusal is fixed.**
+- **What is still open.** **The picture does not draw.** The media part is
+  sound — 70 bytes, IHDR 1 × 1 colour type 6, all three chunk CRCs
+  correct, the IDAT inflating to the pixel (46, 116, 181, 255) — and the
+  relationship is intact, but the page area of the owner's screenshot
+  carries no pixel of that colour. Two suspects, and two probes in
+  `E:/labcairn-local/picture-probe-20261119/`: the corpus writes
+  `<pic:spPr/>` with no `a:xfrm` (and **every one of the 2,133
+  `<pic:spPr>` elements in the real Word documents on this machine carries
+  one**), and the image is one pixel wide. **The rerun waits on this** —
+  the blue square is one of the two things the rerun is for. The three
+  tables without a `w:tblGrid` are recorded and **not** fixed — Word
+  tolerates them, and fixing them would re-base four more rows for a
+  defect that blocks nothing; **the owner ruled on 2026-11-19: leave it,
+  and close the twelve rows first.**
 - **The record** is
   [`LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md`](../acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md).
 ### The second reader's memory boundary is restated as what the harness delivers (2026-11-18)

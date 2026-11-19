@@ -1477,6 +1477,19 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/picture-probe-20261119",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
+        "docs/changelog/phase-3.md",
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/pilot-ws/corrected-scopes-corpus1.txt",
       "expectation": "present",
       "kind": "material",
@@ -1654,6 +1667,17 @@
     },
     {
       "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs-defective-20261119",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/screenshots",
       "expectation": "present",
       "kind": "material",
       "replacement": null,
@@ -2197,10 +2221,10 @@
     },
     {
       "path": "E:/labcairn-local/tmp/mpl",
-      "expectation": "absent",
+      "expectation": "present",
       "kind": "created",
       "replacement": null,
-      "note": "the path is a temp, basetemp or output argument that the referring command creates when it runs",
+      "note": "a path a script creates: the browser rerun's record names the path the command makes, and the project's own MPLCONFIGDIR convention points there, so it is there once anything has run -- the expectation was 'absent' on 2026-11-18 and was corrected on 2026-11-19",
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md"
