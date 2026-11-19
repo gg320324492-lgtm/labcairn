@@ -179,19 +179,24 @@ and the cause is what this record had to get right.
 
 ## What was measured, before and after
 
-| measured value | the artifact as the rerun measured it | the artifact as this branch writes it |
-|---|---|---|
-| bytes | 2,531 | 2,789 |
-| SHA-256 | `cbf08be135b26c8876075641421d9c4ee881bcb3387d80e14c8875585bc746dd` | `c5404ec654969a1fd0b6ed20902f1f3bdc9dba3e95ba6130696c14d62fce3edc` |
-| `mc:AlternateContent`'s parent | `w:p` | `w:r` |
-| `wp:anchor`'s required attributes present | 0 of 5 | 5 of 5 |
-| `wp:anchor`'s required children present | 3 of 6 | 6 of 6 |
-| wrap elements present | 0 | 1 (`wrapSquare`) |
-| schema violations, in Word's MCE view | `w:drawing` at paragraph level; five attributes missing | none beyond `mc:Ignorable` and the `wps` extension namespace |
+| measured value | the artifact as the rerun first measured it | after the anchor repair | the artifact as this branch writes it |
+|---|---|---|---|
+| bytes | 2,531 | 2,789 | 2,814 |
+| SHA-256 | `cbf08be135b26c8876075641421d9c4ee881bcb3387d80e14c8875585bc746dd` | `c5404ec654969a1fd0b6ed20902f1f3bdc9dba3e95ba6130696c14d62fce3edc` | `3a28c55ce14f5354e8b41999b30a4b8a21059d48b005a9ab50cd8149dc8eb33d` |
+| `mc:AlternateContent`'s parent | `w:p` | `w:r` | `w:r` |
+| `wp:anchor`'s required attributes present | 0 of 5 | 5 of 5 | 5 of 5 |
+| `wp:anchor`'s required children present | 3 of 6 | 6 of 6 | 6 of 6 |
+| wrap elements present | 0 | 1 (`wrapSquare`) | 1 (`wrapSquare`) |
+| the picture's own `a:xfrm` | absent | absent | present |
+| schema violations, in Word's MCE view | `w:drawing` at paragraph level; five attributes missing | none beyond `mc:Ignorable` and the `wps` extension namespace | none beyond `mc:Ignorable` and the `wps` extension namespace |
 
-The first column is the defect, the second is the repair, and both were
+**The first column is the defect: that is the artifact Word refused.**
+The second is the same artifact after the anchor repair -- Word opened that
+one and drew the caption, but no picture, because the picture's own shape
+properties were empty. The third is what this branch writes: the anchor
+repaired **and** the picture's `a:xfrm` restored. All three columns were
 produced by running the validator over the bytes on disk. The two findings
-the validator cannot have are the same for both columns and are not
+the validator cannot have are the same in every column and are not
 defects: `mc:Ignorable` is on `w:document` in every file Word writes and
 the ECMA schema has no opinion about it, and the `wps` namespace is
 Microsoft's extension, which the ECMA schemas do not carry.
@@ -251,7 +256,7 @@ that every picture's `pic:spPr` carries an `a:xfrm` with a readable
 extent, an `a:prstGeom`, a `pic:cNvPicPr` carrying the `a:picLocks` Word
 writes, and a `pic:cNvPr` with a real id.
 
-**The witnesses were mutation-checked on 2026-11-19.** Six mutations of
+**The witnesses were mutation-checked on 2026-11-19.** Nine mutations of
 the generator, each applied to the source and then reverted from a
 byte-for-byte backup rather than from git:
 
@@ -335,11 +340,17 @@ The corpus's bytes changed, so the rerun was **re-based onto them**:
 - the ledger's `sha256_before` and `byte_size_before` were re-baselined
   for the rows whose artifact changed;
 - the observation cells of those rows were **cleared, not re-filled**;
-- the other twenty artifacts are byte-identical, so rows R05-R12 stand.
+- the eighteen artifacts of the families the rerun does not measure are
+  byte-identical, and the `05` and `07` families' artifacts were
+  regenerated too, because the picture repair changed them. **All twelve
+  rows are therefore open, and each is run once, on the final bytes.**
 
-**All twelve rows are open, and none has been run on the final bytes.**
-Rows R01-R04 were measured on the broken shape and are void; the `05` and
-`07` families were never run on this round's bytes at all. The picture
+**Three rows are recorded, and all three are PASS:** R01 (WPS, the `08`
+clean artifact), R02 (Word 2019, the same artifact) and R04 (Word 2019, the
+marked one). R02 and R04 are the two Word rows issue #192 asks for, and
+both record an open with no severe-error dialog. **Nine rows are open:**
+R03, whose first look is recorded and which waits on its second, and
+R05-R12, which have not been run on this round's bytes at all. The picture
 repair changed the `05` and `07` families' bytes too, which is why the
 re-basing happened before any row was recorded: **the twelve rows run once,
 on the final bytes, and nothing is wasted.**
@@ -378,7 +389,7 @@ markup-compatibility branches.
 python E:/labcairn-local/anchor-defect-20261119/mutate_anchor_witness.py
 ```
 
-applies each of the six mutations to `src/labcairn/editing/samples.py`,
+applies each of the nine mutations to `src/labcairn/editing/samples.py`,
 runs `tests/test_docx_edit_samples.py`, prints the suite's verdict for
 each, and restores the source from a byte-for-byte backup it took before
 the run. It never uses `git checkout` to restore, because that would
