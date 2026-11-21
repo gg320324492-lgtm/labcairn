@@ -64,6 +64,4 @@ nsis:
   #   the build ships only the template — a template is not a default — and
   #   the install is the act that turns it into the live file, so an installed
   #   shell starts instead of refusing its first launch.
-  include:
-    - nsis/licenses.nsh
-    - nsis/materialize-shell-env.nsh
+  include: nsis/includes.nsh
