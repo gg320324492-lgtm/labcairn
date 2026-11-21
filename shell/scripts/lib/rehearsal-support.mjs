@@ -122,6 +122,17 @@ export async function pageState(cdp) {
       guard: guard === null ? null : guard.getAttribute('data-shell-guard')
     };
   })()`)
+  // The document-shape reading: a page whose parser was disturbed never
+  // grows a body or a doctype, and the workbench's `#root` never appears.
+  // The AC-6 drill's blank-workbench finding (2026-11-20) was invisible to
+  // every check that read only the strip; this reading is the witness that
+  // the page itself survived the preload.
+  const dom = await cdp.evaluate(`(() => ({
+    hasBody: document.body !== null,
+    hasDoctype: document.doctype !== null,
+    hasRoot: document.getElementById('root') !== null,
+    rootChildren: document.getElementById('root') === null ? 0 : document.getElementById('root').childElementCount
+  }))()`)
   const bridgeStatus = await cdp.evaluate(
     `(typeof window.labcairnShell === 'object' && window.labcairnShell !== null) ? window.labcairnShell.status() : null`,
   )
@@ -137,6 +148,7 @@ export async function pageState(cdp) {
     bridgeStatus,
     stripGuard: strip === null ? null : strip.guard,
     guardStatus,
+    dom,
   }
 }
 

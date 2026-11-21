@@ -36,9 +36,13 @@ let currentGuard = 'not-run'
 let currentDev = false
 
 function ensureStrip() {
-  // Inserted on documentElement, not body: the workbench owns `#root` in the
-  // body, and a strip inside a subtree React manages is a strip React may
-  // re-render away.
+  // Inserted on body, with documentElement as the fallback for the pages
+  // that never build one (about:blank). Appending to documentElement during
+  // parsing replaces the html element's first child with this div before the
+  // parser can place head and body, and the whole document is lost — the
+  // AC-6 drill's blank-workbench finding (2026-11-20) traces to exactly that.
+  // The strip lives outside React's `#root` subtree, so a body mount is not
+  // something a workbench re-render removes.
   let strip = document.getElementById('labcairn-shell-status')
   if (strip === null) {
     strip = document.createElement('div')
@@ -59,7 +63,7 @@ function ensureStrip() {
     guard.setAttribute('data-shell-guard', 'not-run')
     guard.setAttribute('style', 'margin-left:auto;opacity:0.9;font-variant-numeric:tabular-nums;')
     strip.append(label, detail, guard)
-    ;(document.documentElement || document).append(strip)
+    ;(document.body || document.documentElement).append(strip)
   }
   return strip
 }
@@ -168,11 +172,18 @@ ipcRenderer.on('shell:guard-verdict', (_event, payload) => {
   renderStrip()
 })
 
-// The strip is injected at document start, whatever page loads — including
-// about:blank on a startup refusal, which is the page that must show the
-// diagnostic rather than an empty workbench.
+// The strip is injected when the document has a body — at DOMContentLoaded
+// for a page still parsing, immediately otherwise — whatever page loads,
+// including about:blank on a startup refusal, which is the page that must
+// show the diagnostic rather than an empty workbench. Injecting while the
+// parser is still building the document is what produced the blank
+// workbench of the 2026-11-20 drill: the strip must not race the parser.
 if (typeof document !== 'undefined') {
-  renderStrip()
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => renderStrip(), { once: true })
+  } else {
+    renderStrip()
+  }
 }
 
 contextBridge.exposeInMainWorld('labcairnShell', {
