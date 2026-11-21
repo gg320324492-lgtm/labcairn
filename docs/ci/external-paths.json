@@ -1,6 +1,6 @@
 {
   "schema": "labcairn-external-path-ledger/v1",
-  "read_at": "2026-11-18",
+  "read_at": "2026-11-21",
   "root": "E:/labcairn-local",
   "what_this_is": "Every path under E:/labcairn-local that a tracked file names, and what each one is expected to be: present, renamed (with the path that replaced it), or absent. The rule it encodes: a rename is not a defect, a bare pointer to the old name is. The half that needs the packs runs on a development machine; the half that only needs the tree runs in CI.",
   "apparatus": [
@@ -2001,22 +2001,29 @@
     },
     {
       "path": "E:/labcairn-local/shell-scratch",
-      "expectation": "present",
+      "expectation": "absent",
       "kind": "material",
       "replacement": null,
-      "note": "named by a record and found on disk when the ledger was built",
-      "announcements": [],
+      "note": "the rehearsal scratch root; each rehearsal creates and cleans its own scratch directories, and the 2026-11-21 cleanup removed the last run's leftovers (the archive batch of 2026-11-21)",
+      "announcements": [
+        "Read 2026-11-21: the two scratch directories are gone",
+        "the 2026-11-21 cleanup batch removed them"
+      ],
       "sites": [
         "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
       ]
     },
     {
       "path": "E:/labcairn-local/shell-test-tmp",
-      "expectation": "present",
+      "expectation": "absent",
       "kind": "material",
       "replacement": null,
-      "note": "named by a record and found on disk when the ledger was built",
-      "announcements": [],
+      "note": "a pytest scratch directory from the shell work; removed by the 2026-11-21 cleanup batch (the archive batch of 2026-11-21)",
+      "announcements": [
+        "Read 2026-11-21: that default directory was removed from this\n   machine by the 2026-11-21 cleanup batch",
+        "Read 2026-11-21: the default directory was removed from this machine by\n    the 2026-11-21 cleanup batch",
+        "Read 2026-11-21: the two scratch directories are gone"
+      ],
       "sites": [
         ".github/CI.md",
         "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md",
@@ -2244,10 +2251,10 @@
     },
     {
       "path": "E:/labcairn-local/tmp/lc-p305-shell",
-      "expectation": "absent",
+      "expectation": "present",
       "kind": "scratch",
       "replacement": null,
-      "note": "the path was a past run's scratch under the volatile tmp root; the sentence reports the past run, it does not offer the path",
+      "note": "a scratch directory the LC-P3-05 work created under the runtime temp root; re-read 2026-11-21 and found on disk",
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md"
@@ -2288,11 +2295,13 @@
     },
     {
       "path": "E:/labcairn-local/tmp/mpl",
-      "expectation": "present",
+      "expectation": "absent",
       "kind": "created",
       "replacement": null,
-      "note": "a path a script creates: the browser rerun's record names the path the command makes, and the project's own MPLCONFIGDIR convention points there, so it is there once anything has run -- the expectation was 'absent' on 2026-11-18 and was corrected on 2026-11-19",
-      "announcements": [],
+      "note": "an MPLCONFIGDIR scratch directory; removed by the 2026-11-21 cleanup batch (the archive batch of 2026-11-21)",
+      "announcements": [
+        "re-read 2026-11-21: an MPLCONFIGDIR scratch directory; removed by the 2026-11-21 cleanup batch (the archive batch of 2026-11-21)"
+      ],
       "sites": [
         "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md"
       ]
@@ -2771,6 +2780,105 @@
         "docs/changelog/phase-3.md",
         "docs/handoff/CURRENT.md"
       ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-merge-kit-20261118",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the merge kit of the twelve-row rerun: the filled table, the append record, the closure table, the declarations and the merge manifest (named by the 2026-11-21 rider and the rerun record)",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/08-refusals-elsewhere-in-the-document-surgical-clean.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R01/R02), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/08-refusals-elsewhere-in-the-document-surgical-marked.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R03/R04), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/05-image-and-relationship-surgical-clean.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R05/R06), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/05-image-and-relationship-surgical-marked.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R07/R08), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/07-everything-at-once-surgical-clean.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R09/R10), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/07-everything-at-once-surgical-marked.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R11/R12), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/closeout-declarations-20261121.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the owner's declarations of the twelve-row rerun (named by the rerun record with its sha256)",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/ablation-probe-20261119/IDENTIFICATION-REPORT.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the #215 identification experiment's report: the 7-open matrix that pins the refused construct to the conjunction of paragraph-level mc:AlternateContent and the anchor's five missing required attributes",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/rerun-rows-filled-12-20261119.csv",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the filled twelve-row table of the rerun (named by the rerun record with its sha256)",
+      "announcements": [],
+      "sites": []
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/rerun12-append-20261121T040422Z.csv",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the twelve-row append record the closeout tool wrote (named by the rerun record with its sha256)",
+      "announcements": [],
+      "sites": []
     }
   ]
 }
