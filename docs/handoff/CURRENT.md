@@ -1,6 +1,41 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-21 - the twelve rows pass, three issues close, and the blank-workbench defect is fixed
+
+- **The twelve-row re-run is complete: 12 of 12 rows, all PASS**, on the
+  corpus the PR #213 repair produced. The eight 05/07 rows were observed
+  2026-11-21 on WPS Office 12.1.0.29690 and Microsoft Office 2019
+  16.0.17932.21140; the four 08 rows were observed 2026-11-19. Every
+  artefact re-hashed unchanged, `validate_12_rows.py` passes, and
+  `scripts/closeout_12_rows.py` at `e7d2d50` judges #189, #191 and #192
+  `CLOSED-READY` (record
+  [`LC-P3-02-twelve-row-rerun-2026-11-21.md`](../acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md)).
+- **Three issues are closed, and no issue is open on GitHub.** #215 is
+  closed: the AC1 identification criterion is fixed by the ablation
+  probes — the refusal trigger is the conjunction of the segment-level
+  `mc:AlternateContent` and the `wp:anchor` missing its five required
+  attributes, either alone opens fine (evidence
+  `E:/labcairn-local/ablation-probe-20261119/IDENTIFICATION-REPORT.md`).
+  #190 is closed on the support-matrix route: the `wontfix` stands and the
+  WPS row keeps its `PRESENCE-LOSS` as the host-version-bound observation.
+  The T9 review and T10 exit decision remain the owner's to run.
+- **The blank-workbench defect of the 2026-11-20 drill is fixed.** The
+  cause: the shell's preload appended the status strip to
+  `document.documentElement` at document-start, which displaced the page
+  parser and made Chromium discard the rest of the document, so `#root`
+  never existed and the workbench never mounted. The fix is commit
+  `eeb2eb7`: the strip mounts on `body` (the `documentElement` stays only
+  as the `about:blank` fallback) and the first injection waits for
+  `DOMContentLoaded`; the rehearsals now assert the page itself
+  (`hasBody`/`hasDoctype`/`hasRoot` and `#root`'s child count), and a
+  clean one-shot run on this machine renders the workbench. **Formal
+  closure of B9 still waits for the owner's re-run of the row on the
+  target VM, per the SOP.**
+- **`main` is six commits ahead of `origin/main`, unpushed** — the
+  closeout work lands locally first, and the push remains the owner's
+  call.
+
 ## 2026-11-20 - AC-6's clean-Windows drill, on this machine
 
 - **The drill ran on the owner's own machine, on a cleaned baseline.** The

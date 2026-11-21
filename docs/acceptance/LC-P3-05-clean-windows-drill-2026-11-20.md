@@ -296,3 +296,21 @@ the brackets.
 
 Nothing in this record's evidence is inside the repository, and no document
 was opened by any of it.
+
+## Read 2026-11-21 — the B9 finding's disposition
+
+The blank-workbench finding has a cause and a fix. The shell's preload
+appended the status strip to `document.documentElement` at document-start,
+which replaced the parser's position before `head` and `body` could be
+placed; Chromium discarded the rest of the document silently, so `#root`
+never existed and the workbench never mounted, while the idempotently
+rebuilt strip kept reading connected (root cause reproduced and read
+through CDP; see the `b9-root-cause-2026-11-21` hand-over note). The fix
+landed on `main` as commit `eeb2eb7`: the strip mounts on `body`
+(`documentElement` remains only the `about:blank` fallback) and the first
+injection waits for `DOMContentLoaded`, and the rehearsal now asserts the
+page itself — `hasBody`, `hasDoctype`, `hasRoot` and `#root`'s child count.
+On this machine a clean one-shot run of the fixed preload renders the
+workbench (`hasBody`/`hasDoctype`/`hasRoot` true, one root child). **B9's
+formal closure still waits for the owner's re-run of the row on the target
+VM, per the SOP.**
