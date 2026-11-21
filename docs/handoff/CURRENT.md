@@ -404,7 +404,7 @@
 
 - **[PR #179](https://github.com/gg320324492-lgtm/labcairn/pull/179)
   merged** as `21bfcf8`: the named reviewer's designation is recorded in
-  the two standing records. The owner designated **Xiaoqi Zhushou** as the
+  the two standing records. The owner designated `LabCairn` (originally designated **`LabCairn` (originally designated Xiaoqi Zhushou; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.)**; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.) as the
   real named reviewer on **2026-11-16**, replacing the test name
   (`Trial-Reviewer`) that the 2026-11-15 G4 decisions had carried pending
   a real name. The changelog and this handoff were updated in the same
@@ -617,7 +617,7 @@
 - **The owner's G4 decisions are made (2026-11-15)**: the trial protocol
   is approved; the owner plays both participant and advisor; the named
   reviewer was a test name (`Trial-Reviewer`) until the owner designated
-  **Xiaoqi Zhushou** as the real reviewer (2026-11-16); the exit decision is
+  `LabCairn` (originally designated **`LabCairn` (originally designated Xiaoqi Zhushou; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.)**; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.) as the real reviewer (2026-11-16); the exit decision is
   pre-authorized as PASS WITH NOTES if the eight rows pass with the
   row-7 named gap. The trial itself (installed build, real sample, both
   hosts) awaits the owner's machine and scheduling; the NSIS
