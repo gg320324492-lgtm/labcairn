@@ -99,7 +99,7 @@ test('the packaging config names the product, output and unsigned NSIS target', 
   assert.ok(outputOutsideTrackedTree(config))
   assert.match(config, /^extraMetadata:\n  dependencies: null$/m)
   assert.deepEqual(list('target'), ['nsis'])
-  assert.match(config, /^nsis:\n  oneClick: false\n  allowToChangeInstallationDirectory: true\n  perMachine: false$/m)
+  assert.match(config, /^nsis:\n  oneClick: false\n  allowToChangeInstallationDirectory: true\n  perMachine: false\n(  #[^\n]*\n)*  include: nsis\/includes\.nsh$/m)
   assert.deepEqual(signingSettingsIn(config), [])
 })
 
@@ -316,14 +316,19 @@ function carriedTexts(include) {
 }
 
 test('the packaging config names the NSIS includes that carry the licence texts and the materialization step', () => {
-  // The include is a list since O3's decision C (2026-11-15): one fragment
-  // carries the licence texts, the other the install-time materialization of
-  // the package's own configuration file.
-  assert.match(config, /^ {4}- nsis\/licenses\.nsh$/m)
-  assert.match(config, /^ {4}- nsis\/materialize-shell-env\.nsh$/m)
+  // electron-builder 26.18.0 types `nsis.include` as a single path
+  // (string | null), so the two fragments the build carries — the licence
+  // texts (LGPL-2.1 §1) and the install-time materialization of the
+  // package's own configuration file (O3's decision C, 2026-11-15) — travel
+  // inside the generated `nsis/includes.nsh` this config names. The
+  // fragments themselves stay tracked files; the next test reads their
+  // contents through the combined include.
+  assert.match(config, /^ {2}include: nsis\/includes\.nsh$/m)
   assert.ok(fs.existsSync(NSIS_INCLUDE_PATH), 'the configuration names an NSIS include that is absent')
   const materializePath = path.join(SHELL_ROOT, 'nsis', 'materialize-shell-env.nsh')
   assert.ok(fs.existsSync(materializePath), 'the configuration names a materialization include that is absent')
+  const licencesPath = path.join(SHELL_ROOT, 'nsis', 'licenses.nsh')
+  assert.ok(fs.existsSync(licencesPath), 'the configuration names a licence include that is absent')
 })
 
 test("the NSIS include writes each licence text into the installer's plugin directory", () => {
