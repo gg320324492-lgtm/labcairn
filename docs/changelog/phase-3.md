@@ -223,7 +223,7 @@
 ### The reviewer is named, the dry run's F-1 is fixed and verified, and the trial's human-gate packs are ready (2026-11-16)
 
 - **[PR #179](https://github.com/gg320324492-lgtm/labcairn/pull/179)
-  merged** as `21bfcf8` — the owner designated **Xiaoqi Zhushou** as the
+  merged** as `21bfcf8` — the owner designated `LabCairn` (originally designated **`LabCairn` (originally designated Xiaoqi Zhushou; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.)**; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.) as the
   real named reviewer (2026-11-16), replacing the test name
   `Trial-Reviewer`; the designation is recorded in the changelog, this
   handoff and both LC-P3-08 acceptance records
@@ -383,7 +383,7 @@
 - **The owner's G4 decisions (2026-11-15)**: the trial protocol is
   approved; the owner plays participant and advisor; the named reviewer
   was a test name (`Trial-Reviewer`) until the owner designated
-  **Xiaoqi Zhushou** as the real reviewer (2026-11-16); the exit is
+  `LabCairn` (originally designated **`LabCairn` (originally designated Xiaoqi Zhushou; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.)**; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.) as the real reviewer (2026-11-16); the exit is
   pre-authorized as PASS WITH NOTES if the eight rows pass with the
   row-7 named gap. The trial awaits the owner's machine and scheduling.
 

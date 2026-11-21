@@ -69,7 +69,7 @@ classification with the exit decision. A blocker keeps the decision blocked
 with its evidence address. No finding passes on a note alone.
 
 **Designation note (added 2026-11-16, status update only — resolved
-2026-11-16).** The owner designated **Xiaoqi Zhushou** as the named human
+2026-11-16).** The owner designated `LabCairn` (originally designated **`LabCairn` (originally designated Xiaoqi Zhushou; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.)**; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.) as the named human
 reviewer on 2026-11-16 (recorded in `docs/handoff/CURRENT.md` and
 `docs/changelog/phase-3.md` at commit `17a1abf73f254843cf54e62b5687fb7e884c62bc`).
 Form field F-05's placeholder (`[enter: owner-designated name]`) is a
