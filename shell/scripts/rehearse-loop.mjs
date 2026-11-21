@@ -265,6 +265,16 @@ const servedByService = await cdpOne.evaluate(
 )
 assert.equal(servedByService, 200, 'the loaded page could not fetch its own /health')
 
+// The page itself must have survived the preload: the AC-6 drill's
+// blank-workbench finding (2026-11-20) was a strip mounted on the
+// documentElement during parsing, which destroyed head and body — the strip
+// kept reading connected while the workbench never mounted. This act loads
+// the service's own static bundle, so the whole document must be present.
+assert.equal(connected.dom.hasBody, true, 'the parsed document has no body — the preload disturbed the parser')
+assert.equal(connected.dom.hasDoctype, true, 'the parsed document has no doctype — the preload disturbed the parser')
+assert.equal(connected.dom.hasRoot, true, 'the workbench mount point #root is absent — the page cannot render')
+assert.ok(connected.dom.rootChildren > 0, 'the workbench mounted nothing into #root')
+
 // Now the service dies from outside — the crash-after-readiness arm. A force
 // kill is deliberate: the arm is about the service being gone, not about the
 // shell's own stop path.

@@ -400,6 +400,9 @@ def test_the_test_step_runs_inside_the_shell_and_names_the_runner_temp(repo_root
     (`drain-witness.test.mjs:83-87`), a path a GitHub Windows runner has no E:
     volume for and nothing creates. `LABCAIRN_SHELL_TEST_TMP` is the only escape
     hatch, so an env of the runner's temp is load-bearing, not tidiness.
+    Read 2026-11-21: the default directory was removed from this machine by
+    the 2026-11-21 cleanup batch; the default in the file stands, the directory
+    is gone.
 
     The step must also run with `working-directory: shell`, because the test
     files import `../src/…` relative to themselves.

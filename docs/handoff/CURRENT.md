@@ -1,6 +1,73 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-21 - the twelve rows pass, three issues close, and the blank-workbench defect is fixed
+
+- **The twelve-row re-run is complete: 12 of 12 rows, all PASS**, on the
+  corpus the PR #213 repair produced. The eight 05/07 rows were observed
+  2026-11-21 on WPS Office 12.1.0.29690 and Microsoft Office 2019
+  16.0.17932.21140; the four 08 rows were observed 2026-11-19. Every
+  artefact re-hashed unchanged, `validate_12_rows.py` passes, and
+  `scripts/closeout_12_rows.py` at `e7d2d50` judges #189, #191 and #192
+  `CLOSED-READY` (record
+  [`LC-P3-02-twelve-row-rerun-2026-11-21.md`](../acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md)).
+- **Three issues are closed, and no issue is open on GitHub.** #215 is
+  closed: the AC1 identification criterion is fixed by the ablation
+  probes — the refusal trigger is the conjunction of the segment-level
+  `mc:AlternateContent` and the `wp:anchor` missing its five required
+  attributes, either alone opens fine (evidence
+  `E:/labcairn-local/ablation-probe-20261119/IDENTIFICATION-REPORT.md`).
+  #190 is closed on the support-matrix route: the `wontfix` stands and the
+  WPS row keeps its `PRESENCE-LOSS` as the host-version-bound observation.
+  The T9 review and T10 exit decision remain the owner's to run.
+- **The blank-workbench defect of the 2026-11-20 drill is fixed.** The
+  cause: the shell's preload appended the status strip to
+  `document.documentElement` at document-start, which displaced the page
+  parser and made Chromium discard the rest of the document, so `#root`
+  never existed and the workbench never mounted. The fix is commit
+  `eeb2eb7`: the strip mounts on `body` (the `documentElement` stays only
+  as the `about:blank` fallback) and the first injection waits for
+  `DOMContentLoaded`; the rehearsals now assert the page itself
+  (`hasBody`/`hasDoctype`/`hasRoot` and `#root`'s child count), and a
+  clean one-shot run on this machine renders the workbench. **Formal
+  closure of B9 still waits for the owner's re-run of the row on the
+  target VM, per the SOP.**
+- **`main` is six commits ahead of `origin/main`, unpushed** — the
+  closeout work lands locally first, and the push remains the owner's
+  call.
+
+## 2026-11-20 - AC-6's clean-Windows drill, on this machine
+
+- **The drill ran on the owner's own machine, on a cleaned baseline.** The
+  four readings the drill's card S01 asks are all asked **per user**, so a
+  cleaned per-user profile is a clean baseline by construction: the
+  install directory and the userData tree were copied out first
+  (2,989 files / 582.7 MB and 124 files / 17.3 MB), the product's own
+  uninstaller was run, and the four readings read clean. **The machine was
+  put back byte for byte afterwards** — 0 missing, 0 differing in size, 0
+  differing in content, 0 extra on both trees.
+- **The trial package installs, launches, upgrades, uninstalls and
+  reinstalls correctly on a clean machine.** Every automated check of
+  those arms passed except **one check in the drill's own tooling that the
+  tree has outgrown**: the tree requires the installer to copy the
+  template to the live name (`shell/test/packaging-config.test.mjs`), while
+  the drill still asks for a package that ships the template alone.
+- **Two findings.** The **2026-11-14 baseline package cannot launch on a
+  clean machine** — its shipped template names the install-tree workspace,
+  so the service refuses with `workspace_not_initialised`; the delivered
+  package ships the corrected template and launches. And the **workbench
+  body rendered blank** in the two screenshots: the chrome and the status
+  strip render, the guard shows its designed `401 session_required`, the
+  bundle and both its assets answer 200 — and **the cause was not
+  established**.
+- **The machine-wide state was identical before and after** (483 lines
+  each, no difference), so "the installer stayed inside the per-user paths"
+  is argued by difference rather than by the account's privileges — the
+  account is an administrator.
+- The record is
+  [`LC-P3-05-clean-windows-drill-2026-11-20.md`](../acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md);
+  the evidence lives outside the repository.
+
 ## 2026-11-19 - the corpus's text box was not a shape Word admits
 
 - **The corpus wrote a text box the WordprocessingML content model does

@@ -320,7 +320,10 @@ moment it was last taken.
    `shell/scripts/lib/shell-paths.mjs` derives it from the checkout's own `.venv`.
    `LABCAIRN_SHELL_TEST_TMP: ${{ runner.temp }}/shell-test-tmp` is load-bearing: the
    file's scratch default is `E:\labcairn-local\shell-test-tmp`, and a GitHub runner has
-   no E: volume.
+   no E: volume. Read 2026-11-21: that default directory was removed from this
+   machine by the 2026-11-21 cleanup batch — the default still stands in the file;
+   the directory itself is gone.
+
 2. **`release-dependency-licences` is renamed to `release-dependency-licences (${{ matrix.os }})`.**
    The name held the literal text `matrix.os` inside parentheses, not an expression, so
    the job's two platform legs reported **one** check name — the shape the job's own

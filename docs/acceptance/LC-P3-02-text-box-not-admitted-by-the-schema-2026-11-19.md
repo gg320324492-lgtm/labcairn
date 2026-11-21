@@ -182,7 +182,7 @@ and the cause is what this record had to get right.
 | measured value | the artifact as the rerun first measured it | after the anchor repair | the artifact as this branch writes it |
 |---|---|---|---|
 | bytes | 2,531 | 2,789 | 2,814 |
-| SHA-256 | `cbf08be135b26c8876075641421d9c4ee881bcb3387d80e14c8875585bc746dd` | `c5404ec654969a1fd0b6ed20902f1f3bdc9dba3e95ba6130696c14d62fce3edc` | `3a28c55ce14f5354e8b41999b30a4b8a21059d48b005a9ab50cd8149dc8eb33d` |
+| SHA-256 | `cbf08be135b26c8876075641421d9c4ee881bcb3387d80e14c8875585bc746dd` | `c5404ec654969a1fd0b6ed20902f1f3bdc9dba3e95ba6130696c14d62fce3edc` | `30c2d8f9669614a3d192e5093154e3e22afd1ff5912e0e7e1646082d01a5a4bc` |
 | `mc:AlternateContent`'s parent | `w:p` | `w:r` | `w:r` |
 | `wp:anchor`'s required attributes present | 0 of 5 | 5 of 5 | 5 of 5 |
 | `wp:anchor`'s required children present | 3 of 6 | 6 of 6 | 6 of 6 |
@@ -200,6 +200,16 @@ the validator cannot have are the same in every column and are not
 defects: `mc:Ignorable` is on `w:document` in every file Word writes and
 the ECMA schema has no opinion about it, and the `wps` namespace is
 Microsoft's extension, which the ECMA schemas do not carry.
+
+**The third column's SHA-256 was re-read on 2026-11-20**, because the
+artifacts were regenerated after this table was written and a `.docx` is a
+zip, and a zip carries the timestamps of the files inside it: regenerating
+the same content produces different bytes. The column's other readings are
+unchanged -- the same bytes with the same sizes and the same shape
+properties -- and the value now printed is the one the file on disk has
+(`sha256sum`, 2,814 B). It is also the value the twelve-row rerun's ledger
+and its twelve cards carry, so the operator's re-hash compares against the
+same bytes this table describes.
 
 The superseded artifacts were **kept**, not deleted: they are in
 `E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs-defective-20261119/`.

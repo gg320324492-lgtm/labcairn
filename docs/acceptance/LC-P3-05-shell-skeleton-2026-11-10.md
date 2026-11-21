@@ -406,9 +406,13 @@ run and are reported in §9.
 this machine; `python` on `PATH` here is 3.10.11 while the project's interpreter
 is the `.venv`'s 3.12.13, so the shell's scripts resolve the interpreter and the
 console script as a pair (`tests/workbench_serve_support.py`'s `console_script()`
-rule) rather than from `PATH`. Scratch lives at `E:\labcairn-local\shell-scratch`
+rule) rather than from `PATH`. Scratch lived at `E:\labcairn-local\shell-scratch`
 and `E:\labcairn-local\shell-test-tmp`; drained logs at `E:\labcairn-local\shell-logs`
 — all outside the repository, no token value and no corpus text in any of them.
+**Read 2026-11-21: the two scratch directories are gone** — the 2026-11-21
+cleanup batch removed them (each rehearsal creates and cleans its own scratch,
+so nothing live pointed into them); the paths above are this record's 2026-11-10
+reading, kept as history.
 
 ---
 

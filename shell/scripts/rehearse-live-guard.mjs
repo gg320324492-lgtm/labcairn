@@ -124,6 +124,12 @@ try {
   assert.equal(state.bridgeStatus, 'connected', 'the status bridge did not stay connected')
   assert.equal(state.stripGuard, '401 session_required', 'the strip did not display the refusal as a status')
   assert.equal(state.guardStatus, '401 session_required', 'the bridge did not report the refusal')
+  // The document must have survived the preload. This rehearsal serves no
+  // static bundle (STATIC_DIR empty), so the page is the API's own response
+  // and may carry no doctype or #root — but it must still have a body: the
+  // AC-6 drill's blank-workbench finding (2026-11-20) was a strip mounted on
+  // the documentElement during parsing, which destroyed head and body alike.
+  assert.equal(state.dom.hasBody, true, 'the parsed document has no body — the preload disturbed the parser')
 
   const printed = await waitForLine(/mutation refused: 401 session_required \(sender origin (\S+)\)/)
   assert.equal(printed[1], origin, 'the guard report was accepted from a different sender origin')

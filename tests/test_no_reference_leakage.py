@@ -1491,6 +1491,7 @@ CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "tests/test_readme_accuracy.py": 13,
     "docs/research/upstream-study/PeerRead.md": 11,
     "tests/test_version_alignment.py": 11,
+    "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md": 4,
     "docs/plans/PHASE_2-work-orders.md": 10,
     "tests/test_status_consistency.py": 5,
     "tests/test_cli_json_forms.py": 2,
