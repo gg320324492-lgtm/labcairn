@@ -5,7 +5,8 @@
 
 - **The LC-P3-08 trial ran on 2026-11-21/22** on the owner's machine, the
   owner as participant and advisor, on the real material-batch-5 sample
-  (advisor-annotated `MNBs氯消毒大肠杆菌5批注.docx`, sha256 `a7a38132…`).
+  (the advisor-annotated working sample, sha256 `a7a38132…`, named by
+  filename in the trial record).
   T0's four install arms passed on the 0.0.2 package; T3's loop ran end to
   end through the consent gate; T6's dual-host reopen found the trial's one
   product defect — the regex strip produced two malformed `document.xml`
