@@ -557,6 +557,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_docx_edit_refusal.py": ("negative", "crash-between-write-and-confirm"),
     "test_docx_edit_fidelity.py": ("integration", "artifact-hashes"),
     "test_docx_edit_records.py": (REPOSITORY_CLASS, "repository-gate"),
+    # LC-P3-08's strip stage: the tree-walking removal of the advisor's
+    # tracked revisions and comment markers, written after the trial's
+    # regex strip produced malformed OOXML Word 2019 refused (the trial
+    # record's named defect, fixed at ce1f2f0). It checks the repository's
+    # own editing module, so it files under the repository's own gates.
+    "test_editing_strip.py": (REPOSITORY_CLASS, "repository-gate"),
     # LC-P3-02's twelve-row closeout: the tool that turns a finished rerun
     # into a record, and the issue verdicts it reaches. Its clause is the
     # insufficient evidence, because the property it watches is that an
