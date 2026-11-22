@@ -2,7 +2,7 @@
 
 **Research that leaves a trail. · 让每一步研究，都有迹可循。**
 
-> **Status: Phase 1 is closed at G5; Phase 2's exit gate is CLOSED, PASS WITH NOTES and its administrative closeout is CLOSED.** The evidence chain, the DOCX reader, the version graph, the guidance memory and the frozen P1 baseline are in the tree and mutation-checked; the blind evaluation and the competitor comparison are measured and recorded, with no measured capability gain. The Phase 3 board is open ([LC-P3-00](docs/acceptance/LC-P3-00-board-opening-decisions.md), decisions of 2026-11-07), and the [LC-P3-01 … LC-P3-08 work orders](docs/plans/PHASE_3-work-orders.md) are issued; implementation is accumulated locally, no gate is closed and no delivery is authorised — current position: [docs/ROADMAP.md](docs/ROADMAP.md#current-position). The features listed below are **planned, not yet shipped**. Do not use the current code for unsupported scientific or safety-critical decisions.
+> **Status: Phase 1 is closed at G5; Phase 2's exit gate is CLOSED, PASS WITH NOTES and its administrative closeout is CLOSED; Phase 3's exit gate (G4) is CLOSED, PASS WITH NOTES** — the internal trial ran on the real advisor sample, the independent review completed, the one routed defect it found was fixed and witnessed, and the exit decision is signed ([LC-P3-08-exit-decision-2026-11-22.md](docs/acceptance/LC-P3-08-exit-decision-2026-11-22.md)). The carried named gaps and limits travel with their closing conditions. The features listed below are **planned, not yet shipped**. Do not use the current code for unsupported scientific or safety-critical decisions.
 
 **Read this page in:** English · [中文](#中文版--chinese-version) · the standalone Chinese document is [README.zh-CN.md](README.zh-CN.md).
 

@@ -383,7 +383,11 @@ owner-gated is the **trial machine designation and its support-matrix
 re-measurement** (T0), not the existence of an installable build.
 
 **Registry status note (added 2026-11-16, status update only — row 4
-resolved 2026-11-16).** The owner designated `LabCairn` (originally designated **`LabCairn` (originally designated Xiaoqi Zhushou; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.)**; superseded **Read 2026-11-21 (owner's ruling): the reviewer designation is now `LabCairn`** — the project's own name replaces the personal designation everywhere the trial records name a reviewer.) as the
+resolved 2026-11-16).** The owner designated `LabCairn` (originally
+designated Xiaoqi Zhushou; superseded **Read 2026-11-21 (owner's ruling):
+the reviewer designation is now `LabCairn`** — the project's own name
+replaces the personal designation everywhere the trial records name a
+reviewer.) as the
 named human reviewer on 2026-11-16, recorded in
 `docs/handoff/CURRENT.md` and `docs/changelog/phase-3.md` at commit
 `17a1abf73f254843cf54e62b5687fb7e884c62bc`. Registry row 4's

@@ -100,7 +100,7 @@ Row 7 — one real model:
           LC-P3-06's bounded run is cited as that ticket's own record, not
           a pass)
   Record: docs/acceptance/LC-P3-08-trial-record-2026-11-22.md §"Row 7"
-          @15c7a18…; docs/plans/LC-P3-06-real-half-2026-11-10.md
+          @15c7a18…; docs/acceptance/LC-P3-06-real-half-2026-11-10.md
 Row 8 — distribution/review (installer identity, install/run/rollback):
   Status: pass by citation for the drilled identity + the trial's own
           package installed and ran (T0 four arms PASS); measured gap on
@@ -120,8 +120,8 @@ controlled de-identified case with a person reviewing the suggestion
 before delivery
 Substitute passed this row: NO (never permitted)
 Cited context (that ticket's own records, NOT a pass):
-  docs/plans/LC-P3-06-real-half-2026-11-10.md
-  docs/plans/LC-P3-06-substitute-first-2026-11-10.md
+  docs/acceptance/LC-P3-06-real-half-2026-11-10.md
+  docs/acceptance/LC-P3-06-substitute-first-2026-11-10.md
   (bounded run: 5/20 requests, 5,136/50,000 tokens, two locatable
    suggestions, gaps G4/G7 — cited as context only)
 ```
