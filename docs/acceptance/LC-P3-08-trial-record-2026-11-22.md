@@ -8,9 +8,10 @@ repository commit `1d52ef3`).
 awaits T9 (independent review) and T10 (owner's signed verdict).
 
 **This record names its own commit:** it is written at
-`<COMMIT-SHA-TO-BE-FILLED-AT-COMMIT-TIME>` on `main`. Execution plan §9
-forbids quoting an unprinted SHA; the commit line is printed when this
-file is committed, and the T9 reviewers read the record at that commit.
+`268d6793e5e5eb81fbb0539401a806d37aea139b` on `main` (the commit that
+adds this file; the commit that carries this sentence is an amendment
+naming it). Execution plan §9 forbids quoting an unprinted SHA; the T9
+reviewers read the record at this commit.
 
 ## Sample and roles (fingerprint-identified)
 
