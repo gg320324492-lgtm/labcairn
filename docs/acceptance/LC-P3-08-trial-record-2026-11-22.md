@@ -206,12 +206,21 @@ evidence, and this trial's reopen evidence stands separately above.
 
 ## Limits this trial adds to the recorded list
 
-1. **Strip-stage OOXML malformation (new, found by this trial):** the
+1. **Strip-stage OOXML malformation (new, found by this trial) — FIXED
+   2026-11-22 at commit `ce1f2f086421ceeea50b66cf6eb687cdc13ce595`:** the
    strip stage's output carried two malformed `document.xml` sites
    (four missing close tags) that Word 2019 refuses. Found by the
    dual-host reopen; repaired for the trial to proceed; the repair is
-   recorded with before/after digests. Closing condition: the strip
-   stage emits well-formed OOXML by construction.
+   recorded with before/after digests. **The fix is now the product's:**
+   `src/labcairn/editing/strip.py` strips by tree walking (every `w:del`
+   removed whole, every `w:ins` unwrapped, lxml preserving the source's
+   namespace prefixes), with seven witness tests
+   (`tests/test_editing_strip.py`). On the trial's own advisor sample the
+   fixed strip's output is well-formed and keeps the non-mark content
+   (25 tables / 7 images / 4 fields / 8 media parts), both hosts open and
+   reopen it without a repair prompt, and the 0.0.3 installer (sha256
+   `681607c7…`, 354 088 228 B, built from `ce1f2f0…`) carries it —
+   install/launch/uninstall smoke passed. Closing condition met.
 2. **No apply/publish stage in this build** (rows 1/3/6 partial or
    unexercised): the loop ends at the analysis artifacts. Closing
    condition: the apply/publish stage lands and the four-deliverable
