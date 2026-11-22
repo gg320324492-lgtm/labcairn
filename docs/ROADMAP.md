@@ -5,13 +5,16 @@
 **Version:** LCR-PLAN-1.1  
 **Synchronized with:** `LC-P1-v1.1`, the Phase 1 work orders and gates in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md). Phase plan and work orders are revised together; they must never drift apart.
 **Status:** Phase 1 closed at G5; Phase 2's exit gate is CLOSED, PASS WITH
-NOTES and its administrative closeout is CLOSED. Phase 3's board is open.
-The work orders [`LC-P3-01` … `LC-P3-08`](plans/PHASE_3-work-orders.md)
-were issued on the owner's decisions of 2026-11-08 and 2026-11-09; §§8–13
-carry the later ground-truth revision published 2026-11-10. The board's
-rows remain `IN PROGRESS` or `BLOCKED` where their evidence is open, no
-Phase 3 gate is closed, and the phases after Phase 3 remain strategic
-targets.
+NOTES and its administrative closeout is CLOSED. **Phase 3's exit gate (G4)
+is CLOSED, PASS WITH NOTES** — the exit decision was signed 2026-11-22 at
+commit `15c7a18993e51c8b529eebd067148bc6dc21b557`
+([`LC-P3-08-exit-decision-2026-11-22.md`](acceptance/LC-P3-08-exit-decision-2026-11-22.md)),
+on the trial record and the completed independent review; the carried named
+gaps and limits travel with their closing conditions. The work orders
+[`LC-P3-01` … `LC-P3-08`](plans/PHASE_3-work-orders.md) were issued on the
+owner's decisions of 2026-11-08 and 2026-11-09; §§8–13 carry the later
+ground-truth revision published 2026-11-10. The phases after Phase 3 remain
+strategic targets.
 
 ## Current position
 

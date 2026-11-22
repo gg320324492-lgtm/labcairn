@@ -1,6 +1,41 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-22 - Phase 3 closes: the trial ran, the review passed, the strip defect is fixed, and the exit decision is signed
+
+- **The LC-P3-08 trial ran on 2026-11-21/22** on the owner's machine, the
+  owner as participant and advisor, on the real material-batch-5 sample
+  (advisor-annotated `MNBs氯消毒大肠杆菌5批注.docx`, sha256 `a7a38132…`).
+  T0's four install arms passed on the 0.0.2 package; T3's loop ran end to
+  end through the consent gate; T6's dual-host reopen found the trial's one
+  product defect — the regex strip produced two malformed `document.xml`
+  sites Word 2019 refuses (WPS masks them); T7 collected six observed
+  refusal classes.
+- **The independent review (T9) completed** — Reader A under the LabCairn
+  designation, Reader B an independent agent session that recomputed every
+  value from disk: **0 blocker, 1 routed defect, measured gaps honestly
+  recorded, no disagreement**. Reader B's supply-gap contradiction was
+  adjudicated on the install tree (`shell-env.json` exists for 0.0.2+).
+- **The routed defect is fixed, not carried**: `src/labcairn/editing/strip.py`
+  strips by tree walking (commit `ce1f2f0`, seven witness tests in
+  `tests/test_editing_strip.py`); the fixed strip's output on the trial's
+  own sample is well-formed and reopens on WPS and Word 2019 without a
+  repair prompt; the 0.0.3 installer (sha256 `681607c7…`, 354,088,228 B,
+  from `ce1f2f0`) carries it and passed the install/launch/uninstall smoke.
+- **The exit decision (T10) is signed: PASS WITH NOTES**, at commit
+  `15c7a18` ([`LC-P3-08-exit-decision-2026-11-22.md`](../acceptance/LC-P3-08-exit-decision-2026-11-22.md)).
+  The owner widened the pre-authorization's narrow condition at signing, on
+  the evidence, to admit the honestly recorded measured gaps as carried
+  obligations; the row-7 named gap stays held open while LC-P3-06 is
+  BLOCKED. **Phase 3's exit gate is closed.**
+- **All of it reached `main` through PR #219** — 23/23 checks green on the
+  third run (the first two caught the strip test's missing evaluation
+  filing, the unrefreshed external-path ledger and the moved
+  `requires_provider` anchor; each was fixed and re-run). The delivery
+  branch was deleted after the merge; the witness ledger reads **LOST --
+  none, ADDED -- 7**.
+
+
 ## 2026-11-21 - the twelve rows pass, three issues close, and the blank-workbench defect is fixed
 
 - **The twelve-row re-run is complete: 12 of 12 rows, all PASS**, on the
@@ -2509,6 +2544,7 @@ CI runs in six shards per platform (34.5 minutes → 7.3).
 | **G3** | **closed** — LC-P1-08, LC-P1-09 and LC-P1-10 all PASS WITH NOTES, and the gate closed on an **independent review** at `d114810` (verdict PASS WITH NOTES; every one of the gate's fourteen fixes broken, no mutation survived). [Acceptance](../acceptance/G3-acceptance.md) |
 | **G5** | **closed** — LC-P1-13 and LC-P1-14 both `PASS WITH NOTES`, and the gate closed on **two independent reviews** that wrote **none** of its fixes: the product-and-measurement scope's first verdict was **FAIL** on a clean property table, and after its findings were fixed **it re-ran its own eleven mutations against the fixed code and passed**; the documents-and-release scope's verdict is **PASS WITH NOTES**, with every one of its fourteen re-run by the reviewer that wrote them. **Twenty-four findings between them, all fixed.** The gate also found six of its own, and its own end-to-end test found one more — the surfaces never run the recovery pass — which is **handed over rather than fixed**. **Closed since the gate**, in the section below. [G5 acceptance](../acceptance/G5-acceptance.md) · [the first review](../acceptance/g5-review-product.md) · [the second](../acceptance/g5-review-records.md) |
 | **G4** | **closed** — LC-P1-11 and LC-P1-12 both `PASS WITH NOTES`, and the gate closed on an **independent review** at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` (verdict **PASS WITH NOTES**; two reviewers who wrote none of the gate's fixes, one per scope — the report path's review **failed the gate five times** on a clean property table, and the three surfaces' review came back **BLOCKED five times and FAIL once**, the first on two blockers and six notes, one of the blockers sitting directly under the gate's own exit test, and the last, at `47259e0`, on **this round's four findings** — the shared rule's own witness, one command-level refusal, the pairing by value, and the crash fix's two catches — **were fixed, and the review re-verified its own findings against the fixed code and passed**. [G4 acceptance](../acceptance/G4-acceptance.md) · [LC-P1-11 acceptance](../acceptance/LC-P1-11-acceptance.md) · [LC-P1-12 acceptance](../acceptance/LC-P1-12-acceptance.md) |
+| **Phase 3 G4** | **closed, PASS WITH NOTES** — the exit decision was signed 2026-11-22 at commit `15c7a18993e51c8b529eebd067148bc6dc21b557` ([`LC-P3-08-exit-decision-2026-11-22.md`](../acceptance/LC-P3-08-exit-decision-2026-11-22.md)), on the trial record (T8) and the completed independent review (T9: Reader A under the LabCairn designation, Reader B an independent agent session that recomputed every value from disk; the disclosure sentence byte-verified; no disagreement). The review's routed defect — the trial's regex strip produced malformed OOXML Word 2019 refused — was **fixed the same day** at `ce1f2f0` (`src/labcairn/editing/strip.py`, tree-walking strip; seven witness tests; the fixed output reopens on both hosts without a repair prompt; carried in the 0.0.3 installer, sha256 `681607c7…`, smoked). No blocker stands; the remaining measured gaps and the row-7 named gap (LC-P3-06 BLOCKED) travel forward as recorded obligations, each with its closing condition. The owner widened the pre-authorization's narrow condition at signing, on the evidence. |
 
 ## What exists now
 
