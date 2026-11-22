@@ -1,6 +1,6 @@
 {
   "schema": "labcairn-external-path-ledger/v1",
-  "read_at": "2026-11-21",
+  "read_at": "2026-11-18",
   "root": "E:/labcairn-local",
   "what_this_is": "Every path under E:/labcairn-local that a tracked file names, and what each one is expected to be: present, renamed (with the path that replaced it), or absent. The rule it encodes: a rename is not a defect, a bare pointer to the old name is. The half that needs the packs runs on a development machine; the half that only needs the tree runs in CI.",
   "apparatus": [
@@ -112,6 +112,18 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/ablation-probe-20261119/IDENTIFICATION-REPORT.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the #215 identification experiment's report: the 7-open matrix that pins the refused construct to the conjunction of paragraph-level mc:AlternateContent and the anchor's five missing required attributes",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md",
+        "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/ac6-anchor-probe-20261119",
       "expectation": "present",
       "kind": "material",
@@ -209,6 +221,18 @@
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/batch-fingerprints.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md",
+        "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md"
       ]
     },
     {
@@ -934,6 +958,39 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/g4-templates-prefilled-20261117/templates/trial-distribution-record.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-1.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/g4-templates-prefilled-20261117/templates/trial-evidence-boundary-record.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/g4-templates-prefilled-20261117/templates/trial-quality-record.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/harness-final2.log",
       "expectation": "present",
       "kind": "material",
@@ -1329,8 +1386,20 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
+        "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md",
         "docs/changelog/phase-3.md",
         "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/EXIT-PREAUTH.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-exit-decision-2026-11-22.md"
       ]
     },
     {
@@ -1344,6 +1413,51 @@
         "docs/acceptance/LC-P3-08-trial-protocol-2026-11-14.md",
         "docs/handoff/CURRENT.md",
         "docs/plans/PHASE_3-work-orders.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/RUN-PLAN.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-1.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/T3-TRIAL-RECORD-20261121.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-1.md",
+        "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/T5-T7-TRIAL-RECORD-20261121.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-1.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/T6-REOPEN-RECORD-20261122.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-1.md"
       ]
     },
     {
@@ -1405,6 +1519,41 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/p308-trial-run/installer/SHA256SUMS.txt",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-1.md",
+        "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/screenshots",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-exit-decision-2026-11-22.md",
+        "docs/acceptance/LC-P3-08-review-2026-11-22-1.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/screenshots/t6-",
+      "expectation": "absent",
+      "kind": "pattern",
+      "replacement": null,
+      "note": "the record writes a shape rather than an address — a wildcard or a placeholder, so there is no single path here to lose",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/p308-trial-run/t0-rehearsal/T0-REHEARSAL-SUMMARY-NEWPKG-2026-11-16.md",
       "expectation": "present",
       "kind": "material",
@@ -1413,6 +1562,17 @@
       "announcements": [],
       "sites": [
         "docs/changelog/phase-3.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/trial-response-record-20261121.md",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-1.md"
       ]
     },
     {
@@ -1681,6 +1841,28 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/readerB-work",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/readerB-work/disclosure-canonical.txt",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/reference-repos",
       "expectation": "present",
       "kind": "material",
@@ -1717,6 +1899,51 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/rerun12-merge-kit-20261118",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the merge kit of the twelve-row rerun: the filled table, the append record, the closure table, the declarations and the merge manifest (named by the 2026-11-21 rider and the rerun record)",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-support-matrix.md",
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/closeout-declarations-20261121.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the owner's declarations of the twelve-row rerun (named by the rerun record with its sha256)",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/rerun-rows-filled-12-20261119.csv",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the filled twelve-row table of the rerun (named by the rerun record with its sha256)",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/rerun12-append-20261121T040422Z.csv",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "the twelve-row append record the closeout tool wrote (named by the rerun record with its sha256)",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/rerun12-opaque-20261118",
       "expectation": "present",
       "kind": "material",
@@ -1725,6 +1952,7 @@
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md",
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md",
         "docs/changelog/phase-3.md",
         "docs/handoff/CURRENT.md",
         "docs/plans/PHASE_3-work-orders.md",
@@ -1740,6 +1968,72 @@
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/05-image-and-relationship-surgical-clean.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R05/R06), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/05-image-and-relationship-surgical-marked.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R07/R08), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/07-everything-at-once-surgical-clean.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R09/R10), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/07-everything-at-once-surgical-marked.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R11/R12), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/08-refusals-elsewhere-in-the-document-surgical-clean.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R01/R02), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/08-refusals-elsewhere-in-the-document-surgical-marked.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "a twelve-row rerun artifact (row R03/R04), named by the rerun record with its sha256",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-02-twelve-row-rerun-2026-11-21.md"
       ]
     },
     {
@@ -2780,105 +3074,6 @@
         "docs/changelog/phase-3.md",
         "docs/handoff/CURRENT.md"
       ]
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-merge-kit-20261118",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "the merge kit of the twelve-row rerun: the filled table, the append record, the closure table, the declarations and the merge manifest (named by the 2026-11-21 rider and the rerun record)",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/08-refusals-elsewhere-in-the-document-surgical-clean.docx",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "a twelve-row rerun artifact (row R01/R02), named by the rerun record with its sha256",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/08-refusals-elsewhere-in-the-document-surgical-marked.docx",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "a twelve-row rerun artifact (row R03/R04), named by the rerun record with its sha256",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/05-image-and-relationship-surgical-clean.docx",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "a twelve-row rerun artifact (row R05/R06), named by the rerun record with its sha256",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/05-image-and-relationship-surgical-marked.docx",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "a twelve-row rerun artifact (row R07/R08), named by the rerun record with its sha256",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/07-everything-at-once-surgical-clean.docx",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "a twelve-row rerun artifact (row R09/R10), named by the rerun record with its sha256",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-opaque-20261118/artifacts/outputs/07-everything-at-once-surgical-marked.docx",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "a twelve-row rerun artifact (row R11/R12), named by the rerun record with its sha256",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/closeout-declarations-20261121.json",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "the owner's declarations of the twelve-row rerun (named by the rerun record with its sha256)",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/ablation-probe-20261119/IDENTIFICATION-REPORT.md",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "the #215 identification experiment's report: the 7-open matrix that pins the refused construct to the conjunction of paragraph-level mc:AlternateContent and the anchor's five missing required attributes",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/rerun-rows-filled-12-20261119.csv",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "the filled twelve-row table of the rerun (named by the rerun record with its sha256)",
-      "announcements": [],
-      "sites": []
-    },
-    {
-      "path": "E:/labcairn-local/rerun12-merge-kit-20261118/rerun12-append-20261121T040422Z.csv",
-      "expectation": "present",
-      "kind": "material",
-      "replacement": null,
-      "note": "the twelve-row append record the closeout tool wrote (named by the rerun record with its sha256)",
-      "announcements": [],
-      "sites": []
     }
   ]
 }

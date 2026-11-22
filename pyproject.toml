@@ -305,6 +305,14 @@ ignore_missing_imports = true
 module = ["reportlab.*"]
 ignore_missing_imports = true
 
+# lxml ships no type stubs in the installed distribution and the editing
+# strip stage is the one module that imports it (lazily, per ADR-0013
+# constraint 2). Recorded once here, scoped the same way as reportlab's
+# override above; remove if lxml-stubs ships with the package.
+[[tool.mypy.overrides]]
+module = ["lxml.*"]
+ignore_missing_imports = true
+
 # ---------------------------------------------------------------------------
 # pytest
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 {
   "name": "@labcairn/shell",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "type": "module",
   "description": "LabCairn desktop shell: an Electron main process that starts the local service and loads the origin it serves.",
