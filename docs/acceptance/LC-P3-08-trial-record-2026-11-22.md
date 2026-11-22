@@ -170,9 +170,13 @@ path + digest.
   ran the trial loop (T0 four-arm precondition PASS —
   `T0-PRECONDITION-RECORD-0.0.2-20261121.md`, sha256
   `466f3cd0ba06279dfd7beb19034bbf41d32181d2298a5e99b0648112be29e685`).
-- Known supply gap carried into the limits list: the installed package
-  ships `shell-env.template.json` and no `shell-env.json`, so first
-  launch needs one operator action.
+- Supply note, adjudicated 2026-11-22: T0 arm A's observation stands —
+  the 0.0.2 install materialized a live `resources/shell-env.json` at
+  install time (confirmed in the install tree
+  `C:\Users\pc\AppData\Local\Programs\LabCairn\resources\` on
+  2026-11-22). The first-launch supply gap recorded by the LC-P3-05
+  drill belonged to the 0.0.0 package and is **closed for 0.0.2**; the
+  limits list carries the correction, not the gap.
 
 ## Cross-citation — LC-P3-02 real-sample record (cited, not claimed)
 
@@ -214,8 +218,11 @@ evidence, and this trial's reopen evidence stands separately above.
    binding is demonstrated.
 3. **Row-7 named gap** held open per §14 item 7 while LC-P3-06 is
    `BLOCKED`.
-4. **First-launch supply gap** (carried from LC-P3-05): the installed
-   package ships `shell-env.template.json` only.
+4. **First-launch supply gap — closed for 0.0.2** (adjudicated
+   2026-11-22): the 0.0.2 install materialized a live
+   `resources/shell-env.json` at install time (T0 arm A; install tree
+   confirmed). The gap belonged to the 0.0.0 drill package; it does not
+   carry forward against this trial's package.
 
 ## Where the raw evidence lives
 

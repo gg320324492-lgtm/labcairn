@@ -1493,6 +1493,8 @@ CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "tests/test_version_alignment.py": 11,
     "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md": 4,
     "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md": 7,
+    "docs/acceptance/LC-P3-08-review-2026-11-22-1.md": 11,
+    "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md": 5,
     "docs/plans/PHASE_2-work-orders.md": 10,
     "tests/test_status_consistency.py": 5,
     "tests/test_cli_json_forms.py": 2,
