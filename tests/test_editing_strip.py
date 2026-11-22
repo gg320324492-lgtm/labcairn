@@ -45,20 +45,20 @@ def _paragraph_with_marks() -> bytes:
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:document xmlns:w="{W}"><w:body>'
-        "<w:p><w:pPr><w:spacing w:line=\"400\" w:lineRule=\"exact\"/>"
-        "<w:rPr><w:del w:id=\"194\" w:author=\"T\" w:date=\"2025-10-10T17:21:00Z\"/>"
-        "<w:sz w:val=\"24\"/></w:rPr></w:pPr>"
-        "<w:r><w:rPr><w:sz w:val=\"24\"/></w:rPr><w:t>kept sentence</w:t></w:r>"
-        "<w:del w:id=\"195\" w:author=\"T\" w:date=\"2025-10-10T17:21:00Z\">"
+        '<w:p><w:pPr><w:spacing w:line="400" w:lineRule="exact"/>'
+        '<w:rPr><w:del w:id="194" w:author="T" w:date="2025-10-10T17:21:00Z"/>'
+        '<w:sz w:val="24"/></w:rPr></w:pPr>'
+        '<w:r><w:rPr><w:sz w:val="24"/></w:rPr><w:t>kept sentence</w:t></w:r>'
+        '<w:del w:id="195" w:author="T" w:date="2025-10-10T17:21:00Z">'
         "<w:r><w:delText>deleted sentence</w:delText></w:r></w:del>"
-        "<w:ins w:id=\"196\" w:author=\"T\" w:date=\"2025-10-10T17:21:00Z\">"
+        '<w:ins w:id="196" w:author="T" w:date="2025-10-10T17:21:00Z">'
         "<w:r><w:t>inserted sentence</w:t></w:r></w:ins>"
-        "<w:commentRangeStart w:id=\"7\"/>"
+        '<w:commentRangeStart w:id="7"/>'
         "<w:r><w:t>commented text</w:t></w:r>"
-        "<w:commentRangeEnd w:id=\"7\"/>"
-        "<w:commentReference w:id=\"7\"/>"
+        '<w:commentRangeEnd w:id="7"/>'
+        '<w:commentReference w:id="7"/>'
         "</w:p></w:body></w:document>"
-    ).encode("utf-8")
+    ).encode()
 
 
 def test_strip_removes_every_tracked_revision_and_comment_marker() -> None:
@@ -76,10 +76,7 @@ def test_strip_removes_every_tracked_revision_and_comment_marker() -> None:
 def test_strip_keeps_the_paragraph_mark_properties_without_the_marker() -> None:
     stripped = strip_advisor_marks(_paragraph_with_marks())
     root = ElementTree.fromstring(stripped)
-    sizes = [
-        element.get(_w("val"))
-        for element in root.iter(_w("sz"))
-    ]
+    sizes = [element.get(_w("val")) for element in root.iter(_w("sz"))]
     # The paragraph-mark rPr's sz (24) survives with its del marker gone,
     # and so does the kept run's.
     assert sizes.count("24") == 2
@@ -129,15 +126,15 @@ def test_strip_on_a_synthetic_advisor_shaped_document_stays_well_formed() -> Non
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:document xmlns:w="{W}"><w:body>'
         "<w:tbl><w:tr><w:tc><w:p><w:pPr><w:rPr>"
-        "<w:del w:id=\"1\" w:author=\"A\" w:date=\"2025-01-01T00:00:00Z\"/>"
+        '<w:del w:id="1" w:author="A" w:date="2025-01-01T00:00:00Z"/>'
         "</w:rPr></w:pPr>"
-        "<w:del w:id=\"2\" w:author=\"A\" w:date=\"2025-01-01T00:00:00Z\">"
+        '<w:del w:id="2" w:author="A" w:date="2025-01-01T00:00:00Z">'
         "<w:r><w:delText>cell deletion</w:delText></w:r></w:del>"
-        "<w:ins w:id=\"3\" w:author=\"A\" w:date=\"2025-01-01T00:00:00Z\">"
+        '<w:ins w:id="3" w:author="A" w:date="2025-01-01T00:00:00Z">'
         "<w:r><w:t>cell insertion</w:t></w:r></w:ins>"
         "</w:p></w:tc></w:tr></w:tbl>"
         "</w:body></w:document>"
-    ).encode("utf-8")
+    ).encode()
     stripped = strip_advisor_marks(document)
     root = ElementTree.fromstring(stripped)
     assert not any(element.tag == _w("del") for element in root.iter())

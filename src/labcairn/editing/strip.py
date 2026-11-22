@@ -39,6 +39,7 @@ settings, theme, and the namespace declarations the root carries.
 
 from __future__ import annotations
 
+import io
 import re
 import zipfile
 from typing import TYPE_CHECKING, Final
@@ -58,16 +59,14 @@ _COMMENTS_PARTS: Final[frozenset[str]] = frozenset(
     }
 )
 
-_COMMENTS_REL: Final[re.Pattern[str]] = re.compile(
-    r"<Relationship [^>]*comments[^>]*/>"
-)
+_COMMENTS_REL: Final[re.Pattern[str]] = re.compile(r"<Relationship [^>]*comments[^>]*/>")
 
 
 def _w(tag: str) -> str:
     return f"{{{W}}}{tag}"
 
 
-def _strip_tree(root: "lxml_etree._Element") -> None:
+def _strip_tree(root: lxml_etree._Element) -> None:
     """Remove every tracked-revision and comment marker from the tree."""
     del_tag, ins_tag = _w("del"), _w("ins")
     markers = (
@@ -87,9 +86,7 @@ def _strip_tree(root: "lxml_etree._Element") -> None:
             for child in list(parent):
                 if child.tag == del_tag:
                     parent.remove(child)
-        remaining = sum(
-            1 for tag in (ins_tag, del_tag) for _ in root.iter(tag)
-        )
+        remaining = sum(1 for tag in (ins_tag, del_tag) for _ in root.iter(tag))
         if remaining == 0:
             break
     for parent in list(root.iter()):
@@ -105,9 +102,10 @@ def strip_advisor_marks(data: bytes) -> bytes:
 
     root = lxml_etree.fromstring(data)
     _strip_tree(root)
-    return lxml_etree.tostring(
+    serialized: bytes = lxml_etree.tostring(
         root, encoding="UTF-8", xml_declaration=True, standalone=True
     )
+    return serialized
 
 
 def strip_advisor_marks_package(package: bytes) -> bytes:
@@ -118,9 +116,7 @@ def strip_advisor_marks_package(package: bytes) -> bytes:
     part is carried through unchanged, in its original order and with its
     original ZIP metadata.
     """
-    with zipfile.ZipFile(
-        io := __import__("io").BytesIO(package)
-    ) as source:
+    with zipfile.ZipFile(io.BytesIO(package)) as source:
         stripped_document = strip_advisor_marks(source.read("word/document.xml"))
         rels_names = source.namelist()
         if "word/_rels/document.xml.rels" in rels_names:
@@ -128,7 +124,7 @@ def strip_advisor_marks_package(package: bytes) -> bytes:
             stripped_rels = _COMMENTS_REL.sub("", rels)
         else:
             stripped_rels = None
-        buffer = __import__("io").BytesIO()
+        buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as target:
             for item in source.infolist():
                 if item.filename in _COMMENTS_PARTS:
