@@ -1,4 +1,4 @@
-"""The thirty-nine tables that make SQLite the task authority.
+"""The forty tables that make SQLite the task authority.
 
 Thirty-seven is not a claim to be trusted: ``tests/test_store_migrations.py``'s
 parity test walks ``Base.metadata`` and the migrated schema independently, and
@@ -3827,5 +3827,95 @@ class TrajectoryIndexRow(Base):
         CheckConstraint(
             "length(source_version_id) > 0 AND length(source_locator) > 0",
             name="trajectory_index_provenance_present",
+        ),
+    )
+
+
+class PptIndexRow(Base):
+    """One searchable object of a PowerPoint deck.
+
+    **Phase 4 (P4-MS), second source (execution plan §8.3).** A deck's
+    titles, body paragraphs, speaker notes, table rows and picture names
+    become rows that carry **what the object says and where it sits** -- the
+    1-based slide number, the 1-based position within the slide and the
+    object kind, which together are the address §8.5 asks a hit to point
+    at, plus the source fingerprint the extraction recorded so a hit is
+    checkable against the file it came from.
+
+    **Five kinds of object, and the vocabulary is closed**: ``title``,
+    ``body``, ``notes``, ``table`` and ``image``. A picture's text is its
+    name -- the deck's own word for the object -- and the kind column is
+    what keeps that distinction readable; a row whose kind is ``image`` and
+    whose text is a description of the pixels would be a conclusion the
+    bytes do not carry.
+
+    **And the id is derived, so re-ingesting a deck is the same rows.**
+    The application layer hashes the project, the source file's content
+    hash and the object's own fingerprint; a second ingestion finds the
+    rows that are already there, the same rule the trajectory index's
+    derived ids apply to re-reading a trajectory.
+    """
+
+    __tablename__ = "ppt_index_rows"
+
+    #: Derived by the application layer from the project, the source hash
+    #: and the object's fingerprint. Re-ingesting the same deck is the same
+    #: row.
+    object_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The content hash of the deck the object was read from. Two decks
+    #: with the same words are two decks, and the hash is what says so.
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The 1-based slide number -- the number a viewer shows -- and the
+    #: 1-based position within the slide, in document order.
+    slide_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    object_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: ``title``, ``body``, ``notes``, ``table`` or ``image`` -- the closed
+    #: vocabulary of what this row holds.
+    object_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: The object's own fingerprint, as the extraction recorded it.
+    object_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    #: What the object says. Never empty: an object with no words is not a
+    #: row, it is nothing.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The media part a picture references, resolved through the slide's
+    #: relationships, or ``None`` for every other kind.
+    media_target: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The structured locator, as JSON -- the ``PptxLocator``'s fields -- so
+    #: a hit can hand back the address without re-deriving it.
+    locator_json: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When the object was indexed.
+    ingested_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_ppt_index_project", "project_id"),
+        Index("ix_ppt_index_source", "source_sha256"),
+        CheckConstraint(
+            "object_kind IN ('title', 'body', 'notes', 'table', 'image')",
+            name="ppt_index_object_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "slide_no >= 1 AND object_position >= 1",
+            name="ppt_index_positions_positive",
+        ),
+        CheckConstraint(
+            "length(object_id) > 0 AND length(project_id) > 0",
+            name="ppt_index_ids_present",
+        ),
+        CheckConstraint(
+            "length(trim(text)) > 0",
+            name="ppt_index_text_present",
+        ),
+        CheckConstraint(
+            "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="ppt_index_source_sha256_well_formed",
+        ),
+        CheckConstraint(
+            "length(trim(object_fingerprint)) > 0 AND length(trim(locator_json)) > 0",
+            name="ppt_index_address_present",
         ),
     )
