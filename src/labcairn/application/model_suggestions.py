@@ -70,6 +70,7 @@ from labcairn.papers.feedback import FeedbackEvent, list_feedback_events
 from labcairn.providers.errors import classify_exception
 from labcairn.providers.redaction import Redactor
 from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
+from labcairn.security.paths import CanonicalPath
 from labcairn.security.permissions import Grant
 
 __all__ = [
@@ -462,9 +463,7 @@ def suggestion_approval_use(
     another's.
     """
     resource = _version_resource(context, event.version_id)
-    prompt = desensitised_prompt(
-        event, redactor=redactor if redactor is not None else Redactor()
-    )
+    prompt = desensitised_prompt(event, redactor=redactor if redactor is not None else Redactor())
     return ApprovalUse(
         capability=CapabilityId.MODEL_REQUEST,
         arguments=ModelRequestArgs(
@@ -658,7 +657,12 @@ class SuggestionLoop:
             self._exhausted = True
             if status == _RETRY:
                 self._entries.append(
-                    _entry(event, source=self._primary.model_id, outcome="exhausted", attempts=attempts)
+                    _entry(
+                        event,
+                        source=self._primary.model_id,
+                        outcome="exhausted",
+                        attempts=attempts,
+                    )
                 )
             self._count_failure()
             if self._stopped_reason is not None:
@@ -685,7 +689,7 @@ class SuggestionLoop:
         tokens_before = source.accounting.tokens_estimated
         try:
             edit = source(event)
-        except Exception as error:  # noqa: BLE001 - the loop classifies, not crashes
+        except Exception as error:
             elapsed = time.monotonic() - started
             failure = classify_exception(error, redactor=self._redactor)
             self._entries.append(

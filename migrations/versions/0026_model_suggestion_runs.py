@@ -63,12 +63,8 @@ def upgrade() -> None:
         sa.Column("requests_json", sa.JSON(), nullable=False),
         sa.Column("started_at", sa.String(), nullable=False),
         sa.Column("finished_at", sa.String(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["project_id"], ["paper_projects.project_id"], ondelete="CASCADE"
-        ),
-        sa.ForeignKeyConstraint(
-            ["version_id"], ["paper_versions.version_id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["project_id"], ["paper_projects.project_id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["version_id"], ["paper_versions.version_id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("run_id"),
         sa.CheckConstraint(
             "mode IN ('real', 'substitute')",
@@ -85,9 +81,7 @@ def upgrade() -> None:
             name="model_suggestion_runs_ids_present",
         ),
     )
-    op.create_index(
-        "ix_model_suggestion_runs_project", "model_suggestion_runs", ["project_id"]
-    )
+    op.create_index("ix_model_suggestion_runs_project", "model_suggestion_runs", ["project_id"])
 
 
 def downgrade() -> None:

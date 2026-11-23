@@ -206,9 +206,13 @@ def client(commented: BindingFixture) -> Iterator[tuple[TestClient, str]]:
 
 
 class _NoEvents:
-    """An event source that serves nothing: these witnesses call no stream."""
+    """An event source that serves nothing: these witnesses call no stream.
 
-    def page(self, request: Any) -> Any:
+    It satisfies the ``EventSource`` protocol's shape, and it is never
+    reached - the suggestion-loop witnesses call no stream route.
+    """
+
+    def page(self, session: Any, request: Any) -> Any:
         raise NotImplementedError("these witnesses call no stream route")
 
 
@@ -442,7 +446,9 @@ def test_spent_retries_fall_back_to_a_labelled_substitute(
     wired, token = client
     transport = CapturingTransport(error=_failure(retryable=True))
     run = _run_real(
-        commented, transport, run_id="run-fallback-1",
+        commented,
+        transport,
+        run_id="run-fallback-1",
         config=SuggestionLoopConfig(retry_attempts=2),
     )
     assert len(transport.requests) == 3, (
@@ -470,7 +476,9 @@ def test_consecutive_failures_stop_the_run_and_name_the_stop(
     """
     transport = CapturingTransport(error=_failure(retryable=True))
     run = _run_real(
-        commented, transport, run_id="run-stop-1",
+        commented,
+        transport,
+        run_id="run-stop-1",
         config=SuggestionLoopConfig(max_consecutive_failures=1, retry_attempts=0),
     )
     assert run.stopped_reason == "consecutive_failures"

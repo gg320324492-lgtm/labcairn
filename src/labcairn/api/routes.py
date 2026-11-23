@@ -59,8 +59,8 @@ from labcairn.api.contracts import (
     ReportBody,
     ReviewDecisionBody,
     ReviewSuggestBody,
-    ReviewSuggestRun,
     ReviewSuggestionBody,
+    ReviewSuggestRun,
     SessionInfo,
     StageBody,
     TaskSelectBody,
@@ -121,7 +121,6 @@ from labcairn.application import (
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
 from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
-from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.model_suggestions import (
     MODEL_SUGGESTION_MODE_REAL,
     ModelSuggestionBackend,
@@ -129,6 +128,7 @@ from labcairn.application.model_suggestions import (
     parse_approval_ids,
     suggest_for_version,
 )
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.review import (
     ApplyReviewRequest,
     ExportDeliverablesRequest,
