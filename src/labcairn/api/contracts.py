@@ -368,6 +368,34 @@ class ReviewOpinionsQuery(Result):
     version_id: str = Field(min_length=1)
 
 
+class TrajectorySearchQuery(Result):
+    """Which trajectory to search, as the API accepts it.
+
+    **A query, and optionally a project.** Without the project the search
+    answers over every indexed trajectory; with it, the hits narrow to the
+    one project's history. The response is the application layer's
+    :class:`~labcairn.application.trajectory.TrajectoryHit` records.
+    """
+
+    q: str = Field(min_length=1)
+    project_id: str | None = None
+    limit: int = Field(default=20, ge=1, le=200)
+
+
+class UsableGuidanceQuery(Result):
+    """Which rules a card may cite, as the API accepts it.
+
+    **A scope, optionally.** Without it the listing serves every standing
+    confirmed rule; with it, the rules whose scope mentions the text. The
+    response is the application layer's
+    :class:`~labcairn.application.trajectory.UsableRule` records — and a
+    candidate is never among them (§8.5).
+    """
+
+    scope: str | None = None
+    limit: int = Field(default=20, ge=1, le=200)
+
+
 class ReviewManuscriptQuery(Result):
     """Which manuscript to read, as the API accepts it."""
 
@@ -491,4 +519,6 @@ __all__ = [
     "SessionInfo",
     "StageBody",
     "Trajectory",
+    "TrajectorySearchQuery",
+    "UsableGuidanceQuery",
 ]

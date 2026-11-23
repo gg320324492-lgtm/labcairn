@@ -191,6 +191,14 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # round reading the approved set from the store. Integration, because
     # the witnesses are the service's own routes over real bytes.
     "test_review_api.py": ("integration", "api-auth"),
+    # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
+    # revision trajectory searchable with its provenance, a rule candidate
+    # drafted from an entry and confirmed by a mentor, and the usable
+    # listing serving confirmed rules only — a candidate is never a code of
+    # conduct, and a withdrawn rule stops being served (§8.5). Integration,
+    # because the witnesses are the chain's real rows read through the
+    # index, the memory and the retrieval.
+    "test_trajectory_index.py": ("integration", "api-auth"),
     "test_application_approvals.py": ("integration", "approvals"),
     # LC-P2-02. The two facts the approval row now carries, and the spend
     # that reads them there rather than trusting an argument. Integration,
