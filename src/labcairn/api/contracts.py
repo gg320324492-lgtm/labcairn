@@ -356,8 +356,82 @@ class IssueKeys(Result):
     issue_keys: tuple[str, ...]
 
 
+class ReviewOpinionsQuery(Result):
+    """Which review round to read, as the API accepts it.
+
+    **A project and a version, and nothing else.** The opinions, their
+    suggestions and their decisions are the round's own; the response is the
+    application layer's :class:`~labcairn.application.review.ReviewOpinions`.
+    """
+
+    project_id: str = Field(min_length=1)
+    version_id: str = Field(min_length=1)
+
+
+class ReviewManuscriptQuery(Result):
+    """Which manuscript to read, as the API accepts it."""
+
+    project_id: str = Field(min_length=1)
+    version_id: str = Field(min_length=1)
+
+
+class ReviewSuggestionBody(Result):
+    """One suggestion the model proposed, as the API accepts it.
+
+    **A proposal is a record, not a decision.** The body carries the seam's
+    own units — one whole plain run of one paragraph — and nothing that
+    looks like a verdict: writing a suggestion grants nothing and applies
+    nothing. The verdict is :class:`ReviewDecisionBody`'s to take.
+    """
+
+    project_id: str = Field(min_length=1)
+    version_id: str = Field(min_length=1)
+    feedback_id: str = Field(min_length=1)
+    part: str = Field(min_length=1)
+    paragraph: int = Field(ge=1)
+    old_text: str
+    new_text: str
+    author: str = Field(min_length=1)
+
+
+class ReviewDecisionBody(Result):
+    """The reviewer's verdict, as the API accepts it.
+
+    **The vocabulary is in the type rather than in the handler**, the way
+    :class:`GuidanceRuleVerdictBody` puts it: the four words are execution
+    plan §4's own statuses, and the application layer refuses a fifth. The
+    body carries no ``decided_by`` — every decision this route takes is a
+    person's, and the chain's word for that is ``user`` — and the
+    reviewer's own handle travels in ``operator``.
+    """
+
+    project_id: str = Field(min_length=1)
+    feedback_id: str = Field(min_length=1)
+    verdict: Literal["accepted", "partly_accepted", "rejected", "pending"]
+    operator: str = Field(min_length=1)
+    needs_evidence: bool = False
+
+
+class ApplyReviewBody(Result):
+    """What the apply step needs, as the API accepts it.
+
+    The application layer's own :class:`~labcairn.application.review.ApplyReviewRequest`
+    is the model; this body exists because the request body is the API's
+    own — and it is the same fields, validated the same way, so the two
+    do not drift.
+    """
+
+    project_id: str = Field(min_length=1)
+    input_version_id: str = Field(min_length=1)
+    source_root_id: str = Field(min_length=1)
+    source_key: str = Field(min_length=1)
+    output_label: str = Field(min_length=1)
+    window_end: str = Field(min_length=1)
+
+
 __all__ = [
     "AnalysisBody",
+    "ApplyReviewBody",
     "ApprovalBody",
     "ApprovalUseBody",
     "ClaimBody",
@@ -367,6 +441,10 @@ __all__ = [
     "IssueKeys",
     "RefusalBody",
     "ReportBody",
+    "ReviewDecisionBody",
+    "ReviewManuscriptQuery",
+    "ReviewOpinionsQuery",
+    "ReviewSuggestionBody",
     "SessionInfo",
     "StageBody",
     "Trajectory",

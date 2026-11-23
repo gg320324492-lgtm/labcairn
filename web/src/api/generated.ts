@@ -21,6 +21,15 @@ export type AnalysisBody = {
   approval_id: RawId
 }
 
+export type ApplyReviewBody = {
+  project_id: string
+  input_version_id: string
+  source_root_id: string
+  source_key: string
+  output_label: string
+  window_end: string
+}
+
 export type Approval = {
   schema_version?: number
   approval_id?: RawId
@@ -449,6 +458,105 @@ export type ReproducibilityManifest = {
   output: JsonValue
   output_sha256: string
   environment: RenderEnvironment
+}
+
+export type ReviewApplyResult = {
+  project_id: string
+  input_version_id: string
+  output_version_id: string
+  edge_id: string
+  marked_receipt_id: string
+  marked_sha256: string
+  clean_receipt_id: string
+  clean_sha256: string
+  dossier_artifact_id: string
+  applied: string[]
+  handovers: ReviewHandover[]
+  unresolved: ReviewUnresolved[]
+}
+
+export type ReviewDecisionBody = {
+  project_id: string
+  feedback_id: string
+  verdict: 'accepted' | 'partly_accepted' | 'rejected' | 'pending'
+  operator: string
+  needs_evidence?: boolean
+}
+
+export type ReviewDecisionData = {
+  verdict: string
+  needs_evidence: boolean
+  operator: string
+  decided_at: string
+}
+
+export type ReviewHandover = {
+  feedback_id: string
+  reason: string
+  detail: string
+  handover: string
+}
+
+export type ReviewManuscript = {
+  project_id: string
+  version_id: string
+  sha256: string
+  paragraphs: ReviewParagraph[]
+}
+
+export type ReviewOpinion = {
+  feedback_id: string
+  issue_key: string
+  version_id: string
+  comment_text: string
+  author: string | null
+  anchor_status: string
+  anchor_reason: string | null
+  anchor_paragraph: number | null
+  anchor_start: number | null
+  anchor_end: number | null
+  anchor_text: string | null
+  location_state: string
+  suggestion: ReviewSuggestionData | null
+  decision: ReviewDecisionData | null
+  response_states: string[]
+}
+
+export type ReviewOpinions = {
+  project_id: string
+  version_id: string
+  opinions: ReviewOpinion[]
+}
+
+export type ReviewParagraph = {
+  index: number
+  text: string
+}
+
+export type ReviewSuggestionBody = {
+  project_id: string
+  version_id: string
+  feedback_id: string
+  part: string
+  paragraph: number
+  old_text: string
+  new_text: string
+  author: string
+}
+
+export type ReviewSuggestionData = {
+  part: string
+  paragraph: number
+  old_text: string
+  new_text: string
+  author: string
+  proposed_at: string
+}
+
+export type ReviewUnresolved = {
+  feedback_id: string
+  reason: string
+  detail: string
 }
 
 export type RowFilter = {

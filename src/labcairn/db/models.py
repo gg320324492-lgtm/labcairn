@@ -1,4 +1,4 @@
-"""The thirty-seven tables that make SQLite the task authority.
+"""The thirty-nine tables that make SQLite the task authority.
 
 Thirty-seven is not a claim to be trusted: ``tests/test_store_migrations.py``'s
 parity test walks ``Base.metadata`` and the migrated schema independently, and
@@ -3585,5 +3585,138 @@ class ArtifactLedgerEntryRow(Base):
             "ix_artifact_ledger_entries_ledger",
             "ledger_id",
             "entry_id",
+        ),
+    )
+
+
+class ReviewSuggestionRow(Base):
+    """One suggestion the review loop holds for one opinion.
+
+    **A suggestion is a record of what the model proposed, and never a
+    decision.** ADR-0016's rule, made durable: the reviewer's verdict lives
+    in :class:`ReviewDecisionRow`, under the same ``feedback_id``, and the
+    two are never merged into one row — reading one must not read as the
+    other.
+
+    **The edit is stored verbatim in the seam's own vocabulary** — one whole
+    plain run of one paragraph, addressed the way the reader addresses text —
+    because that is the unit :func:`labcairn.editing.surgical_bytes` rewrites.
+    A suggestion stored in any other shape would have to be translated before
+    it could be applied, and a translation is a second place to lose the
+    reviewer's meaning.
+    """
+
+    __tablename__ = "review_suggestions"
+
+    #: The opinion this suggestion answers. One suggestion per opinion: a
+    #: second insert under the same id refreshes the proposal, and the row
+    #: the store holds is the proposal that stands.
+    feedback_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The package part the edit is addressed into, e.g. ``word/document.xml``.
+    part: Mapped[str] = mapped_column(String(500), nullable=False)
+    #: The 1-based paragraph ordinal, in the reader's own numbering.
+    paragraph: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The whole run's text the seam would rewrite, and what replaces it.
+    old_text: Mapped[str] = mapped_column(Text, nullable=False)
+    new_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: Who proposed it — a model id in the product's own spelling, or the
+    #: operator handle of a person who drafted one. Recorded, never judged.
+    author: Mapped[str] = mapped_column(String(200), nullable=False)
+    #: ISO-8601 with an offset, the way ``w:date`` carries it. Never the
+    #: wall clock: a suggestion stamped from the clock cannot be reproduced.
+    proposed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_review_suggestions_project", "project_id"),
+        CheckConstraint(
+            "length(feedback_id) > 0 AND length(project_id) > 0 AND length(version_id) > 0",
+            name="review_suggestions_ids_present",
+        ),
+        CheckConstraint("paragraph >= 1", name="review_suggestions_paragraph_positive"),
+        CheckConstraint(
+            "length(part) > 0 AND length(author) > 0",
+            name="review_suggestions_part_and_author_present",
+        ),
+    )
+
+
+class ReviewDecisionRow(Base):
+    """One person's verdict on one opinion's suggestion, made in the open.
+
+    **The verdict is the reviewer's word, and the row is where it stands.**
+    The primary key is the opinion's ``feedback_id``: a reviewer who revises
+    their own verdict writes the row again, and the store holds the verdict
+    that stands. The apply step reads the approved set from here — so the
+    second read of a decision is the same decision, not a memory of the
+    request that made it.
+
+    **``decided_by`` is not stored because it is not variable**: every row
+    here is a person's review, and the chain's word for that is ``user``.
+    The reviewer's own handle is ``operator``, which is what the edge's
+    acceptance and the manifest's decision entry carry.
+    """
+
+    __tablename__ = "review_decisions"
+
+    #: The opinion this verdict is about — the same id the suggestion and
+    #: the chain's comment carry.
+    feedback_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``accepted``, ``partly_accepted``, ``rejected`` or ``pending`` —
+    #: the four statuses execution plan §4 names.
+    verdict: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: The flag that turns an opinion into an explicit unresolved task,
+    #: whatever the verdict was: the opinion asks for evidence the
+    #: manuscript does not carry.
+    needs_evidence: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    #: The reviewer's own handle. The chain's decider word is ``user`` for
+    #: every row here, so it is not stored — one fact, one spelling.
+    operator: Mapped[str] = mapped_column(String(200), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_review_decisions_project", "project_id"),
+        CheckConstraint(
+            "verdict IN ('accepted', 'partly_accepted', 'rejected', 'pending')",
+            name="review_decisions_verdict_vocabulary",
+        ),
+        CheckConstraint(
+            "length(feedback_id) > 0 AND length(project_id) > 0 AND length(version_id) > 0",
+            name="review_decisions_ids_present",
+        ),
+        CheckConstraint(
+            "length(operator) > 0",
+            name="review_decisions_operator_present",
         ),
     )

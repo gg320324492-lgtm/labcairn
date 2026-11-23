@@ -222,7 +222,7 @@ rather than inventing an empty log.
 one bound workspace plus four mutating consent routes; none selects a
 workspace. The CLI can.~~
 
-**Closed by `37591c7`.** `POST /task/select` (`src/labcairn/api/routes.py:273` — `@router.post("/task/select", response_model=Health, tags=["task"])`)
+**Closed by `37591c7`.** `POST /task/select` (`src/labcairn/api/routes.py:289` — `@router.post("/task/select", response_model=Health, tags=["task"])`)
 moves the workspace's `current_task` through a host-supplied port; the task is
 validated through the application layer before anything is written, and the
 route needs the session token like every other change. The CLI and the page are

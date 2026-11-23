@@ -185,6 +185,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_capability_namespaces.py": ("unit", "typed-contracts"),
     "test_api.py": ("integration", "api-auth"),
     "test_api_concurrency.py": ("integration", "event-append"),
+    # Phase 4 (LC-P4-CAP). The review workbench's seam: opinions read with
+    # their suggestion and decision as separate records, the manuscript in
+    # the anchor numbering, a verdict refused on nothing, and the apply
+    # round reading the approved set from the store. Integration, because
+    # the witnesses are the service's own routes over real bytes.
+    "test_review_api.py": ("integration", "api-auth"),
     "test_application_approvals.py": ("integration", "approvals"),
     # LC-P2-02. The two facts the approval row now carries, and the spend
     # that reads them there rather than trusting an argument. Integration,

@@ -372,6 +372,16 @@ _ALLOWED_STORE_READERS = frozenset(
         # layer's consent and stage machinery; it is recorded here because a
         # module that reaches the store must be named.
         "labcairn.application.revision_loop",
+        # Phase 4's review workbench (LC-P4-CAP). The workbench's reads and
+        # writes: the opinions with their stored suggestions and decisions,
+        # the manuscript paragraphs, and the apply step that hands the
+        # stored, approved set to the binding. It asks the material
+        # permission where the material is named (the same posture as
+        # ``labcairn.papers.feedback`` beside it), and the apply step's
+        # effects run through the binding's own consent, duplicate and
+        # staleness guards. It is recorded here because a module that
+        # reaches the store must be named.
+        "labcairn.application.review",
         # The scholarly-identifier shelf (LC-P2-17). Its operations are layer
         # operations like the writers beside it: each evaluates the policy
         # about the task's own area before it touches the store, and the

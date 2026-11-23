@@ -1200,6 +1200,13 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /records/{evidence_id}/accept",
         "POST /guidance/rules/{rule_id}/confirm",
         "POST /task/select",
+        # The review workbench's writes (Phase 4, LC-P4-CAP): a suggestion
+        # the model proposed is recorded, a person's verdict is recorded,
+        # and the approved set is applied through the binding. All three are
+        # the layer's own operations behind the same token and origin guard.
+        "POST /review/suggestion",
+        "POST /review/decision",
+        "POST /review/apply",
     }
 
 

@@ -43,6 +43,7 @@ from fastapi.responses import StreamingResponse
 
 from labcairn.api.contracts import (
     AnalysisBody,
+    ApplyReviewBody,
     ApprovalBody,
     ApprovalUseBody,
     ClaimBody,
@@ -53,6 +54,8 @@ from labcairn.api.contracts import (
     IssueKeys,
     ProposalAcceptanceBody,
     ReportBody,
+    ReviewDecisionBody,
+    ReviewSuggestionBody,
     SessionInfo,
     StageBody,
     TaskSelectBody,
@@ -114,6 +117,19 @@ from labcairn.application.approvals import ApprovalRequest, ApprovalUse
 from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.application.review import (
+    ApplyReviewRequest,
+    ReviewApplyResult,
+    ReviewDecisionData,
+    ReviewManuscript,
+    ReviewOpinions,
+    ReviewSuggestionData,
+    apply_review,
+    read_review_manuscript,
+    read_review_opinions,
+    record_review_decision,
+    record_review_suggestion,
+)
 from labcairn.application.stages import StageRequest, StageWork
 from labcairn.core.ids import ApprovalId, TaskId, is_uuid7
 from labcairn.evidence.record import EvidenceRecord
@@ -1073,3 +1089,112 @@ def _settle_the_rule(
 
 
 __all__ = ["router"]
+
+
+# --------------------------------------------------------------------------- #
+# the review workbench
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/review/opinions", response_model=ReviewOpinions, tags=["review"])
+def get_review_opinions(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    version_id: Annotated[str, Query(min_length=1)],
+) -> ReviewOpinions:
+    """The opinions one review round holds, with their suggestions and verdicts.
+
+    **One read, three separate facts.** The comment and its anchor are the
+    chain's; the suggestion is what the model proposed; the decision is what
+    the reviewer did with it — and the two stored records are never merged
+    into one (ADR-0016's rule, at the surface).
+    """
+    return read_review_opinions(context, project_id=project_id, version_id=version_id)
+
+
+@router.get("/review/manuscript", response_model=ReviewManuscript, tags=["review"])
+def get_review_manuscript(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    version_id: Annotated[str, Query(min_length=1)],
+) -> ReviewManuscript:
+    """The manuscript's paragraphs, in document order, in the accepted view.
+
+    The middle column's text. The paragraph numbering is the feedback
+    anchors' own — 1-based, document order — so the workbench's scroll-sync
+    is an equality test rather than a lookup.
+    """
+    return read_review_manuscript(context, project_id=project_id, version_id=version_id)
+
+
+@router.post(
+    "/review/suggestion", response_model=ReviewSuggestionData, status_code=201, tags=["review"]
+)
+def post_review_suggestion(
+    body: ReviewSuggestionBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewSuggestionData:
+    """Store one suggestion the model proposed, verbatim in the seam's units.
+
+    **A proposal is a record, not a decision.** This grants nothing, changes
+    nothing, and applies nothing; the verdict is ``POST /review/decision``'s
+    to take.
+    """
+    return record_review_suggestion(
+        context,
+        project_id=body.project_id,
+        version_id=body.version_id,
+        feedback_id=body.feedback_id,
+        part=body.part,
+        paragraph=body.paragraph,
+        old_text=body.old_text,
+        new_text=body.new_text,
+        author=body.author,
+    )
+
+
+@router.post("/review/decision", response_model=ReviewDecisionData, tags=["review"])
+def post_review_decision(
+    body: ReviewDecisionBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewDecisionData:
+    """Store the reviewer's verdict on one opinion's suggestion.
+
+    **The verdict is the reviewer's word, written once.** A revised verdict
+    overwrites the standing one under the same id; the apply step reads the
+    verdicts from the store, never from the request that applies them.
+    """
+    return record_review_decision(
+        context,
+        project_id=body.project_id,
+        feedback_id=body.feedback_id,
+        verdict=body.verdict,
+        operator=body.operator,
+        needs_evidence=body.needs_evidence,
+    )
+
+
+@router.post("/review/apply", response_model=ReviewApplyResult, tags=["review"])
+def post_review_apply(
+    body: ApplyReviewBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewApplyResult:
+    """Run the stored, approved set through the binding and close the round.
+
+    **The decisions come from the store.** The workbench does not send
+    verdicts with the apply call; the binding reads what the reviewer wrote,
+    which is what makes the applied set auditable after the fact. The
+    binding's own duplicate, staleness and consent guards are the guards —
+    this route adds none.
+    """
+    return apply_review(
+        context,
+        ApplyReviewRequest(
+            project_id=body.project_id,
+            input_version_id=body.input_version_id,
+            source_root_id=body.source_root_id,
+            source_key=body.source_key,
+            output_label=body.output_label,
+            window_end=body.window_end,
+        ),
+    )

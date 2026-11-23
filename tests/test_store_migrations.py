@@ -178,6 +178,13 @@ EXPECTED_TABLES = frozenset(
         # no UNIQUE on `stage` -- a re-run appends a second row, and the
         # current view is the latest entry per stage.
         "artifact_ledger_entries",
+        # Phase 4 (LC-P4-CAP). The model's proposal and the reviewer's
+        # verdict, keyed by the opinion each answers. Two tables, never one:
+        # ADR-0016's rule that a suggestion and its decision are separate
+        # records is made durable here -- reading one must not read as the
+        # other. The apply step reads the approved set from these rows.
+        "review_suggestions",
+        "review_decisions",
     }
 )
 
