@@ -97,6 +97,16 @@ path + digest.
   `46e6dc3be9fef973eea72a874f65cde8f51fb61d9574d7d13aa767582c9c0a9c`) +
   screenshots `E:/labcairn-local/p308-trial-run/screenshots/t6-*.png`
   (7 files, including the Word refusal dialog).
+- **Clarification added 2026-11-23** (closes the review's C-10/C-B11
+  role-boundary wording note; exit decision Field 5 item 8): in the T6
+  record's header, "the session" is the owner's Claude Code operating
+  session — at the owner's direction it initiated the host processes
+  (opening WPS Office and Word 2019) and captured the screenshots. The
+  owner observed and judged every open/reopen result themselves; no
+  agent performed or stood in for the human reopen observations
+  protocol §2 requires. The T6 record file itself is unchanged (sha256
+  `46e6dc3b…` as cited above); this note closes the wording gap in the
+  repository's record.
 
 ### Row 3 — Point-by-point response — **PARTIAL (honest empty location set; decisions recorded)**
 
