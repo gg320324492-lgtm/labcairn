@@ -109,16 +109,20 @@ from labcairn.reports.receipt import (
     DerivationRef,
     DerivationTargetKind,
 )
+from labcairn.security.approval import content_hash
 from labcairn.security.capabilities import CapabilityId
 from labcairn.workspace.outputs import TaskOutputArea
 from labcairn.workspace.readonly import SourceMaterial
 
 __all__ = [
     "BINDING_PRODUCER_ID",
+    "CANCEL_POINT_BEFORE_CLEAN_PUBLICATION",
+    "CANCEL_POINT_BEFORE_MARKED_PUBLICATION",
     "REVIEW_DECIDER",
     "VERDICT_RESPONSE_STATES",
     "BindingClosed",
     "BindingOpened",
+    "CancelCheck",
     "DossierManifest",
     "Handover",
     "LocationState",
@@ -141,6 +145,18 @@ BINDING_PRODUCER_ID: Final[str] = "labcairn.papers.binding"
 #: vocabulary has two deciders — ``rule`` and ``user`` — and a person's
 #: per-item review is the second.
 REVIEW_DECIDER: Final[str] = "user"
+
+#: The points a round's cancellation can be asked at, named so the refusal and
+#: the record say *where* the round stopped. Both are before a loop opens; a
+#: round never cancels inside a loop, because a loop's effects are
+#: transaction-shaped and a cancellation there would leave a half-open loop.
+CANCEL_POINT_BEFORE_MARKED_PUBLICATION: Final[str] = "before_marked_publication"
+CANCEL_POINT_BEFORE_CLEAN_PUBLICATION: Final[str] = "before_clean_publication"
+
+#: The answer a cancel check gives: ``None`` to continue, or the reason the
+#: round is being cancelled. A string — not a bare bool — so the refusal the
+#: round raises carries the operator's own words.
+CancelCheck = Callable[[str], str | None]
 
 
 class LocationState(StrEnum):
@@ -561,6 +577,7 @@ def apply_approved_edits(
     source_key: str,
     output_label: str,
     window_end: datetime,
+    cancel_check: CancelCheck | None = None,
     now: datetime | None = None,
 ) -> BindingClosed:
     """Run the reviewed-approved edits through the seam and close the binding.
@@ -581,9 +598,23 @@ def apply_approved_edits(
     approved set still applies: one unsupported structure must not hold the
     whole revision hostage, and a handover is an explicit task, not a drop.
 
-    :raises ApplicationRefusedError: the loop refused a copy or a
-        publication, the version graph refused the output row, or the chain
-        refused a response.
+    **Cancellation is checked before each draft's loop opens**, and never
+    inside one: the loop's effects are transaction-shaped (an import, a copy
+    and a publication that land together or the loop is re-runnable), so a
+    cancellation between loops leaves either a whole closed loop behind or no
+    loop at all — never a half-open one. The check is the caller's injection
+    (:class:`CancelCheck`), because *who* may cancel is a surface's question;
+    this module only guarantees that the answer is asked before the next
+    irreversible write and that a ``yes`` stops the round with nothing half
+    published. A cancelled round is re-runnable: the loop it did reach is
+    idempotent by its publication id, and re-running the whole apply republishes
+    through fresh loops without duplicating rows.
+
+    :param cancel_check: asked before each draft's loop opens; return ``None``
+        to continue, or a reason string to cancel the round there.
+    :raises ApplicationRefusedError: the round was cancelled
+        (``apply_cancelled``), the loop refused a copy or a publication, the
+        version graph refused the output row, or the chain refused a response.
     """
     moment = now if now is not None else datetime.now(UTC)
     # **The operator is resolved before anything is written.** The edge the
@@ -600,6 +631,13 @@ def apply_approved_edits(
     applied = list(folded.applied)
     handovers: list[Handover] = list(folded.handovers)
 
+    # **The source is checked once, before the first loop opens.** A lock or a
+    # drift discovered after the first draft's loop had opened would have
+    # spent its copy consent on a draft the round can no longer bind — the
+    # same failure the loop's own re-hash refuses, caught one step earlier so
+    # the round stops before anything is spent.
+    _check_source_writable(context, source_root_id=source_root_id, source_key=source_key)
+
     # One loop per draft: 03's own rule is that a further publication is a
     # further loop, so the marked and the clean draft each carry their own
     # import receipt, their own copy and their own publication receipt.
@@ -609,6 +647,8 @@ def apply_approved_edits(
         source_root_id=source_root_id,
         source_key=source_key,
         window_end=window_end,
+        cancel_check=cancel_check,
+        cancel_point=CANCEL_POINT_BEFORE_MARKED_PUBLICATION,
         now=moment,
     )
     clean_publication = _publish_draft(
@@ -617,6 +657,8 @@ def apply_approved_edits(
         source_root_id=source_root_id,
         source_key=source_key,
         window_end=window_end,
+        cancel_check=cancel_check,
+        cancel_point=CANCEL_POINT_BEFORE_CLEAN_PUBLICATION,
         now=moment,
     )
 
@@ -672,6 +714,95 @@ def apply_approved_edits(
     )
 
 
+def _raise_if_cancelled(cancel_check: CancelCheck | None, point: str) -> None:
+    """Ask the injected check, and stop the round when the answer is a reason.
+
+    **A cancellation is a refusal with a name**, not an exception nobody
+    classified: the surface that asked for the cancellation gets a
+    machine-readable ``apply_cancelled`` whose message carries the point the
+    round was asked at and the reason it was given, so the record says where
+    the round stopped.
+    """
+    if cancel_check is None:
+        return
+    reason = cancel_check(point)
+    if reason is None:
+        return
+    raise ApplicationRefusedError(
+        ApplicationRefusal.APPLY_CANCELLED,
+        f"the apply round was cancelled at {point!r}: {reason}. Nothing further "
+        "was published; the round may be applied again from the start, and the "
+        "approvals it had not spent remain granted.",
+    )
+
+
+def _check_source_writable(
+    context: ApplicationContext,
+    *,
+    source_root_id: str,
+    source_key: str,
+) -> None:
+    """Refuse a source the publication round cannot bind, before anything is spent.
+
+    Two conditions are told apart, because their remedies differ:
+
+    * **locked** — the file cannot be opened at all. Another process holds it
+      (a word processor with the manuscript open is the case in point), and the
+      bytes may be exactly the ones the import receipt hashed. The remedy is
+      to retry when the holder lets go; the refusal is ``source_locked``.
+    * **drifted** — the file opens, and its bytes are not the import receipt's
+      hash. The loop's own re-hash would refuse the copy anyway; refusing here
+      too means the round stops **before** the first copy consent is spent,
+      rather than after. The refusal is ``source_drifted``, the loop's own
+      vocabulary.
+    """
+    receipt_hash = _source_hash_from_ledger(context, source_root_id, source_key)
+    path = context.workspace.path_in(source_key, source_root_id).real_path
+    try:
+        current = content_hash(path)
+    except OSError as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_LOCKED,
+            f"the source {source_key!r} cannot be opened for its pre-publication "
+            f"check: {error}. Another process may hold it locked. Nothing was "
+            "copied or published; retry when the file is free, and the round "
+            "proceeds from the start.",
+        ) from error
+    if receipt_hash is not None and current != receipt_hash:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_DRIFTED,
+            f"the source {source_key!r} hashes to {current}, not the "
+            f"{receipt_hash} the ledger recorded. The manuscript moved since it "
+            "was bound; the round is refused before any consent is spent.",
+        )
+
+
+def _source_hash_from_ledger(
+    context: ApplicationContext,
+    source_root_id: str,
+    source_key: str,
+) -> str | None:
+    """The hash the sources ledger recorded for this file, or ``None``.
+
+    **A source the ledger does not hold is not this round's business** — the
+    loop's own import will open it or refuse it in its own vocabulary. The
+    pre-publication check only strengthens a binding that exists.
+    """
+    from sqlalchemy import select
+
+    from labcairn.db.models import SourceRow
+    from labcairn.material.walk import _stable_source_id
+
+    row = context.store.session.scalar(
+        select(SourceRow).where(
+            SourceRow.source_id == _stable_source_id(source_root_id, source_key)
+        )
+    )
+    if row is None:
+        return None
+    return row.content_sha256
+
+
 def _publish_draft(
     context: ApplicationContext,
     *,
@@ -679,7 +810,9 @@ def _publish_draft(
     source_root_id: str,
     source_key: str,
     window_end: datetime,
-    now: datetime,
+    cancel_check: CancelCheck | None = None,
+    cancel_point: str = "",
+    now: datetime | None = None,
 ) -> RevisionPublished:
     """Import, copy and publish one draft, with an approval at each effect.
 
@@ -687,6 +820,14 @@ def _publish_draft(
     the hash, the copy re-hashes the original inside the authorised effect,
     and the publication receipt derives from both. The binding adds no
     write of its own — every byte lands through :func:`publish_revision`.
+
+    The cancellation point is **after the loop opened and its copy landed,
+    with the publication consent granted, before the publication effect
+    runs** — execution plan §7.3's own window. A round cancelled there has
+    spent the copy consent and holds a granted, unspent publication consent:
+    the consent stays granted (a human said yes, and nothing since has spent
+    it), no publication bytes exist, and the loop is discardable — a re-run
+    of the round opens a fresh loop rather than resurrecting this one.
     """
     loop = open_loop(
         context,
@@ -718,6 +859,12 @@ def _publish_draft(
     publication_granted = grant_approval(
         context, publication_requested.approval.approval_id, now=now
     )
+    # **The cancellation window: consent granted, effect not yet run.** The
+    # publication consent is GRANTED and unspent; the copy is landed; nothing
+    # is published. Cancelling here is what §7.3 names, and what leaves the
+    # cleanest record: a discardable loop, a grant that stays granted, and no
+    # bytes to clean up.
+    _raise_if_cancelled(cancel_check, cancel_point)
     return publish_revision(
         context,
         loop,

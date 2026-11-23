@@ -535,6 +535,25 @@ class ApplicationRefusal(StrEnum):
     #: revision is a new import, and its import receipt is what makes it
     #: distinct.
     LOOP_ALREADY_PUBLISHED = "loop_already_published"
+    # -- Phase 4 §7.3: cancel, retry and recovery -------------------------- #
+    #: An apply round was cancelled by its operator between the approvals and
+    #: the publication. **A cancellation is a decision, not a failure**: the
+    #: round stops with nothing published, the grants it had not spent stay
+    #: granted, and the round may be applied again from the start. The refusal
+    #: carries the point the cancellation was asked at, so the record says
+    #: where it stopped rather than leaving the operator to infer it.
+    APPLY_CANCELLED = "apply_cancelled"
+    #: The model that produces the suggestions did not answer within its
+    #: window. **A timeout is retryable in a way a refusal is not**: the
+    #: material is unchanged and no decision was recorded, so asking again is
+    #: safe. The integration with the real model window's own classification
+    #: lands there; this is the apply path's name for it.
+    REVIEW_MODEL_TIMEOUT = "review_model_timeout"
+    #: The source file could not be opened for its pre-publication check
+    #: because another process holds it locked. **A lock is not a change** —
+    #: the bytes may be exactly the ones the import receipt hashed, and the
+    #: remedy is to retry once the holder lets go, not to re-ingest.
+    SOURCE_LOCKED = "source_locked"
 
 
 class ApplicationRefusedError(RuntimeError):

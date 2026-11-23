@@ -486,6 +486,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_recovery_crash_matrix.py": ("negative", "crash-between-write-and-confirm"),
     "test_recovery_resume.py": ("integration", "restart-recovery"),
     "test_recovery_stage_bridge.py": ("unit", "typed-contracts"),
+    # Phase 4 §7.3: the deliver round's cancel, retry and recovery. The
+    # cancellation and the pre-publication source check are the approval
+    # clause's shape at the round's surface; the interrupted-publication
+    # replay is restart recovery; the export resume is artifact hashes.
+    "test_apply_cancel_recover.py": ("integration", "restart-recovery"),
     # LC-P3-03: the loop binds the pieces; its refusals are negative.
     "test_revision_loop.py": ("integration", "approvals"),
     "test_revision_loop_refusals.py": ("negative", "path-traversal"),

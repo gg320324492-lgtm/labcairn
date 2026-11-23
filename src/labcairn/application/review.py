@@ -73,10 +73,11 @@ from labcairn.papers.feedback import MAX_MANUSCRIPT_BYTES, list_feedback_events
 from labcairn.security.capabilities import CapabilityId
 
 if TYPE_CHECKING:
-    from labcairn.papers.binding import BindingOpened
+    from labcairn.papers.binding import BindingOpened, CancelCheck
 
 __all__ = [
     "ApplyReviewRequest",
+    "CancelCheck",
     "DeliverableFile",
     "DeliverablesExport",
     "ExportDeliverablesRequest",
@@ -721,6 +722,8 @@ def record_review_decision(
 def apply_review(
     context: ApplicationContext,
     request: ApplyReviewRequest,
+    *,
+    cancel_check: CancelCheck | None = None,
 ) -> ReviewApplyResult:
     """Run the stored, approved set through the binding and close the round.
 
@@ -733,11 +736,15 @@ def apply_review(
     **The binding's guards are the guards.** Duplicate publications,
     stale approvals, consent and the loop's own receipt discipline are
     :func:`labcairn.papers.binding.apply_approved_edits`'s, unchanged; this
-    module adds none.
+    module adds none. The cancellation hook is passed through untouched: a
+    surface that can ask its operator "stop this round?" names the answer as
+    a :class:`CancelCheck`, and the binding asks it before each publication.
 
+    :param cancel_check: the binding's cancellation injection, verbatim.
     :raises ApplicationRefusedError: nothing has been decided yet (there is
-        no approved set and no operator to name), or the binding refused
-        the round for the reason it names.
+        no approved set and no operator to name), the round was cancelled
+        (``apply_cancelled``), or the binding refused the round for the reason
+        it names.
     """
     from labcairn.papers.binding import ReviewDecision, ReviewVerdict, apply_approved_edits
 
@@ -777,6 +784,7 @@ def apply_review(
         source_root_id=request.source_root_id,
         source_key=request.source_key,
         output_label=request.output_label,
+        cancel_check=cancel_check,
         window_end=datetime.fromisoformat(request.window_end),
     )
     return ReviewApplyResult(
@@ -967,6 +975,8 @@ def preview_review_apply(
 def export_deliverables(
     context: ApplicationContext,
     request: ExportDeliverablesRequest,
+    *,
+    resume: bool = False,
 ) -> DeliverablesExport:
     """The four deliverables of one closed binding, read from its manifest.
 
@@ -984,6 +994,21 @@ def export_deliverables(
     the binding wrote — so a report that says a change landed says it
     because the chain recorded it, not because the export re-counted.
 
+    **A resumed export lands the files it completes, and re-lands the ones
+    it cannot trust.** ``resume`` writes each deliverable into the task
+    output area under the relative path the export names, but only after
+    checking what is already there: a file whose bytes hash to the
+    deliverable's own digest is left untouched, and a file that is missing,
+    short, or hashes differently is written again whole. An interruption
+    between two writes therefore costs one re-export, not a corrupt
+    deliverable — the check is the manifest's own binding, so "already done"
+    means "byte-identical to what the binding recorded", never "the file
+    happens to exist". The four files land through the one atomic write
+    point, so a crash mid-write leaves the old file or the new one, never a
+    half-written deliverable.
+
+    :param resume: write the deliverables into the task output area,
+        skipping the ones already complete and re-exporting the rest.
     :raises ApplicationRefusedError: the project is not there, the dossier
         artefact is not there or is not a manifest, the manifest binds
         another project, or a draft's bytes no longer hash to what the
@@ -1045,6 +1070,38 @@ def export_deliverables(
     # and the suggested name is the dossier's own directory, so one
     # revision's four deliverables sit together on the reader's disk too.
     base = PurePosixPath(dossier.receipt.relative_path).parent
+    deliverables = (
+        DeliverableFile(
+            kind="marked",
+            relative_path=marked.receipt.relative_path,
+            content=marked.content,
+            sha256=marked_sha256,
+            size_bytes=len(marked.content),
+        ),
+        DeliverableFile(
+            kind="clean",
+            relative_path=clean.receipt.relative_path,
+            content=clean.content,
+            sha256=clean_sha256,
+            size_bytes=len(clean.content),
+        ),
+        DeliverableFile(
+            kind="response_table",
+            relative_path=(base / "response-table.md").as_posix(),
+            content=response_table,
+            sha256=hashlib.sha256(response_table).hexdigest(),
+            size_bytes=len(response_table),
+        ),
+        DeliverableFile(
+            kind="quality_report",
+            relative_path=(base / "quality-report.md").as_posix(),
+            content=quality_report,
+            sha256=hashlib.sha256(quality_report).hexdigest(),
+            size_bytes=len(quality_report),
+        ),
+    )
+    if resume:
+        _resume_deliverable_writes(context, deliverables)
     return DeliverablesExport(
         project_id=request.project_id,
         dossier_artifact_id=request.dossier_artifact_id,
@@ -1054,37 +1111,37 @@ def export_deliverables(
         marked_receipt_id=manifest.marked_receipt_id,
         clean_receipt_id=manifest.clean_receipt_id,
         edge_id=manifest.edge_id,
-        deliverables=(
-            DeliverableFile(
-                kind="marked",
-                relative_path=marked.receipt.relative_path,
-                content=marked.content,
-                sha256=marked_sha256,
-                size_bytes=len(marked.content),
-            ),
-            DeliverableFile(
-                kind="clean",
-                relative_path=clean.receipt.relative_path,
-                content=clean.content,
-                sha256=clean_sha256,
-                size_bytes=len(clean.content),
-            ),
-            DeliverableFile(
-                kind="response_table",
-                relative_path=(base / "response-table.md").as_posix(),
-                content=response_table,
-                sha256=hashlib.sha256(response_table).hexdigest(),
-                size_bytes=len(response_table),
-            ),
-            DeliverableFile(
-                kind="quality_report",
-                relative_path=(base / "quality-report.md").as_posix(),
-                content=quality_report,
-                sha256=hashlib.sha256(quality_report).hexdigest(),
-                size_bytes=len(quality_report),
-            ),
-        ),
+        deliverables=deliverables,
     )
+
+
+def _resume_deliverable_writes(
+    context: ApplicationContext,
+    deliverables: tuple[DeliverableFile, ...],
+) -> None:
+    """Land each deliverable that is not already complete, through the write point.
+
+    **"Already complete" is a hash comparison, not a presence check.** A file
+    left behind by an interrupted export is trusted only when its bytes hash
+    to the digest the binding recorded; everything else — missing, truncated,
+    or carrying bytes nobody bound — is written again whole. One write point,
+    one atomic replace per file: the resumed export either leaves the old
+    bytes or the bound bytes, never a half-written deliverable.
+    """
+    from labcairn.workspace.outputs import TaskOutputArea
+
+    area = TaskOutputArea(context.workspace)
+    for deliverable in deliverables:
+        path = context.workspace.path_in(
+            deliverable.relative_path, context.workspace.output_root.root_id
+        ).real_path
+        if path.is_file():
+            try:
+                if hashlib.sha256(path.read_bytes()).hexdigest() == deliverable.sha256:
+                    continue
+            except OSError:
+                pass  # unreadable is not complete: fall through and rewrite it
+        area.write(deliverable.relative_path, deliverable.content)
 
 
 def _open_binding_from_store(
