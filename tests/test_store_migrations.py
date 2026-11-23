@@ -192,6 +192,13 @@ EXPECTED_TABLES = frozenset(
         # ``evidence_fts``, for the same reason it is listed by hand.
         "trajectory_index_rows",
         "trajectory_fts",
+        # Phase 4 (P4-MS), second source. A deck's objects -- titles, body
+        # text, speaker notes, table rows and picture names -- one row per
+        # indexed object with the provenance §8.3 requires, and the FTS5
+        # index over the objects' text. Listed by hand for the same reason
+        # the two FTS tables above are.
+        "ppt_index_rows",
+        "ppt_fts",
     }
 )
 
