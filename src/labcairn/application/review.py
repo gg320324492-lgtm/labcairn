@@ -47,6 +47,7 @@ extends to the store's writers.
 
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -76,6 +77,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ApplyReviewRequest",
+    "DeliverableFile",
+    "DeliverablesExport",
+    "ExportDeliverablesRequest",
+    "PreviewEditSummary",
     "ReviewApplyResult",
     "ReviewDecisionData",
     "ReviewHandover",
@@ -83,9 +88,12 @@ __all__ = [
     "ReviewOpinion",
     "ReviewOpinions",
     "ReviewParagraph",
+    "ReviewPreview",
     "ReviewSuggestionData",
     "ReviewUnresolved",
     "apply_review",
+    "export_deliverables",
+    "preview_review_apply",
     "read_review_manuscript",
     "read_review_opinions",
     "record_review_decision",
@@ -240,6 +248,113 @@ class ApplyReviewRequest(BaseModel):
     source_key: str
     output_label: str
     window_end: str
+
+
+class PreviewEditSummary(Result):
+    """One approved suggestion's old→new pair, as the preview names it.
+
+    The seam's own units, verbatim: one whole plain run of one paragraph.
+    The workbench shows the pair side by side; the apply step hands the
+    same pair to the seam. ``old_text`` is the run's text as the manuscript
+    holds it now, and ``new_text`` is what the seam would write in its
+    place — the same fields :class:`ReviewSuggestionData` carries, so the
+    preview's summaries and the right column's suggestions cannot disagree.
+    """
+
+    feedback_id: str
+    part: str
+    paragraph: int
+    old_text: str
+    new_text: str
+    author: str
+
+
+class ReviewPreview(Result):
+    """What one apply round would do, measured without doing it.
+
+    **The counts and the digests are measured, not asserted.** ``applied``,
+    ``pending`` and ``rejected`` are counts over the stored decisions, read
+    the way the apply step reads them; ``affected_paragraphs`` is the set
+    the approved suggestions name, in ascending order; and the two digests
+    are the sha256 of the drafts the seam's own fold produces — the apply
+    step's very loop, run onto pure copies. A reader who wants to know
+    whether the preview told the truth applies the round and compares the
+    digests; :mod:`tests.test_review_api` is the witness that they match.
+    """
+
+    project_id: str
+    input_version_id: str
+    #: How many stored suggestions the reviewer's verdicts would let through.
+    applied: int
+    #: Verdicts that hold the suggestions back — the model deciding would be
+    #: the failure the separation exists to prevent.
+    pending: int
+    rejected: int
+    #: The 1-based paragraph ordinals the approved edits name, ascending.
+    affected_paragraphs: tuple[int, ...]
+    #: One summary per approved suggestion, in approval order.
+    edits: tuple[PreviewEditSummary, ...]
+    marked_sha256: str
+    marked_size_bytes: int
+    clean_sha256: str
+    clean_size_bytes: int
+    original_sha256: str
+    original_size_bytes: int
+
+
+class ExportDeliverablesRequest(BaseModel):
+    """What the export step needs: which dossier, and nothing else.
+
+    The dossier manifest is the binding's own record; naming it names the
+    whole round — its task, its input version, its output version and the
+    four deliverables. ``model_config`` is frozen for the same reason
+    :class:`ApplyReviewRequest`'s is.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    project_id: str
+    dossier_artifact_id: str
+
+
+class DeliverableFile(Result):
+    """One deliverable's bytes, with the digest a reader checks them against.
+
+    ``kind`` is the deliverable's own name in execution plan §3.2's
+    vocabulary — ``marked``, ``clean``, ``response_table`` or
+    ``quality_report`` — and ``content`` is the bytes exactly as a reader
+    would write them to disk. The sha256 is over those bytes, so a reader
+    who hashes what they received compares it against a hash of the same
+    thing.
+    """
+
+    kind: str
+    relative_path: str
+    content: bytes
+    sha256: str
+    size_bytes: int
+
+
+class DeliverablesExport(Result):
+    """The four deliverables of one closed binding, and what they bind to.
+
+    **The four are one export because they are one round.** The manifest's
+    ids are carried through unchanged — the same task, the same input
+    version, the same output version, the same receipts — so a reader who
+    wants to know whether the table they are holding belongs to the draft
+    beside it compares the ids, and the export is the record that says what
+    belongs together.
+    """
+
+    project_id: str
+    dossier_artifact_id: str
+    task_id: str
+    input_version_id: str
+    output_version_id: str
+    marked_receipt_id: str
+    clean_receipt_id: str
+    edge_id: str
+    deliverables: tuple[DeliverableFile, ...]
 
 
 def _require_project(context: ApplicationContext, project_id: str) -> None:
@@ -691,6 +806,283 @@ def apply_review(
                 detail=task.detail,
             )
             for task in closed.unresolved
+        ),
+    )
+
+
+def preview_review_apply(
+    context: ApplicationContext,
+    request: ApplyReviewRequest,
+) -> ReviewPreview:
+    """Measure what one apply round would do, without doing any of it.
+
+    **The preview runs the apply step's own pieces, and writes nothing.**
+    The opinions are classified by the binding's own reader, the approved
+    set is selected by the binding's own filter, and the drafts are folded
+    by the apply step's own rewrite loop — extracted into
+    :func:`labcairn.papers.binding.fold_approved_edits` so the preview and
+    the apply cannot drift into two spellings of one step. What the preview
+    adds is the discipline of the dry run: no file is written, no store row
+    is written, and :func:`labcairn.papers.binding.apply_approved_edits` is
+    never called — a preview that published would be the apply step wearing
+    a preview's name.
+
+    **The digests are the apply's digests, on purpose.** The same original
+    bytes, read through the same permitted read and folded in the same
+    order, give the sha256 the apply's publications will carry. A caller
+    applies the round and compares; the equality is the witness that the
+    preview did not lie, and :mod:`tests.test_review_api` is where it is
+    witnessed.
+
+    **A suggestion the reviewer has not decided is counted, not applied.**
+    ``pending`` and ``rejected`` name the suggestions the verdicts hold
+    back — applying either would be the model deciding, which is the
+    failure the separation exists to prevent — and neither appears in
+    ``affected_paragraphs`` nor in ``edits``.
+
+    :raises ApplicationRefusedError: the project or the version is not
+        there, the material is denied or unreadable, or the stored
+        suggestions cannot be read.
+    """
+    from labcairn.editing.drafts import ApprovedEdit
+    from labcairn.papers.binding import (
+        LocationState,
+        ModelSuggestion,
+        ReviewDecision,
+        ReviewVerdict,
+        _approved_suggestions,
+        _locate_opinions,
+        fold_approved_edits,
+    )
+    from labcairn.security.capabilities import CapabilityId
+    from labcairn.workspace.readonly import SourceMaterial
+
+    _require_project(context, request.project_id)
+    _require_version(context, request.project_id, request.input_version_id)
+    session = context.store.session
+    decision_rows = session.scalars(
+        select(ReviewDecisionRow).where(ReviewDecisionRow.project_id == request.project_id)
+    ).all()
+    decisions: list[ReviewDecision] = []
+    for row in decision_rows:
+        event_row = session.get(FeedbackEventRow, row.feedback_id)
+        if event_row is None:
+            continue
+        decisions.append(
+            ReviewDecision(
+                feedback_id=row.feedback_id,
+                verdict=ReviewVerdict(row.verdict),
+                operator=row.operator,
+                decided_at=row.decided_at,
+                needs_evidence=row.needs_evidence,
+            )
+        )
+    if not decisions:
+        # **The apply's own guard, mirrored.** A round nobody reviewed has no
+        # approved set, and the apply refuses it rather than publishing an
+        # unreviewed version. The preview shows the same refusal, because a
+        # preview that answered "nothing will change, you are clear to apply"
+        # about a round the apply would refuse would be a preview that lied
+        # by omission.
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the project {request.project_id!r} holds no review decision, so "
+            "there is no approved set to preview. Applying nothing would publish a "
+            "version nobody reviewed.",
+        )
+    verdict_by_id = {decision.feedback_id: decision for decision in decisions}
+
+    # **The suggestions are the stored ones, read the way the apply reads
+    # them.** The apply's suggestion source reads this module's own table
+    # for the located opinions; the preview reads the same rows under the
+    # same filter, so the two candidate sets are the same set in the same
+    # order — which is what makes the folded digests comparable.
+    suggestions: list[ModelSuggestion] = []
+    for binding in _locate_opinions(
+        context, project_id=request.project_id, version_id=request.input_version_id
+    ):
+        if binding.location_state is not LocationState.LOCATED:
+            continue
+        suggestion_row = session.get(ReviewSuggestionRow, binding.feedback_id)
+        if suggestion_row is None:
+            continue
+        suggestions.append(
+            ModelSuggestion(
+                feedback_id=binding.feedback_id,
+                edit=ApprovedEdit(
+                    part=suggestion_row.part,
+                    paragraph=suggestion_row.paragraph,
+                    old_text=suggestion_row.old_text,
+                    new_text=suggestion_row.new_text,
+                    author=suggestion_row.author,
+                    date=suggestion_row.proposed_at.isoformat(),
+                ),
+            )
+        )
+
+    pending = 0
+    rejected = 0
+    for suggestion in suggestions:
+        decision = verdict_by_id.get(suggestion.feedback_id)
+        if decision is None or decision.verdict == ReviewVerdict.PENDING:
+            pending += 1
+        elif decision.verdict == ReviewVerdict.REJECTED:
+            rejected += 1
+
+    material = SourceMaterial(context.workspace, context.policy)
+    original_bytes = material.read_permitted(
+        request.source_key,
+        root_id=request.source_root_id,
+        capability=CapabilityId.SOURCE_READ.value,
+    )
+    approved = _approved_suggestions(suggestions, verdict_by_id)
+    folded = fold_approved_edits(original_bytes, approved)
+    return ReviewPreview(
+        project_id=request.project_id,
+        input_version_id=request.input_version_id,
+        applied=len(folded.applied),
+        pending=pending,
+        rejected=rejected,
+        affected_paragraphs=tuple(sorted({s.edit.paragraph for s in folded.applied})),
+        edits=tuple(
+            PreviewEditSummary(
+                feedback_id=suggestion.feedback_id,
+                part=suggestion.edit.part,
+                paragraph=suggestion.edit.paragraph,
+                old_text=suggestion.edit.old_text,
+                new_text=suggestion.edit.new_text,
+                author=suggestion.edit.author,
+            )
+            for suggestion in folded.applied
+        ),
+        marked_sha256=hashlib.sha256(folded.marked_bytes).hexdigest(),
+        marked_size_bytes=len(folded.marked_bytes),
+        clean_sha256=hashlib.sha256(folded.clean_bytes).hexdigest(),
+        clean_size_bytes=len(folded.clean_bytes),
+        original_sha256=hashlib.sha256(original_bytes).hexdigest(),
+        original_size_bytes=len(original_bytes),
+    )
+
+
+def export_deliverables(
+    context: ApplicationContext,
+    request: ExportDeliverablesRequest,
+) -> DeliverablesExport:
+    """The four deliverables of one closed binding, read from its manifest.
+
+    **The manifest is the export's authority.** The dossier names the task,
+    the input version, the output version and the two publication receipts;
+    the drafts' bytes are read back through the artefact layer under the
+    policy's own verdict, and each is hash-checked against the digest the
+    manifest binds — an export whose bytes had drifted from the binding
+    would carry a deliverable nobody signed for (execution plan §7.3's
+    digest check, at the export's door).
+
+    **The response table and the quality report are rendered from the
+    manifest, not re-derived.** The renderers are the deliverables' own
+    (LC-P3-04's), and they take the manifest's own JSON — the same bytes
+    the binding wrote — so a report that says a change landed says it
+    because the chain recorded it, not because the export re-counted.
+
+    :raises ApplicationRefusedError: the project is not there, the dossier
+        artefact is not there or is not a manifest, the manifest binds
+        another project, or a draft's bytes no longer hash to what the
+        manifest binds.
+    """
+    from pathlib import PurePosixPath
+
+    from labcairn.application.artifacts import read_artifact
+    from labcairn.papers.binding import DossierManifest
+    from labcairn.reports.quality_report import render_quality_report_markdown
+    from labcairn.reports.receipt import ArtifactKind
+    from labcairn.reports.response_table import render_response_table_markdown
+
+    _require_project(context, request.project_id)
+    dossier = read_artifact(context, request.dossier_artifact_id)
+    if dossier.receipt.kind is not ArtifactKind.MANIFEST:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the artefact {request.dossier_artifact_id!r} is a "
+            f"{dossier.receipt.kind.value!r} receipt, not a dossier manifest. "
+            "The deliverables export reads the binding's own manifest, and "
+            "another artefact names no binding to export.",
+        )
+    manifest = DossierManifest.model_validate_json(dossier.content.decode("utf-8"))
+    if manifest.project_id != request.project_id:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the dossier {request.dossier_artifact_id!r} binds the project "
+            f"{manifest.project_id!r}, not {request.project_id!r}. A dossier "
+            "is exported to the project it binds, or not at all.",
+        )
+
+    marked = read_artifact(context, manifest.marked_receipt_id)
+    clean = read_artifact(context, manifest.clean_receipt_id)
+    marked_sha256 = hashlib.sha256(marked.content).hexdigest()
+    clean_sha256 = hashlib.sha256(clean.content).hexdigest()
+    if marked_sha256 != manifest.marked_sha256:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_DRIFTED,
+            f"the marked draft {manifest.marked_receipt_id!r} hashes to "
+            f"{marked_sha256}, but the dossier binds {manifest.marked_sha256}. "
+            "The bytes on disk are not the bytes the binding recorded, and an "
+            "export of them would carry a deliverable nobody bound.",
+        )
+    if clean_sha256 != manifest.clean_sha256:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_DRIFTED,
+            f"the clean draft {manifest.clean_receipt_id!r} hashes to "
+            f"{clean_sha256}, but the dossier binds {manifest.clean_sha256}. "
+            "The bytes on disk are not the bytes the binding recorded, and an "
+            "export of them would carry a deliverable nobody bound.",
+        )
+
+    manifest_json = dossier.content.decode("utf-8")
+    response_table = render_response_table_markdown(manifest_json)
+    quality_report = render_quality_report_markdown(manifest_json)
+    # **The rendered deliverables are named beside the drafts they answer.**
+    # They are rendered, not written — the caller decides where they land —
+    # and the suggested name is the dossier's own directory, so one
+    # revision's four deliverables sit together on the reader's disk too.
+    base = PurePosixPath(dossier.receipt.relative_path).parent
+    return DeliverablesExport(
+        project_id=request.project_id,
+        dossier_artifact_id=request.dossier_artifact_id,
+        task_id=manifest.task_id,
+        input_version_id=manifest.input_version_id,
+        output_version_id=manifest.output_version_id,
+        marked_receipt_id=manifest.marked_receipt_id,
+        clean_receipt_id=manifest.clean_receipt_id,
+        edge_id=manifest.edge_id,
+        deliverables=(
+            DeliverableFile(
+                kind="marked",
+                relative_path=marked.receipt.relative_path,
+                content=marked.content,
+                sha256=marked_sha256,
+                size_bytes=len(marked.content),
+            ),
+            DeliverableFile(
+                kind="clean",
+                relative_path=clean.receipt.relative_path,
+                content=clean.content,
+                sha256=clean_sha256,
+                size_bytes=len(clean.content),
+            ),
+            DeliverableFile(
+                kind="response_table",
+                relative_path=(base / "response-table.md").as_posix(),
+                content=response_table,
+                sha256=hashlib.sha256(response_table).hexdigest(),
+                size_bytes=len(response_table),
+            ),
+            DeliverableFile(
+                kind="quality_report",
+                relative_path=(base / "quality-report.md").as_posix(),
+                content=quality_report,
+                sha256=hashlib.sha256(quality_report).hexdigest(),
+                size_bytes=len(quality_report),
+            ),
         ),
     )
 

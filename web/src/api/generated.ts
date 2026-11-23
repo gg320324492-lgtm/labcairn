@@ -198,6 +198,26 @@ export type ComputationLocator = {
   input_hashes: string[]
 }
 
+export type DeliverableFileWire = {
+  kind: string
+  relative_path: string
+  content_base64: string
+  sha256: string
+  size_bytes: number
+}
+
+export type DeliverablesExportWire = {
+  project_id: string
+  dossier_artifact_id: string
+  task_id: string
+  input_version_id: string
+  output_version_id: string
+  marked_receipt_id: string
+  clean_receipt_id: string
+  edge_id: string
+  deliverables: DeliverableFileWire[]
+}
+
 export type DerivationRef = {
   target_kind: DerivationTargetKind
   target_id: string
@@ -404,6 +424,15 @@ export type PlanStage = {
   blocked_reason?: string | null
 }
 
+export type PreviewEditSummary = {
+  feedback_id: string
+  part: string
+  paragraph: number
+  old_text: string
+  new_text: string
+  author: string
+}
+
 export type ProjectGraph = {
   version_ids: string[]
   edges: ChainEdge[]
@@ -531,6 +560,22 @@ export type ReviewOpinions = {
 export type ReviewParagraph = {
   index: number
   text: string
+}
+
+export type ReviewPreview = {
+  project_id: string
+  input_version_id: string
+  applied: number
+  pending: number
+  rejected: number
+  affected_paragraphs: number[]
+  edits: PreviewEditSummary[]
+  marked_sha256: string
+  marked_size_bytes: number
+  clean_sha256: string
+  clean_size_bytes: number
+  original_sha256: string
+  original_size_bytes: number
 }
 
 export type ReviewSuggestionBody = {

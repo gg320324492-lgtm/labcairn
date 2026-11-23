@@ -15,6 +15,8 @@ sample, two surfaces.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -163,7 +165,9 @@ def _store_suggestion(
 # --------------------------------------------------------------------------- #
 
 
-def test_every_opinion_is_listed_with_its_state(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_every_opinion_is_listed_with_its_state(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The three-case sample lands in the binding's own vocabulary.
 
     **An opinion the chain holds is an opinion the read carries**, whatever
@@ -184,7 +188,9 @@ def test_every_opinion_is_listed_with_its_state(client: tuple[TestClient, str], 
     assert unplaceable["anchor_reason"]
 
 
-def test_a_suggestion_and_its_decision_are_separate_records(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_a_suggestion_and_its_decision_are_separate_records(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The stored proposal and the stored verdict travel as separate fields.
 
     **ADR-0016's rule, at the surface.** Before either is written both are
@@ -225,7 +231,9 @@ def test_a_suggestion_and_its_decision_are_separate_records(client: tuple[TestCl
     assert opinion["suggestion"]["old_text"] == stored["old_text"]
 
 
-def test_the_opinion_read_names_the_chain_states(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_the_opinion_read_names_the_chain_states(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The response states travel with the opinion they belong to.
 
     The chain's judgements are the fourth fact the workbench renders; a
@@ -244,7 +252,9 @@ def test_the_opinion_read_names_the_chain_states(client: tuple[TestClient, str],
 # --------------------------------------------------------------------------- #
 
 
-def test_the_manuscript_is_read_in_the_anchor_numbering(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_the_manuscript_is_read_in_the_anchor_numbering(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The paragraphs are 1-based, in document order, and the anchor matches.
 
     The workbench's scroll-sync is an equality test between an opinion's
@@ -305,7 +315,9 @@ def test_an_acceptance_without_a_suggestion_is_refused(
     assert "no stored suggestion" in payload["message"]
 
 
-def test_a_verdict_on_an_unknown_opinion_is_refused(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_a_verdict_on_an_unknown_opinion_is_refused(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The chain holds the opinions; a verdict about another one decides nothing."""
     _record_comments(fixture)
     wired, token = client
@@ -323,7 +335,9 @@ def test_a_verdict_on_an_unknown_opinion_is_refused(client: tuple[TestClient, st
     assert response.json()["reason"] == "chain_feedback_not_found"
 
 
-def test_a_verdict_outside_the_vocabulary_is_refused(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_a_verdict_outside_the_vocabulary_is_refused(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The four words are closed; a fifth is a typo, and a typo is loud."""
     _record_comments(fixture)
     wired, token = client
@@ -344,7 +358,9 @@ def test_a_verdict_outside_the_vocabulary_is_refused(client: tuple[TestClient, s
     assert response.status_code == 422
 
 
-def test_a_revised_verdict_stands_alone(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_a_revised_verdict_stands_alone(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The store holds the verdict that stands, not the history of the asks.
 
     **One row per opinion.** A reviewer who revises writes the row again;
@@ -371,7 +387,9 @@ def test_a_revised_verdict_stands_alone(client: tuple[TestClient, str], fixture:
     assert opinion["decision"]["verdict"] == "accepted"
 
 
-def test_a_decision_without_an_operator_is_refused(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_a_decision_without_an_operator_is_refused(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """A decision names its reviewer; an anonymous verdict is a shrug."""
     wired, token = client
     feedback_id = _feedback_id(fixture, "c-2")
@@ -393,7 +411,9 @@ def test_a_decision_without_an_operator_is_refused(client: tuple[TestClient, str
 # --------------------------------------------------------------------------- #
 
 
-def test_a_suggestion_about_an_unknown_opinion_is_refused(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_a_suggestion_about_an_unknown_opinion_is_refused(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """A suggestion answers an opinion; a suggestion about nothing proposes
     nothing."""
     _record_comments(fixture)
@@ -416,7 +436,9 @@ def test_a_suggestion_about_an_unknown_opinion_is_refused(client: tuple[TestClie
     assert response.json()["reason"] == "chain_feedback_not_found"
 
 
-def test_a_suggestion_with_a_zero_paragraph_is_refused(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_a_suggestion_with_a_zero_paragraph_is_refused(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The seam's numbering is 1-based; a zero is a typo, and a typo is loud."""
     wired, token = client
     feedback_id = _feedback_id(fixture, "c-1")
@@ -442,7 +464,9 @@ def test_a_suggestion_with_a_zero_paragraph_is_refused(client: tuple[TestClient,
 # --------------------------------------------------------------------------- #
 
 
-def test_apply_without_a_decision_is_refused(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_apply_without_a_decision_is_refused(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """Applying nothing would publish a version nobody reviewed."""
     _record_comments(fixture)
     wired, token = client
@@ -463,7 +487,9 @@ def test_apply_without_a_decision_is_refused(client: tuple[TestClient, str], fix
     assert "no review decision" in response.json()["message"]
 
 
-def test_apply_runs_the_stored_approved_set_and_binds_the_deliverables(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_apply_runs_the_stored_approved_set_and_binds_the_deliverables(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The full round, end to end: suggest, decide, apply, and the bindings hold.
 
     **The decisions come from the store, not from the request.** The apply
@@ -520,7 +546,9 @@ def test_apply_runs_the_stored_approved_set_and_binds_the_deliverables(client: t
     assert len(unresolved_ids) >= 1
 
 
-def test_the_apply_output_version_is_readable_through_the_review_read(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_the_apply_output_version_is_readable_through_the_review_read(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The published draft is a version of its own, and the chain sees it.
 
     **The round's output is not a file that happens to exist** — it is a
@@ -564,7 +592,9 @@ def test_the_apply_output_version_is_readable_through_the_review_read(client: tu
     assert output_version_id != after["version_id"]
 
 
-def test_a_foreign_token_is_refused(client: tuple[TestClient, str], fixture: BindingFixture) -> None:
+def test_a_foreign_token_is_refused(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
     """The session guard covers the review routes like every other route.
 
     **A read is free, a mutation is not.** The guard's rule is that the safe
@@ -586,3 +616,309 @@ def test_a_foreign_token_is_refused(client: tuple[TestClient, str], fixture: Bin
     )
     assert response.status_code == 401
     assert response.json()["reason"] == "session_required"
+
+
+# --------------------------------------------------------------------------- #
+# the pre-apply preview
+# --------------------------------------------------------------------------- #
+
+
+def _preview(wired: TestClient, token: str, fixture: BindingFixture) -> tuple[int, dict[str, Any]]:
+    """One preview call, with the apply body's own addresses."""
+    response = wired.post(
+        "/review/preview",
+        json={
+            "project_id": fixture.project_id,
+            "input_version_id": fixture.version_id,
+            "source_root_id": fixture.source_root_id,
+            "source_key": fixture.source_key,
+            "output_label": "binding-sample-output.docx",
+            "window_end": WINDOW.isoformat(),
+        },
+        headers=_headers(token),
+    )
+    return response.status_code, response.json()
+
+
+def _artifact_count(fixture: BindingFixture) -> int:
+    """How many artefact rows the store holds — the dry-run's witness gauge.
+
+    **A preview that wrote would move this number.** The apply round writes
+    four artefacts (two drafts, the output version's source row is not an
+    artefact, the two receipts are) plus the dossier; the preview writes
+    none of them. The count is read in its own transaction, because the
+    fixture's session and the service's forked sessions take the same
+    SQLite write lock.
+    """
+    from sqlalchemy import func, select
+
+    from labcairn.db.models import ArtifactRow
+
+    session = fixture.context.store.session
+    count = session.scalar(select(func.count()).select_from(ArtifactRow))
+    session.commit()
+    return int(count or 0)
+
+
+def test_the_preview_matches_the_apply_byte_for_byte(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
+    """The preview's digests are the apply's digests — the preview does not lie.
+
+    **The core witness of the dry run.** The same round is previewed and
+    then applied, and the two answers must agree on every number a reader
+    could act on: the applied count, the affected paragraphs, and above all
+    the sha256 of the marked and the clean draft. A preview whose digests
+    differed from the apply's would be a forecast the operator cannot
+    trust, which is the one outcome execution plan §3.2's *预览修改数量、
+    影响段落和输出变化摘要* exists to prevent.
+
+    **And the preview writes nothing.** The artefact count is read before
+    and after the preview call: a dry run that published a draft, wrote a
+    manifest or left a store row behind would be the apply step wearing a
+    preview's name.
+    """
+    _record_comments(fixture)
+    wired, token = client
+    feedback_id = _feedback_id(fixture, "c-1")
+    _store_suggestion(wired, token, fixture, feedback_id, paragraph=1)
+    verdict = wired.post(
+        "/review/decision",
+        json={
+            "project_id": fixture.project_id,
+            "feedback_id": feedback_id,
+            "verdict": ReviewVerdict.ACCEPTED.value,
+            "operator": "Dr. Chen",
+        },
+        headers=_headers(token),
+    )
+    assert verdict.status_code == 200, verdict.text
+
+    before = _artifact_count(fixture)
+    status, preview = _preview(wired, token, fixture)
+    assert status == 200, preview
+    after = _artifact_count(fixture)
+    assert before == after, (
+        "the preview wrote store rows: the artefact count moved from "
+        f"{before} to {after}. A dry run that writes is an apply, not a preview."
+    )
+
+    assert preview["project_id"] == fixture.project_id
+    assert preview["input_version_id"] == fixture.version_id
+    assert preview["applied"] == 1
+    assert preview["pending"] == 0
+    assert preview["rejected"] == 0
+    assert preview["affected_paragraphs"] == [1]
+    assert [edit["feedback_id"] for edit in preview["edits"]] == [feedback_id]
+    assert preview["edits"][0]["old_text"] == PARAGRAPH_TEXT
+    assert preview["edits"][0]["new_text"] == PARAGRAPH_TEXT.replace("estimates", "re-estimates")
+    assert preview["original_sha256"] and preview["original_size_bytes"] > 0
+
+    apply_response = wired.post(
+        "/review/apply",
+        json={
+            "project_id": fixture.project_id,
+            "input_version_id": fixture.version_id,
+            "source_root_id": fixture.source_root_id,
+            "source_key": fixture.source_key,
+            "output_label": "binding-sample-output.docx",
+            "window_end": WINDOW.isoformat(),
+        },
+        headers=_headers(token),
+    )
+    assert apply_response.status_code == 200, apply_response.text
+    applied = apply_response.json()
+
+    # **The equality the whole preview stands on.** The drafts the preview
+    # measured are the drafts the apply published — same sha256, same size.
+    assert preview["marked_sha256"] == applied["marked_sha256"]
+    assert preview["clean_sha256"] == applied["clean_sha256"]
+    assert preview["applied"] == len(applied["applied"])
+
+
+def test_the_preview_holds_back_undecided_suggestions(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
+    """A suggestion the reviewer has not approved is counted, never applied.
+
+    **The model does not decide.** An undecided suggestion is `pending`, a
+    refused one is `rejected`, and neither reaches the affected paragraphs
+    nor the edit summaries — applying either would be the model's word
+    overriding the reviewer's, which is the separation the whole review
+    step exists to keep. The verdict is revised through the store, exactly
+    as the apply step would read it, so the preview's counts follow the
+    reviewer's word rather than the suggestion's presence.
+    """
+    _record_comments(fixture)
+    wired, token = client
+    feedback_id = _feedback_id(fixture, "c-1")
+    _store_suggestion(wired, token, fixture, feedback_id, paragraph=1)
+
+    def _decide(verdict_value: str) -> None:
+        response = wired.post(
+            "/review/decision",
+            json={
+                "project_id": fixture.project_id,
+                "feedback_id": feedback_id,
+                "verdict": verdict_value,
+                "operator": "Dr. Chen",
+            },
+            headers=_headers(token),
+        )
+        assert response.status_code == 200, response.text
+
+    # **No verdict at all is the apply's own refusal, mirrored.** The apply
+    # refuses a round with no decision; the preview answers the same
+    # refusal rather than forecasting an empty, harmless round.
+    status, body = _preview(wired, token, fixture)
+    assert status == 403, body
+    assert body["reason"] == "arguments_invalid"
+    assert "no review decision" in body["message"]
+
+    _decide(ReviewVerdict.PENDING.value)
+    status, body = _preview(wired, token, fixture)
+    assert status == 200, body
+    assert body["applied"] == 0
+    assert body["pending"] == 1
+    assert body["affected_paragraphs"] == []
+    assert body["edits"] == []
+
+    _decide(ReviewVerdict.REJECTED.value)
+    status, body = _preview(wired, token, fixture)
+    assert status == 200, body
+    assert body["applied"] == 0
+    assert body["rejected"] == 1
+    assert body["pending"] == 0
+    assert body["affected_paragraphs"] == []
+
+    _decide(ReviewVerdict.ACCEPTED.value)
+    status, body = _preview(wired, token, fixture)
+    assert status == 200, body
+    assert body["applied"] == 1
+    assert body["affected_paragraphs"] == [1]
+
+
+# --------------------------------------------------------------------------- #
+# the four-deliverable export
+# --------------------------------------------------------------------------- #
+
+
+def _apply_round(wired: TestClient, token: str, fixture: BindingFixture) -> dict[str, Any]:
+    """One full approved round, applied through the workbench's own seam."""
+    feedback_id = _feedback_id(fixture, "c-1")
+    _store_suggestion(wired, token, fixture, feedback_id, paragraph=1)
+    verdict = wired.post(
+        "/review/decision",
+        json={
+            "project_id": fixture.project_id,
+            "feedback_id": feedback_id,
+            "verdict": ReviewVerdict.ACCEPTED.value,
+            "operator": "Dr. Chen",
+        },
+        headers=_headers(token),
+    )
+    assert verdict.status_code == 200, verdict.text
+    apply_response = wired.post(
+        "/review/apply",
+        json={
+            "project_id": fixture.project_id,
+            "input_version_id": fixture.version_id,
+            "source_root_id": fixture.source_root_id,
+            "source_key": fixture.source_key,
+            "output_label": "binding-sample-output.docx",
+            "window_end": WINDOW.isoformat(),
+        },
+        headers=_headers(token),
+    )
+    assert apply_response.status_code == 200, apply_response.text
+    return dict(apply_response.json())
+
+
+def _export(
+    wired: TestClient, token: str, fixture: BindingFixture, dossier_artifact_id: str
+) -> tuple[int, dict[str, Any]]:
+    """One deliverables-export call, addressed the way the route names it."""
+    response = wired.get(
+        "/review/deliverables",
+        params={"project_id": fixture.project_id, "dossier_artifact_id": dossier_artifact_id},
+        headers=_headers(token),
+    )
+    return response.status_code, response.json()
+
+
+def test_the_export_serves_the_four_bound_deliverables(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
+    """One closed binding exports as four files, and the bindings hold.
+
+    **The four are one round's four.** The marked and the clean drafts are
+    the apply's own published bytes, hash-checked against the dossier; the
+    response table names every opinion the chain holds, the applied one
+    with its verdict and its change; and the quality report carries the
+    binding's ids — the same input version, output version, edge and
+    receipts the manifest binds. A reader who decodes, saves and hashes
+    each file verifies it against the digest the binding recorded, which
+    is execution plan §7.1's step 9 reached through the API.
+    """
+    _record_comments(fixture)
+    wired, token = client
+    applied = _apply_round(wired, token, fixture)
+    status, export = _export(wired, token, fixture, applied["dossier_artifact_id"])
+    assert status == 200, export
+
+    assert export["project_id"] == fixture.project_id
+    assert export["dossier_artifact_id"] == applied["dossier_artifact_id"]
+    assert export["input_version_id"] == fixture.version_id
+    assert export["output_version_id"] == applied["output_version_id"]
+    assert export["marked_receipt_id"] == applied["marked_receipt_id"]
+    assert export["clean_receipt_id"] == applied["clean_receipt_id"]
+    assert export["edge_id"] == applied["edge_id"]
+    assert export["task_id"]
+
+    files = {item["kind"]: item for item in export["deliverables"]}
+    assert set(files) == {"marked", "clean", "response_table", "quality_report"}
+    for kind, item in files.items():
+        assert item["size_bytes"] > 0, f"the {kind} deliverable is empty"
+        assert item["content_base64"], f"the {kind} deliverable carries no bytes"
+        assert item["sha256"], f"the {kind} deliverable carries no digest"
+
+    marked = base64.b64decode(files["marked"]["content_base64"])
+    clean = base64.b64decode(files["clean"]["content_base64"])
+    assert hashlib.sha256(marked).hexdigest() == applied["marked_sha256"]
+    assert hashlib.sha256(marked).hexdigest() == files["marked"]["sha256"]
+    assert hashlib.sha256(clean).hexdigest() == applied["clean_sha256"]
+    assert hashlib.sha256(clean).hexdigest() == files["clean"]["sha256"]
+
+    response_table = base64.b64decode(files["response_table"]["content_base64"]).decode("utf-8")
+    feedback_id = _feedback_id(fixture, "c-1")
+    assert feedback_id in response_table, (
+        "the response table does not name the approved opinion — an opinion "
+        "absent from the table is an opinion silently dropped"
+    )
+    assert applied["output_version_id"] in response_table
+
+    quality_report = base64.b64decode(files["quality_report"]["content_base64"]).decode("utf-8")
+    assert applied["marked_receipt_id"] in quality_report
+    assert applied["clean_receipt_id"] in quality_report
+    assert applied["output_version_id"] in quality_report
+    assert applied["edge_id"] in quality_report
+    assert fixture.version_id in quality_report
+
+
+def test_the_export_refuses_an_unknown_dossier(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
+    """An export of nothing is refused in the layer's own vocabulary.
+
+    **The manifest is the export's authority, so a missing one is a
+    refusal, not an empty bundle.** The refusal is the artefact layer's own
+    `artifact_not_found`, rendered in the same two fields every other
+    refusal uses — a caller branches on the reason without reading the
+    message, the same discipline the whole API's error surface keeps.
+    """
+    _record_comments(fixture)
+    wired, token = client
+    status, body = _export(wired, token, fixture, "no-such-dossier-artifact")
+    assert status == 403, body
+    assert body["reason"] == "artifact_not_found"
+    assert "no artefact" in body["message"]

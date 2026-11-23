@@ -1202,11 +1202,14 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /task/select",
         # The review workbench's writes (Phase 4, LC-P4-CAP): a suggestion
         # the model proposed is recorded, a person's verdict is recorded,
-        # and the approved set is applied through the binding. All three are
-        # the layer's own operations behind the same token and origin guard.
+        # and the approved set is applied through the binding. The preview
+        # is a POST because it takes the apply body — it is the dry run of
+        # that same round, and it writes nothing. All of them are the
+        # layer's own operations behind the same token and origin guard.
         "POST /review/suggestion",
         "POST /review/decision",
         "POST /review/apply",
+        "POST /review/preview",
     }
 
 

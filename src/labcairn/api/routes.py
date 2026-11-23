@@ -31,6 +31,7 @@ refusal as well.
 
 from __future__ import annotations
 
+import base64
 import time
 import uuid
 from collections.abc import Iterator
@@ -49,6 +50,8 @@ from labcairn.api.contracts import (
     ClaimBody,
     ClaimExtractionBody,
     CommentResponses,
+    DeliverableFileWire,
+    DeliverablesExportWire,
     GuidanceRuleVerdictBody,
     Health,
     IssueKeys,
@@ -119,12 +122,16 @@ from labcairn.application.context import approval_ledger_for
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.review import (
     ApplyReviewRequest,
+    ExportDeliverablesRequest,
     ReviewApplyResult,
     ReviewDecisionData,
     ReviewManuscript,
     ReviewOpinions,
+    ReviewPreview,
     ReviewSuggestionData,
     apply_review,
+    export_deliverables,
+    preview_review_apply,
     read_review_manuscript,
     read_review_opinions,
     record_review_decision,
@@ -1196,5 +1203,75 @@ def post_review_apply(
             source_key=body.source_key,
             output_label=body.output_label,
             window_end=body.window_end,
+        ),
+    )
+
+
+@router.post("/review/preview", response_model=ReviewPreview, tags=["review"])
+def post_review_preview(
+    body: ApplyReviewBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewPreview:
+    """Measure what the apply round would do, before anything is written.
+
+    **The preview is the dry run the workbench shows before the operator
+    commits** (execution plan §3.2: *应用修改前必须预览修改数量、影响段落和
+    输出变化摘要*). It takes the same body the apply route takes, because
+    it answers the apply's question about the same round; it writes
+    nothing — no file, no store row — and the digests it returns are the
+    sha256 of the drafts the apply would publish. A caller applies the
+    round and compares; the equality is the preview's own witness.
+    """
+    return preview_review_apply(
+        context,
+        ApplyReviewRequest(
+            project_id=body.project_id,
+            input_version_id=body.input_version_id,
+            source_root_id=body.source_root_id,
+            source_key=body.source_key,
+            output_label=body.output_label,
+            window_end=body.window_end,
+        ),
+    )
+
+
+@router.get("/review/deliverables", response_model=DeliverablesExportWire, tags=["review"])
+def get_review_deliverables(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    dossier_artifact_id: Annotated[str, Query(min_length=1)],
+) -> DeliverablesExportWire:
+    """The four deliverables of one closed binding, in one export.
+
+    **One round, four files, one manifest.** The dossier names the binding;
+    the marked and the clean drafts are read back and hash-checked against
+    it, and the response table and the quality report are rendered from the
+    manifest's own JSON. The bytes travel base64-encoded, because a DOCX is
+    a zip and a zip is not text; the sha256 beside each is over the decoded
+    bytes, so a client decodes, saves and verifies against the same digest
+    the binding recorded (execution plan §7.1's step 9, at the surface).
+    """
+    export = export_deliverables(
+        context,
+        ExportDeliverablesRequest(project_id=project_id, dossier_artifact_id=dossier_artifact_id),
+    )
+    return DeliverablesExportWire(
+        project_id=export.project_id,
+        dossier_artifact_id=export.dossier_artifact_id,
+        task_id=export.task_id,
+        input_version_id=export.input_version_id,
+        output_version_id=export.output_version_id,
+        marked_receipt_id=export.marked_receipt_id,
+        clean_receipt_id=export.clean_receipt_id,
+        edge_id=export.edge_id,
+        deliverables=tuple(
+            DeliverableFileWire(
+                kind=file.kind,
+                relative_path=file.relative_path,
+                content_base64=base64.b64encode(file.content).decode("ascii"),
+                sha256=file.sha256,
+                size_bytes=file.size_bytes,
+            )
+            for file in export.deliverables
         ),
     )
