@@ -539,6 +539,64 @@ body {
   color: var(--labcairn-warn);
 }
 
+/* The suggestion loop: the desk's door to the model, its mode choice, the
+ * run's own account, and the way out of a refusal. The failure is carried
+ * in text — never in colour alone. */
+.review-desk__refusal {
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+  color: var(--labcairn-warn);
+  overflow-wrap: anywhere;
+}
+
+.review-desk__suggest {
+  margin-top: 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--labcairn-rule);
+}
+
+.review-desk__suggest-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-start;
+  margin-top: 0.5rem;
+}
+
+.review-desk__suggest-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.review-desk__suggest-failure {
+  margin-top: 0.4rem;
+}
+
+.review-desk__run {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0.7rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+}
+
+.review-desk__run-item dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__run-item dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
 /* --- Stage feedback bar ------------------------------------------------- */
 
 .stage-bar {

@@ -36,6 +36,7 @@ import type {
   ProjectGraph,
   ProposalAcceptanceBody,
   ProposalSettled,
+  ReviewSuggestRun,
   Selection,
   SessionInfo,
   Source,
@@ -610,6 +611,35 @@ export class FakeApi {
   /** The review preview the fake answers with. */
   reviewPreview: unknown = fixturePreview
 
+  /** How many suggestion runs the service has been asked to start. */
+  suggestionRuns = 0
+
+  /**
+   * What the suggestion loop answers with, as the service would.
+   *
+   * `'run'` answers with `suggestionRun`; `'no_provider'` is the route's own
+   * refusal of a real run with no transport wired in; `'failure'` answers
+   * `503` — a retryable transport failure, the kind the loop's own budget
+   * and retry machinery exists for.
+   */
+  suggestionOutcome: 'run' | 'no_provider' | 'failure' = 'run'
+
+  /** The suggestion run the fake answers with, in the API's own shape. */
+  suggestionRun: ReviewSuggestRun = {
+    run_id: '0193f0a1-0000-7000-8000-00000000s001',
+    project_id: 'proj-lc-p4-cap',
+    version_id: 'ver-baseline-04',
+    mode: 'substitute',
+    model_id: 'substitute-model',
+    requests_made: 0,
+    tokens_estimated: 0,
+    stopped_reason: null,
+    suggestions_recorded: 4,
+    opinions_skipped: 0,
+    started_at: '2026-11-24T09:00:00+00:00',
+    finished_at: '2026-11-24T09:00:01+00:00',
+  }
+
   /** The deliverables export the fake answers with. */
   deliverablesExport: unknown = fixtureDeliverablesExport
 
@@ -935,6 +965,35 @@ export class FakeApi {
         handovers: [],
         unresolved: [],
       })
+    }
+
+    // The suggestion loop: the desk asks one version's pending opinions be
+    // walked by a source. The refusals and the failure are the route's own —
+    // no transport wired in refuses a real run by name, and a transport that
+    // cannot be reached answers with the failure the loop's budget exists
+    // for. The run's answer is the account, and the suggestions themselves
+    // are read back through `/review/opinions`.
+    if (method === 'POST' && path === '/review/suggest') {
+      this.suggestionRuns += 1
+      const body = JSON.parse(init?.body as string) as { mode?: string }
+      const mode = body.mode ?? 'substitute'
+      if (this.suggestionOutcome === 'no_provider' && mode === 'real') {
+        return jsonResponse(403, {
+          reason: 'model_suggestion_no_provider',
+          message:
+            'no real-model transport is wired into this service, so there is ' +
+            'nothing to ask. A real run is refused rather than simulated: an ' +
+            'invented suggestion would put words in a model’s mouth that no ' +
+            'model said.',
+        })
+      }
+      if (this.suggestionOutcome === 'failure') {
+        return jsonResponse(503, {
+          reason: 'model_suggestion_unavailable',
+          message: 'the suggestion source could not be reached for this opinion.',
+        })
+      }
+      return jsonResponse(201, { ...this.suggestionRun, mode })
     }
 
     if (method === 'GET' && path.startsWith('/review/deliverables')) {
