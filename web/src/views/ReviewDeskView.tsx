@@ -7,8 +7,8 @@
  * the right is the opinion on the desk, its suggested rewrite, its ground,
  * and the four verdicts a person may record. What the desk holds is where
  * the reader is — which opinion is up, and which paragraph is under their
- * eye — and not the material itself: the material is the fixture's, and the
- * fixture is the contract's shape.
+ * eye — and not the material itself: the material is the service's answer,
+ * and it is the contract's shape.
  *
  * **The two columns meet at the paragraph.** The contract promises that an
  * opinion's `anchor_paragraph` and a manuscript paragraph's `index` are the
@@ -18,26 +18,41 @@
  * opinion puts its paragraph at the top of the pane, so the two stay in step
  * from either side.
  *
- * **The verdict is the person's, and it is not the service's yet.** A click
- * records the verdict in the desk's own state and marks it unsynced, because
- * `POST /review/decision` has no route to answer it while the service is
- * being built. **A button that said "saved" would be lying**, so the desk
- * says what is true: recorded here, not yet with the service. When the route
- * lands, the click posts, the service's answer replaces this state, and the
- * unsynced mark goes.
+ * **The verdict is the person's, and the service holds it.** A click posts
+ * `POST /review/decision` and the service's answer is the record — the desk
+ * does not keep its own copy and call it saved. While the round is in
+ * flight the buttons stand down, and a refusal is shown as what it is: the
+ * service declined, and the desk says so.
+ *
+ * **The round the desk draws is the fixture's.** The service's opinions read
+ * is parameterless from the desk's seat — the round the fixtures name is the
+ * round this workspace holds — so the desk asks for it by the fixture's own
+ * `project_id` and `version_id`, and labels the data by who answered: the
+ * service, or the fixture while the service is not up.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
+import { REVIEW_OPERATOR, readManuscript, readOpinions, recordDecision } from './reviewClient'
+import type { ReviewData } from './reviewClient'
 import { fixtureManuscript, fixtureOpinions } from './reviewFixture'
-import type { ReviewOpinion, ReviewVerdict } from './reviewContract'
+import type {
+  ReviewManuscript,
+  ReviewOpinion,
+  ReviewOpinions,
+  ReviewVerdict,
+} from './reviewContract'
 import {
   REVIEW_VERDICTS,
   opinionAnchoredAt,
   opinionSummary,
   paragraphInView,
 } from './reviewContract'
+
+/** The round the desk draws: the fixture's own names, until the workbench names another. */
+const DESK_PROJECT_ID = fixtureOpinions.project_id
+const DESK_VERSION_ID = fixtureOpinions.version_id
 
 /** What a verdict click left behind, in the desk's own record. */
 interface DeskAction {
@@ -71,14 +86,13 @@ function OpinionBadge({ opinion }: { readonly opinion: ReviewOpinion }): JSX.Ele
       </span>
     )
   }
-  return (
-    <span className="review-desk__flag review-desk__flag--unreviewed">
-      {opinion.location_state === 'needs_evidence' ? 'needs evidence' : 'not reviewed'}
-    </span>
-  )
+  if (opinion.location_state === 'uncertain_location') {
+    return <span className="review-desk__flag review-desk__flag--unplaced">unplaced</span>
+  }
+  return <span className="review-desk__flag review-desk__flag--open">open</span>
 }
 
-/** One opinion's row in the left column: its number, its summary, its state. */
+/** One row of the left column: the opinion's name, its state, and its place. */
 function OpinionRow({
   opinion,
   ordinal,
@@ -195,19 +209,72 @@ function GroundNote({ opinion }: { readonly opinion: ReviewOpinion }): JSX.Eleme
   )
 }
 
+/** The desk's note about where the data it draws came from. */
+function DataSourceNote({ fromService }: { readonly fromService: boolean }): JSX.Element {
+  if (fromService) {
+    return (
+      <p className="panel__note review-desk__fixture-note" role="note">
+        Live data — read from the service&rsquo;s <code>/review</code> routes for{' '}
+        <code>
+          {DESK_PROJECT_ID} / {DESK_VERSION_ID}
+        </code>
+        .
+      </p>
+    )
+  }
+  return (
+    <p className="panel__note review-desk__fixture-note" role="note">
+      Fixture data — the service&rsquo;s <code>/review</code> routes did not answer, so this desk is
+      drawn from <code>src/fixtures/</code>. Verdicts clicked here live on this page only.
+    </p>
+  )
+}
+
 /** What the desk is showing, and what it can do. */
 export function ReviewDeskView(): JSX.Element {
+  const [opinions, setOpinions] = useState<ReviewOpinions>(fixtureOpinions)
+  const [manuscript, setManuscript] = useState<ReviewManuscript>(fixtureManuscript)
+  const [fromService, setFromService] = useState<boolean | null>(null)
   const [activeId, setActiveId] = useState<string | null>(
     fixtureOpinions.opinions[0]?.feedback_id ?? null,
   )
   const [actions, setActions] = useState<readonly DeskAction[]>([])
+  const [posting, setPosting] = useState(false)
+  const [refusal, setRefusal] = useState<string | null>(null)
   const paneRef = useRef<HTMLDivElement | null>(null)
   const rowsRef = useRef<Map<number, HTMLParagraphElement>>(new Map())
   const programmaticScroll = useRef(false)
 
+  // The round is read once, from the service; the fixtures are what shows
+  // while the service does not answer. The read is not the workbench's cycle
+  // because the desk's question carries no parameter the cycle moves: one
+  // round, read once, and re-read only when a verdict changes it.
+  useEffect(() => {
+    let live = true
+    void Promise.all([
+      readOpinions(DESK_PROJECT_ID, DESK_VERSION_ID),
+      readManuscript(DESK_PROJECT_ID, DESK_VERSION_ID),
+    ]).then(([opinionsRead, manuscriptRead]) => {
+      if (!live) {
+        return
+      }
+      setOpinions(opinionsRead.data)
+      setManuscript(manuscriptRead.data)
+      setFromService(opinionsRead.fromService && manuscriptRead.fromService)
+      setActiveId((current) =>
+        opinionsRead.data.opinions.some((opinion) => opinion.feedback_id === current)
+          ? current
+          : (opinionsRead.data.opinions[0]?.feedback_id ?? null),
+      )
+    })
+    return () => {
+      live = false
+    }
+  }, [])
+
   const active = useMemo(
-    () => fixtureOpinions.opinions.find((opinion) => opinion.feedback_id === activeId) ?? null,
-    [activeId],
+    () => opinions.opinions.find((opinion) => opinion.feedback_id === activeId) ?? null,
+    [opinions, activeId],
   )
 
   /** Put the opinion's paragraph at the top of the pane. */
@@ -246,33 +313,63 @@ export function ReviewDeskView(): JSX.Element {
     }
     const paneTop = pane.getBoundingClientRect().top
     const boxes: Array<{ index: number; top: number; bottom: number }> = []
-    for (const [index, element] of rowsRef.current) {
-      const box = element.getBoundingClientRect()
+    for (const row of rowsRef.current.values()) {
+      const index = Number(row.dataset.paragraphIndex)
+      const box = row.getBoundingClientRect()
       boxes.push({ index, top: box.top - paneTop, bottom: box.bottom - paneTop })
     }
-    boxes.sort((left, right) => left.index - right.index)
+    boxes.sort((left, right) => left.top - right.top)
     const seen = paragraphInView(boxes)
     if (seen === null) {
       return
     }
-    const anchored = opinionAnchoredAt(fixtureOpinions.opinions, seen)
+    const anchored = opinionAnchoredAt(opinions.opinions, seen)
     if (anchored !== null && anchored.feedback_id !== activeId) {
       setActiveId(anchored.feedback_id)
     }
-  }, [activeId])
+  }, [opinions, activeId])
 
-  /** Record the verdict here, and say that it has not reached the service. */
-  const onDecide = useCallback((opinion: ReviewOpinion, verdict: ReviewVerdict): void => {
-    setActions((previous) => {
-      const held = previous.find((entry) => entry.feedbackId === opinion.feedback_id)
-      const next: DeskAction = {
-        feedbackId: opinion.feedback_id,
+  /**
+   * Record the verdict with the service, and take the service's word back.
+   *
+   * **The service's answer is the record.** The read is asked again after a
+   * write — the same rule the workbench's own writes follow — so the desk's
+   * next draw is the service's state, not a merge of it. A refusal is shown,
+   * and the opinion's stored verdict stands.
+   */
+  const onDecide = useCallback(
+    (opinion: ReviewOpinion, verdict: ReviewVerdict): void => {
+      const held = actions.find((entry) => entry.feedbackId === opinion.feedback_id)
+      setActions((previous) => {
+        const next: DeskAction = {
+          feedbackId: opinion.feedback_id,
+          verdict,
+          needsEvidence: held?.needsEvidence ?? false,
+        }
+        return [...previous.filter((entry) => entry.feedbackId !== opinion.feedback_id), next]
+      })
+      setPosting(true)
+      setRefusal(null)
+      void recordDecision(DESK_PROJECT_ID, {
+        feedback_id: opinion.feedback_id,
         verdict,
-        needsEvidence: held?.needsEvidence ?? false,
-      }
-      return [...previous.filter((entry) => entry.feedbackId !== opinion.feedback_id), next]
-    })
-  }, [])
+        operator: REVIEW_OPERATOR,
+        needs_evidence: held?.needsEvidence ?? false,
+      })
+        .then(() => readOpinions(DESK_PROJECT_ID, DESK_VERSION_ID))
+        .then((read: ReviewData<ReviewOpinions>) => {
+          setOpinions(read.data)
+          setFromService(read.fromService)
+        })
+        .catch((error: unknown) => {
+          setRefusal(error instanceof Error ? error.message : String(error))
+        })
+        .finally(() => {
+          setPosting(false)
+        })
+    },
+    [actions],
+  )
 
   /** Toggle the evidence flag on the desk's own record of the verdict. */
   const onToggleEvidence = useCallback((opinion: ReviewOpinion): void => {
@@ -307,15 +404,17 @@ export function ReviewDeskView(): JSX.Element {
   return (
     <section className="panel review-desk" aria-label="Review desk">
       <h2 className="panel__title">Review desk</h2>
-      <p className="panel__note review-desk__fixture-note" role="note">
-        Fixture data — the service&rsquo;s <code>/review</code> routes are not up yet, so this desk
-        is drawn from <code>src/fixtures/</code>. Verdicts clicked here live on this page only.
-      </p>
+      <DataSourceNote fromService={fromService === true} />
+      {refusal !== null ? (
+        <p className="review-desk__refusal" role="alert">
+          The service refused that verdict: {refusal}
+        </p>
+      ) : null}
       <div className="review-desk__columns">
         <nav className="review-desk__column review-desk__column--opinions" aria-label="Opinions">
           <h3 className="review-desk__column-title">Opinions</h3>
           <ul className="review-desk__opinion-list">
-            {fixtureOpinions.opinions.map((opinion, position) => (
+            {opinions.opinions.map((opinion, position) => (
               <OpinionRow
                 key={opinion.feedback_id}
                 opinion={opinion}
@@ -337,7 +436,7 @@ export function ReviewDeskView(): JSX.Element {
         >
           <h3 className="review-desk__column-title">Manuscript</h3>
           <div className="review-desk__paragraphs">
-            {fixtureManuscript.paragraphs.map((paragraph) => (
+            {manuscript.paragraphs.map((paragraph) => (
               <ParagraphRow
                 key={paragraph.index}
                 index={paragraph.index}
@@ -370,6 +469,7 @@ export function ReviewDeskView(): JSX.Element {
                   <button
                     key={verdict}
                     type="button"
+                    disabled={posting}
                     className={`button review-desk__button${
                       deskAction?.verdict === verdict ? ' review-desk__button--chosen' : ''
                     }`}
@@ -377,7 +477,9 @@ export function ReviewDeskView(): JSX.Element {
                       onDecide(active, verdict)
                     }}
                   >
-                    {VERDICT_LABELS[verdict]}
+                    {posting && deskAction?.verdict === verdict
+                      ? 'Recording…'
+                      : VERDICT_LABELS[verdict]}
                   </button>
                 ))}
                 <label className="review-desk__evidence">
@@ -391,7 +493,7 @@ export function ReviewDeskView(): JSX.Element {
                   needs evidence
                 </label>
               </div>
-              {deskAction !== undefined ? (
+              {deskAction !== undefined && refusal === null ? (
                 <p className="review-desk__unsynced" role="status">
                   Recorded here: <strong>{deskAction.verdict}</strong>
                   {deskAction.needsEvidence ? ' · needs evidence' : ''} — not yet with the service.

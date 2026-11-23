@@ -146,6 +146,7 @@ class ReviewOpinion(Result):
     anchor_start: int | None
     anchor_end: int | None
     anchor_text: str | None
+    comment_locator: dict[str, object] | None
     location_state: str
     suggestion: ReviewSuggestionData | None
     decision: ReviewDecisionData | None
@@ -337,6 +338,11 @@ def read_review_opinions(
                 anchor_start=event.anchor_start,
                 anchor_end=event.anchor_end,
                 anchor_text=event.anchor_text,
+                comment_locator=(
+                    event.comment_locator.model_dump(mode="json")
+                    if event.comment_locator is not None
+                    else None
+                ),
                 location_state=(
                     LocationState.LOCATED.value
                     if event.anchor_status == "resolved"

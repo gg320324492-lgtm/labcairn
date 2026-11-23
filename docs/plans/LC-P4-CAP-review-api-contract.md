@@ -46,7 +46,7 @@ Response `ReviewOpinions`:
         "old_text": "…",           // the whole run's text the seam would rewrite
         "new_text": "…",
         "author": "model:…",
-        "date": "2026-11-23T…"
+        "proposed_at": "2026-11-23T…"
       },
       "decision": {                // null when not yet reviewed
         "verdict": "accepted | partly_accepted | rejected | pending",

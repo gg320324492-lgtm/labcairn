@@ -27,7 +27,7 @@
         "old_text": "The winter of 1542 stands as the coldest on record for the basin, with a mean temperature reconstructed well below the series' long-run average.",
         "new_text": "The winter of 1542 stands as the coldest on record for the basin in the reconstructed series (core 04, table 3), with a mean temperature well below the series' long-run average.",
         "author": "model:labcairn-suggest-01",
-        "date": "2026-11-23T09:15:00+00:00"
+        "proposed_at": "2026-11-23T09:15:00+00:00"
       },
       "decision": null,
       "response_states": ["pending"]
@@ -57,7 +57,7 @@
         "old_text": "Sediment accumulation rates were estimated from varve counting, cross-checked against two independent radiometric dates at 41 cm and 88 cm depth.",
         "new_text": "Sediment accumulation rates were estimated from varve counting, cross-checked against two independent radiometric dates at 41 cm and 88 cm depth; the 1823–1826 interval was interpolated between these anchors rather than measured.",
         "author": "model:labcairn-suggest-01",
-        "date": "2026-11-23T09:22:00+00:00"
+        "proposed_at": "2026-11-23T09:22:00+00:00"
       },
       "decision": {
         "verdict": "partly_accepted",
@@ -92,7 +92,7 @@
         "old_text": "Figure 2 shows the reconstructed winter temperature anomaly across the full 1500–1900 window.",
         "new_text": "Figure 2 shows the reconstructed winter temperature anomaly (°C, anomalies relative to the 1500–1550 mean) across the full 1500–1900 window.",
         "author": "model:labcairn-suggest-01",
-        "date": "2026-11-23T09:30:00+00:00"
+        "proposed_at": "2026-11-23T09:30:00+00:00"
       },
       "decision": {
         "verdict": "accepted",
@@ -145,7 +145,7 @@
         "old_text": "The reconstruction is robust to the choice of calibration, and the temperature record it yields is stable across the plausible range of the accumulation model.",
         "new_text": "The reconstruction is stable under the calibration checks in appendix B, and the temperature record it yields is stable across the plausible range of the accumulation model.",
         "author": "model:labcairn-suggest-01",
-        "date": "2026-11-23T09:41:00+00:00"
+        "proposed_at": "2026-11-23T09:41:00+00:00"
       },
       "decision": {
         "verdict": "rejected",

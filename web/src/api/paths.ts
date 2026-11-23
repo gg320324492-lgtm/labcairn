@@ -53,7 +53,29 @@ export const API_PATHS = {
   trajectoryGraph: '/trajectory/graph',
   /** The issue keys a paper project's chain holds: what there is to look at. */
   issueKeys: '/trajectory/issue-keys',
+  /** One review round's opinions, with their suggestions and verdicts. */
+  reviewOpinions: '/review/opinions',
+  /** One review round's manuscript, in the anchors' own numbering. */
+  reviewManuscript: '/review/manuscript',
+  /** One suggestion the model proposed, as a record and not a decision. */
+  reviewSuggestion: '/review/suggestion',
+  /** The reviewer's verdict on one opinion's suggestion. */
+  reviewDecision: '/review/decision',
+  /** Apply the stored, approved set and close the round. */
+  reviewApply: '/review/apply',
 } as const
+
+/** One review round's opinions, addressed by the round's two names. */
+export function reviewOpinionsPath(projectId: string, versionId: string): string {
+  const query = new URLSearchParams({ project_id: projectId, version_id: versionId })
+  return `${API_PATHS.reviewOpinions}?${query.toString()}`
+}
+
+/** One review round's manuscript, addressed the same way its opinions are. */
+export function reviewManuscriptPath(projectId: string, versionId: string): string {
+  const query = new URLSearchParams({ project_id: projectId, version_id: versionId })
+  return `${API_PATHS.reviewManuscript}?${query.toString()}`
+}
 
 /**
  * The template of an artefact's bytes.

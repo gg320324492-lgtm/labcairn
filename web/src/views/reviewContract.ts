@@ -46,7 +46,7 @@ export interface ReviewSuggestion {
   /** Who proposed it — a model handle, `model:…`. */
   readonly author: string
   /** When it was proposed. */
-  readonly date: string
+  readonly proposed_at: string
 }
 
 /** One person's verdict on one opinion, as the service records it. */
