@@ -385,13 +385,16 @@ def _slide_objects(
     slide_part: str,
     file_sha: str,
     problems: list[ExtractionProblem],
+    counter: _Counter,
 ) -> tuple[PptxObject, ...]:
     """One slide's objects, in document order, each addressed and hashed.
 
-    The position is the object's index among the slide's shapes in document
-    order -- the order the XML lists them, which is the order a viewer
-    draws them -- and it is **1-based**, because a slide with no objects
-    has no positions and a position of 0 would name nothing.
+    The position is the object's index on the slide in document order --
+    the order the XML lists the shapes in, continued through the slide's
+    notes -- and it is **1-based**, because a slide with no objects has no
+    positions and a position of 0 would name nothing. The counter is the
+    slide's own, shared with the notes read, so two objects on one slide
+    never share a position.
     """
     try:
         root = _parse_part(slide_part, archive.read(slide_part))
@@ -459,7 +462,6 @@ def _slide_objects(
     # from there. A position that counted shapes would give two objects the
     # same address, and two addresses that resolve to different text must
     # not share a key.
-    counter = _Counter()
     shape_ordinal = 0
     for shape in sp_tree:
         tag = _local_name(shape.tag)
@@ -732,14 +734,14 @@ def _notes_objects(
     notes_part: str,
     file_sha: str,
     problems: list[ExtractionProblem],
+    counter: _Counter,
 ) -> tuple[PptxObject, ...]:
     """One slide's speaker notes, paragraph by paragraph.
 
     **The notes slide is its own part**, reached through the slide's
     relationships; a deck with no notes part for a slide has no notes for
-    that slide, which is a fact. The notes' position is ``1`` -- the notes
-    are one object per paragraph on the slide, and the slide's shapes do
-    not number them.
+    that slide, which is a fact. The notes' paragraphs continue the slide's
+    position counter, so a note and a shape never share a position.
     """
     try:
         root = _parse_part(notes_part, archive.read(notes_part))
@@ -771,10 +773,12 @@ def _notes_objects(
             PptxObject(
                 kind="notes",
                 slide=slide_no,
-                position=paragraph_position,
+                position=counter.next(),
                 text=text,
                 locator=PptxLocator(
-                    slide=slide_no, position=paragraph_position, object_kind="notes"
+                    slide=slide_no,
+                    position=counter.value,
+                    object_kind="notes",
                 ),
                 fingerprint=f"{file_sha[:16]}:{digest[:32]}",
                 part=notes_part,
@@ -847,8 +851,13 @@ def read_deck(data: bytes) -> PptxDeck:
             )
 
         for slide_no, slide_part in enumerate(slide_parts, start=1):
+            # **One counter per slide, shared by the slide's objects and its
+            # notes.** The position is the object's index on the slide in
+            # document order -- notes included -- so two objects on one
+            # slide never share a position, whichever part they came from.
+            counter = _Counter()
             objects.extend(
-                _slide_objects(archive, slide_no, slide_part, file_sha, problems)
+                _slide_objects(archive, slide_no, slide_part, file_sha, problems, counter)
             )
             # The slide's notes, reached through the slide's own
             # relationships. A slide with no notes part has no notes.
@@ -868,7 +877,7 @@ def read_deck(data: bytes) -> PptxDeck:
                         if part in names:
                             objects.extend(
                                 _notes_objects(
-                                    archive, slide_no, part, file_sha, problems
+                                    archive, slide_no, part, file_sha, problems, counter
                                 )
                             )
                         break
