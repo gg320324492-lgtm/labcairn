@@ -212,6 +212,15 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # because the witnesses are the chain's real rows read through the
     # index, the memory and the retrieval.
     "test_trajectory_index.py": ("integration", "api-auth"),
+    # Phase 4 (P4-MS). The multi-source index's second slice: a deck's
+    # titles, body text, speaker notes, tables and images searchable with
+    # their provenance -- slide, object position, kind and fingerprint --
+    # so a hit points at the correct slide or object (§8.3, §8.5). A chart
+    # is a recorded limitation, never invented content; a denied deck is
+    # refused and writes nothing. Integration, because the witnesses are a
+    # hand-built but real .pptx read through the reader, the ingest, the
+    # retrieval and the API.
+    "test_ppt_deck.py": ("integration", "api-auth"),
     "test_application_approvals.py": ("integration", "approvals"),
     # LC-P2-02. The two facts the approval row now carries, and the spend
     # that reads them there rather than trusting an argument. Integration,

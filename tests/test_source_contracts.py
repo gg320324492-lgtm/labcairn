@@ -237,14 +237,16 @@ def test_computation_locator_records_inputs_operator_and_parameters() -> None:
     assert anchor.locator.input_hashes == (HASH_A, HASH_B)
 
 
-def test_locator_kinds_are_closed_at_six_members() -> None:
+def test_locator_kinds_are_closed_at_seven_members() -> None:
     """ADR-0004 I2's spirit applied to locators: no "and then some other format".
 
-    **Six, since LC-P2-07.** The fifth was ``computation``, which addresses
-    a derived number and has no extracted text. The sixth is ``docx``, which
-    addresses a package part and an element path -- and it exists because
-    an ingest path now produces it, which is the condition the module
-    docstring states for a kind to belong here at all.
+    **Seven, since P4-MS.** The fifth was ``computation``, which addresses
+    a derived number and has no extracted text. The sixth is ``docx``,
+    which addresses a package part and an element path. The seventh is
+    ``pptx``, which addresses a slide, an object position and an object
+    kind -- and each kind exists because an ingest path now produces it,
+    which is the condition the module docstring states for a kind to
+    belong here at all.
     """
     assert {member.value for member in LocatorKind} == {
         "pdf",
@@ -252,9 +254,10 @@ def test_locator_kinds_are_closed_at_six_members() -> None:
         "csv",
         "xlsx",
         "docx",
+        "pptx",
         "computation",
     }
-    assert len(LOCATOR_MODELS) == 6
+    assert len(LOCATOR_MODELS) == 7
     # Every member of the union is reachable from LOCATOR_MODELS, so the
     # "exhaustive tests" comment on it cannot rot.
     assert {model.__name__ for model in LOCATOR_MODELS} == {
@@ -263,6 +266,7 @@ def test_locator_kinds_are_closed_at_six_members() -> None:
         "CsvLocator",
         "XlsxLocator",
         "DocxLocator",
+        "PptxLocator",
         "ComputationLocator",
     }
 
@@ -745,9 +749,11 @@ def test_anchor_kinds_are_closed() -> None:
 def test_source_kinds_are_closed() -> None:
     """No "and then some other format" — the material vocabulary is closed.
 
-    **Seven, since LC-P2-07.** ``docx`` joined because the OOXML reader
-    produces paragraphs, revisions and comments as addressable text; a
-    format with no adapter and no text would have been ``other``.
+    **Eight, since P4-MS.** ``docx`` joined because the OOXML reader
+    produces paragraphs, revisions and comments as addressable text;
+    ``pptx`` joins because the PPTX reader produces slide titles, body
+    text, speaker notes, tables and images as located objects. A format
+    with no adapter and no text would have been ``other``.
     """
     assert {member.value for member in SourceKind} == {
         "pdf",
@@ -756,6 +762,7 @@ def test_source_kinds_are_closed() -> None:
         "csv",
         "xlsx",
         "docx",
+        "pptx",
         "other",
     }
 

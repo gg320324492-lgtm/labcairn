@@ -103,6 +103,11 @@ class SourceKind(StrEnum):
     #: and a Word file with tracked changes is the one material whose
     #: *history* is part of its bytes.
     DOCX = "docx"
+    #: A PowerPoint deck. **Phase 4 (P4-MS), execution plan §8.3.** It is
+    #: addressable because the PPTX reader produces slide titles, body
+    #: text, speaker notes, tables and images as located objects -- each
+    #: addressed by its slide, its position within the slide and its kind.
+    PPTX = "pptx"
     OTHER = "other"
 
 

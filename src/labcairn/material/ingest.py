@@ -106,6 +106,10 @@ _KINDS: Final[dict[str, SourceKind]] = {
     # LC-P2-07. A Word document is addressable material because the OOXML
     # reader produces paragraphs, revisions and comments as located text.
     ".docx": SourceKind.DOCX,
+    # Phase 4 (P4-MS), execution plan §8.3. A deck is addressable material
+    # because the PPTX reader produces slide titles, body text, speaker
+    # notes, tables and images as located objects.
+    ".pptx": SourceKind.PPTX,
 }
 
 

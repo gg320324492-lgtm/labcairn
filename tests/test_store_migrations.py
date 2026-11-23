@@ -196,6 +196,13 @@ EXPECTED_TABLES = frozenset(
         # budget's own account -- mode, model id, counts, the stop that
         # fired -- without which a ceiling would bound an unrecorded spend.
         "model_suggestion_runs",
+        # Phase 4 (P4-MS), second source. A deck's objects -- titles, body
+        # text, speaker notes, table rows and picture names -- one row per
+        # indexed object with the provenance §8.3 requires, and the FTS5
+        # index over the objects' text. Listed by hand for the same reason
+        # the two FTS tables above are.
+        "ppt_index_rows",
+        "ppt_fts",
     }
 )
 

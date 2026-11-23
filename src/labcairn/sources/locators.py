@@ -59,6 +59,12 @@ from labcairn.sources.primitives import (
     StrictPosInt,
 )
 
+#: The kinds of object a :class:`PptxLocator` can address. **The vocabulary
+#: is closed** — the same five the reader extracts, and nothing else: a
+#: locator naming a kind nothing extracts would be an address with no
+#: content behind it.
+PptxObjectKind = Literal["title", "body", "notes", "table", "image"]
+
 #: A1-style cell reference, **uppercase column letters, no ``$`` anchors**.
 #: Lowercase is rejected rather than upcased: ``b12`` and ``B12`` naming the
 #: same cell is fine inside a spreadsheet, but a ledger that stores both
@@ -84,6 +90,9 @@ class LocatorKind(StrEnum):
     #: A Word document, addressed by package part, element path and
     #: character range. See :class:`DocxLocator`.
     DOCX = "docx"
+    #: A PowerPoint deck, addressed by 1-based slide number, the object's
+    #: position within the slide and the object kind. See :class:`PptxLocator`.
+    PPTX = "pptx"
     #: A derived number, addressed by the operator that produced it.
     COMPUTATION = "computation"
 
@@ -301,12 +310,48 @@ class ComputationLocator(_LocatorBase):
         return self
 
 
+class PptxLocator(_LocatorBase):
+    """PPTX → slide + object position + object kind.
+
+    **The three fields are the address; nothing else is stored.** A slide
+    deck has no continuous text to put a character range over — the shapes
+    are laid out by a renderer, and a byte offset into the XML part would
+    name the XML, not the object a reader sees. So the address names the
+    slide (1-based, the number a person turns to), the object's 1-based
+    position within that slide (the order the XML lists the shapes in, which
+    is stable for the same file), and **which kind of object** it is —
+    because a title and a note can carry the same words at the same
+    position, and two addresses that resolve to different text must not
+    share a key.
+
+    The rule is the DocxLocator rule, at slide granularity: the path names
+    structure rather than content, so it is re-derivable from the same file
+    — which is what ADR-0004 A1 asks of an address.
+    """
+
+    locator_kind: Literal[LocatorKind.PPTX] = LocatorKind.PPTX
+    #: The 1-based slide number, the number a viewer shows.
+    slide: StrictPosInt
+    #: The object's 1-based position within its slide, in document order.
+    position: StrictPosInt
+    #: Which kind of object: ``title``, ``body``, ``notes``, ``table`` or
+    #: ``image``. The closed vocabulary the reader emits; a locator naming
+    #: anything else is rejected, not guessed at.
+    object_kind: PptxObjectKind
+
+
 #: The locator union, discriminated on ``locator_kind``.
 #:
 #: Consumers narrow with ``isinstance`` after validation, or read
 #: :attr:`locator_kind` when the kind alone is enough.
 SourceLocator = Annotated[
-    PdfLocator | TextLocator | CsvLocator | XlsxLocator | DocxLocator | ComputationLocator,
+    PdfLocator
+    | TextLocator
+    | CsvLocator
+    | XlsxLocator
+    | DocxLocator
+    | PptxLocator
+    | ComputationLocator,
     Field(discriminator="locator_kind"),
 ]
 
@@ -317,6 +362,7 @@ LOCATOR_MODELS: tuple[type[_LocatorBase], ...] = (
     CsvLocator,
     XlsxLocator,
     DocxLocator,
+    PptxLocator,
     ComputationLocator,
 )
 
@@ -348,6 +394,8 @@ def describe_locator(locator: SourceLocator) -> str:
         case DocxLocator(part=part, element_path=path, view=view, char_start=start, char_end=end):
             span = f", chars {start}-{end}" if start is not None and end is not None else ""
             return f"docx: {part} {path} ({view}){span}"
+        case PptxLocator(slide=slide, position=position, object_kind=kind):
+            return f"pptx: slide {slide}, object {position} ({kind})"
         case ComputationLocator(operator_id=op, operator_version=version, input_hashes=hashes):
             plural = "" if len(hashes) == 1 else "s"
             return f"computation: {op}@{version} over {len(hashes)} input{plural}"
