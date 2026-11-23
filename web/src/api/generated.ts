@@ -579,6 +579,32 @@ export type ReviewPreview = {
   original_size_bytes: number
 }
 
+export type ReviewSuggestBody = {
+  project_id: string
+  version_id: string
+  mode?: 'real' | 'substitute'
+  approval_ids?: Record<string, string>
+  max_requests?: number | null
+  max_tokens?: number | null
+  max_consecutive_failures?: number
+  retry_attempts?: number
+}
+
+export type ReviewSuggestRun = {
+  run_id: string
+  project_id: string
+  version_id: string
+  mode: string
+  model_id: string
+  requests_made: number
+  tokens_estimated: number
+  stopped_reason: string | null
+  suggestions_recorded: number
+  opinions_skipped: number
+  started_at: string
+  finished_at: string
+}
+
 export type ReviewSuggestionBody = {
   project_id: string
   version_id: string

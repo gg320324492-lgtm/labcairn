@@ -192,6 +192,10 @@ EXPECTED_TABLES = frozenset(
         # ``evidence_fts``, for the same reason it is listed by hand.
         "trajectory_index_rows",
         "trajectory_fts",
+        # Phase 4 (P4-CAP, real-model loop). One row per loop run: the
+        # budget's own account -- mode, model id, counts, the stop that
+        # fired -- without which a ceiling would bound an unrecorded spend.
+        "model_suggestion_runs",
     }
 )
 

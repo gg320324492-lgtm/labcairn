@@ -119,6 +119,12 @@ class ApplicationRefusal(StrEnum):
     #: about. A proposal is bound to the material it claims to speak for, and
     #: a quotation the material does not contain binds nothing.
     CLAIM_EXTRACTION_NOT_GROUNDED = "claim_extraction_not_grounded"
+    #: A real-model suggestion run was asked for and this service has no
+    #: real-model transport wired. **Refused, never simulated** — the same
+    #: rule claim extraction holds: an invented suggestion would put words
+    #: in a model's mouth that no model said, and the substitute path is a
+    #: mode of its own, labelled as such, not a silent stand-in.
+    MODEL_SUGGESTION_NO_PROVIDER = "model_suggestion_no_provider"
     #: The ledger holds no identifier with that id.
     IDENTIFIER_NOT_FOUND = "identifier_not_found"
     #: The confirmation named nobody. A resolution is a person's word about an
@@ -809,6 +815,7 @@ MODEL_REFUSALS: Mapping[ModelRefusal, ApplicationRefusal] = {
     ModelRefusal.SCHEMA_UNSUPPORTED: ApplicationRefusal.MODEL_SCHEMA_UNSUPPORTED,
     ModelRefusal.ANSWER_EMPTY: ApplicationRefusal.MODEL_ANSWER_EMPTY,
     ModelRefusal.ANSWER_UNDECODABLE: ApplicationRefusal.MODEL_ANSWER_UNDECODABLE,
+    ModelRefusal.SUGGESTION_NO_PROVIDER: ApplicationRefusal.MODEL_SUGGESTION_NO_PROVIDER,
 }
 
 

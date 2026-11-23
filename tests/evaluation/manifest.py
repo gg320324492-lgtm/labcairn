@@ -191,11 +191,18 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # round reading the approved set from the store. Integration, because
     # the witnesses are the service's own routes over real bytes.
     "test_review_api.py": ("integration", "api-auth"),
-    # Phase 4 (LC-P4-CAP). The review desk's live seam: the JSON the service
-    # serves is readable as the workbench contract's opinion record, field by
-    # field, and the desk's own round — one verdict, the read-back, the
-    # apply — runs against the real routes. Integration, same reason as the
-    # file above: the witnesses are the service's routes over real bytes.
+    # Phase 4 (P4-CAP, real-model loop). The loop behind the binding's own
+    # suggestion-source seam: desensitised requests, the budget's stops
+    # naming themselves, retry classification at the boundary, the
+    # twice-labelled substitute, the honest empty set, and the run row
+    # that accounts for every call. Integration, because the witnesses are
+    # the service's own routes and the store's own rows over real bytes.
+    "test_model_suggestions.py": ("integration", "api-auth"),
+    # Phase 4 (LC-P4-CAP). The review desk's live seam: the service's
+    # /review JSON read as the workbench's own contract types, field by
+    # field, and the desk's round — one verdict, one re-read, one apply —
+    # driven against the service. Integration, because the witness is the
+    # service over real bytes, and the contract file read as text.
     "test_review_desk_live.py": ("integration", "api-auth"),
     # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
     # revision trajectory searchable with its provenance, a rule candidate

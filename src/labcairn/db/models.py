@@ -3829,3 +3829,86 @@ class TrajectoryIndexRow(Base):
             name="trajectory_index_provenance_present",
         ),
     )
+
+
+class ModelSuggestionRunRow(Base):
+    """One suggestion-loop run's account: what was asked, what it cost, what stopped.
+
+    **A budget is only a budget if the spend is recorded.** G0 §5 bounds a
+    real-model loop by requests and tokens, and the loop's own stop
+    conditions bound it by consecutive failures and cancellation — but a
+    ceiling over an unrecorded spend bounds nothing. This row is the
+    account: one per run, written when the run finishes, carrying the mode
+    (``real`` or ``substitute``), the model id, the counts, and the
+    per-opinion request entries as JSON.
+
+    **The entries are counts and class names, never text.** The request
+    body a loop sends is desensitised, but desensitised is not published:
+    the record names what happened (which opinion, which outcome, how
+    long, how many tokens) and not what was said, which is the exchange
+    event's own discipline carried to this table.
+    """
+
+    __tablename__ = "model_suggestion_runs"
+
+    #: Caller-minted, so a run may be cited before it is finished and two
+    #: runs of the same version stay distinct.
+    run_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``real`` or ``substitute``. **Both surfaces carry the mode** — this
+    #: row and the suggestion rows' author — so no reader has to guess
+    #: which model answered.
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: The model the transport names. A real run's id is the authorised
+    #: model; a substitute run's is the substitute label.
+    model_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: LabCairn-issued transport calls, counted. Retries are separate
+    #: calls and each is counted.
+    requests_made: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The loop's own estimate, named as an estimate: the transport seam
+    #: returns text, not usage, so this is characters-over-four and never
+    #: dressed up as a measured figure.
+    tokens_estimated: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Which stop condition fired: ``request_budget``, ``token_budget``,
+    #: ``consecutive_failures``, ``cancelled`` — or ``None`` when the walk
+    #: finished because the opinions ran out.
+    stopped_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: Opinions that received a stored suggestion.
+    suggestions_recorded: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Opinions the run never reached, because a stop fired first.
+    opinions_skipped: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: One JSON array entry per transport call: the opinion's id, the
+    #: outcome kind, the duration, the token estimate and a failure class
+    #: name. No request text.
+    requests_json: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    started_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    finished_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_model_suggestion_runs_project", "project_id"),
+        CheckConstraint(
+            "mode IN ('real', 'substitute')",
+            name="model_suggestion_runs_mode_vocabulary",
+        ),
+        CheckConstraint(
+            "requests_made >= 0 AND tokens_estimated >= 0 "
+            "AND suggestions_recorded >= 0 AND opinions_skipped >= 0",
+            name="model_suggestion_runs_counts_non_negative",
+        ),
+        CheckConstraint(
+            "length(run_id) > 0 AND length(project_id) > 0 "
+            "AND length(version_id) > 0 AND length(model_id) > 0",
+            name="model_suggestion_runs_ids_present",
+        ),
+    )
