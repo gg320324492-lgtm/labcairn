@@ -305,6 +305,12 @@ from labcairn.application.papers import (
     record_project,
     record_version,
 )
+from labcairn.application.quality_checks import (
+    CheckOutcome,
+    QualityCheckFact,
+    RoundQualityReport,
+    run_round_quality_checks,
+)
 from labcairn.application.recovery import (
     describe_abandoned,
     reconcile_abandoned,
@@ -372,6 +378,7 @@ __all__ = [
     "ChainEdit",
     "ChainReply",
     "CheckDraft",
+    "CheckOutcome",
     "ClaimExtractionBackend",
     "ClaimRecorded",
     "ClaimRequest",
@@ -398,6 +405,7 @@ __all__ = [
     "ProjectRequest",
     "ProjectStored",
     "ProposalSettled",
+    "QualityCheckFact",
     "ReportRendered",
     "ReportRequest",
     "Result",
@@ -406,6 +414,7 @@ __all__ = [
     "RoleRunResult",
     "RoleRunTicket",
     "RoleSpecDraft",
+    "RoundQualityReport",
     "RuleDraft",
     "SourceAddress",
     "SourceView",
@@ -483,6 +492,7 @@ __all__ = [
     "resolve_abandoned",
     "run_figure",
     "run_role_run",
+    "run_round_quality_checks",
     "run_stage",
     "settle_reply",
     "the_role_run_question",

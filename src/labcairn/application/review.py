@@ -57,6 +57,7 @@ from sqlalchemy import select
 from labcairn.application import consent
 from labcairn.application.context import ApplicationContext
 from labcairn.application.models import Result
+from labcairn.application.quality_checks import RoundQualityReport, run_round_quality_checks
 from labcairn.application.refusal import (
     ApplicationRefusal,
     ApplicationRefusedError,
@@ -218,6 +219,11 @@ class ReviewApplyResult(Result):
     reader who wants to know whether the response table belongs to this
     round reads the dossier and compares these ids — the same discipline
     the binding's own witnesses apply.
+
+    **``quality`` is the round's own §7.4 report, measured at the close.**
+    The checks read the dossier manifest — the same record this result's ids
+    come from — so the report cannot describe a round other than the one
+    this result publishes.
     """
 
     project_id: str
@@ -232,6 +238,7 @@ class ReviewApplyResult(Result):
     applied: tuple[str, ...]
     handovers: tuple[ReviewHandover, ...]
     unresolved: tuple[ReviewUnresolved, ...]
+    quality: RoundQualityReport | None = None
 
 
 class ApplyReviewRequest(BaseModel):
@@ -787,6 +794,18 @@ def apply_review(
         cancel_check=cancel_check,
         window_end=datetime.fromisoformat(request.window_end),
     )
+    # **The quality report is measured from the round's own manifest, at the
+    # close.** The dossier the binding just wrote is the same record this
+    # result's ids come from, so the checks cannot describe another round.
+    # A check that fails does not refuse the round: the round landed, and
+    # the report names what does not hold — which is §7.4's own shape, a
+    # record of quality rather than a second gate in front of it.
+
+    quality = run_round_quality_checks(
+        context,
+        project_id=request.project_id,
+        dossier_artifact_id=closed.dossier_artifact_id,
+    )
     return ReviewApplyResult(
         project_id=request.project_id,
         input_version_id=request.input_version_id,
@@ -815,6 +834,7 @@ def apply_review(
             )
             for task in closed.unresolved
         ),
+        quality=quality,
     )
 
 

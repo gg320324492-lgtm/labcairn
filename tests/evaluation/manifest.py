@@ -204,6 +204,14 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # driven against the service. Integration, because the witness is the
     # service over real bytes, and the contract file read as text.
     "test_review_desk_live.py": ("integration", "api-auth"),
+    # Phase 4 (P4-CAP §7.4). The round-level quality and evidence checks:
+    # every opinion accounted for, every suggestion answering a real
+    # opinion, the edits inside the anchored paragraphs, a needs-evidence
+    # verdict leaving an explicit task, the response table saying what
+    # landed, and the quality report binding to the same manifest the four
+    # deliverables bind. Integration, because the checks read the binding's
+    # own dossier manifest over real bytes.
+    "test_quality_checks.py": ("integration", "api-auth"),
     # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
     # revision trajectory searchable with its provenance, a rule candidate
     # drafted from an entry and confirmed by a mentor, and the usable
