@@ -382,6 +382,21 @@ class TrajectorySearchQuery(Result):
     limit: int = Field(default=20, ge=1, le=200)
 
 
+class PptIngestBody(Result):
+    """Which deck to index, as the API accepts it.
+
+    **The body names where to read; it does not carry the deck.** The
+    project the deck belongs to, the root the file sits in, and the key it
+    has in that root -- the same spelling every other request body that
+    names a resource uses. The bytes come from the workspace, through the
+    ``source.read`` gate, never from the request.
+    """
+
+    project_id: str = Field(min_length=1)
+    root_id: str = Field(min_length=1)
+    resource_key: str = Field(min_length=1)
+
+
 class UsableGuidanceQuery(Result):
     """Which rules a card may cite, as the API accepts it.
 
@@ -510,6 +525,7 @@ __all__ = [
     "GuidanceRuleVerdictBody",
     "Health",
     "IssueKeys",
+    "PptIngestBody",
     "RefusalBody",
     "ReportBody",
     "ReviewDecisionBody",

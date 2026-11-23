@@ -55,6 +55,7 @@ from labcairn.api.contracts import (
     GuidanceRuleVerdictBody,
     Health,
     IssueKeys,
+    PptIngestBody,
     ProposalAcceptanceBody,
     ReportBody,
     ReviewDecisionBody,
@@ -138,6 +139,7 @@ from labcairn.application.review import (
     record_review_suggestion,
 )
 from labcairn.application.stages import StageRequest, StageWork
+from labcairn.application.ppt_deck import PptDeckIngested, PptHit, ingest_ppt_deck, search_ppt_deck
 from labcairn.application.trajectory import (
     TrajectoryHit,
     UsableRule,
@@ -1322,3 +1324,51 @@ def search_trajectory_route(
     ingest wrote.
     """
     return list(search_trajectory(context, query=q, project_id=project_id, limit=limit))
+
+
+# --------------------------------------------------------------------------- #
+# multi-source learning: the deck index (P4-MS, §8.3)
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/ppt/search", response_model=list[PptHit], tags=["review"])
+def search_ppt_deck_route(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    q: Annotated[str, Query(min_length=1)],
+    project_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> list[PptHit]:
+    """Search a deck's indexed objects, and answer with their provenance.
+
+    **A hit says what the deck says, and which slide and object say it**:
+    the text, the 1-based slide number, the object's position and kind, the
+    structured locator, and the source fingerprint that ties the hit to the
+    file it was read from. That is §8.5's acceptance — a deck's words,
+    notes, tables and images are findable *and* point at the correct slide
+    or object — served from the index the ingest wrote.
+    """
+    return list(search_ppt_deck(context, query=q, project_id=project_id, limit=limit))
+
+
+@router.post("/ppt/ingest", response_model=PptDeckIngested, status_code=201, tags=["review"])
+def post_ppt_ingest(
+    body: PptIngestBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> PptDeckIngested:
+    """Index one deck's objects, and report the count and the limitations.
+
+    **The body names where to read; the bytes come from the workspace.**
+    The deck is read through the ``source.read`` gate the same way every
+    other reader of supplied material reads, and the ingest reports both
+    what it indexed and what it honestly could not: ``limitations_recorded``
+    counts the extraction problems — a chart this reader does not parse, a
+    slide whose part is missing — because §8.3's rule is that an
+    unparseable object is a recorded limitation, never an invented
+    conclusion.
+    """
+    return ingest_ppt_deck(
+        context,
+        project_id=body.project_id,
+        root_id=body.root_id,
+        resource_key=body.resource_key,
+    )
