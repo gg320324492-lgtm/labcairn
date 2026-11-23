@@ -57,8 +57,10 @@ def upgrade() -> None:
         # One entry per transport call: the opinion it was for (by id),
         # the outcome kind, the duration, the token estimate and a
         # failure class name. Digests and counts, never text -- the same
-        # discipline the exchange event holds.
-        sa.Column("requests_json", sa.Text(), nullable=False),
+        # discipline the exchange event holds. A JSON column, the way the
+        # task rows' id lists have been since 0001, and what the ORM's
+        # ``JSON`` type compiles to.
+        sa.Column("requests_json", sa.JSON(), nullable=False),
         sa.Column("started_at", sa.String(), nullable=False),
         sa.Column("finished_at", sa.String(), nullable=False),
         sa.ForeignKeyConstraint(
