@@ -45,11 +45,17 @@ pytestmark = pytest.mark.integration
 
 env = _shared_env
 
-#: The approvals' expiry — an hour past the **real** clock, because the
-#: apply round runs through the service, whose clock is the wall clock. A
-#: window anchored to the fixture's fixed moment would already be closed,
-#: and an approval whose window has closed cannot be granted.
-WINDOW = datetime.now(UTC) + timedelta(hours=1)
+
+#: The approvals' expiry — an hour past the **real** clock, taken at the
+#: call, not at the import. The apply round runs through the service, whose
+#: clock is the wall clock, and a window anchored to the fixture's fixed
+#: moment would already be closed. A module-level constant would go stale in
+#: a long suite — the whole tree ran for over an hour once, and every apply
+#: in this file met a window that had closed while earlier tests ran — so
+#: the window is computed where the apply asks for it.
+def _window() -> datetime:
+    """An approval window that outlives this call, from the real clock."""
+    return datetime.now(UTC) + timedelta(hours=1)
 
 
 def _record_comments(fixture: BindingFixture) -> None:
@@ -478,7 +484,7 @@ def test_apply_without_a_decision_is_refused(
             "source_root_id": fixture.source_root_id,
             "source_key": fixture.source_key,
             "output_label": "output.docx",
-            "window_end": WINDOW.isoformat(),
+            "window_end": _window().isoformat(),
         },
         headers=_headers(token),
     )
@@ -523,7 +529,7 @@ def test_apply_runs_the_stored_approved_set_and_binds_the_deliverables(
             "source_root_id": fixture.source_root_id,
             "source_key": fixture.source_key,
             "output_label": "binding-sample-output.docx",
-            "window_end": WINDOW.isoformat(),
+            "window_end": _window().isoformat(),
         },
         headers=_headers(token),
     )
@@ -577,7 +583,7 @@ def test_the_apply_output_version_is_readable_through_the_review_read(
             "source_root_id": fixture.source_root_id,
             "source_key": fixture.source_key,
             "output_label": "binding-sample-output.docx",
-            "window_end": WINDOW.isoformat(),
+            "window_end": _window().isoformat(),
         },
         headers=_headers(token),
     )
@@ -633,7 +639,7 @@ def _preview(wired: TestClient, token: str, fixture: BindingFixture) -> tuple[in
             "source_root_id": fixture.source_root_id,
             "source_key": fixture.source_key,
             "output_label": "binding-sample-output.docx",
-            "window_end": WINDOW.isoformat(),
+            "window_end": _window().isoformat(),
         },
         headers=_headers(token),
     )
@@ -722,7 +728,7 @@ def test_the_preview_matches_the_apply_byte_for_byte(
             "source_root_id": fixture.source_root_id,
             "source_key": fixture.source_key,
             "output_label": "binding-sample-output.docx",
-            "window_end": WINDOW.isoformat(),
+            "window_end": _window().isoformat(),
         },
         headers=_headers(token),
     )
@@ -826,7 +832,7 @@ def _apply_round(wired: TestClient, token: str, fixture: BindingFixture) -> dict
             "source_root_id": fixture.source_root_id,
             "source_key": fixture.source_key,
             "output_label": "binding-sample-output.docx",
-            "window_end": WINDOW.isoformat(),
+            "window_end": _window().isoformat(),
         },
         headers=_headers(token),
     )

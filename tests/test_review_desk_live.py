@@ -50,10 +50,16 @@ pytestmark = pytest.mark.integration
 
 env = _shared_env
 
-#: The apply window, an hour past the real clock — the service's clock is
-#: the wall clock, and a window the fixture's fixed moment anchors would
-#: already be closed.
-WINDOW = datetime.now(UTC) + timedelta(hours=1)
+
+#: The apply window, an hour past the real clock, taken at the call — the
+#: service's clock is the wall clock, and a window the fixture's fixed
+#: moment anchors would already be closed. Computed at the call, as in
+#: ``test_review_api.py``, so a long suite cannot outlive a module-level
+#: constant.
+def _window() -> datetime:
+    """An approval window that outlives this call, from the real clock."""
+    return datetime.now(UTC) + timedelta(hours=1)
+
 
 #: The frontend's contract file, read as text. The fields the desk draws are
 #: written there; a name the service stopped serving is a desk that draws
@@ -355,7 +361,7 @@ def test_the_desk_round_runs_decision_then_apply(
             "source_root_id": fixture.source_root_id,
             "source_key": fixture.source_key,
             "output_label": "binding-sample-output.docx",
-            "window_end": WINDOW.isoformat(),
+            "window_end": _window().isoformat(),
         },
         headers=_headers(token),
     )

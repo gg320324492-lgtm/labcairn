@@ -191,6 +191,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # round reading the approved set from the store. Integration, because
     # the witnesses are the service's own routes over real bytes.
     "test_review_api.py": ("integration", "api-auth"),
+    # Phase 4 (LC-P4-CAP). The review desk's live seam: the JSON the service
+    # serves is readable as the workbench contract's opinion record, field by
+    # field, and the desk's own round — one verdict, the read-back, the
+    # apply — runs against the real routes. Integration, same reason as the
+    # file above: the witnesses are the service's routes over real bytes.
+    "test_review_desk_live.py": ("integration", "api-auth"),
     # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
     # revision trajectory searchable with its provenance, a rule candidate
     # drafted from an entry and confirmed by a mentor, and the usable
