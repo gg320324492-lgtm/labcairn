@@ -203,6 +203,15 @@ EXPECTED_TABLES = frozenset(
         # the two FTS tables above are.
         "ppt_index_rows",
         "ppt_fts",
+        # Phase 4 (P4-PILOT §9.4). The real trial's in-system issue record:
+        # one row per problem, naming what it happened to (task, version,
+        # opinion), where it happened (the operation step), what the user
+        # saw, how long it took and how often it was retried, under the two
+        # closed vocabularies -- severity (blocker/serious/minor/suggestion)
+        # and type (function/interface/performance/model/documentation). The
+        # unified feedback form records the subjective experience; this
+        # table is the system-side record the form's line points at.
+        "pilot_issues",
     }
 )
 

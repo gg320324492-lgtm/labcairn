@@ -158,6 +158,20 @@ class ApplicationRefusal(StrEnum):
     REPORT_CONTENT_REFUSED = "report_content_refused"
     #: The operation is declared but not implemented yet.
     NOT_IMPLEMENTED = "not_implemented"
+    # -- the reasons the pilot's issue record says ---------------------------- #
+    #
+    # The trial's issue record is a small vocabulary of its own, and its
+    # refusals name what a caller got wrong: an issue nobody recorded, a
+    # tag outside the two closed lists, or a status move the four states
+    # do not allow.
+    #: The store holds no pilot issue with that id.
+    PILOT_ISSUE_NOT_FOUND = "pilot_issue_not_found"
+    #: The severity is not one of the four §9.4 closes.
+    PILOT_ISSUE_SEVERITY_UNKNOWN = "pilot_issue_severity_unknown"
+    #: The type is not one of the five §9.4 closes.
+    PILOT_ISSUE_CATEGORY_UNKNOWN = "pilot_issue_category_unknown"
+    #: The status move is not one the four states allow.
+    PILOT_ISSUE_STATUS_MOVE_REFUSED = "pilot_issue_status_move_refused"
     # -- the reasons the analysis run path says, carried through the layer ----- #
     #
     # **Why these are the layer's own, and not one ``analysis_refused`.** The

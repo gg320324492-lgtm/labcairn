@@ -55,6 +55,8 @@ from labcairn.api.contracts import (
     GuidanceRuleVerdictBody,
     Health,
     IssueKeys,
+    IssueRecordBody,
+    IssueStatusBody,
     PptIngestBody,
     ProposalAcceptanceBody,
     ReportBody,
@@ -122,6 +124,13 @@ from labcairn.application import (
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
 from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
+from labcairn.application.issues import (
+    IssueData,
+    IssueStatusUpdate,
+    list_issues,
+    record_issue,
+    update_issue_status,
+)
 from labcairn.application.model_suggestions import (
     MODEL_SUGGESTION_MODE_REAL,
     ModelSuggestionBackend,
@@ -1355,6 +1364,85 @@ def get_review_deliverables(
             )
             for file in export.deliverables
         ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the pilot's in-system issue record (P4-PILOT §9.4)
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/issues", response_model=IssueData, status_code=201, tags=["review"])
+def post_issue(
+    body: IssueRecordBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> IssueData:
+    """Record one problem the trial met, in the system's own record.
+
+    **The record is about something, and it is recorded as seen.** The
+    step, the error text and the severity are the trial's own words; the
+    two vocabularies -- severity and type -- are closed, and a word
+    outside either is refused (422 at the wire, from the body's own
+    ``Literal``; by name from the layer, for a caller that reached past
+    it). A recorded issue is ``open``; the states after that are
+    ``PATCH /issues/{issue_id}/status``'s to walk.
+    """
+    return record_issue(
+        context,
+        issue_id=body.issue_id,
+        project_id=body.project_id,
+        task_id=body.task_id,
+        version_id=body.version_id,
+        feedback_id=body.feedback_id,
+        step=body.step,
+        error_text=body.error_text,
+        duration_seconds=body.duration_seconds,
+        retry_count=body.retry_count,
+        severity=body.severity,
+        category=body.category,
+        reported_by=body.reported_by,
+    )
+
+
+@router.get("/issues", response_model=list[IssueData], tags=["review"])
+def get_issues(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    status: Annotated[str | None, Query()] = None,
+    severity: Annotated[str | None, Query()] = None,
+) -> list[IssueData]:
+    """The project's issues, newest first, narrowed by what is asked for.
+
+    **A filter narrows; it does not refuse.** An empty answer is a fact
+    about the trial -- "no blocker has been recorded" -- and not an error.
+    A filter that names a word outside the closed vocabulary is refused by
+    name from the layer, because a question the record cannot understand
+    is not the same as an answer of "none recorded".
+    """
+    return list(list_issues(context, project_id=project_id, status=status, severity=severity))
+
+
+@router.patch("/issues/{issue_id}/status", response_model=IssueStatusUpdate, tags=["review"])
+def patch_issue_status(
+    issue_id: str,
+    body: IssueStatusBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> IssueStatusUpdate:
+    """Move an issue along the four states, refusing a move that skips one.
+
+    **The states are walked, not set.** ``open`` is confirmed;
+    ``confirmed`` is fixed -- naming the version that fixed it -- or
+    wontfix. A closed issue moves nowhere: reopening it is a new record,
+    not an edit of the first. The layer carries the walk, so a caller that
+    reached past the wire meets the same refusal by name.
+    """
+    return update_issue_status(
+        context,
+        project_id=body.project_id,
+        issue_id=issue_id,
+        status=body.status,
+        fix_version=body.fix_version,
+        regression_note=body.regression_note,
     )
 
 

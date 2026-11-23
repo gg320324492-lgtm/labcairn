@@ -380,9 +380,54 @@ export type Health = {
   task_id: string
 }
 
+export type IssueData = {
+  issue_id: string
+  project_id: string
+  task_id: string | null
+  version_id: string | null
+  feedback_id: string | null
+  step: string
+  error_text: string
+  duration_seconds: number | null
+  retry_count: number | null
+  severity: string
+  category: string
+  reported_by: string
+  reported_at: string
+  status: string
+  fix_version: string | null
+  regression_note: string | null
+}
+
 export type IssueKeys = {
   project_id: string
   issue_keys: string[]
+}
+
+export type IssueRecordBody = {
+  issue_id: string
+  project_id: string
+  task_id?: string | null
+  version_id?: string | null
+  feedback_id?: string | null
+  step: string
+  error_text: string
+  duration_seconds?: number | null
+  retry_count?: number | null
+  severity: 'blocker' | 'serious' | 'minor' | 'suggestion'
+  category: 'function' | 'interface' | 'performance' | 'model' | 'documentation'
+  reported_by: string
+}
+
+export type IssueStatusBody = {
+  project_id: string
+  status: 'confirmed' | 'fixed' | 'wontfix'
+  fix_version?: string | null
+  regression_note?: string | null
+}
+
+export type IssueStatusUpdate = {
+  issue: IssueData
 }
 
 export type JsonValue = unknown
