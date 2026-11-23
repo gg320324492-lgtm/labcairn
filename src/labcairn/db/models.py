@@ -9,11 +9,12 @@ LC-P2-06 added five more, "twenty-four" while the file held thirty, and
 "thirty-two" by the time the feedback chain and the identifier registry had
 outgrown it -- because nothing recomputed it. The count above was re-derived
 from the ``__tablename__`` lines when the artifact ledger was made durable.
-The count reads **forty-two** at this writing: the two review tables
+The count reads **forty-four** at this writing: the two review tables
 (``review_suggestions``, ``review_decisions``), the trajectory index's two
 (``trajectory_index_rows``, ``trajectory_fts``), the real-model loop's
-``model_suggestion_runs``, and the deck index's two (``ppt_index_rows``,
-``ppt_fts``) are this phase's additions.
+``model_suggestion_runs``, the deck index's two (``ppt_index_rows``,
+``ppt_fts``), and the meeting-text index's two (``meeting_index_rows``,
+``meeting_fts``) are this phase's additions.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -4005,5 +4006,106 @@ class PptIndexRow(Base):
         CheckConstraint(
             "length(trim(object_fingerprint)) > 0 AND length(trim(locator_json)) > 0",
             name="ppt_index_address_present",
+        ),
+    )
+
+
+class MeetingIndexRow(Base):
+    """One searchable record of meeting text.
+
+    **Phase 4 (P4-MS), third source (execution plan §8.4).** Meeting
+    material that already exists as text -- a transcript someone else
+    produced (SRT, WebVTT) or notes someone organised by hand (TXT,
+    Markdown) -- becomes rows that carry **what the record says and where
+    it sits**: the 1-based record index within the file, the container's
+    timestamp when the record has one, and the record's shape (a
+    transcript ``entry`` or an organised ``paragraph``), plus the source
+    fingerprint the extraction recorded so a hit is checkable against the
+    file it came from. Together those are the address §8.5 asks a hit to
+    point at.
+
+    **Two shapes of record, and the vocabulary is closed**: ``entry`` and
+    ``paragraph``. An entry is timed -- the container's own timestamp
+    spelling -- and a paragraph is not: a paragraph has no time, and
+    inventing one would be a conclusion the bytes do not carry. Both
+    halves of that sentence are CHECK constraints, so a row that claims a
+    paragraph with a timestamp is a row the store refuses.
+
+    **And the id is derived, so re-ingesting a file is the same rows.**
+    The application layer hashes the project, the source file's content
+    hash and the record's own fingerprint; a second ingestion finds the
+    rows that are already there, the same rule the deck index's derived
+    ids apply to re-reading a deck.
+    """
+
+    __tablename__ = "meeting_index_rows"
+
+    #: Derived by the application layer from the project, the source hash
+    #: and the record's fingerprint. Re-ingesting the same file is the
+    #: same row.
+    record_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The content hash of the file the record was read from. Two files
+    #: with the same words are two files, and the hash is what says so.
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: ``entry`` (a timestamped transcript cue) or ``paragraph`` (a block
+    #: of manually organised text) -- the closed vocabulary of what this
+    #: row holds.
+    record_format: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: The record's 1-based index within the file -- the cue's order in
+    #: the transcript, or the paragraph's order in the notes.
+    record_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The container's timestamp for a transcript entry, as the file
+    #: spells it, or ``None`` for a paragraph.
+    timestamp_label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The record's own fingerprint, as the extraction recorded it.
+    record_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    #: What the record says. Never empty: a record with no words is not a
+    #: row, it is nothing.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The structured locator, as JSON -- the ``MeetingTextLocator``'s
+    #: fields -- so a hit can hand back the address without re-deriving it.
+    locator_json: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When the record was indexed.
+    ingested_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_meeting_index_project", "project_id"),
+        Index("ix_meeting_index_source", "source_sha256"),
+        CheckConstraint(
+            "record_format IN ('entry', 'paragraph')",
+            name="meeting_index_format_vocabulary",
+        ),
+        CheckConstraint(
+            "record_index >= 1",
+            name="meeting_index_positions_positive",
+        ),
+        CheckConstraint(
+            "record_format != 'entry' OR timestamp_label IS NOT NULL",
+            name="meeting_index_entry_is_timed",
+        ),
+        CheckConstraint(
+            "record_format != 'paragraph' OR timestamp_label IS NULL",
+            name="meeting_index_paragraph_is_untimed",
+        ),
+        CheckConstraint(
+            "length(record_id) > 0 AND length(project_id) > 0",
+            name="meeting_index_ids_present",
+        ),
+        CheckConstraint(
+            "length(trim(text)) > 0",
+            name="meeting_index_text_present",
+        ),
+        CheckConstraint(
+            "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="meeting_index_source_sha256_well_formed",
+        ),
+        CheckConstraint(
+            "length(trim(record_fingerprint)) > 0 AND length(trim(locator_json)) > 0",
+            name="meeting_index_address_present",
         ),
     )

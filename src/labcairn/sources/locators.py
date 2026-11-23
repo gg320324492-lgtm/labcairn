@@ -93,6 +93,10 @@ class LocatorKind(StrEnum):
     #: A PowerPoint deck, addressed by 1-based slide number, the object's
     #: position within the slide and the object kind. See :class:`PptxLocator`.
     PPTX = "pptx"
+    #: Meeting text -- an existing transcript or manually organised notes --
+    #: addressed by the entry or paragraph it holds. See
+    #: :class:`MeetingTextLocator`.
+    MEETING = "meeting"
     #: A derived number, addressed by the operator that produced it.
     COMPUTATION = "computation"
 
@@ -340,6 +344,53 @@ class PptxLocator(_LocatorBase):
     object_kind: PptxObjectKind
 
 
+#: The kinds of record a :class:`MeetingTextLocator` can address. **The
+#: vocabulary is closed** -- the two shapes the meeting-text reader
+#: produces: a timestamped transcript entry, and a paragraph of manually
+#: organised text. A locator naming anything else is an address with no
+#: content behind it.
+MeetingTextFormat = Literal["entry", "paragraph"]
+
+
+class MeetingTextLocator(_LocatorBase):
+    """Meeting text → the entry or paragraph the text was read at.
+
+    **Phase 4 (P4-MS), third source (execution plan §8.4).** Meeting
+    material arrives as text that already exists -- a transcript someone
+    else produced (SRT, WebVTT) or notes someone organised by hand (TXT,
+    Markdown). Automatic transcription is explicitly not part of the first
+    version, so the address is *into the text as it was supplied*, not into
+    a recording.
+
+    **Two record shapes, and the locator says which.** A transcript's
+    records are entries -- each with its cue order (1-based, the order the
+    file lists the cues in) and, when the container recorded one, its
+    timestamp. Organised text's records are paragraphs -- each with its
+    paragraph order (1-based, in reading order). ``record_index`` is the
+    1-based ordinal within the file; ``timestamp`` is the container's own
+    timestamp string for a transcript entry, and ``None`` for a paragraph --
+    a paragraph has no time, and inventing one would be a conclusion the
+    bytes do not carry.
+
+    The rule is the PptxLocator rule: the address names structure (the
+    record's order in the file) rather than content, so it is re-derivable
+    from the same file -- which is what ADR-0004 A1 asks of an address.
+    """
+
+    locator_kind: Literal[LocatorKind.MEETING] = LocatorKind.MEETING
+    #: Which shape of record: ``entry`` (a timestamped transcript cue) or
+    #: ``paragraph`` (a block of manually organised text).
+    record_format: MeetingTextFormat
+    #: The record's 1-based ordinal within the file -- the cue's order in
+    #: the transcript, or the paragraph's order in the notes.
+    record_index: StrictPosInt
+    #: The container's timestamp for a transcript entry, as the file spells
+    #: it (e.g. ``00:01:23,400``). ``None`` for a paragraph -- a paragraph
+    #: has no time, and inventing one would be a conclusion the bytes do
+    #: not carry.
+    timestamp: NonEmptyText | None = None
+
+
 #: The locator union, discriminated on ``locator_kind``.
 #:
 #: Consumers narrow with ``isinstance`` after validation, or read
@@ -351,6 +402,7 @@ SourceLocator = Annotated[
     | XlsxLocator
     | DocxLocator
     | PptxLocator
+    | MeetingTextLocator
     | ComputationLocator,
     Field(discriminator="locator_kind"),
 ]
@@ -363,6 +415,7 @@ LOCATOR_MODELS: tuple[type[_LocatorBase], ...] = (
     XlsxLocator,
     DocxLocator,
     PptxLocator,
+    MeetingTextLocator,
     ComputationLocator,
 )
 
@@ -396,6 +449,11 @@ def describe_locator(locator: SourceLocator) -> str:
             return f"docx: {part} {path} ({view}){span}"
         case PptxLocator(slide=slide, position=position, object_kind=kind):
             return f"pptx: slide {slide}, object {position} ({kind})"
+        case MeetingTextLocator(record_format="entry", record_index=index, timestamp=time):
+            stamp = f", at {time}" if time is not None else ""
+            return f"meeting: entry {index}{stamp}"
+        case MeetingTextLocator():
+            return f"meeting: paragraph {locator.record_index}"
         case ComputationLocator(operator_id=op, operator_version=version, input_hashes=hashes):
             plural = "" if len(hashes) == 1 else "s"
             return f"computation: {op}@{version} over {len(hashes)} input{plural}"
