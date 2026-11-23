@@ -138,6 +138,12 @@ class PptxObject:
     is the object's own hash, derived from the file's content hash, the
     slide and the object's XML path, so the same object in the same deck
     always fingerprints the same way and a re-ingestion is the same rows.
+
+    ``part`` is the package part the object was read from (the slide's part
+    or the notes slide's), and ``object_path`` is the object's path within
+    that part -- the two together name the XML the object is, which is what
+    the index carries beside the slide and position. A notes paragraph's
+    path is its own; the slide's shapes carry the path the shape sits at.
     """
 
     kind: PptxObjectKind
@@ -146,6 +152,10 @@ class PptxObject:
     text: str
     locator: PptxLocator
     fingerprint: str
+    #: The package part the object was read from.
+    part: str
+    #: The object's path within its part, re-derivable from the same file.
+    object_path: str
     #: The relationship target, for an image -- the picture's bytes live in
     #: a media part, and naming the part is what makes the reference
     #: checkable. ``None`` for every other kind.
@@ -439,21 +449,22 @@ def _slide_objects(
         if tag == "sp":
             objects.extend(
                 _text_shape_objects(
-                    shape, slide_no, position, object_path, fingerprint_base, file_sha
+                    shape, slide_no, position, slide_part, object_path,
+                    fingerprint_base, file_sha,
                 )
             )
         elif tag == "graphicFrame":
             objects.extend(
                 _frame_objects(
-                    shape, slide_no, position, object_path, fingerprint_base, file_sha,
-                    problems,
+                    shape, slide_no, position, slide_part, object_path,
+                    fingerprint_base, file_sha, problems,
                 )
             )
         else:
             objects.extend(
                 _picture_objects(
-                    shape, slide_no, position, object_path, fingerprint_base, file_sha,
-                    media, problems,
+                    shape, slide_no, position, slide_part, object_path,
+                    fingerprint_base, file_sha, media, problems,
                 )
             )
     return tuple(objects)
@@ -466,6 +477,8 @@ def _make_object(
     text: str,
     fingerprint_base: str,
     file_sha: str,
+    part: str,
+    object_path: str,
     media_target: str | None = None,
 ) -> PptxObject:
     """One object, addressed and fingerprinted.
@@ -484,6 +497,8 @@ def _make_object(
         text=text,
         locator=PptxLocator(slide=slide_no, position=position, object_kind=kind),
         fingerprint=f"{file_sha[:16]}:{digest[:32]}",
+        part=part,
+        object_path=object_path,
         media_target=media_target,
     )
 
@@ -492,6 +507,7 @@ def _text_shape_objects(
     shape: ElementTree.Element,
     slide_no: int,
     position: int,
+    slide_part: str,
     object_path: str,
     fingerprint_base: str,
     file_sha: str,
@@ -533,6 +549,8 @@ def _text_shape_objects(
                 text,
                 f"{fingerprint_base}\x00p[{paragraph_position}]",
                 file_sha,
+                slide_part,
+                f"{object_path}/a:txBody/a:p[{paragraph_position}]",
             )
         )
     return tuple(objects)
@@ -542,6 +560,7 @@ def _frame_objects(
     frame: ElementTree.Element,
     slide_no: int,
     position: int,
+    slide_part: str,
     object_path: str,
     fingerprint_base: str,
     file_sha: str,
@@ -592,6 +611,8 @@ def _frame_objects(
                     text,
                     f"{fingerprint_base}\x00tr[{row_no}]",
                     file_sha,
+                    slide_part,
+                    f"{object_path}/a:graphic/a:graphicData/a:tbl/a:tr[{row_no}]",
                 )
             )
         return tuple(objects)
@@ -632,6 +653,7 @@ def _picture_objects(
     picture: ElementTree.Element,
     slide_no: int,
     position: int,
+    slide_part: str,
     object_path: str,
     fingerprint_base: str,
     file_sha: str,
@@ -673,6 +695,8 @@ def _picture_objects(
             name,
             fingerprint_base,
             file_sha,
+            slide_part,
+            object_path,
             media_target=target or None,
         ),
     )
@@ -729,6 +753,10 @@ def _notes_objects(
                     slide=slide_no, position=paragraph_position, object_kind="notes"
                 ),
                 fingerprint=f"{file_sha[:16]}:{digest[:32]}",
+                part=notes_part,
+                object_path=(
+                    f"/p:notes/p:cSld/p:txBody/a:p[{paragraph_position}]"
+                ),
             )
         )
     return tuple(objects)
