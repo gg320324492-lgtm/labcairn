@@ -191,6 +191,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # round reading the approved set from the store. Integration, because
     # the witnesses are the service's own routes over real bytes.
     "test_review_api.py": ("integration", "api-auth"),
+    # The review desk wired to the live /review routes (LC-P4-CAP). The
+    # desk reads the service over HTTP and posts a verdict through it;
+    # integration, because the witnesses are the service's own routes.
+    # **Registered late**: the file joined the tree in 53e6adb without an
+    # entry here, and an unfiled required test is one whose cases enter no
+    # denominator -- the hole this table exists to close.
+    "test_review_desk_live.py": ("integration", "api-auth"),
     # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
     # revision trajectory searchable with its provenance, a rule candidate
     # drafted from an entry and confirmed by a mentor, and the usable
@@ -199,6 +206,15 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # because the witnesses are the chain's real rows read through the
     # index, the memory and the retrieval.
     "test_trajectory_index.py": ("integration", "api-auth"),
+    # Phase 4 (P4-MS). The multi-source index's second slice: a deck's
+    # titles, body text, speaker notes, tables and images searchable with
+    # their provenance -- slide, object position, kind and fingerprint --
+    # so a hit points at the correct slide or object (§8.3, §8.5). A chart
+    # is a recorded limitation, never invented content; a denied deck is
+    # refused and writes nothing. Integration, because the witnesses are a
+    # hand-built but real .pptx read through the reader, the ingest, the
+    # retrieval and the API.
+    "test_ppt_deck.py": ("integration", "api-auth"),
     "test_application_approvals.py": ("integration", "approvals"),
     # LC-P2-02. The two facts the approval row now carries, and the spend
     # that reads them there rather than trusting an argument. Integration,
