@@ -155,8 +155,6 @@ export type ChainEdit = {
 
 export type CheckKind = 'c1' | 'c2' | 'c3' | 'c4'
 
-export type CheckOutcome = 'pass' | 'fail' | 'indeterminate' | 'not_checked'
-
 export type ClaimBody = {
   source_id: string
   locator_key: string
@@ -558,6 +556,15 @@ export type ProposalSettled = {
   user_id: string
 }
 
+export type QualityCheckFact = {
+  check: string
+  detail: string
+  feedback_id?: string | null
+  paragraph?: number | null
+  expected?: string | null
+  actual?: string | null
+}
+
 export type RawId = string
 
 export type RawSourceId = string
@@ -609,6 +616,7 @@ export type ReviewApplyResult = {
   applied: string[]
   handovers: ReviewHandover[]
   unresolved: ReviewUnresolved[]
+  quality?: RoundQualityReport | null
 }
 
 export type ReviewDecisionBody = {
@@ -736,6 +744,14 @@ export type ReviewUnresolved = {
   feedback_id: string
   reason: string
   detail: string
+}
+
+export type RoundQualityReport = {
+  project_id: string
+  input_version_id: string
+  output_version_id: string
+  dossier_artifact_id: string
+  checks: labcairn__application__quality_checks__CheckOutcome[]
 }
 
 export type RowFilter = {
@@ -962,7 +978,7 @@ export type VerificationRecord = {
   schema_version?: number
   check: CheckKind
   checker_id: string
-  outcome: CheckOutcome
+  outcome: labcairn__evidence__states__CheckOutcome
   detail: string
   checked_at: string
   normalization_profile?: NormalizationProfile | null
@@ -970,3 +986,12 @@ export type VerificationRecord = {
 
 export type VerificationStatus =
   'planned' | 'extracted' | 'verified_by_rule' | 'user_attested' | 'conflicted' | 'unsupported'
+
+export type labcairn__application__quality_checks__CheckOutcome = {
+  check: string
+  passed: boolean
+  facts?: QualityCheckFact[]
+}
+
+export type labcairn__evidence__states__CheckOutcome =
+  'pass' | 'fail' | 'indeterminate' | 'not_checked'

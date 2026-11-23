@@ -1,4 +1,4 @@
-"""The forty tables that make SQLite the task authority.
+"""The forty-four tables that make SQLite the task authority.
 
 Thirty-seven is not a claim to be trusted: ``tests/test_store_migrations.py``'s
 parity test walks ``Base.metadata`` and the migrated schema independently, and
@@ -9,13 +9,14 @@ LC-P2-06 added five more, "twenty-four" while the file held thirty, and
 "thirty-two" by the time the feedback chain and the identifier registry had
 outgrown it -- because nothing recomputed it. The count above was re-derived
 from the ``__tablename__`` lines when the artifact ledger was made durable.
-The count reads **forty-five** at this writing: the two review tables
+The count reads **forty-four** at this writing: the two review tables
 (``review_suggestions``, ``review_decisions``), the trajectory index's two
 (``trajectory_index_rows``, ``trajectory_fts``), the real-model loop's
 ``model_suggestion_runs``, the deck index's two (``ppt_index_rows``,
 ``ppt_fts``), the meeting-text index's two (``meeting_index_rows``,
 ``meeting_fts``), and the pilot's in-system issue record (``pilot_issues``)
-are this phase's additions.
+are this phase's additions. The number is re-derived from the
+``__tablename__`` lines, never carried forward.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:

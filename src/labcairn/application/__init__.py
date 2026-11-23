@@ -174,6 +174,7 @@ Operation  The permission that governs it
 ``request_role_run``                  the contract's own allowed capabilities
 ``run_role_run``                      the contract's own allowed capabilities
 ``the_role_run_question``             the contract's own allowed capabilities
+``run_round_quality_checks``          ``fs.read`` — the round's own records
 ====================================  ========================================
 
 **And one of them is not the mentor's rows at all.** ``read_replies`` reads
