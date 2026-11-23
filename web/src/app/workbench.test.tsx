@@ -163,9 +163,14 @@ describe('the changes the workbench makes', () => {
     await waitFor(() => {
       expect(screen.getByText('granted')).toBeInTheDocument()
     })
-    const posts = fake.requests.filter((request) => request.method === 'POST')
-    expect(posts).toHaveLength(1)
-    expect(posts[0]?.headers['authorization']).toBe(`Bearer ${FAKE_TOKEN}`)
+    // The grant is the one change this page was asked for; the delivery
+    // centre's preview is a read the mount makes on its own, and it is not
+    // the page's write.
+    const grants = fake.requests.filter(
+      (request) => request.method === 'POST' && request.url.endsWith('/grant'),
+    )
+    expect(grants).toHaveLength(1)
+    expect(grants[0]?.headers['authorization']).toBe(`Bearer ${FAKE_TOKEN}`)
   })
 
   it('does not mark the approval granted when the service refuses', async () => {
@@ -195,7 +200,13 @@ describe('the changes the workbench makes', () => {
     await waitFor(() => {
       expect(screen.getByText('granted')).toBeInTheDocument()
     })
-    expect(fake.requests.filter((request) => request.method === 'POST')).toHaveLength(1)
+    // The grant — not the delivery centre's own preview read — is the write
+    // this test counts, and it happened exactly once.
+    expect(
+      fake.requests.filter(
+        (request) => request.method === 'POST' && request.url.endsWith('/grant'),
+      ),
+    ).toHaveLength(1)
   })
 })
 

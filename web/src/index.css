@@ -538,3 +538,260 @@ body {
   font-size: 0.9rem;
   color: var(--labcairn-warn);
 }
+
+/* --- Stage feedback bar ------------------------------------------------- */
+
+.stage-bar {
+  margin-bottom: 1.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+}
+
+.stage-bar__status {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.stage-bar__phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-bar__phase {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.3rem;
+  font-size: 0.8rem;
+  opacity: 0.65;
+  transition:
+    opacity 240ms ease,
+    border-color 240ms ease,
+    background-color 240ms ease;
+}
+
+.stage-bar__phase--active {
+  opacity: 1;
+  border-color: var(--labcairn-fg);
+  background: color-mix(in srgb, var(--labcairn-fg) 8%, transparent);
+  font-weight: 600;
+}
+
+.stage-bar__phase--completed {
+  opacity: 0.9;
+  border-style: solid;
+}
+
+.stage-bar__phase-label {
+  font-weight: 600;
+}
+
+.stage-bar__phase-status {
+  color: var(--labcairn-muted);
+}
+
+.stage-bar__phase-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.stage-bar__phase-stages code {
+  font-size: 0.72rem;
+  color: var(--labcairn-muted);
+}
+
+.stage-bar__phase-stages--absent {
+  font-style: italic;
+}
+
+.stage-bar--empty {
+  color: var(--labcairn-muted);
+}
+
+/* The transition is the decoration; the text and attributes are the
+ * information. A reader who has asked for reduced motion still gets the
+ * state change — the text flips in the live region and the attributes move —
+ * and only the animated settling is given up. */
+@media (prefers-reduced-motion: reduce) {
+  .stage-bar__phase,
+  .delivery__deliverable,
+  .delivery__apply,
+  .delivery__download {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* --- Delivery centre ----------------------------------------------------- */
+
+.delivery__section-title {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.delivery__commit {
+  margin-bottom: 1.25rem;
+}
+
+.delivery__preview {
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.delivery__preview-counts {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+}
+
+.delivery__preview-paragraphs {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--labcairn-muted);
+}
+
+.delivery__edits {
+  margin: 0 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.delivery__edit {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) 1fr;
+  gap: 0.15rem 0.75rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--labcairn-rule);
+  font-size: 0.88rem;
+}
+
+.delivery__edit-place {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  color: var(--labcairn-muted);
+}
+
+.delivery__edit-old {
+  color: var(--labcairn-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.delivery__edit-new {
+  font-weight: 500;
+}
+
+.delivery__digests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.delivery__digests dt {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--labcairn-muted);
+}
+
+.delivery__digests dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.delivery__apply {
+  font-weight: 600;
+}
+
+.delivery__apply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.delivery__outcome {
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+}
+
+.delivery__export {
+  border-top: 1px solid var(--labcairn-rule);
+  padding-top: 0.9rem;
+}
+
+.delivery__binding {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+  overflow-wrap: anywhere;
+}
+
+.delivery__deliverables {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.delivery__deliverable {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--labcairn-rule);
+  transition: background-color 240ms ease;
+}
+
+.delivery__deliverable:first-child {
+  border-top: none;
+}
+
+.delivery__deliverable--missing {
+  color: var(--labcairn-muted);
+}
+
+.delivery__deliverable-kind {
+  font-weight: 600;
+  min-width: 8.5rem;
+}
+
+.delivery__deliverable-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.delivery__deliverable-meta {
+  font-size: 0.8rem;
+  color: var(--labcairn-muted);
+  overflow-wrap: anywhere;
+}
+
+.delivery__download {
+  margin-left: auto;
+}
+
+.delivery__refusal {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--labcairn-warn);
+  border-radius: 0.35rem;
+  color: var(--labcairn-warn);
+  font-size: 0.9rem;
+}
+
+.delivery__fixture-note {
+  margin-bottom: 0.75rem;
+}

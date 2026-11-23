@@ -21,6 +21,8 @@
  * how it got there.
  */
 
+import type { ApplyReviewBody } from './generated'
+
 /** The paths the workbench reads, keyed by what they are for. */
 export const API_PATHS = {
   /** What the service is, and where it listens. */
@@ -63,6 +65,10 @@ export const API_PATHS = {
   reviewDecision: '/review/decision',
   /** Apply the stored, approved set and close the round. */
   reviewApply: '/review/apply',
+  /** Measure what the apply round would do, before anything is written. */
+  reviewPreview: '/review/preview',
+  /** The four deliverables of one closed binding, in one export. */
+  reviewDeliverables: '/review/deliverables',
 } as const
 
 /** One review round's opinions, addressed by the round's two names. */
@@ -75,6 +81,55 @@ export function reviewOpinionsPath(projectId: string, versionId: string): string
 export function reviewManuscriptPath(projectId: string, versionId: string): string {
   const query = new URLSearchParams({ project_id: projectId, version_id: versionId })
   return `${API_PATHS.reviewManuscript}?${query.toString()}`
+}
+
+/**
+ * One closed binding's four deliverables, addressed by the dossier that binds
+ * them.
+ *
+ * **The binding is named by its dossier, not remembered.** The apply's answer
+ * carries the dossier's id, and the export is asked for by that id — so the
+ * four files a panel draws are the four files *that round* bound, and not
+ * whichever dossier happens to be the latest.
+ */
+export function reviewDeliverablesPath(projectId: string, dossierArtifactId: string): string {
+  const query = new URLSearchParams({
+    project_id: projectId,
+    dossier_artifact_id: dossierArtifactId,
+  })
+  return `${API_PATHS.reviewDeliverables}?${query.toString()}`
+}
+
+/**
+ * What the apply round is asked for, in the service's own words.
+ *
+ * The preview and the apply routes take **the same body**, because the
+ * preview answers the apply's question about the same round — what these
+ * addresses name. The fields are the service's (`ApplyReviewBody`, from the
+ * generated types), so the client's spelling and the service's cannot drift:
+ * a field renamed on one side fails the compile, not the round.
+ */
+export type ApplyReviewRequest = ApplyReviewBody
+
+/** One review round's previews and writes, addressed by its two names. */
+export function reviewApplyBody(
+  projectId: string,
+  inputVersionId: string,
+  options: {
+    readonly sourceRootId: string
+    readonly sourceKey: string
+    readonly outputLabel: string
+    readonly windowEnd: string
+  },
+): ApplyReviewRequest {
+  return {
+    project_id: projectId,
+    input_version_id: inputVersionId,
+    source_root_id: options.sourceRootId,
+    source_key: options.sourceKey,
+    output_label: options.outputLabel,
+    window_end: options.windowEnd,
+  }
 }
 
 /**
