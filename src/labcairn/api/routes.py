@@ -120,6 +120,7 @@ from labcairn.application import (
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
 from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
+from labcairn.application.ppt_deck import PptDeckIngested, PptHit, ingest_ppt_deck, search_ppt_deck
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.review import (
     ApplyReviewRequest,
@@ -139,7 +140,6 @@ from labcairn.application.review import (
     record_review_suggestion,
 )
 from labcairn.application.stages import StageRequest, StageWork
-from labcairn.application.ppt_deck import PptDeckIngested, PptHit, ingest_ppt_deck, search_ppt_deck
 from labcairn.application.trajectory import (
     TrajectoryHit,
     UsableRule,

@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -115,7 +116,7 @@ def _text_shape(name: str, text: str, *, placeholder: str | None = None) -> str:
     """
     ph = f'<p:ph type="{placeholder}"/>' if placeholder else ""
     return (
-        f"<p:sp><p:nvSpPr><p:cNvPr name=\"{name}\"/>{ph}</p:nvSpPr>"
+        f'<p:sp><p:nvSpPr><p:cNvPr name="{name}"/>{ph}</p:nvSpPr>'
         f"<p:txBody><a:p><a:r><a:t>{text}</a:t></a:r></a:p></p:txBody></p:sp>"
     )
 
@@ -130,10 +131,10 @@ def _table_frame() -> str:
         '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr name="Table 5"/>'
         "</p:nvGraphicFramePr>"
         f'<a:graphic><a:graphicData uri="{TABLE_URI}"><a:tbl>'
-        f'<a:tr><a:tc><a:p><a:r><a:t>group</a:t></a:r></a:p></a:tc>'
-        f'<a:tc><a:p><a:r><a:t>yield</a:t></a:r></a:p></a:tc></a:tr>'
-        f'<a:tr><a:tc><a:p><a:r><a:t>treated</a:t></a:r></a:p></a:tc>'
-        f'<a:tc><a:p><a:r><a:t>5.101</a:t></a:r></a:p></a:tc></a:tr>'
+        f"<a:tr><a:tc><a:p><a:r><a:t>group</a:t></a:r></a:p></a:tc>"
+        f"<a:tc><a:p><a:r><a:t>yield</a:t></a:r></a:p></a:tc></a:tr>"
+        f"<a:tr><a:tc><a:p><a:r><a:t>treated</a:t></a:r></a:p></a:tc>"
+        f"<a:tc><a:p><a:r><a:t>5.101</a:t></a:r></a:p></a:tc></a:tr>"
         "</a:tbl></a:graphicData></a:graphic></p:graphicFrame>"
     )
 
@@ -290,10 +291,7 @@ def test_the_fingerprint_is_stable_across_reads_and_names_the_object() -> None:
     data = build_deck_bytes()
     first = {o.text: o for o in read_deck(data).objects}
     second = {o.text: o for o in read_deck(data).objects}
-    assert (
-        first[TITLE_TEXT].fingerprint
-        == second[TITLE_TEXT].fingerprint
-    )
+    assert first[TITLE_TEXT].fingerprint == second[TITLE_TEXT].fingerprint
     assert first[TITLE_TEXT].fingerprint != first[NOTES_TEXT].fingerprint
     assert first[TITLE_TEXT].fingerprint != first[TABLE_ROW].fingerprint
 
@@ -510,9 +508,7 @@ def test_a_chart_deck_reports_its_limitation(deck_env: DeckEnv, tmp_path: Path) 
     assert ingested.objects_indexed == 7
     assert not any(
         "chart" in object.object_kind
-        for object in list_ppt_objects(
-            deck_env.context, project_id=deck_env.project_id
-        )
+        for object in list_ppt_objects(deck_env.context, project_id=deck_env.project_id)
     )
 
 

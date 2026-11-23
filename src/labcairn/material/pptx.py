@@ -276,9 +276,7 @@ def _paragraph_text(paragraph: ElementTree.Element) -> str:
     other children (fields, line breaks) contribute nothing here, and a
     field whose text a renderer would compute is **not invented**.
     """
-    return "".join(
-        node.text or "" for node in paragraph.iter(_TAG["t"]) if node.text is not None
-    )
+    return "".join(node.text or "" for node in paragraph.iter(_TAG["t"]) if node.text is not None)
 
 
 def _shape_name(shape: ElementTree.Element, nv_pr_tag: str) -> str:
@@ -312,9 +310,7 @@ def _slide_parts(archive: zipfile.ZipFile, problems: list[ExtractionProblem]) ->
     slide after it.
     """
     try:
-        presentation = _parse_part(
-            PRESENTATION_PART, archive.read(PRESENTATION_PART)
-        )
+        presentation = _parse_part(PRESENTATION_PART, archive.read(PRESENTATION_PART))
     except (_RefusedPartError, KeyError) as exc:
         raise _RefusedPartError(f"{PRESENTATION_PART} could not be read: {exc}") from exc
 
@@ -341,8 +337,7 @@ def _slide_parts(archive: zipfile.ZipFile, problems: list[ExtractionProblem]) ->
     id_list = presentation.find(_TAG["sld_id_lst"])
     if id_list is None:
         raise _RefusedPartError(
-            f"{PRESENTATION_PART} has no p:sldIdLst; it is not a presentation "
-            f"this reader can read."
+            f"{PRESENTATION_PART} has no p:sldIdLst; it is not a presentation this reader can read."
         )
     for slide_id in id_list.findall(_TAG["sld_id"]):
         relationship_id = slide_id.get(f"{{{R}}}id") or ""
@@ -474,22 +469,41 @@ def _slide_objects(
         if tag == "sp":
             objects.extend(
                 _text_shape_objects(
-                    shape, slide_no, slide_part, object_path,
-                    fingerprint_base, file_sha, counter,
+                    shape,
+                    slide_no,
+                    slide_part,
+                    object_path,
+                    fingerprint_base,
+                    file_sha,
+                    counter,
                 )
             )
         elif tag == "graphicFrame":
             objects.extend(
                 _frame_objects(
-                    shape, slide_no, shape_ordinal, slide_part, object_path,
-                    fingerprint_base, file_sha, problems, counter,
+                    shape,
+                    slide_no,
+                    shape_ordinal,
+                    slide_part,
+                    object_path,
+                    fingerprint_base,
+                    file_sha,
+                    problems,
+                    counter,
                 )
             )
         else:
             objects.extend(
                 _picture_objects(
-                    shape, slide_no, slide_part, object_path,
-                    fingerprint_base, file_sha, media, problems, counter,
+                    shape,
+                    slide_no,
+                    slide_part,
+                    object_path,
+                    fingerprint_base,
+                    file_sha,
+                    media,
+                    problems,
+                    counter,
                 )
             )
     return tuple(objects)
@@ -622,8 +636,7 @@ def _frame_objects(
             cells = []
             for cell in row.findall(_TAG["tc"]):
                 cell_text = " ".join(
-                    _paragraph_text(paragraph)
-                    for paragraph in cell.findall(_TAG["p"])
+                    _paragraph_text(paragraph) for paragraph in cell.findall(_TAG["p"])
                 ).strip()
                 cells.append(cell_text)
             text = " | ".join(cells)
@@ -767,7 +780,7 @@ def _notes_objects(
             continue
         paragraph_position += 1
         digest = hashlib.sha256(
-            f"{file_sha}\x00{notes_part}\x00p[{paragraph_position}]".encode("utf-8")
+            f"{file_sha}\x00{notes_part}\x00p[{paragraph_position}]".encode()
         ).hexdigest()
         objects.append(
             PptxObject(
@@ -782,9 +795,7 @@ def _notes_objects(
                 ),
                 fingerprint=f"{file_sha[:16]}:{digest[:32]}",
                 part=notes_part,
-                object_path=(
-                    f"/p:notes/p:cSld/p:txBody/a:p[{paragraph_position}]"
-                ),
+                object_path=(f"/p:notes/p:cSld/p:txBody/a:p[{paragraph_position}]"),
             )
         )
     return tuple(objects)
@@ -876,9 +887,7 @@ def read_deck(data: bytes) -> PptxDeck:
                         part = "ppt/" + target.removeprefix("../").removeprefix("./")
                         if part in names:
                             objects.extend(
-                                _notes_objects(
-                                    archive, slide_no, part, file_sha, problems, counter
-                                )
+                                _notes_objects(archive, slide_no, part, file_sha, problems, counter)
                             )
                         break
 

@@ -46,12 +46,12 @@ from sqlalchemy import text as sql_text
 from labcairn.application import consent
 from labcairn.application.context import ApplicationContext
 from labcairn.application.models import Result
-from labcairn.application.refusal import ApplicationRefusedError, ApplicationRefusal
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.db.models import PptIndexRow
 from labcairn.evidence.index import build_match_expression
 from labcairn.material.pptx import PptxObject, read_deck
 from labcairn.papers.chain import project_row
-from labcairn.security.capabilities import CapabilityId, MAX_SOURCE_READ_BYTES
+from labcairn.security.capabilities import MAX_SOURCE_READ_BYTES, CapabilityId
 from labcairn.security.paths import CanonicalPath
 
 #: The default result size, for the same reason the trajectory retrieval
@@ -199,9 +199,7 @@ def ingest_ppt_deck(
     )
 
 
-def _read_deck_bytes(
-    context: ApplicationContext, resource: CanonicalPath
-) -> tuple[bytes, str]:
+def _read_deck_bytes(context: ApplicationContext, resource: CanonicalPath) -> tuple[bytes, str]:
     """The deck's bytes, measured, read and checked against the source's hash.
 
     **The file is measured before it is read** -- a deck too large to read
