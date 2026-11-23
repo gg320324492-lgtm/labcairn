@@ -1225,6 +1225,12 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         # searchable store. It reads the file through the workspace's own
         # source gate, and the bytes never travel in the request.
         "POST /meeting/ingest",
+        # The pilot's in-system issue record (Phase 4, P4-PILOT §9.4): an
+        # issue is recorded against a trial round, and its status is moved
+        # along the four states -- the walk the record's own history is.
+        # Both are the layer's own operations behind the same guard.
+        "POST /issues",
+        "PATCH /issues/{issue_id}/status",
     }
 
 

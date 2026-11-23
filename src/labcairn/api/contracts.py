@@ -470,6 +470,71 @@ class ReviewDecisionBody(Result):
     needs_evidence: bool = False
 
 
+class IssueRecordBody(Result):
+    """One problem the trial met, as the API accepts it (P4-PILOT §9.4).
+
+    **The record is about something.** The project is required; the task,
+    the version and the opinion are named when the trial can name them.
+    The two vocabularies -- severity and type -- are closed here, in the
+    type rather than in the handler, the way
+    :class:`GuidanceRuleVerdictBody` puts it: a workbench that drew a tag
+    the service does not accept would be offering a door that is not
+    there, and a tag outside the closed list is refused at the wire with
+    the same 422 every other closed vocabulary answers with.
+
+    **The status is not in the body.** A recorded issue is ``open``; the
+    states after that are ``PATCH /issues/{issue_id}/status``'s to move
+    along, and a body that set ``fixed`` outright would be recording a
+    confirmation nobody made.
+    """
+
+    issue_id: str = Field(min_length=1)
+    project_id: str = Field(min_length=1)
+    task_id: str | None = None
+    version_id: str | None = None
+    feedback_id: str | None = None
+    step: str = Field(min_length=1)
+    error_text: str = Field(min_length=1)
+    duration_seconds: float | None = None
+    retry_count: int | None = Field(default=None, ge=0)
+    severity: Literal["blocker", "serious", "minor", "suggestion"]
+    category: Literal["function", "interface", "performance", "model", "documentation"]
+    reported_by: str = Field(min_length=1)
+
+
+class IssueListQuery(Result):
+    """Which issues to list, as the API accepts it.
+
+    **A filter narrows; it does not refuse.** Both filters are optional,
+    and an empty answer is a fact about the trial, not an error. A filter
+    that names a word outside the closed vocabulary is refused at the wire
+    -- the same 422 the record path answers with -- because it is a
+    question the record cannot understand, not an answer of "none".
+    """
+
+    project_id: str = Field(min_length=1)
+    status: Literal["open", "confirmed", "fixed", "wontfix"] | None = None
+    severity: Literal["blocker", "serious", "minor", "suggestion"] | None = None
+
+
+class IssueStatusBody(Result):
+    """The next state of one issue, as the API accepts it.
+
+    **The states are walked, not set**, and the walk lives in the
+    application layer; this body names the target. A ``fixed`` move names
+    the version that fixed it -- the field is required by the layer for
+    that one move, and a caller that marked a problem fixed without
+    naming the fix would be making a claim the next regression cannot
+    check. The ``regression_note`` travels with the fix: what to watch,
+    in the words the team agreed on.
+    """
+
+    project_id: str = Field(min_length=1)
+    status: Literal["confirmed", "fixed", "wontfix"]
+    fix_version: str | None = None
+    regression_note: str | None = None
+
+
 class ReviewSuggestBody(Result):
     """One suggestion-loop run, as the API asks for it.
 
@@ -595,6 +660,9 @@ __all__ = [
     "GuidanceRuleVerdictBody",
     "Health",
     "IssueKeys",
+    "IssueListQuery",
+    "IssueRecordBody",
+    "IssueStatusBody",
     "MeetingIngestBody",
     "PptIngestBody",
     "RefusalBody",

@@ -9,12 +9,13 @@ LC-P2-06 added five more, "twenty-four" while the file held thirty, and
 "thirty-two" by the time the feedback chain and the identifier registry had
 outgrown it -- because nothing recomputed it. The count above was re-derived
 from the ``__tablename__`` lines when the artifact ledger was made durable.
-The count reads **forty-four** at this writing: the two review tables
+The count reads **forty-five** at this writing: the two review tables
 (``review_suggestions``, ``review_decisions``), the trajectory index's two
 (``trajectory_index_rows``, ``trajectory_fts``), the real-model loop's
 ``model_suggestion_runs``, the deck index's two (``ppt_index_rows``,
-``ppt_fts``), and the meeting-text index's two (``meeting_index_rows``,
-``meeting_fts``) are this phase's additions.
+``ppt_fts``), the meeting-text index's two (``meeting_index_rows``,
+``meeting_fts``), and the pilot's in-system issue record (``pilot_issues``)
+are this phase's additions.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -4107,5 +4108,97 @@ class MeetingIndexRow(Base):
         CheckConstraint(
             "length(trim(record_fingerprint)) > 0 AND length(trim(locator_json)) > 0",
             name="meeting_index_address_present",
+        ),
+    )
+
+
+class PilotIssueRow(Base):
+    """One problem the pilot's team recorded, in the system's own record.
+
+    **Phase 4 (P4-PILOT §9.4).** The real trial records each problem twice:
+    once in the unified feedback form (the subjective experience, the
+    description, the improvement suggestion) and once here, in the system
+    -- the row the form's line points at. The row carries what the trial's
+    evaluation reads: the task, the version, the opinion it concerns, the
+    operation step it happened at, the error the user saw, how long the
+    step took and how often it was retried, plus the severity and the
+    type the team tagged it with.
+
+    **The vocabularies are closed.** Severity is ``blocker``, ``serious``,
+    ``minor`` or ``suggestion`` (阻断/严重/一般/建议); type is
+    ``function``, ``interface``, ``performance``, ``model`` or
+    ``documentation`` (功能/界面/性能/模型/文档). A tag outside either
+    is a tag nobody can group the trial's findings by, so the vocabulary
+    is a constraint on the row and not a convention on the writer.
+
+    **The status is the team's word, moved along its states.** A row is
+    ``open`` when recorded, ``confirmed`` when a second person has seen
+    it, and then ``fixed`` -- naming the version that fixed it -- or
+    ``wontfix`` with a reason. The application layer moves the row along
+    those states; a caller that set it outright could skip the
+    confirmation the record says happened.
+    """
+
+    __tablename__ = "pilot_issues"
+
+    #: Caller-minted, so a problem may be cited the moment it is seen.
+    issue_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: What the problem is about. All three may be unknown at the moment of
+    #: recording -- a login failure names no version -- and None is a fact
+    #: the row keeps rather than a blank it papers over.
+    task_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    feedback_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The operation step the problem happened at, e.g. ``apply``,
+    #: ``export``, ``suggest``.
+    step: Mapped[str] = mapped_column(String(100), nullable=False)
+    #: What the user saw, in their own words, verbatim.
+    error_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: How long the step took, in seconds, and how often it was retried --
+    #: the trial's efficiency readings (execution plan §9.3).
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    retry_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: §9.4's two closed vocabularies.
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    category: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: Who saw the problem, and when they said so.
+    reported_by: Mapped[str] = mapped_column(Text, nullable=False)
+    reported_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    #: The team's word on the problem, moved along the four states by the
+    #: application layer, not set by a caller.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    #: A fixed issue names the version that fixed it and, when the fix needs
+    #: watching, what the regression watch is.
+    fix_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    regression_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("ix_pilot_issues_project", "project_id"),
+        Index("ix_pilot_issues_status", "status"),
+        CheckConstraint(
+            "severity IN ('blocker', 'serious', 'minor', 'suggestion')",
+            name="pilot_issues_severity_vocabulary",
+        ),
+        CheckConstraint(
+            "category IN ('function', 'interface', 'performance', 'model', 'documentation')",
+            name="pilot_issues_category_vocabulary",
+        ),
+        CheckConstraint(
+            "status IN ('open', 'confirmed', 'fixed', 'wontfix')",
+            name="pilot_issues_status_vocabulary",
+        ),
+        CheckConstraint(
+            "length(issue_id) > 0 AND length(project_id) > 0 "
+            "AND length(step) > 0 AND length(reported_by) > 0",
+            name="pilot_issues_ids_present",
+        ),
+        CheckConstraint(
+            "retry_count IS NULL OR retry_count >= 0",
+            name="pilot_issues_retry_non_negative",
         ),
     )

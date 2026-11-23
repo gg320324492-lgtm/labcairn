@@ -233,6 +233,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # P4-MS third source (§8.4): the meeting-text index. Integration-level
     # because it drives the workspace, the store and the API; api-auth
     # because the two /meeting routes are part of the served surface.
+    # Phase 4 (P4-PILOT §9.4). The trial's in-system issue record: an
+    # issue recorded against a trial round, listed by severity and status,
+    # and its status advanced along the four states with the fix fields.
+    # Integration, because the witnesses are the service's own routes over
+    # the binding's real sample.
+    "test_issues.py": ("integration", "api-auth"),
     "test_application_approvals.py": ("integration", "approvals"),
     # LC-P2-02. The two facts the approval row now carries, and the spend
     # that reads them there rather than trusting an argument. Integration,
