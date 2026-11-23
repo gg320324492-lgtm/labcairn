@@ -815,6 +815,7 @@ MODEL_REFUSALS: Mapping[ModelRefusal, ApplicationRefusal] = {
     ModelRefusal.SCHEMA_UNSUPPORTED: ApplicationRefusal.MODEL_SCHEMA_UNSUPPORTED,
     ModelRefusal.ANSWER_EMPTY: ApplicationRefusal.MODEL_ANSWER_EMPTY,
     ModelRefusal.ANSWER_UNDECODABLE: ApplicationRefusal.MODEL_ANSWER_UNDECODABLE,
+    ModelRefusal.SUGGESTION_NO_PROVIDER: ApplicationRefusal.MODEL_SUGGESTION_NO_PROVIDER,
 }
 
 

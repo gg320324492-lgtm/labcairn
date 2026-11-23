@@ -1210,6 +1210,11 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /review/decision",
         "POST /review/apply",
         "POST /review/preview",
+        # The suggestion loop's own run (Phase 4, P4-CAP real-model loop):
+        # one POST per run, over a version's pending opinions. It records
+        # suggestions and a run row, and it spends only approvals the body
+        # presents — the substitute mode sends nothing out of the machine.
+        "POST /review/suggest",
     }
 
 
