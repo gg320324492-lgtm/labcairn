@@ -131,6 +131,12 @@ from labcairn.application.review import (
     record_review_suggestion,
 )
 from labcairn.application.stages import StageRequest, StageWork
+from labcairn.application.trajectory import (
+    TrajectoryHit,
+    UsableRule,
+    search_trajectory,
+    usable_guidance,
+)
 from labcairn.core.ids import ApprovalId, TaskId, is_uuid7
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.guidance.models import GuidanceRule
@@ -1198,3 +1204,44 @@ def post_review_apply(
             window_end=body.window_end,
         ),
     )
+
+
+# --------------------------------------------------------------------------- #
+# multi-source learning: the trajectory index and the usable rules (P4-MS)
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/guidance/usable", response_model=list[UsableRule], tags=["mentor"])
+def get_usable_guidance(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    scope: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> list[UsableRule]:
+    """The rules a card may cite: mentor-confirmed, still standing, in scope.
+
+    **A candidate is never here.** The listing serves confirmed rules only —
+    a proposal reaching a card would be a proposal dressed as a record, and
+    the plan's §8.5 makes that a hard line: *unreviewed experience is a
+    candidate, not a code of conduct*. A withdrawn rule is not here either;
+    the retrieval resolves each rule's sources against the chain at query
+    time, so what comes back is what stands for this reader, now.
+    """
+    return list(usable_guidance(context, scope=scope, limit=limit))
+
+
+@router.get("/trajectory/search", response_model=list[TrajectoryHit], tags=["review"])
+def search_trajectory_route(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    q: Annotated[str, Query(min_length=1)],
+    project_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> list[TrajectoryHit]:
+    """Search a paper's revision trajectory, and answer with its provenance.
+
+    **A hit says what was said or changed, and where it came from**: the
+    source version, the locator within it, and the content hash. That is
+    §8.5's acceptance — a trajectory entry is findable *and* points at the
+    opinion and revision position it came from — served from the index the
+    ingest wrote.
+    """
+    return list(search_trajectory(context, query=q, project_id=project_id, limit=limit))

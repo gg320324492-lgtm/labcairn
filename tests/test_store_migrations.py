@@ -185,6 +185,13 @@ EXPECTED_TABLES = frozenset(
         # other. The apply step reads the approved set from these rows.
         "review_suggestions",
         "review_decisions",
+        # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
+        # revision trajectory, one row per indexed entry with the provenance
+        # §8.2 requires, and the FTS5 index over the entries' digests. The
+        # FTS table is the second deliberately-ORM-less table here, after
+        # ``evidence_fts``, for the same reason it is listed by hand.
+        "trajectory_index_rows",
+        "trajectory_fts",
     }
 )
 

@@ -736,6 +736,40 @@ export type Trajectory = {
   responses: CommentResponses[]
 }
 
+export type TrajectoryHit = {
+  trajectory_id: string
+  project_id: string
+  entry_kind: string
+  feedback_id: string | null
+  edit_action_id: string | null
+  revision_event_id: string | null
+  version_id: string
+  issue_key: string | null
+  comment_text: string | null
+  anchor_text: string | null
+  anchor_paragraph: number | null
+  verdict: string | null
+  change_kind: string | null
+  change_text: string | null
+  text_digest: string
+  source_version_id: string
+  source_locator: string
+  source_sha256: string
+  ingested_at: string
+}
+
+export type UsableRule = {
+  rule_id: string
+  version: number
+  name: string
+  summary: string
+  scope: string
+  state: string
+  sources: string[]
+  confirmed_by: string | null
+  confirmed_at: string | null
+}
+
 export type ValidationError = {
   loc: (string | number)[]
   msg: string

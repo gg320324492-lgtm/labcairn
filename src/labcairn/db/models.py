@@ -3720,3 +3720,112 @@ class ReviewDecisionRow(Base):
             name="review_decisions_operator_present",
         ),
     )
+
+
+class TrajectoryIndexRow(Base):
+    """One searchable entry of a paper's revision trajectory.
+
+    **Phase 4 (P4-MS), first source.** The chain's four tables hold the
+    facts of a revision round, and this index is the one place a learner
+    can ask about them without joining the chain by hand: each row carries
+    **what was said or changed, and where it came from** -- the advisor's
+    comment with the text it was anchored to, or a tracked change with the
+    comment it answered -- together with the version and locator the entry
+    was read from, which is execution plan §8.2's rule that raw material
+    enters the knowledge base with its provenance intact.
+
+    **Two kinds of entry, and the vocabulary is closed**: ``comment`` and
+    ``edit``. A comment entry names the feedback event it came from; an
+    edit entry names the edit action and, behind it, the revision event
+    the file recorded. The CHECK refuses an entry that names neither --
+    an index row about nothing is a row nobody can check.
+
+    **And the id is derived, so re-ingesting a project is the same rows.**
+    The application layer hashes the project, the kind and the chain's own
+    id; a second ingestion finds the rows that are already there, the same
+    rule the feedback chain's derived ids apply to re-reading a manuscript.
+    """
+
+    __tablename__ = "trajectory_index_rows"
+
+    #: Derived by the application layer from the project, the kind and the
+    #: chain's own id. Re-ingesting the same trajectory is the same row.
+    trajectory_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``comment`` or ``edit`` -- the closed vocabulary of what this entry
+    #: holds. A comment entry is the advisor's words; an edit entry is a
+    #: change and the comment it answered.
+    entry_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: The comment this entry carries, or the comment an edit entry answers.
+    feedback_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"), nullable=True
+    )
+    #: The edit row behind an ``edit`` entry, when it is one.
+    edit_action_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("edit_actions.edit_action_id", ondelete="CASCADE"), nullable=True
+    )
+    #: The revision event behind the edit, carried so the change's own
+    #: address stays reachable without a join through the edit row.
+    revision_event_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The manuscript version the entry's material was read from.
+    version_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("paper_versions.version_id", ondelete="CASCADE"), nullable=False
+    )
+    #: The chain's own key for the issue, when a person has given one.
+    issue_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The advisor's words, for a comment entry.
+    comment_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The text the comment was anchored to, when its anchor resolved.
+    anchor_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The 1-based paragraph the comment sits in, when the anchor carries it.
+    anchor_paragraph: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: The judgement that answered the comment, as the response link spells
+    #: it -- or ``None`` while nobody has judged. **A verdict nobody gave is
+    #: never invented**: absence is the honest value.
+    verdict: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ``ins``, ``del``, ``moveFrom`` or ``moveTo`` -- what an edit entry did.
+    change_kind: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The words the change inserted or deleted, for an edit entry.
+    change_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The searchable digest: the comment and its anchor for a comment
+    #: entry, the change and its comment for an edit entry. What
+    #: ``trajectory_fts`` indexes.
+    text_digest: Mapped[str] = mapped_column(Text, nullable=False)
+    #: -- provenance ----------------------------------------------------- #
+    #: The version the entry was read from, where in it, and the content
+    #: hash that makes drift detectable. §8.2: raw material carries its
+    #: source version and locator, or it is not raw material any more.
+    source_version_id: Mapped[str] = mapped_column(Text, nullable=False)
+    source_locator: Mapped[str] = mapped_column(Text, nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: When the entry was indexed.
+    ingested_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_trajectory_index_project", "project_id"),
+        CheckConstraint(
+            "entry_kind IN ('comment', 'edit')",
+            name="trajectory_index_entry_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "length(trajectory_id) > 0 AND length(project_id) > 0",
+            name="trajectory_index_ids_present",
+        ),
+        CheckConstraint(
+            "(entry_kind = 'comment' AND feedback_id IS NOT NULL) OR "
+            "(entry_kind = 'edit' AND edit_action_id IS NOT NULL)",
+            name="trajectory_index_entry_names_its_source",
+        ),
+        CheckConstraint(
+            "length(trim(text_digest)) > 0",
+            name="trajectory_index_digest_present",
+        ),
+        CheckConstraint(
+            "length(source_version_id) > 0 AND length(source_locator) > 0",
+            name="trajectory_index_provenance_present",
+        ),
+    )

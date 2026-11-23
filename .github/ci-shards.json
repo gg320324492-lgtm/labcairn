@@ -128,7 +128,8 @@
         "tests/test_version_contracts.py",
         "tests/test_version_duplicates.py",
         "tests/test_workbench_real_browser.py",
-        "tests/test_review_api.py"
+        "tests/test_review_api.py",
+        "tests/test_trajectory_index.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -318,7 +319,8 @@
         "tests/test_gold_set_corpus.py",
         "tests/test_security_injection.py",
         "tests/test_security_approval.py",
-        "tests/test_review_api.py"
+        "tests/test_review_api.py",
+        "tests/test_trajectory_index.py"
       ],
       [
         "tests/test_analysis_service.py",
@@ -622,7 +624,8 @@
       "test_workbench_serve_helper.py": 17.28,
       "test_workspace_boundaries.py": 0.01,
       "test_workspace_path_length.py": 0.01,
-      "test_review_api.py": 0.0
+      "test_review_api.py": 0.0,
+      "test_trajectory_index.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 2.89,
@@ -821,7 +824,8 @@
       "test_workbench_serve_helper.py": 57.53,
       "test_workspace_boundaries.py": 1.26,
       "test_workspace_path_length.py": 0.01,
-      "test_review_api.py": 0.0
+      "test_review_api.py": 0.0,
+      "test_trajectory_index.py": 0.0
     }
   }
 }
