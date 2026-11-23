@@ -292,3 +292,249 @@ body {
   border-top: none;
   padding-top: 0;
 }
+
+/* The review desk: the three-column surface where opinions, manuscript and
+ * verdicts sit side by side. The columns collapse on a narrow pane in the
+ * order a person reads them: the manuscript, the opinions, then the verdict. */
+.review-desk__fixture-note {
+  border: 1px dashed var(--labcairn-rule);
+  border-radius: 0.35rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.review-desk__fixture-note code {
+  font-size: 0.85em;
+}
+
+.review-desk__columns {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(18rem, 1.4fr) minmax(16rem, 1.2fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+@media (max-width: 60rem) {
+  .review-desk__columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-desk__column {
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  min-width: 0;
+}
+
+.review-desk__column-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--labcairn-muted);
+}
+
+/* The opinions' list: a navigation, so the rows are buttons and the one on
+ * the desk is marked. */
+.review-desk__opinion-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.review-desk__opinion-button {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+}
+
+.review-desk__opinion-button--active {
+  border-color: var(--labcairn-fg);
+  background: color-mix(in srgb, var(--labcairn-fg) 6%, transparent);
+}
+
+.review-desk__opinion-number {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__opinion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.review-desk__opinion-summary {
+  overflow-wrap: anywhere;
+}
+
+.review-desk__opinion-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: baseline;
+}
+
+.review-desk__opinion-place {
+  font-size: 0.8rem;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__flag {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__flag--accepted {
+  color: var(--labcairn-fg);
+  border-color: var(--labcairn-fg);
+}
+
+.review-desk__flag--partly_accepted,
+.review-desk__flag--pending {
+  color: var(--labcairn-warn);
+  border-color: var(--labcairn-warn);
+}
+
+.review-desk__flag--rejected,
+.review-desk__flag--needs_evidence {
+  color: var(--labcairn-warn);
+  border-color: var(--labcairn-warn);
+}
+
+.review-desk__flag--unreviewed,
+.review-desk__flag--state {
+  font-style: italic;
+}
+
+/* The manuscript pane: the paragraphs, in document order, with the one
+ * under the eye marked. The pane scrolls so the desk can put a paragraph at
+ * its top. */
+.review-desk__column--manuscript {
+  max-height: 34rem;
+  overflow-y: auto;
+}
+
+.review-desk__paragraphs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.review-desk__paragraph {
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+}
+
+.review-desk__paragraph--active {
+  border-color: var(--labcairn-fg);
+  background: color-mix(in srgb, var(--labcairn-fg) 6%, transparent);
+}
+
+.review-desk__paragraph-number {
+  display: inline-block;
+  margin-right: 0.45rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--labcairn-muted);
+}
+
+/* The verdict column: the comment, the paired texts, the ground, and the
+ * four verdicts. */
+.review-desk__comment {
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border-left: 3px solid var(--labcairn-rule);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.review-desk__comment-author {
+  display: block;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+  margin-bottom: 0.15rem;
+}
+
+.review-desk__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
+}
+
+.review-desk__pair-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__text {
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.review-desk__text--old {
+  color: var(--labcairn-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.review-desk__text--new {
+  border-style: solid;
+  border-color: var(--labcairn-fg);
+}
+
+.review-desk__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+
+.review-desk__button--chosen {
+  border-color: var(--labcairn-fg);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--labcairn-fg) 10%, transparent);
+}
+
+.review-desk__evidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__unsynced {
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+  color: var(--labcairn-warn);
+}

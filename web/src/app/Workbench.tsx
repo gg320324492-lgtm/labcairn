@@ -53,6 +53,7 @@ import { GuidanceView } from '../views/GuidanceView'
 import { PlanView } from '../views/PlanView'
 import { ProposalsView } from '../views/ProposalsView'
 import { ProjectsView } from '../views/ProjectsView'
+import { ReviewDeskView } from '../views/ReviewDeskView'
 import { ReviewView } from '../views/ReviewView'
 import { RevisionsView } from '../views/RevisionsView'
 import { SourcesView } from '../views/SourcesView'
@@ -180,6 +181,7 @@ export function Workbench(): JSX.Element {
         selecting={action.selecting}
       />
       {boundTaskId !== null ? <EventsView key={boundTaskId} /> : null}
+      <ReviewDeskView />
       <PlanView plan={reads.plan} />
       <StepsView steps={reads.steps} />
       <ApprovalView state={reads.state} onGrant={onGrant} granting={action.granting} />
