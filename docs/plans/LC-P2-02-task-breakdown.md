@@ -157,7 +157,7 @@ reads the stream. **No operation emits twice.**
 `src/labcairn/application/tasks.py` (the `_unused_ledger()` at `:130`).
 
 **Replace the in-memory ledger with the DB-backed store**, on the
-service's **forked session** per the rule `src/labcairn/api/routes.py:189` — `forked = base.store.fork()` states.
+service's **forked session** per the rule `src/labcairn/api/routes.py:200` — `forked = base.store.fork()` states.
 
 **And the ledger is either gone or a cache that cannot outlive its row.**
 A cache that can be read when the row says otherwise is a second source of

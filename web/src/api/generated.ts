@@ -424,6 +424,39 @@ export type PlanStage = {
   blocked_reason?: string | null
 }
 
+export type PptDeckIngested = {
+  project_id: string
+  source_sha256: string
+  objects_indexed: number
+  title_objects: number
+  body_objects: number
+  notes_objects: number
+  table_objects: number
+  image_objects: number
+  limitations_recorded: number
+  ingested_at: string
+}
+
+export type PptHit = {
+  object_id: string
+  project_id: string
+  source_sha256: string
+  slide_no: number
+  object_position: number
+  object_kind: string
+  object_fingerprint: string
+  text: string
+  media_target: string | null
+  locator_json: string
+  ingested_at: string
+}
+
+export type PptIngestBody = {
+  project_id: string
+  root_id: string
+  resource_key: string
+}
+
 export type PreviewEditSummary = {
   feedback_id: string
   part: string
@@ -707,7 +740,7 @@ export type SourceIdentifier = {
 
 export type SourceIdentifierKind = 'doi' | 'arxiv' | 'isbn' | 'local'
 
-export type SourceKind = 'pdf' | 'markdown' | 'text' | 'csv' | 'xlsx' | 'docx' | 'other'
+export type SourceKind = 'pdf' | 'markdown' | 'text' | 'csv' | 'xlsx' | 'docx' | 'pptx' | 'other'
 
 export type SourceReadability = 'readable' | 'unreadable_no_ocr' | 'unparseable'
 

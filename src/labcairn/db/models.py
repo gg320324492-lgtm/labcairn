@@ -9,6 +9,11 @@ LC-P2-06 added five more, "twenty-four" while the file held thirty, and
 "thirty-two" by the time the feedback chain and the identifier registry had
 outgrown it -- because nothing recomputed it. The count above was re-derived
 from the ``__tablename__`` lines when the artifact ledger was made durable.
+The count reads **forty-two** at this writing: the two review tables
+(``review_suggestions``, ``review_decisions``), the trajectory index's two
+(``trajectory_index_rows``, ``trajectory_fts``), the real-model loop's
+``model_suggestion_runs``, and the deck index's two (``ppt_index_rows``,
+``ppt_fts``) are this phase's additions.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -4002,4 +4007,3 @@ class PptIndexRow(Base):
             name="ppt_index_address_present",
         ),
     )
-

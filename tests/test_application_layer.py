@@ -390,6 +390,18 @@ _ALLOWED_STORE_READERS = frozenset(
         # the chain at query time. It is recorded here because a module
         # that reaches the store must be named.
         "labcairn.application.trajectory",
+        # Phase 4 (P4-CAP, real-model loop). The suggestion loop reads the
+        # version's pending opinions and writes its own run row and the
+        # suggestions it produced; a real run spends the approvals the
+        # request names. It is recorded here because a module that reaches
+        # the store must be named.
+        "labcairn.application.model_suggestions",
+        # P4-MS's second slice: the deck index. The ingest reads the deck's
+        # bytes through the material reader under the source gate and
+        # writes the index rows and the FTS index in one transaction; the
+        # search reads the FTS index. It is recorded here because a module
+        # that reaches the store must be named.
+        "labcairn.application.ppt_deck",
         # The scholarly-identifier shelf (LC-P2-17). Its operations are layer
         # operations like the writers beside it: each evaluates the policy
         # about the task's own area before it touches the store, and the

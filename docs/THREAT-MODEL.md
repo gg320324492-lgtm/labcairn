@@ -351,8 +351,8 @@ platform's idea of loopback rather than this file's opinion of it. `127.0.0.1`
 and `::1` are loopback; `0.0.0.0` is not.
 
 **The check is made twice**, and the second one is at the point where the
-socket is about to be opened: `create_app` calls it (`src/labcairn/api/app.py:281` — `ensure_loopback(host)`) and
-`serve` calls it again (`src/labcairn/api/app.py:338` — `ensure_loopback(host)`), so a service assembled by hand and
+socket is about to be opened: `create_app` calls it (`src/labcairn/api/app.py:288` — `ensure_loopback(host)`) and
+`serve` calls it again (`src/labcairn/api/app.py:346` — `ensure_loopback(host)`), so a service assembled by hand and
 handed to `serve` cannot skip the check the factory made.
 
 ### 3.2 The three request guards
@@ -957,7 +957,7 @@ Stated here because they were real and because the code flagged them itself:
 ### 6.13 A reviewer's change is observed; **why it was changed is not established**
 
 **The tree now holds a table of the reviewer's own prose.** ADR-0014's
-`revision_events` (`src/labcairn/db/models.py:1842` — `__tablename__ = "revision_events"`, written by the migration
+`revision_events` (`src/labcairn/db/models.py:1847` — `__tablename__ = "revision_events"`, written by the migration
 `migrations/versions/0017_revision_events.py`) stores one row per tracked
 change a Word document records: the text that changed, the address it
 changed at, the author and the date. **On the corpus that motivated it,
@@ -1021,9 +1021,9 @@ its evidence on the row.
 **That is a property of the schema and not a promise this document
 makes.** A response that is not `pending` cannot be reached without a
 decider and a non-empty evidence list
-(`src/labcairn/db/models.py:2497` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
+(`src/labcairn/db/models.py:2502` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
 assessment may rest on **has no member meaning "the change was accepted"**
-(`src/labcairn/db/models.py:2593` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
+(`src/labcairn/db/models.py:2598` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
 process and not about the science, and a product that recorded the
 advisor's correctness as a consequence of the student's change being kept
 would be claiming something it cannot know.

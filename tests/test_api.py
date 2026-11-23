@@ -1215,6 +1215,11 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         # suggestions and a run row, and it spends only approvals the body
         # presents — the substitute mode sends nothing out of the machine.
         "POST /review/suggest",
+        # The deck index's write (Phase 4, P4-MS second source): index one
+        # deck's objects into the searchable store. It reads the deck
+        # through the workspace's own source gate, and the bytes never
+        # travel in the request.
+        "POST /ppt/ingest",
     }
 
 

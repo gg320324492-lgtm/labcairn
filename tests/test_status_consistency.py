@@ -2116,10 +2116,10 @@ _PROBE_HEADER = (
 )
 
 #: A pointer, and words that really are on the line the pointer cites -- so a probe that reads
-#: **one** anchor is reading the format and not an accident. (The route moved to line 302 when
+#: **one** anchor is reading the format and not an accident. (The route moved to line 313 when
 #: the review workbench's routes joined the file, and again when the preview and
 #: multi-source routes joined it; the probe follows it.)
-_PROBE_POINTER = "`src/labcairn/api/routes.py:302`"
+_PROBE_POINTER = "`src/labcairn/api/routes.py:313`"
 _PROBE_WORDS = '@router.post("/task/select"'
 
 
@@ -2182,7 +2182,7 @@ def test_the_anchored_pointer_shape_reads_what_the_format_says_it_reads() -> Non
     drifted = _PROBE_HEADER + "`src/labcairn/api/routes.py:999`" + f" — `{_PROBE_WORDS}`\n"
     problems = _anchor_problems(REPO / "docs" / "README.md", drifted, {})
     assert problems, "a probe carrying a pointer at a line the file does not print reported nothing"
-    assert any("302" in problem for problem in problems), (
+    assert any("313" in problem for problem in problems), (
         f"the probe's report did not name the line the words are really on: {problems}"
     )
     assert _declarations(_PROBE_HEADER), "the probe's own declaration is not being read"
@@ -2287,7 +2287,7 @@ def _derive_live_candidates() -> dict[Path, tuple[int, int]]:
 #:   13 pointers that already sit in anchored form by accident** live; a window that declares
 #:   one of them without reading those rows goes red, which is the intended outcome, not a trap.
 #: - ``docs/handoff/CURRENT.md`` -- a dated log. Its pointers sit inside dated entries: line
-#:   1771 (`src/labcairn/api/routes.py:273`) is inside *"Three limits were known and recorded --
+#:   1771 (`src/labcairn/api/routes.py:313`) is inside *"Three limits were known and recorded --
 #:   all three are closed as of 2026-11-02"*, and the span at line 1989
 #:   (`src/labcairn/security/approval.py:215-222`) is inside *"## Carried limitations, none
 #:   blocking"*. The owner's answer for these three (1679, 1771, 1989) is **leave them**, and

@@ -52,6 +52,7 @@ from labcairn.db.repository import list_approvals, list_artifacts
 from labcairn.papers.binding import (
     CANCEL_POINT_BEFORE_CLEAN_PUBLICATION,
     CANCEL_POINT_BEFORE_MARKED_PUBLICATION,
+    BindingClosed,
     ReviewDecision,
     ReviewVerdict,
     apply_approved_edits,
@@ -289,7 +290,7 @@ def test_a_locked_source_refuses_the_round_before_any_consent_is_spent(
         else:
             import fcntl
 
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined]
         with pytest.raises(ApplicationRefusedError) as refused:
             apply_approved_edits(
                 fixture.context,
@@ -313,7 +314,7 @@ def test_a_locked_source_refuses_the_round_before_any_consent_is_spent(
         else:
             import fcntl
 
-            fcntl.flock(handle, fcntl.LOCK_UN)
+            fcntl.flock(handle, fcntl.LOCK_UN)  # type: ignore[attr-defined]
         os.close(handle)
 
     after = _grant_counts(fixture.context)
@@ -588,7 +589,7 @@ def test_a_suggestion_timeout_is_refused_by_name_and_the_record_stays_clean(
             version_id=fixture.version_id,
             source_root_id=fixture.source_root_id,
             source_key=fixture.source_key,
-            suggest=timing_out_suggester,  # type: ignore[arg-type]
+            suggest=timing_out_suggester,
             now=MOMENT,
         )
     assert refused.value.reason is ApplicationRefusal.REVIEW_MODEL_TIMEOUT
@@ -613,7 +614,7 @@ def test_a_suggestion_timeout_is_refused_by_name_and_the_record_stays_clean(
         version_id=fixture.version_id,
         source_root_id=fixture.source_root_id,
         source_key=fixture.source_key,
-        suggest=answering_suggester,  # type: ignore[arg-type]
+        suggest=answering_suggester,
         now=MOMENT,
     )
     assert reopened.loop.import_receipt.original_sha256
@@ -624,7 +625,7 @@ def test_a_suggestion_timeout_is_refused_by_name_and_the_record_stays_clean(
 # --------------------------------------------------------------------------- #
 
 
-def _closed_round(fixture: BindingFixture) -> object:
+def _closed_round(fixture: BindingFixture) -> BindingClosed:
     """One full apply round, closed, with its dossier on the record."""
     opened = open_the_binding(fixture)
     return apply_approved_edits(
