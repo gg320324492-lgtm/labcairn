@@ -57,9 +57,10 @@ from labcairn.application.ppt_deck import (
     search_ppt_deck,
 )
 from labcairn.application.refusal import ApplicationRefusedError
-from labcairn.application.tasks import TaskGoal, create_task
+from labcairn.application.tasks import create_task
 from labcairn.db.models import PaperProjectRow
-from labcairn.material.pptx import read_deck
+from labcairn.material.pptx import PptxObject, read_deck
+from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
@@ -309,9 +310,13 @@ def test_a_chart_is_a_recorded_limitation_and_no_content() -> None:
     assert codes == ["pptx_chart_unparsed"]
     assert "slide 1" in deck.problems[0].detail
     assert deck.problems[0].location == "slide:1:shape:5"
+
     # No object carries chart content: the deck's objects are the same
     # kinds a chartless deck yields.
-    assert all(object.kind != "chart" for object in deck.objects)
+    def _is_chart(object: PptxObject) -> bool:
+        return object.kind == "chart"  # type: ignore[comparison-overlap]  # not in the vocabulary
+
+    assert not any(_is_chart(object) for object in deck.objects)
 
 
 def test_corrupted_bytes_are_a_problem_not_a_crash() -> None:
@@ -578,7 +583,9 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_the_api_indexes_and_searches_a_deck(deck_env: DeckEnv, api) -> None:
+def test_the_api_indexes_and_searches_a_deck(
+    deck_env: DeckEnv, api: tuple[TestClient, str]
+) -> None:
     """``POST /ppt/ingest`` indexes; ``GET /ppt/search`` answers with the
     object's provenance -- the wire serving the layer's own records."""
     client, token = api

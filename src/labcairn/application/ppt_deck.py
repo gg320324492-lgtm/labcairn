@@ -42,6 +42,7 @@ from typing import Final
 
 from sqlalchemy import select
 from sqlalchemy import text as sql_text
+from sqlalchemy.orm import Session
 
 from labcairn.application import consent
 from labcairn.application.context import ApplicationContext
@@ -254,7 +255,11 @@ def _object_id(project_id: str, source_sha256: str, fingerprint: str) -> str:
 
 
 def _write_object(
-    session, project_id: str, source_sha256: str, deck_object: PptxObject, moment: datetime
+    session: Session,
+    project_id: str,
+    source_sha256: str,
+    deck_object: PptxObject,
+    moment: datetime,
 ) -> None:
     """Write one object and its FTS row, replacing whatever stood before."""
     object_id = _object_id(project_id, source_sha256, deck_object.fingerprint)
