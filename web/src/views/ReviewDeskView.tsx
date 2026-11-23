@@ -34,7 +34,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
-import { REVIEW_OPERATOR, readManuscript, readOpinions, recordDecision } from './reviewClient'
+import { ApiRefusal } from '../api/client'
+import {
+  REVIEW_OPERATOR,
+  readManuscript,
+  readOpinions,
+  recordDecision,
+  runSuggestionLoop,
+} from './reviewClient'
 import type { ReviewData } from './reviewClient'
 import { fixtureManuscript, fixtureOpinions } from './reviewFixture'
 import type {
@@ -43,6 +50,7 @@ import type {
   ReviewOpinions,
   ReviewVerdict,
 } from './reviewContract'
+import type { ReviewSuggestRun } from '../api/generated'
 import {
   REVIEW_VERDICTS,
   opinionAnchoredAt,
@@ -74,6 +82,155 @@ const VERDICT_LABELS: Readonly<Record<ReviewVerdict, string>> = {
 
 /** The verdicts, in the order the desk offers them. */
 const VERDICTS: readonly ReviewVerdict[] = REVIEW_VERDICTS
+
+/** The two answerers the suggestion loop may ask, in the mode's own words. */
+type SuggestMode = 'real' | 'substitute'
+
+/**
+ * The stop conditions the service names, in the words a reader acts on.
+ *
+ * **A run that stopped early is not a failure.** The loop stops when its
+ * own ceiling fires — requests, tokens, or one opinion failing too many
+ * times in a row — and the account says which; the opinions past the stop
+ * are `skipped`, not lost, and the desk says so in words.
+ */
+const STOP_LABELS: Readonly<Record<string, string>> = {
+  request_budget: 'request budget reached',
+  token_budget: 'token budget reached',
+  consecutive_failures: 'an opinion failed too many times in a row',
+}
+
+/** A run's own account, drawn as counts and reasons — never request text. */
+function RunRecord({ run }: { readonly run: ReviewSuggestRun }): JSX.Element {
+  return (
+    <dl className="review-desk__run" aria-label="Suggestion run record">
+      <div className="review-desk__run-item">
+        <dt>Mode</dt>
+        <dd>{run.mode}</dd>
+      </div>
+      <div className="review-desk__run-item">
+        <dt>Model</dt>
+        <dd>{run.model_id}</dd>
+      </div>
+      <div className="review-desk__run-item">
+        <dt>Requests made</dt>
+        <dd>{run.requests_made}</dd>
+      </div>
+      <div className="review-desk__run-item">
+        <dt>Tokens estimated</dt>
+        <dd>{run.tokens_estimated}</dd>
+      </div>
+      <div className="review-desk__run-item">
+        <dt>Suggestions recorded</dt>
+        <dd>{run.suggestions_recorded}</dd>
+      </div>
+      <div className="review-desk__run-item">
+        <dt>Opinions skipped</dt>
+        <dd>{run.opinions_skipped}</dd>
+      </div>
+      <div className="review-desk__run-item">
+        <dt>Stopped by</dt>
+        <dd>
+          {run.stopped_reason === null
+            ? 'nothing — every pending opinion was walked'
+            : (STOP_LABELS[run.stopped_reason] ?? run.stopped_reason)}
+        </dd>
+      </div>
+    </dl>
+  )
+}
+
+/**
+ * The suggestion loop's panel: the desk's door to the model.
+ *
+ * **The substitute is the default, because it costs nothing.** A
+ * substitute run sends nothing out of the machine and spends nothing, so
+ * the desk starts there; the real model is one switch away and the
+ * service's consent layer decides whether the switch may be thrown.
+ */
+function SuggestionLoopPanel({
+  run,
+  failure,
+  refusedReason,
+  busy,
+  mode,
+  onModeChange,
+  onRun,
+  onRetry,
+  onSwitchToSubstitute,
+}: {
+  readonly run: ReviewSuggestRun | null
+  readonly failure: string | null
+  readonly refusedReason: string | null
+  readonly busy: boolean
+  readonly mode: SuggestMode
+  readonly onModeChange: (mode: SuggestMode) => void
+  readonly onRun: () => void
+  readonly onRetry: () => void
+  readonly onSwitchToSubstitute: () => void
+}): JSX.Element {
+  const noProvider = refusedReason === 'model_suggestion_no_provider'
+  return (
+    <div className="review-desk__suggest" aria-label="Suggestion loop">
+      <h3 className="review-desk__column-title">Suggestion loop</h3>
+      <p className="panel__note">
+        Ask a model to propose rewrites for this version&rsquo;s pending opinions. The substitute
+        answers locally and spends nothing; the real model sends the desensitised span and needs its
+        authorisation in place.
+      </p>
+      <div className="review-desk__suggest-controls">
+        <label className="review-desk__suggest-mode">
+          <input
+            type="radio"
+            name="suggestion-mode"
+            value="substitute"
+            checked={mode === 'substitute'}
+            disabled={busy}
+            onChange={() => {
+              onModeChange('substitute')
+            }}
+          />
+          substitute (local, spends nothing)
+        </label>
+        <label className="review-desk__suggest-mode">
+          <input
+            type="radio"
+            name="suggestion-mode"
+            value="real"
+            checked={mode === 'real'}
+            disabled={busy}
+            onChange={() => {
+              onModeChange('real')
+            }}
+          />
+          real model (authorised, spends approvals)
+        </label>
+        <button type="button" className="button" disabled={busy} onClick={onRun}>
+          {busy ? 'Asking…' : 'Run suggestion loop'}
+        </button>
+      </div>
+      {run !== null ? <RunRecord run={run} /> : null}
+      {failure !== null ? (
+        <div className="review-desk__suggest-failure" role="alert">
+          <p className="review-desk__refusal">
+            {noProvider ? 'The service refused the real run' : 'The suggestion run failed'}
+            {refusedReason !== null ? ` (${refusedReason})` : ''}: {failure}
+          </p>
+          <div className="review-desk__buttons">
+            {!noProvider ? (
+              <button type="button" className="button" disabled={busy} onClick={onRetry}>
+                Retry
+              </button>
+            ) : null}
+            <button type="button" className="button" disabled={busy} onClick={onSwitchToSubstitute}>
+              Switch to substitute
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 /** A badge for the decision an opinion already carries, or its placement. */
 function OpinionBadge({ opinion }: { readonly opinion: ReviewOpinion }): JSX.Element {
@@ -241,6 +398,11 @@ export function ReviewDeskView(): JSX.Element {
   const [actions, setActions] = useState<readonly DeskAction[]>([])
   const [posting, setPosting] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
+  const [suggestMode, setSuggestMode] = useState<SuggestMode>('substitute')
+  const [suggestRun, setSuggestRun] = useState<ReviewSuggestRun | null>(null)
+  const [suggestFailure, setSuggestFailure] = useState<string | null>(null)
+  const [suggestRefusal, setSuggestRefusal] = useState<string | null>(null)
+  const [suggesting, setSuggesting] = useState(false)
   const paneRef = useRef<HTMLDivElement | null>(null)
   const rowsRef = useRef<Map<number, HTMLParagraphElement>>(new Map())
   const programmaticScroll = useRef(false)
@@ -388,6 +550,51 @@ export function ReviewDeskView(): JSX.Element {
     })
   }, [])
 
+  /**
+   * Run the suggestion loop, and draw the run's own account.
+   *
+   * **The answer is an account, not the suggestions.** The suggestions land
+   * in the store under their own route, so the opinions are read again after
+   * a run — the same rule the verdict write follows — and the panel draws
+   * what the run cost and where it stopped.
+   *
+   * **A refusal is shown with its reason, and the way out is on the panel.**
+   * `model_suggestion_no_provider` means the real model is not wired in
+   * here; the desk says so and offers the substitute. A retryable failure
+   * keeps the retry on the same mode, with the substitute one switch away.
+   */
+  const onRunSuggestions = useCallback((mode: SuggestMode): void => {
+    setSuggesting(true)
+    setSuggestFailure(null)
+    setSuggestRefusal(null)
+    void runSuggestionLoop({
+      project_id: DESK_PROJECT_ID,
+      version_id: DESK_VERSION_ID,
+      mode,
+    })
+      .then((run: ReviewSuggestRun) => {
+        setSuggestRun(run)
+        return readOpinions(DESK_PROJECT_ID, DESK_VERSION_ID)
+      })
+      .then((read: ReviewData<ReviewOpinions>) => {
+        setOpinions(read.data)
+        setFromService(read.fromService)
+      })
+      .catch((error: unknown) => {
+        setSuggestRun(null)
+        if (error instanceof ApiRefusal) {
+          setSuggestRefusal(error.reason)
+          setSuggestFailure(error.message)
+        } else {
+          setSuggestRefusal(null)
+          setSuggestFailure(error instanceof Error ? error.message : String(error))
+        }
+      })
+      .finally(() => {
+        setSuggesting(false)
+      })
+  }, [])
+
   const measure = useCallback((index: number, element: HTMLParagraphElement | null): void => {
     if (element === null) {
       rowsRef.current.delete(index)
@@ -426,6 +633,24 @@ export function ReviewDeskView(): JSX.Element {
               />
             ))}
           </ul>
+          <SuggestionLoopPanel
+            run={suggestRun}
+            failure={suggestFailure}
+            refusedReason={suggestRefusal}
+            busy={suggesting}
+            mode={suggestMode}
+            onModeChange={setSuggestMode}
+            onRun={() => {
+              onRunSuggestions(suggestMode)
+            }}
+            onRetry={() => {
+              onRunSuggestions(suggestMode)
+            }}
+            onSwitchToSubstitute={() => {
+              setSuggestMode('substitute')
+              onRunSuggestions('substitute')
+            }}
+          />
         </nav>
 
         <div

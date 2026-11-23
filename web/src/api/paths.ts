@@ -61,6 +61,8 @@ export const API_PATHS = {
   reviewManuscript: '/review/manuscript',
   /** One suggestion the model proposed, as a record and not a decision. */
   reviewSuggestion: '/review/suggestion',
+  /** Run the suggestion loop over one version's pending opinions. */
+  reviewSuggest: '/review/suggest',
   /** The reviewer's verdict on one opinion's suggestion. */
   reviewDecision: '/review/decision',
   /** Apply the stored, approved set and close the round. */

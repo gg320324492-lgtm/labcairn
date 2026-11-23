@@ -17,7 +17,12 @@
 
 import { api } from '../api/client'
 import { API_PATHS, reviewManuscriptPath, reviewOpinionsPath } from '../api/paths'
-import type { ReviewDecisionBody, ReviewDecisionData } from '../api/generated'
+import type {
+  ReviewDecisionBody,
+  ReviewDecisionData,
+  ReviewSuggestBody,
+  ReviewSuggestRun,
+} from '../api/generated'
 import type { ReviewManuscript, ReviewOpinions } from './reviewContract'
 
 /**
@@ -87,4 +92,18 @@ export function recordDecision(
 ): Promise<ReviewDecisionData> {
   const request: ReviewDecisionBody = { ...body, project_id: projectId }
   return api.post<ReviewDecisionData>(API_PATHS.reviewDecision, request)
+}
+
+/**
+ * Run the suggestion loop over one version's pending opinions.
+ *
+ * **The mode names who answers, and the desk offers both.** `substitute`
+ * spends nothing and sends nothing out of the machine, so it is the desk's
+ * default; `real` asks the authorised model and is refused by the service
+ * with `model_suggestion_no_provider` when no transport is wired in. The
+ * answer is the run's own account — counts, not suggestions — and the
+ * suggestions themselves are read back through `GET /review/opinions`.
+ */
+export function runSuggestionLoop(body: ReviewSuggestBody): Promise<ReviewSuggestRun> {
+  return api.post<ReviewSuggestRun>(API_PATHS.reviewSuggest, body)
 }
