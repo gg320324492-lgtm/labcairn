@@ -133,7 +133,8 @@
         "tests/test_review_desk_live.py",
         "tests/test_trajectory_index.py",
         "tests/test_apply_cancel_recover.py",
-        "tests/test_ppt_deck.py"
+        "tests/test_ppt_deck.py",
+        "tests/test_meeting_text.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -328,7 +329,8 @@
         "tests/test_review_desk_live.py",
         "tests/test_trajectory_index.py",
         "tests/test_apply_cancel_recover.py",
-        "tests/test_ppt_deck.py"
+        "tests/test_ppt_deck.py",
+        "tests/test_meeting_text.py"
       ],
       [
         "tests/test_analysis_service.py",
@@ -637,7 +639,8 @@
       "test_trajectory_index.py": 0.0,
       "test_model_suggestions.py": 0.0,
       "test_apply_cancel_recover.py": 0.0,
-      "test_ppt_deck.py": 0.0
+      "test_ppt_deck.py": 0.0,
+      "test_meeting_text.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 2.89,
@@ -841,7 +844,8 @@
       "test_trajectory_index.py": 0.0,
       "test_model_suggestions.py": 0.0,
       "test_apply_cancel_recover.py": 0.0,
-      "test_ppt_deck.py": 0.0
+      "test_ppt_deck.py": 0.0,
+      "test_meeting_text.py": 0.0
     }
   }
 }

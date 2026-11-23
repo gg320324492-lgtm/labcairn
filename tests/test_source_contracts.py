@@ -16,7 +16,7 @@ Four properties are under test, in this order of importance:
 3. **Refusal.** Malformed JSON, unknown enum values, cross-type field mixing,
    missing required fields and both older *and* newer schema versions are
    rejected. Silently correcting any of them is how a ledger starts lying.
-4. **Closedness.** The locator union has five members and the enum sets are
+4. **Closedness.** The locator union has eight members and the enum sets are
    closed; an unlisted value reaches no model and raises.
 
 Every test name that quotes a contract quotes it from
@@ -237,16 +237,17 @@ def test_computation_locator_records_inputs_operator_and_parameters() -> None:
     assert anchor.locator.input_hashes == (HASH_A, HASH_B)
 
 
-def test_locator_kinds_are_closed_at_seven_members() -> None:
+def test_locator_kinds_are_closed_at_eight_members() -> None:
     """ADR-0004 I2's spirit applied to locators: no "and then some other format".
 
-    **Seven, since P4-MS.** The fifth was ``computation``, which addresses
+    **Eight, since P4-MS.** The fifth was ``computation``, which addresses
     a derived number and has no extracted text. The sixth is ``docx``,
     which addresses a package part and an element path. The seventh is
     ``pptx``, which addresses a slide, an object position and an object
-    kind -- and each kind exists because an ingest path now produces it,
-    which is the condition the module docstring states for a kind to
-    belong here at all.
+    kind. The eighth is ``meeting``, which addresses a transcript entry or
+    an organised paragraph -- and each kind exists because an ingest path
+    now produces it, which is the condition the module docstring states
+    for a kind to belong here at all.
     """
     assert {member.value for member in LocatorKind} == {
         "pdf",
@@ -255,9 +256,10 @@ def test_locator_kinds_are_closed_at_seven_members() -> None:
         "xlsx",
         "docx",
         "pptx",
+        "meeting",
         "computation",
     }
-    assert len(LOCATOR_MODELS) == 7
+    assert len(LOCATOR_MODELS) == 8
     # Every member of the union is reachable from LOCATOR_MODELS, so the
     # "exhaustive tests" comment on it cannot rot.
     assert {model.__name__ for model in LOCATOR_MODELS} == {
@@ -267,6 +269,7 @@ def test_locator_kinds_are_closed_at_seven_members() -> None:
         "XlsxLocator",
         "DocxLocator",
         "PptxLocator",
+        "MeetingTextLocator",
         "ComputationLocator",
     }
 
@@ -749,11 +752,13 @@ def test_anchor_kinds_are_closed() -> None:
 def test_source_kinds_are_closed() -> None:
     """No "and then some other format" — the material vocabulary is closed.
 
-    **Eight, since P4-MS.** ``docx`` joined because the OOXML reader
+    **Nine, since P4-MS.** ``docx`` joined because the OOXML reader
     produces paragraphs, revisions and comments as addressable text;
     ``pptx`` joins because the PPTX reader produces slide titles, body
-    text, speaker notes, tables and images as located objects. A format
-    with no adapter and no text would have been ``other``.
+    text, speaker notes, tables and images as located objects;
+    ``meeting_text`` joins because the meeting-text reader produces
+    transcript entries and organised paragraphs as located records. A
+    format with no adapter and no text would have been ``other``.
     """
     assert {member.value for member in SourceKind} == {
         "pdf",
@@ -763,6 +768,7 @@ def test_source_kinds_are_closed() -> None:
         "xlsx",
         "docx",
         "pptx",
+        "meeting_text",
         "other",
     }
 

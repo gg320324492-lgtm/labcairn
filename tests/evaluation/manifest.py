@@ -221,6 +221,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # hand-built but real .pptx read through the reader, the ingest, the
     # retrieval and the API.
     "test_ppt_deck.py": ("integration", "api-auth"),
+    "test_meeting_text.py": ("integration", "api-auth"),
+    # P4-MS third source (§8.4): the meeting-text index. Integration-level
+    # because it drives the workspace, the store and the API; api-auth
+    # because the two /meeting routes are part of the served surface.
     "test_application_approvals.py": ("integration", "approvals"),
     # LC-P2-02. The two facts the approval row now carries, and the spend
     # that reads them there rather than trusting an argument. Integration,

@@ -110,6 +110,15 @@ _KINDS: Final[dict[str, SourceKind]] = {
     # because the PPTX reader produces slide titles, body text, speaker
     # notes, tables and images as located objects.
     ".pptx": SourceKind.PPTX,
+    # Phase 4 (P4-MS), execution plan §8.4. A transcript container is
+    # addressable material because the meeting-text reader produces
+    # timestamped entries as located records. **``.txt`` and ``.md`` keep
+    # their TEXT/MARKDOWN mappings** -- the meeting reader still reads them
+    # (as organised paragraphs), but by content, at the application layer;
+    # remapping them here would silently re-own material the existing
+    # adapters already address by line.
+    ".srt": SourceKind.MEETING_TEXT,
+    ".vtt": SourceKind.MEETING_TEXT,
 }
 
 

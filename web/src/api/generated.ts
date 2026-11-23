@@ -387,6 +387,35 @@ export type IssueKeys = {
 
 export type JsonValue = unknown
 
+export type MeetingHit = {
+  record_id: string
+  project_id: string
+  source_sha256: string
+  record_format: string
+  record_index: number
+  timestamp_label: string | null
+  record_fingerprint: string
+  text: string
+  locator_json: string
+  ingested_at: string
+}
+
+export type MeetingIngestBody = {
+  project_id: string
+  root_id: string
+  resource_key: string
+}
+
+export type MeetingTextIngested = {
+  project_id: string
+  source_sha256: string
+  records_indexed: number
+  entry_records: number
+  paragraph_records: number
+  limitations_recorded: number
+  ingested_at: string
+}
+
 export type MissingPolicy = 'exclude' | 'refuse'
 
 export type NormalizationProfile =
@@ -740,7 +769,8 @@ export type SourceIdentifier = {
 
 export type SourceIdentifierKind = 'doi' | 'arxiv' | 'isbn' | 'local'
 
-export type SourceKind = 'pdf' | 'markdown' | 'text' | 'csv' | 'xlsx' | 'docx' | 'pptx' | 'other'
+export type SourceKind =
+  'pdf' | 'markdown' | 'text' | 'csv' | 'xlsx' | 'docx' | 'pptx' | 'meeting_text' | 'other'
 
 export type SourceReadability = 'readable' | 'unreadable_no_ocr' | 'unparseable'
 

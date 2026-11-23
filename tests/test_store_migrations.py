@@ -203,6 +203,13 @@ EXPECTED_TABLES = frozenset(
         # the two FTS tables above are.
         "ppt_index_rows",
         "ppt_fts",
+        # P4-MS third source (§8.4): the meeting-text index -- one row per
+        # transcript entry or organised paragraph with the provenance §8.3
+        # requires (record index, container timestamp when it has one,
+        # fingerprint), and the FTS5 index over the records' text. Listed
+        # by hand for the same reason the deck index's two tables are.
+        "meeting_index_rows",
+        "meeting_fts",
     }
 )
 

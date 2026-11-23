@@ -397,6 +397,21 @@ class PptIngestBody(Result):
     resource_key: str = Field(min_length=1)
 
 
+class MeetingIngestBody(Result):
+    """Which meeting-text file to index, as the API accepts it.
+
+    **The body names where to read; it does not carry the text.** The
+    project the file belongs to, the root the file sits in, and the key it
+    has in that root -- the same spelling every other request body that
+    names a resource uses. The bytes come from the workspace, through the
+    ``source.read`` gate, never from the request.
+    """
+
+    project_id: str = Field(min_length=1)
+    root_id: str = Field(min_length=1)
+    resource_key: str = Field(min_length=1)
+
+
 class UsableGuidanceQuery(Result):
     """Which rules a card may cite, as the API accepts it.
 
@@ -580,6 +595,7 @@ __all__ = [
     "GuidanceRuleVerdictBody",
     "Health",
     "IssueKeys",
+    "MeetingIngestBody",
     "PptIngestBody",
     "RefusalBody",
     "ReportBody",

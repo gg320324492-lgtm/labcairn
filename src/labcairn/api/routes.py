@@ -55,6 +55,7 @@ from labcairn.api.contracts import (
     GuidanceRuleVerdictBody,
     Health,
     IssueKeys,
+    MeetingIngestBody,
     PptIngestBody,
     ProposalAcceptanceBody,
     ReportBody,
@@ -122,6 +123,12 @@ from labcairn.application import (
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
 from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
+from labcairn.application.meeting_text import (
+    MeetingHit,
+    MeetingTextIngested,
+    ingest_meeting_text,
+    search_meeting_text,
+)
 from labcairn.application.model_suggestions import (
     MODEL_SUGGESTION_MODE_REAL,
     ModelSuggestionBackend,
@@ -1440,6 +1447,55 @@ def post_ppt_ingest(
     conclusion.
     """
     return ingest_ppt_deck(
+        context,
+        project_id=body.project_id,
+        root_id=body.root_id,
+        resource_key=body.resource_key,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# multi-source learning: the meeting-text index (P4-MS, §8.4)
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/meeting/search", response_model=list[MeetingHit], tags=["review"])
+def search_meeting_text_route(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    q: Annotated[str, Query(min_length=1)],
+    project_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> list[MeetingHit]:
+    """Search indexed meeting text, and answer with its provenance.
+
+    **A hit says what the meeting text says, and which entry or paragraph
+    says it**: the text, the record's shape and index, the container's
+    timestamp when it has one, the structured locator, and the source
+    fingerprint that ties the hit to the file it was read from. That is
+    §8.5's acceptance — meeting text is findable *and* points at the
+    correct entry or paragraph — served from the index the ingest wrote.
+    """
+    return list(search_meeting_text(context, query=q, project_id=project_id, limit=limit))
+
+
+@router.post(
+    "/meeting/ingest", response_model=MeetingTextIngested, status_code=201, tags=["review"]
+)
+def post_meeting_ingest(
+    body: MeetingIngestBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> MeetingTextIngested:
+    """Index one meeting-text file's records, and report the counts.
+
+    **The body names where to read; the bytes come from the workspace.**
+    The file is read through the ``source.read`` gate the same way every
+    other reader of supplied material reads, and the ingest reports both
+    what it indexed and what it honestly could not:
+    ``limitations_recorded`` counts the extraction problems — a cue with
+    no timing line, a block that is empty — because §8.3's rule is that
+    unreadable input is recorded, never fabricated.
+    """
+    return ingest_meeting_text(
         context,
         project_id=body.project_id,
         root_id=body.root_id,

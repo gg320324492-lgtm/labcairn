@@ -1220,6 +1220,11 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         # through the workspace's own source gate, and the bytes never
         # travel in the request.
         "POST /ppt/ingest",
+        # The meeting-text index's write (Phase 4, P4-MS third source):
+        # index one transcript's or one notes file's records into the
+        # searchable store. It reads the file through the workspace's own
+        # source gate, and the bytes never travel in the request.
+        "POST /meeting/ingest",
     }
 
 
