@@ -128,6 +128,22 @@ _CHART_URIS: Final[tuple[str, ...]] = (
 PptxObjectKind = Literal["title", "body", "notes", "table", "image"]
 
 
+class _Counter:
+    """A running count of the objects one slide has yielded.
+
+    A mutable cell, because a shape's paragraphs and a table's rows each
+    take the next position: the position is the object's index in document
+    order, and two objects on one slide never share one.
+    """
+
+    value: int = 0
+
+    def next(self) -> int:
+        """Consume the next position, 1-based."""
+        self.value += 1
+        return self.value
+
+
 @dataclass(frozen=True)
 class PptxObject:
     """One addressable object of a deck, with the provenance §8.3 requires.
@@ -437,34 +453,41 @@ def _slide_objects(
                 normalised = "ppt/" + target.removeprefix("../").removeprefix("./")
                 media[relationship.get("Id") or ""] = normalised
 
-    position = 0
+    # **The position is the object's index in document order**, counted
+    # across every object the slide yields -- a shape with three paragraphs
+    # occupies three positions, and the next shape's first object continues
+    # from there. A position that counted shapes would give two objects the
+    # same address, and two addresses that resolve to different text must
+    # not share a key.
+    counter = _Counter()
+    shape_ordinal = 0
     for shape in sp_tree:
         tag = _local_name(shape.tag)
         if tag not in ("sp", "graphicFrame", "pic"):
             continue
-        position += 1
+        shape_ordinal += 1
         object_path = _element_path(shape, root)
         fingerprint_base = f"{file_sha}\x00{slide_part}\x00{object_path}"
 
         if tag == "sp":
             objects.extend(
                 _text_shape_objects(
-                    shape, slide_no, position, slide_part, object_path,
-                    fingerprint_base, file_sha,
+                    shape, slide_no, slide_part, object_path,
+                    fingerprint_base, file_sha, counter,
                 )
             )
         elif tag == "graphicFrame":
             objects.extend(
                 _frame_objects(
-                    shape, slide_no, position, slide_part, object_path,
-                    fingerprint_base, file_sha, problems,
+                    shape, slide_no, shape_ordinal, slide_part, object_path,
+                    fingerprint_base, file_sha, problems, counter,
                 )
             )
         else:
             objects.extend(
                 _picture_objects(
-                    shape, slide_no, position, slide_part, object_path,
-                    fingerprint_base, file_sha, media, problems,
+                    shape, slide_no, slide_part, object_path,
+                    fingerprint_base, file_sha, media, problems, counter,
                 )
             )
     return tuple(objects)
@@ -506,11 +529,11 @@ def _make_object(
 def _text_shape_objects(
     shape: ElementTree.Element,
     slide_no: int,
-    position: int,
     slide_part: str,
     object_path: str,
     fingerprint_base: str,
     file_sha: str,
+    counter: _Counter,
 ) -> tuple[PptxObject, ...]:
     """A text shape's objects: its title or body text, paragraph by paragraph.
 
@@ -545,7 +568,7 @@ def _text_shape_objects(
             _make_object(
                 kind,
                 slide_no,
-                position + paragraph_position - 1,
+                counter.next(),
                 text,
                 f"{fingerprint_base}\x00p[{paragraph_position}]",
                 file_sha,
@@ -559,12 +582,13 @@ def _text_shape_objects(
 def _frame_objects(
     frame: ElementTree.Element,
     slide_no: int,
-    position: int,
+    shape_ordinal: int,
     slide_part: str,
     object_path: str,
     fingerprint_base: str,
     file_sha: str,
     problems: list[ExtractionProblem],
+    counter: _Counter,
 ) -> tuple[PptxObject, ...]:
     """A graphic frame's objects: a table's cells, or a recorded limitation.
 
@@ -607,7 +631,7 @@ def _frame_objects(
                 _make_object(
                     "table",
                     slide_no,
-                    position + row_no - 1,
+                    counter.next(),
                     text,
                     f"{fingerprint_base}\x00tr[{row_no}]",
                     file_sha,
@@ -629,7 +653,7 @@ def _frame_objects(
                     f"this reader does not parse. It is recorded as a limitation and "
                     f"no content is reported for it."
                 ),
-                location=f"slide:{slide_no}:object:{position}",
+                location=f"slide:{slide_no}:shape:{shape_ordinal}",
             )
         )
         return ()
@@ -643,7 +667,7 @@ def _frame_objects(
                 f"slide {slide_no} holds a graphic frame of kind {uri!r} that this "
                 f"reader does not parse; no content is reported for it."
             ),
-            location=f"slide:{slide_no}:object:{position}",
+            location=f"slide:{slide_no}:shape:{shape_ordinal}",
         )
     )
     return ()
@@ -652,13 +676,13 @@ def _frame_objects(
 def _picture_objects(
     picture: ElementTree.Element,
     slide_no: int,
-    position: int,
     slide_part: str,
     object_path: str,
     fingerprint_base: str,
     file_sha: str,
     media: dict[str, str],
     problems: list[ExtractionProblem],
+    counter: _Counter,
 ) -> tuple[PptxObject, ...]:
     """A picture's object: its name, and the media part it references.
 
@@ -684,14 +708,14 @@ def _picture_objects(
                     f"{embed!r}, which the slide's relationships do not resolve; the "
                     f"picture is reported with its name and no media target."
                 ),
-                location=f"slide:{slide_no}:object:{position}",
+                location=f"slide:{slide_no}:shape:{counter.value + 1}",
             )
         )
     return (
         _make_object(
             "image",
             slide_no,
-            position,
+            counter.next(),
             name,
             fingerprint_base,
             file_sha,
