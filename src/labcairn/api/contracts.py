@@ -440,6 +440,61 @@ class ReviewDecisionBody(Result):
     needs_evidence: bool = False
 
 
+class ReviewSuggestBody(Result):
+    """One suggestion-loop run, as the API asks for it.
+
+    **The mode is the whole difference between the two runs.** ``real``
+    asks the authorised model and spends one approval per opinion;
+    ``substitute`` asks the local stand-in and spends nothing, because
+    nothing leaves the machine. The approvals are named per opinion —
+    ``approval_ids`` maps the chain's ``feedback_id`` to the approval the
+    caller holds for it — because ADR-0006's consent is per request, and a
+    batch of opinions is a batch of requests, not one.
+
+    The budget fields are the authorisation record's own numbers (G0 §5).
+    An absent field is unbounded for a substitute run and the caller's
+    responsibility for a real one; the loop records what it spent either
+    way.
+    """
+
+    project_id: str = Field(min_length=1)
+    version_id: str = Field(min_length=1)
+    mode: Literal["real", "substitute"] = "substitute"
+    #: Per-opinion approvals: the chain's ``feedback_id`` to the approval id
+    #: that covers that opinion's request. A real run spends one per
+    #: opinion; a substitute run needs none.
+    approval_ids: dict[str, str] = Field(default_factory=dict)
+    max_requests: int | None = Field(default=None, ge=1)
+    max_tokens: int | None = Field(default=None, ge=1)
+    max_consecutive_failures: int = Field(default=3, ge=1, le=100)
+    retry_attempts: int = Field(default=2, ge=0, le=10)
+
+
+class ReviewSuggestRun(Result):
+    """One suggestion-loop run's account, as the API returns it.
+
+    The application layer's own
+    :class:`~labcairn.application.model_suggestions.ModelSuggestionRunData`
+    is the model; this is the same fields, validated the same way. The run
+    row it mirrors is the budget's account — a reader answers "what did
+    this run cost, what did it produce, and why did it stop" from this one
+    object, without reading the suggestion rows.
+    """
+
+    run_id: str
+    project_id: str
+    version_id: str
+    mode: str
+    model_id: str
+    requests_made: int
+    tokens_estimated: int
+    stopped_reason: str | None
+    suggestions_recorded: int
+    opinions_skipped: int
+    started_at: str
+    finished_at: str
+
+
 class ApplyReviewBody(Result):
     """What the apply step needs, as the API accepts it.
 
@@ -515,6 +570,8 @@ __all__ = [
     "ReviewDecisionBody",
     "ReviewManuscriptQuery",
     "ReviewOpinionsQuery",
+    "ReviewSuggestBody",
+    "ReviewSuggestRun",
     "ReviewSuggestionBody",
     "SessionInfo",
     "StageBody",

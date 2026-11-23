@@ -58,6 +58,8 @@ from labcairn.api.contracts import (
     ProposalAcceptanceBody,
     ReportBody,
     ReviewDecisionBody,
+    ReviewSuggestBody,
+    ReviewSuggestRun,
     ReviewSuggestionBody,
     SessionInfo,
     StageBody,
@@ -120,6 +122,13 @@ from labcairn.application.approvals import ApprovalRequest, ApprovalUse
 from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.application.model_suggestions import (
+    MODEL_SUGGESTION_MODE_REAL,
+    ModelSuggestionBackend,
+    SuggestionLoopConfig,
+    parse_approval_ids,
+    suggest_for_version,
+)
 from labcairn.application.review import (
     ApplyReviewRequest,
     ExportDeliverablesRequest,
@@ -144,7 +153,7 @@ from labcairn.application.trajectory import (
     search_trajectory,
     usable_guidance,
 )
-from labcairn.core.ids import ApprovalId, TaskId, is_uuid7
+from labcairn.core.ids import ApprovalId, TaskId, is_uuid7, new_id
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.rules import confirm_rule, dispute_rule
@@ -1163,6 +1172,69 @@ def post_review_suggestion(
         old_text=body.old_text,
         new_text=body.new_text,
         author=body.author,
+    )
+
+
+@router.post("/review/suggest", response_model=ReviewSuggestRun, status_code=201, tags=["review"])
+def post_review_suggest(
+    body: ReviewSuggestBody,
+    request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewSuggestRun:
+    """Run the suggestion loop over one version's pending opinions.
+
+    **The mode names who answers.** ``substitute`` asks the local stand-in
+    and spends nothing — nothing leaves the machine, so nothing needs an
+    approval. ``real`` asks the authorised model and spends one
+    digest-bound approval per opinion: the caller presents
+    ``approval_ids``, one per opinion it holds consent for, and an opinion
+    without one is recorded as unauthorised and skipped, not asked.
+
+    **The response is the account, not the suggestions.** The suggestions
+    land in the store under their own route's read
+    (``GET /review/opinions``); this response says what the run cost, what
+    it produced, and why it stopped — the budget's own record (G0 §5).
+    """
+    backend = cast(ModelSuggestionBackend | None, request.app.state.model_suggestions)
+    if body.mode == MODEL_SUGGESTION_MODE_REAL and backend is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.MODEL_SUGGESTION_NO_PROVIDER,
+            "no real-model transport is wired into this service, so there is "
+            "nothing to ask. A real run is refused rather than simulated: an "
+            "invented suggestion would put words in a model's mouth that no "
+            "model said.",
+        )
+    run = suggest_for_version(
+        context,
+        run_id=str(new_id()),
+        project_id=body.project_id,
+        version_id=body.version_id,
+        mode=body.mode,
+        transport=None if backend is None else backend.real_transport,
+        approvals=parse_approval_ids(body.approval_ids),
+        grants=() if backend is None else backend.grants,
+        destination="" if backend is None else backend.destination,
+        subject_ref=body.project_id,
+        config=SuggestionLoopConfig(
+            max_requests=body.max_requests,
+            max_tokens=body.max_tokens,
+            max_consecutive_failures=body.max_consecutive_failures,
+            retry_attempts=body.retry_attempts,
+        ),
+    )
+    return ReviewSuggestRun(
+        run_id=run.run_id,
+        project_id=run.project_id,
+        version_id=run.version_id,
+        mode=run.mode,
+        model_id=run.model_id,
+        requests_made=run.requests_made,
+        tokens_estimated=run.tokens_estimated,
+        stopped_reason=run.stopped_reason,
+        suggestions_recorded=run.suggestions_recorded,
+        opinions_skipped=run.opinions_skipped,
+        started_at=run.started_at.isoformat(),
+        finished_at=run.finished_at.isoformat(),
     )
 
 
