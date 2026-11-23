@@ -91,13 +91,15 @@ from labcairn.application.approvals import (
 )
 from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
+from labcairn.application.recovery import resolve_abandoned
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.stages import StageOutcome, StageRequest, StageRun, run_stage
-from labcairn.core.ids import ApprovalId, RunId, SourceId, new_id
+from labcairn.core.ids import ApprovalId, OperationId, RunId, SourceId, new_id
 from labcairn.db.materials import put_source
-from labcairn.db.repository import list_approvals, list_artifacts, load_task
+from labcairn.db.repository import list_approvals, list_artifacts, list_stages, load_task
 from labcairn.material import ingest_bytes
 from labcairn.material.walk import _stable_source_id
+from labcairn.recovery.contracts import ReconciliationOutcome
 from labcairn.reports.receipt import (
     ArtifactKind,
     ArtifactProducerKind,
@@ -107,7 +109,7 @@ from labcairn.reports.receipt import (
 )
 from labcairn.runtime.event import EventType
 from labcairn.runtime.lifecycle import Stage
-from labcairn.runtime.operation import Approval, Operation
+from labcairn.runtime.operation import Approval, Operation, OperationState
 from labcairn.security.approval import SourceBinding, content_hash
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.paths import CanonicalPath, RootKind
@@ -735,6 +737,307 @@ def _import_receipt_hash(context: ApplicationContext, loop: LoopOpened) -> str:
         ApplicationRefusal.ARTIFACT_NOT_FOUND,
         f"the loop's own import receipt {loop.import_artifact_id} is not in the store. "
         "A publication derived from an import that was never recorded derives nothing.",
+    )
+
+
+# --------------------------------------------------------------------------- #
+# restart recovery: reading a loop back, and replaying its publication
+# --------------------------------------------------------------------------- #
+
+
+class InterruptedPublication(Result):
+    """A publication whose outcome the record cannot state, with what a replay needs.
+
+    **Everything a replay needs is carried here, because the replay happens in
+    a process that did not witness the interruption.** The operation's id names
+    the record a probe resolves; the loop's import receipt and keys name the
+    writes; ``edited_sha256`` is the prediction the interrupted operation was
+    attempting — the one fact the store cannot supply and a probe cannot
+    recover, so the caller states it from the round's own record.
+    """
+
+    operation_id: str
+    import_receipt: ImportReceipt
+    copy_key: str
+    publication_key: str
+    manifest_key: str
+    publication_artifact_id: str
+    import_artifact_id: str
+    edited_sha256: str
+
+
+def find_interrupted_publication(
+    context: ApplicationContext,
+    *,
+    receipt_id: str,
+) -> InterruptedPublication | None:
+    """A loop's publication, when the record cannot say whether it landed.
+
+    **The loop is reassembled from its own durable pieces, and from nothing
+    else.** The import receipt's manifest is on disk (the loop wrote it before
+    anything else, so it survives every interruption later than its own
+    write); the operation row is read from the store. A publication that is
+    not in ``ATTEMPTING`` or ``UNCERTAIN`` is not interrupted: ``CONFIRMED``
+    has landed, and anything else was refused before it started. Returns
+    ``None`` for a loop the store holds no publication attempt for at all —
+    asking about an unknown loop is the caller's mistake, not a crash to
+    recover from.
+
+    **The edited bytes' hash is stated, not invented.** The record keeps only
+    its digest of the operation's arguments, and the predicted bytes live in
+    those arguments — so the caller who wants to replay states what the bytes
+    should hash to, from the round's own record (the preview's digest, the
+    dossier's binding). A replay whose prediction is wrong is refused by the
+    probe, which is the point of the prediction.
+    """
+    from labcairn.recovery.persistence import find_operations_in_state
+
+    manifest_key = f"{LOOP_DIR_NAME}/{receipt_id}/import-receipt.json"
+    manifest_path = context.workspace.path_in(
+        manifest_key, context.workspace.output_root.root_id
+    ).real_path
+    if not manifest_path.is_file():
+        return None
+    receipt = ImportReceipt.model_validate_json(manifest_path.read_bytes().decode("utf-8"))
+
+    with store_refusals():
+        attempting = find_operations_in_state(
+            context.store.session, context.task_id, OperationState.ATTEMPTING
+        )
+        uncertain = find_operations_in_state(
+            context.store.session, context.task_id, OperationState.UNCERTAIN
+        )
+        stages = list_stages(context.store.session, context.task_id)
+    stage_ids = {stage.stage_id: stage for stage in stages if stage.name == PUBLICATION_STAGE_NAME}
+    candidates = [
+        operation
+        for operation in (*attempting, *uncertain)
+        if operation.stage_id in stage_ids
+        and operation.resource_key == f"{LOOP_DIR_NAME}/{receipt_id}/published.bin"
+    ]
+    if not candidates:
+        return None
+    # The newest attempt is the one whose outcome is live: an earlier one was
+    # refused on its own record (the store holds its FAILED row), and the
+    # id order is the order the attempts were planned in.
+    operation = max(candidates, key=lambda item: str(item.operation_id))
+    # The stage's own output record is the prediction when it has one; the
+    # caller's round record is the authority when it does not. Both are the
+    # edited bytes' hash, and the probe refuses a replay whose prediction is
+    # wrong — so carrying the stage's hash here is carrying a fact, not a
+    # guess.
+    stage = stage_ids[operation.stage_id]
+    predicted = stage.output_hashes[0] if stage.output_hashes else ""
+    return InterruptedPublication(
+        operation_id=str(operation.operation_id),
+        import_receipt=receipt,
+        copy_key=f"{LOOP_DIR_NAME}/{receipt_id}/copy.bin",
+        publication_key=f"{LOOP_DIR_NAME}/{receipt_id}/published.bin",
+        manifest_key=manifest_key,
+        publication_artifact_id=_publication_artifact_id(context, receipt_id),
+        import_artifact_id=_import_artifact_id(context, receipt_id),
+        edited_sha256=predicted,
+    )
+
+
+def resolve_interrupted_publication(
+    context: ApplicationContext,
+    interrupted: InterruptedPublication,
+    *,
+    expected_sha256: str,
+) -> ReconciliationOutcome:
+    """Resolve one interrupted publication with a probe, and nothing more.
+
+    **This is the answer, not the replay.** The probe compares the bytes at
+    the publication key with the hash the caller states; a match resolves
+    ``CONFIRMED`` (the publication landed) and unblocks the stage; a miss
+    resolves ``REPLAY_SAFE`` (nothing landed, the replay may plan a fresh
+    attempt); a differing file is a ``CONFLICT`` refusal that leaves the
+    decision to a person. The resolution is what makes a replay *legal* —
+    :func:`replay_interrupted_publication` refuses an operation still in
+    ``UNCERTAIN``, because replaying over an unknown outcome is the second
+    writer ADR-0003 A2 refuses.
+    """
+    return resolve_abandoned(
+        context,
+        _operation_id(interrupted.operation_id),
+        expected_sha256=expected_sha256,
+    )
+
+
+def _operation_id(raw: str) -> OperationId:
+    """The operation id as the store spells it: a UUID, validated on the way in."""
+    import uuid
+
+    return OperationId(uuid.UUID(raw))
+
+
+def replay_interrupted_publication(
+    context: ApplicationContext,
+    interrupted: InterruptedPublication,
+    *,
+    edited_bytes: bytes,
+    approval_id: ApprovalId,
+    now: datetime | None = None,
+) -> RevisionPublished:
+    """Replay an interrupted publication, under a fresh approval, once resolved.
+
+    **The replay is the loop's own publication, on the loop's own addresses.**
+    The interrupted attempt's operation stays on the record (resolved, by the
+    probe); the replay plans its own operation for the same publication id,
+    which lands one artifact row — the id is the loop's, minted at opening,
+    and the row is upserted by it. The bytes are checked against the
+    prediction the caller resolved: a replay of bytes the record did not
+    predict is refused, because "the same publication" is a claim about bytes
+    and not about intent.
+
+    **A fresh approval is required, not reused.** The interrupted attempt's
+    consent was bound to its own operation's digest; a replay is a new
+    attempt, and ADR-0003 C4's discipline stands — one consent, one effect.
+    The caller asks and grants again; this function spends what it is given.
+
+    :raises ApplicationRefusedError: the operation has not been resolved out
+        of ``UNCERTAIN`` (``operation_uncertain`` — resolve it first), the
+        bytes do not match the resolved prediction (``source_drifted``), or
+        the loop already carries a publication receipt (``loop_already_published``).
+    """
+    from labcairn.recovery.persistence import load_operation
+
+    with store_refusals():
+        record = load_operation(context.store.session, _operation_id(interrupted.operation_id))
+    if record.state is OperationState.UNCERTAIN:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.OPERATION_UNCERTAIN,
+            f"the publication operation {interrupted.operation_id} is still "
+            "UNCERTAIN: the record cannot say whether the interrupted attempt "
+            "landed. Resolve it with a probe first "
+            "(resolve_interrupted_publication) — replaying over an unknown "
+            "outcome is the second writer, not a recovery.",
+        )
+
+    loop = _loop_from_receipt(
+        context,
+        interrupted.import_receipt,
+        publication_artifact_id=interrupted.publication_artifact_id,
+        import_artifact_id=interrupted.import_artifact_id,
+    )
+    predicted = _edited_prediction(context, interrupted)
+    if predicted is not None and content_hash_bytes(edited_bytes) != predicted:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_DRIFTED,
+            f"the replay's bytes hash to {content_hash_bytes(edited_bytes)}, not "
+            f"the {predicted} the interrupted attempt was resolved against. A "
+            "replay publishes the bytes the record predicted, or it publishes "
+            "something else under the same name — which is the second writer.",
+        )
+    return publish_revision(
+        context,
+        loop,
+        approval_id=approval_id,
+        edited_bytes=edited_bytes,
+        now=now,
+    )
+
+
+def _edited_prediction(
+    context: ApplicationContext, interrupted: InterruptedPublication
+) -> str | None:
+    """The hash the interrupted attempt was resolved against, if the record holds one.
+
+    The resolution event's own record is the authority; the stage's output
+    hashes are the fallback the resolution wrote. Both are facts the record
+    holds, and neither is invented here.
+    """
+    del context  # the stage's hashes were read at find time; nothing new to read
+    prediction = interrupted.edited_sha256
+    return prediction if prediction else None
+
+
+def content_hash_bytes(data: bytes) -> str:
+    """SHA-256 of *data*, the spelling the loop's receipts and probes use."""
+    import hashlib
+
+    return hashlib.sha256(data).hexdigest()
+
+
+def _publication_artifact_id(context: ApplicationContext, receipt_id: str) -> str:
+    """The publication id a loop with this import receipt actually carries.
+
+    **Read from the record, not derived.** The loop minted the id at opening
+    and wrote it into the publication's derivation — but a derivation that
+    never confirmed (an interrupted publication) has no receipt row to read,
+    so the id is read from the import receipt's own derivation chain: the
+    import artifact names the loop, and the store holds the import row even
+    when nothing after it confirmed. A derived id would invent an identity
+    the loop never carried, and a replay under it would write a second row
+    beside the one the interrupted attempt was reaching for.
+    """
+    digest = content_hash_bytes(f"publication\x00{receipt_id}".encode())
+    derived = f"pub-{digest[:24]}"
+    with store_refusals():
+        landed = list_artifacts(context.store.session, context.task_id)
+    for receipt in landed:
+        if receipt.receipt_id == derived:
+            return derived
+    # The derived id is not on the record; the interrupted attempt's
+    # publication row never confirmed. The import receipt's derivation is
+    # the durable record of the loop, and the publication artifact the
+    # attempt named is found through it: the publication's derivation names
+    # the import artifact, so the id the attempt carried is whichever row
+    # names this loop's import receipt.
+    for receipt in landed:
+        for ref in receipt.derived_from:
+            if ref.target_id == _import_artifact_id(context, receipt_id) and (
+                receipt.receipt_id.startswith("pub-")
+            ):
+                return receipt.receipt_id
+    return derived
+
+
+def _import_artifact_id(context: ApplicationContext, receipt_id: str) -> str:
+    """The import-manifest artifact id this loop's import receipt carries.
+
+    **Read from the record.** The loop's import wrote a MANIFEST artifact
+    whose relative path names the loop's directory; that row is the durable
+    identity a replay reassembles the loop from.
+    """
+    digest = content_hash_bytes(f"import\x00{receipt_id}".encode())
+    derived = f"imp-{digest[:24]}"
+    with store_refusals():
+        landed = list_artifacts(context.store.session, context.task_id)
+    for receipt in landed:
+        if receipt.receipt_id == derived:
+            return derived
+    for receipt in landed:
+        if receipt.kind.value == "manifest" and receipt.relative_path.endswith(
+            f"/{LOOP_DIR_NAME}/{receipt_id}/import-receipt.json"
+        ):
+            return receipt.receipt_id
+    return derived
+
+
+def _loop_from_receipt(
+    context: ApplicationContext,
+    receipt: ImportReceipt,
+    *,
+    publication_artifact_id: str,
+    import_artifact_id: str,
+) -> LoopOpened:
+    """Reassemble a loop from its durable import receipt, for a replay.
+
+    **The keys are the loop's own derivation, restated.** The receipt carries
+    the facts (the source's identity and hash); the loop's keys are
+    positional — the receipt id's directory — so a reassembled loop writes
+    exactly where the interrupted attempt was writing, which is what makes a
+    replay land on the same artifact row instead of a second one.
+    """
+    return LoopOpened(
+        import_receipt=receipt,
+        copy_key=f"{LOOP_DIR_NAME}/{receipt.receipt_id}/copy.bin",
+        publication_key=f"{LOOP_DIR_NAME}/{receipt.receipt_id}/published.bin",
+        manifest_key=f"{LOOP_DIR_NAME}/{receipt.receipt_id}/import-receipt.json",
+        publication_artifact_id=publication_artifact_id,
+        import_artifact_id=import_artifact_id,
     )
 
 

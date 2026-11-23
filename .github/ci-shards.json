@@ -130,7 +130,8 @@
         "tests/test_workbench_real_browser.py",
         "tests/test_review_api.py",
         "tests/test_review_desk_live.py",
-        "tests/test_trajectory_index.py"
+        "tests/test_trajectory_index.py",
+        "tests/test_apply_cancel_recover.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -322,7 +323,8 @@
         "tests/test_security_approval.py",
         "tests/test_review_api.py",
         "tests/test_review_desk_live.py",
-        "tests/test_trajectory_index.py"
+        "tests/test_trajectory_index.py",
+        "tests/test_apply_cancel_recover.py"
       ],
       [
         "tests/test_analysis_service.py",
@@ -628,7 +630,8 @@
       "test_workspace_path_length.py": 0.01,
       "test_review_api.py": 0.0,
       "test_review_desk_live.py": 0.0,
-      "test_trajectory_index.py": 0.0
+      "test_trajectory_index.py": 0.0,
+      "test_apply_cancel_recover.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 2.89,
@@ -829,7 +832,8 @@
       "test_workspace_path_length.py": 0.01,
       "test_review_api.py": 0.0,
       "test_review_desk_live.py": 0.0,
-      "test_trajectory_index.py": 0.0
+      "test_trajectory_index.py": 0.0,
+      "test_apply_cancel_recover.py": 0.0
     }
   }
 }
