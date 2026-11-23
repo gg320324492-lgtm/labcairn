@@ -35,6 +35,7 @@ from labcairn.sources.locators import (
     CsvLocator,
     DocxLocator,
     PdfLocator,
+    PptxLocator,
     SourceLocator,
     TextLocator,
     XlsxLocator,
@@ -105,6 +106,21 @@ def _docx_fields(locator: DocxLocator) -> list[str]:
     return fields
 
 
+def _pptx_fields(locator: PptxLocator) -> list[str]:
+    """The PPTX fields: slide, object position and object kind.
+
+    **The object kind is a field and not an implicit default**, for the same
+    reason the DOCX view is one: a title and a note on the same slide can
+    carry the same words at the same position, and two addresses that
+    resolve to different text must not share a key.
+    """
+    return [
+        _field("s", str(locator.slide)),
+        _field("o", str(locator.position)),
+        _field("k2", locator.object_kind),
+    ]
+
+
 def _fields_for(locator: SourceLocator) -> list[str]:
     """Dispatch on the locator's concrete type.
 
@@ -123,6 +139,8 @@ def _fields_for(locator: SourceLocator) -> list[str]:
         return _xlsx_fields(locator)
     if isinstance(locator, DocxLocator):
         return _docx_fields(locator)
+    if isinstance(locator, PptxLocator):
+        return _pptx_fields(locator)
     # LocatorKind.COMPUTATION, and anything a future kind adds before its
     # adapter exists.
     raise LocatorKeyError(
