@@ -1210,6 +1210,7 @@ def post_review_suggest(
         project_id=body.project_id,
         version_id=body.version_id,
         mode=body.mode,
+        provider="" if backend is None else backend.provider,
         transport=None if backend is None else backend.real_transport,
         approvals=parse_approval_ids(body.approval_ids),
         grants=() if backend is None else backend.grants,

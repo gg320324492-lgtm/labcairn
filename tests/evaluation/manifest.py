@@ -191,6 +191,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # round reading the approved set from the store. Integration, because
     # the witnesses are the service's own routes over real bytes.
     "test_review_api.py": ("integration", "api-auth"),
+    # Phase 4 (P4-CAP, real-model loop). The loop behind the binding's own
+    # suggestion-source seam: desensitised requests, the budget's stops
+    # naming themselves, retry classification at the boundary, the
+    # twice-labelled substitute, the honest empty set, and the run row
+    # that accounts for every call. Integration, because the witnesses are
+    # the service's own routes and the store's own rows over real bytes.
+    "test_model_suggestions.py": ("integration", "api-auth"),
     # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
     # revision trajectory searchable with its provenance, a rule candidate
     # drafted from an entry and confirmed by a mentor, and the usable

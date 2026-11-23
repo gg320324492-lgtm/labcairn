@@ -53,7 +53,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol, runtime_checkable
 
@@ -64,7 +64,7 @@ from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedE
 from labcairn.application.review import record_review_suggestion
 from labcairn.core.ids import ApprovalId
 from labcairn.core.providers.protocol import ModelRequest
-from labcairn.db.models import ModelSuggestionRunRow, PaperVersionRow, SourceRow
+from labcairn.db.models import ModelSuggestionRunRow
 from labcairn.editing.drafts import ApprovedEdit
 from labcairn.papers.feedback import FeedbackEvent, list_feedback_events
 from labcairn.providers.errors import classify_exception
@@ -84,7 +84,6 @@ __all__ = [
     "ModelSuggestionTransport",
     "ProviderSuggestionSource",
     "SourceAccounting",
-    "StopReason",
     "SubstituteSuggestionSource",
     "SubstituteTransport",
     "SuggestionLoopConfig",
@@ -100,8 +99,13 @@ __all__ = [
 MODEL_SUGGESTION_MODE_REAL: str = "real"
 MODEL_SUGGESTION_MODE_SUBSTITUTE: str = "substitute"
 
-#: The material-purpose every suggestion request is judged under.
-MODEL_SUGGESTION_PURPOSE: str = "suggestion_draft"
+#: The material-purpose every suggestion request is judged under. The
+#: consent layer's purposes are a closed five (``read``, ``annotate``,
+#: ``retrieve``, ``transmit``, ``train``), and a model request that sends
+#: material out is a ``transmit`` — the same purpose every other model
+#: path names, so one grant covers them all and none of them invents a
+#: sixth word the vocabulary would have to reject.
+MODEL_SUGGESTION_PURPOSE: str = "transmit"
 
 #: The author prefix a real-model suggestion carries, followed by the
 #: transport's model id — ``model:<id>`` — so a reader can tell which model
@@ -226,14 +230,27 @@ class ModelSuggestionSource(Protocol):
 
     Same contract as :data:`labcairn.papers.binding.SuggestionSource` — a
     callable from a :class:`FeedbackEvent` to an :class:`ApprovedEdit |
-    None` — with the two members the loop's accounting needs: the model id
-    the source answers as, and the counter its calls accumulate into.
-    Returning ``None`` says the source has no suggestion for this opinion —
-    an honest answer, not a failure. A transport failure raises.
+    None` — with the members the loop's accounting and the seam's units
+    need: the model id the source answers as, the counter its calls
+    accumulate into, and the manuscript paragraphs the loop hands in before
+    the walk. Returning ``None`` says the source has no suggestion for this
+    opinion — an honest answer, not a failure. A transport failure raises.
     """
 
     model_id: str
     accounting: SourceAccounting
+
+    def bind_paragraphs(self, paragraphs: Sequence[str]) -> None:
+        """Hand the source the manuscript's paragraphs, in document order.
+
+        The seam rewrites **one whole plain run of one paragraph**, so an
+        edit's ``old_text`` is the whole paragraph and not the anchor's
+        substring. The loop reads the paragraphs once and hands them to
+        every source before the walk; a source that answered from the
+        anchor's substring alone would propose an edit the seam could not
+        locate.
+        """
+        ...
 
     def __call__(self, event: FeedbackEvent) -> ApprovedEdit | None:
         """One opinion in, one edit out — or ``None`` for no suggestion."""
@@ -265,6 +282,11 @@ class ProviderSuggestionSource:
         self._clock = clock if clock is not None else (lambda: datetime.now(UTC))
         self.model_id = transport.model_id
         self.accounting = SourceAccounting()
+        self._paragraphs: tuple[str, ...] = ()
+
+    def bind_paragraphs(self, paragraphs: Sequence[str]) -> None:
+        """Take the manuscript's paragraphs, in document order."""
+        self._paragraphs = tuple(paragraphs)
 
     def __call__(self, event: FeedbackEvent) -> ApprovedEdit | None:
         """Ask the transport for one suggestion, and wrap what came back."""
@@ -287,19 +309,37 @@ class ProviderSuggestionSource:
         returns the passage verbatim. Both are the model's honest "I have
         nothing to change here", and both are recorded as an empty set —
         never as a failure and never as a no-op edit.
+
+        ``old_text`` is the **whole paragraph** the anchor sits in, the
+        unit the seam rewrites — never the anchor's substring, which is an
+        address and not an editable run.
         """
         assert event.anchor_text is not None
         text = answer.strip()
         if not text or text == event.anchor_text.strip():
             return None
+        paragraph = event.anchor_paragraph or 1
+        old_text = self._paragraph_text(paragraph, fallback=event.anchor_text)
         return ApprovedEdit(
             part=_DOCUMENT_PART,
-            paragraph=event.anchor_paragraph or 1,
-            old_text=event.anchor_text,
+            paragraph=paragraph,
+            old_text=old_text,
             new_text=text,
             author=f"{REAL_AUTHOR_PREFIX}{self.model_id}",
             date=self._clock().isoformat(),
         )
+
+    def _paragraph_text(self, paragraph: int, *, fallback: str) -> str:
+        """The whole text of one 1-based paragraph, or the anchor when unknown.
+
+        The loop hands the paragraphs in before the walk, so the lookup is
+        an index — but an index past the manuscript's end is answered with
+        the anchor rather than trusted, because an edit whose ``old_text``
+        does not match the file is an edit the seam refuses at apply time.
+        """
+        if 1 <= paragraph <= len(self._paragraphs):
+            return self._paragraphs[paragraph - 1]
+        return fallback
 
 
 class SubstituteSuggestionSource:
@@ -320,40 +360,42 @@ class SubstituteSuggestionSource:
         self.model_id = model_id
         self.accounting = SourceAccounting()
         self._clock = clock if clock is not None else (lambda: datetime.now(UTC))
+        self._paragraphs: tuple[str, ...] = ()
+
+    def bind_paragraphs(self, paragraphs: Sequence[str]) -> None:
+        """Take the manuscript's paragraphs, in document order."""
+        self._paragraphs = tuple(paragraphs)
 
     def __call__(self, event: FeedbackEvent) -> ApprovedEdit | None:
-        """One deterministic suggestion from the opinion's own texts."""
+        """One deterministic suggestion from the opinion's own texts.
+
+        The suggestion rewrites the **whole paragraph** the anchor sits
+        in — the seam's unit — and names the comment it addresses, so the
+        downstream reviewer can see what the substitute answered.
+        """
         if not event.comment_text.strip():
             return None
         assert event.anchor_text is not None
         if not event.anchor_text.strip():
             return None
         self.accounting.requests_made += 1
-        comment = event.comment_text.strip()
-        new_text = (
-            f"{event.anchor_text.strip()} "
-            f"(revised to address the comment: {comment[:120]})"
+        paragraph = event.anchor_paragraph or 1
+        old_text = (
+            self._paragraphs[paragraph - 1]
+            if 1 <= paragraph <= len(self._paragraphs)
+            else event.anchor_text
         )
+        comment = event.comment_text.strip()
+        new_text = f"{old_text} (revised to address the comment: {comment[:120]})"
         self.accounting.tokens_estimated += _estimate_tokens(new_text)
         return ApprovedEdit(
             part=_DOCUMENT_PART,
-            paragraph=event.anchor_paragraph or 1,
-            old_text=event.anchor_text,
+            paragraph=paragraph,
+            old_text=old_text,
             new_text=new_text,
             author=SUBSTITUTE_AUTHOR,
             date=self._clock().isoformat(),
         )
-
-
-#: Why a loop run stopped before the opinions ran out. The closed
-#: vocabulary the run row's ``stopped_reason`` holds; ``None`` on the row
-#: means the walk finished because the opinions ran out.
-StopReason = str
-
-_STOP_REQUEST_BUDGET: StopReason = "request_budget"
-_STOP_TOKEN_BUDGET: StopReason = "token_budget"
-_STOP_CONSECUTIVE_FAILURES: StopReason = "consecutive_failures"
-_STOP_CANCELLED: StopReason = "cancelled"
 
 
 @dataclass(frozen=True, slots=True)
@@ -366,11 +408,12 @@ class SuggestionLoopConfig:
     run the owner authorised carries the owner's numbers.
     """
 
-    #: LabCairn-issued transport calls, counted per attempt: a retry is a
-    #: request and costs a request.
+    #: LabCairn-issued transport calls to the **real** model, counted per
+    #: attempt: a retry is a request and costs a request. The substitute's
+    #: local calls are free and are not bounded by this ceiling.
     max_requests: int | None = None
-    #: The token estimate ceiling. Checked against the counters after each
-    #: call; the call that crosses it is the last one.
+    #: The token-estimate ceiling, over both sources' estimates. Checked
+    #: after each call; the call that crosses it is the last one.
     max_tokens: int | None = None
     #: Consecutive failed or refused opinions after which the run stops.
     max_consecutive_failures: int = 3
@@ -436,27 +479,24 @@ def suggestion_approval_use(
     )
 
 
-def _version_resource(context: ApplicationContext, version_id: str):
+def _version_resource(context: ApplicationContext, version_id: str) -> CanonicalPath:
     """The material resource one manuscript version was made from.
 
     The approval names the material by its path in its root, the way
     extraction names a source — the locator names a place *inside* the
     file and is not a resource key.
     """
-    version = context.store.session.get(PaperVersionRow, version_id)
-    if version is None:
-        raise ApplicationRefusedError(
-            ApplicationRefusal.TASK_NOT_FOUND,
-            f"the store holds no manuscript version with the id {version_id!r}.",
-        )
-    source = context.store.session.get(SourceRow, version.source_id)
-    if source is None:
+    from labcairn.papers.chain import material_relative_path
+
+    relative_path = material_relative_path(context.store.session, version_id)
+    if relative_path is None:
         raise ApplicationRefusedError(
             ApplicationRefusal.SOURCE_NOT_FOUND,
-            f"the version {version_id!r} names the source {version.source_id!r}, "
-            "which the ledger does not hold.",
+            f"the manuscript version {version_id!r} names material the ledger "
+            "does not hold. An approval about a file nobody has is an "
+            "approval about nothing.",
         )
-    return context.resource_for(source.relative_path)
+    return context.resource_for(relative_path)
 
 
 class ModelSuggestionBackend:
@@ -475,10 +515,12 @@ class ModelSuggestionBackend:
     def __init__(
         self,
         *,
+        provider: str,
         real_transport: ModelSuggestionTransport | None = None,
         grants: Sequence[Grant] = (),
         destination: str = "",
     ) -> None:
+        self.provider = provider
         self.real_transport = real_transport
         self.grants = grants
         self.destination = destination
@@ -487,13 +529,16 @@ class ModelSuggestionBackend:
 class SuggestionLoop:
     """One loop run: the opinions of one version, one budget, one account.
 
-    **The loop owns the gates, the retries, the stops and the account; the
-    source owns one attempt.** A real run spends one digest-bound approval
-    per opinion before its first attempt — the same order claim extraction
-    holds, at the opinion's granularity — and classifies every transport
-    failure at the boundary: retryable failures back off and retry within
-    the budget, non-retryable ones are recorded and not retried, and a run
-    whose consecutive failures reach the ceiling stops, naming the reason.
+    **The loop owns the gates, the retries, the stops and the account; a
+    source owns one attempt.** A real run checks the request ceiling, then
+    spends one digest-bound approval per opinion — the same order claim
+    extraction holds, at the opinion's granularity — and classifies every
+    transport failure at the boundary: retryable failures back off and
+    retry within the budget, non-retryable ones are recorded and not
+    retried, and a run whose consecutive failures reach the ceiling stops,
+    naming the reason. Once one opinion's retries are spent the run falls
+    back to the substitute, and **stays** fallen back: an authorised model
+    that could not answer one opinion is not asked again about the next.
     """
 
     def __init__(
@@ -504,8 +549,9 @@ class SuggestionLoop:
         project_id: str,
         version_id: str,
         mode: str,
-        source: ModelSuggestionSource,
-        substitute: ModelSuggestionSource | None = None,
+        primary: ModelSuggestionSource,
+        fallback: ModelSuggestionSource | None,
+        provider: str,
         config: SuggestionLoopConfig | None = None,
         redactor: Redactor | None = None,
         approvals: Mapping[str, ApprovalId] | None = None,
@@ -518,20 +564,21 @@ class SuggestionLoop:
         self._project_id = project_id
         self._version_id = version_id
         self._mode = mode
-        self._source = source
-        self._substitute = substitute
+        self._primary = primary
+        self._fallback = fallback
+        self._provider = provider
         self._config = config if config is not None else SuggestionLoopConfig()
         self._redactor = redactor if redactor is not None else Redactor()
         self._approvals = approvals if approvals is not None else {}
         self._grants = list(grants)
         self._destination = destination
         self._subject_ref = subject_ref or project_id
+        self._exhausted = False
         self._consecutive_failures = 0
         self._stopped_reason: str | None = None
         self._suggestions_recorded = 0
         self._opinions_skipped = 0
         self._entries: list[dict[str, object]] = []
-        self._model_id = source.model_id
         self._started_at = datetime.now(UTC)
 
     # --- the run ----------------------------------------------------------
@@ -542,12 +589,18 @@ class SuggestionLoop:
         The opinions are read through the chain's own listing (which applies
         the material permission), filtered to the ones a suggestion can be
         asked for — a comment with text, anchored to a passage — and walked
-        in the order the reader found them. The first stop condition to
-        fire ends the walk, and the reason is written on the run row.
+        in the order the reader found them. The manuscript's paragraphs are
+        read once and handed to every source, so each source can wrap its
+        answer in the seam's own units. The first stop condition to fire
+        ends the walk, and the reason is written on the run row.
         """
         events = list_feedback_events(
             self._context, project_id=self._project_id, version_id=self._version_id
         )
+        paragraphs = self._read_paragraphs()
+        self._primary.bind_paragraphs(paragraphs)
+        if self._fallback is not None:
+            self._fallback.bind_paragraphs(paragraphs)
         for event in events:
             if not _locatable(event):
                 continue
@@ -557,44 +610,79 @@ class SuggestionLoop:
             self._run_one(event)
         return self._finish()
 
+    def _read_paragraphs(self) -> tuple[str, ...]:
+        """The manuscript's paragraphs, in document order, in the accepted view.
+
+        The read is the workbench's own — the same function the middle
+        column calls — so the paragraphs a source rewrites are the
+        paragraphs a reviewer sees, numbered the same way. A read the
+        policy refuses leaves the sources with no paragraphs, and every
+        edit they propose then carries the anchor's own text, which the
+        apply step can still locate.
+        """
+        from labcairn.application.review import read_review_manuscript
+
+        try:
+            manuscript = read_review_manuscript(
+                self._context, project_id=self._project_id, version_id=self._version_id
+            )
+        except ApplicationRefusedError:
+            return ()
+        return tuple(paragraph.text for paragraph in manuscript.paragraphs)
+
     # --- one opinion ------------------------------------------------------
 
     def _run_one(self, event: FeedbackEvent) -> None:
         """Ask, retry, fall back, record — for one opinion."""
-        if self._mode == MODEL_SUGGESTION_MODE_REAL:
+        if not self._within_request_budget(event):
+            return
+        if self._fallback is not None and not self._exhausted:
+            # The real path: consent, then bounded retries.
             if not self._spend_approval(event):
                 return
-        if not self._within_request_budget():
-            return
-        attempts = self._config.retry_attempts + 1
-        for attempt in range(1, attempts + 1):
+            attempts = self._config.retry_attempts + 1
+            status = _RETRY
+            for attempt in range(1, attempts + 1):
+                if self._stopped_reason is not None:
+                    return
+                status = self._attempt_with(self._primary, event, attempts=attempt)
+                if status != _RETRY:
+                    break
+                if attempt < attempts and self._config.backoff_base_s > 0:
+                    time.sleep(self._config.backoff_base_s * attempt)
+            if status == _ANSWERED:
+                return
+            # The real model gave no answer — the retries were spent, or the
+            # failure was one retrying cannot fix. The run falls back to the
+            # substitute, and stays fallen back.
+            self._exhausted = True
+            if status == _RETRY:
+                self._entries.append(
+                    _entry(event, source=self._primary.model_id, outcome="exhausted", attempts=attempts)
+                )
+            self._count_failure()
             if self._stopped_reason is not None:
                 return
-            outcome = self._attempt(event, attempt)
-            if outcome:
-                return
-        # The retries are spent. The substitute answers next, if there is
-        # one — and once the run has fallen back, it stays fallen back.
-        self._consecutive_failures += 1
-        self._entries.append(
-            _entry(event, source=self._source.model_id, outcome="exhausted", attempts=attempts)
-        )
-        if self._consecutive_failures >= self._config.max_consecutive_failures:
-            self._stopped_reason = _STOP_CONSECUTIVE_FAILURES
+            self._fall_back(event)
             return
-        self._fall_back(event)
+        # The substitute path: a substitute run's own source, or a real run
+        # that has already fallen back.
+        source = self._fallback if self._exhausted and self._fallback is not None else self._primary
+        self._attempt_with(source, event, attempts=1)
 
-    def _attempt(self, event: FeedbackEvent, attempt: int) -> bool:
-        """One attempt, classified and recorded. ``True`` when the opinion is done.
+    def _attempt_with(
+        self, source: ModelSuggestionSource, event: FeedbackEvent, *, attempts: int
+    ) -> str:
+        """One attempt, classified and recorded.
 
-        A retryable transport failure returns ``False`` after recording, and
-        the caller backs off and tries again; every other outcome — an
-        edit, an honest empty set, a non-retryable failure — finishes the
-        opinion here.
+        Returns ``_ANSWERED`` when the opinion is finished — an edit, or an
+        honest empty set; ``_GIVE_UP`` when the failure is one retrying
+        cannot fix (auth, policy, refusal) and the caller should fall back
+        rather than try again; ``_RETRY`` when the failure is retryable and
+        the caller may back off and ask again.
         """
-        source = self._source
         started = time.monotonic()
-        before = source.accounting.requests_made
+        tokens_before = source.accounting.tokens_estimated
         try:
             edit = source(event)
         except Exception as error:  # noqa: BLE001 - the loop classifies, not crashes
@@ -605,53 +693,32 @@ class SuggestionLoop:
                     event,
                     source=source.model_id,
                     outcome="failed",
-                    attempts=attempt,
+                    attempts=attempts,
                     elapsed_s=elapsed,
-                    tokens=self._tokens_since(before),
+                    tokens=source.accounting.tokens_estimated - tokens_before,
                     detail=failure.kind.value,
                     retryable=failure.retryable,
                 )
             )
-            if not failure.retryable:
-                # Auth, policy, refusal: the same request would be refused
-                # again. Recorded, not retried, and counted toward the stop.
-                self._consecutive_failures += 1
-                if self._consecutive_failures >= self._config.max_consecutive_failures:
-                    self._stopped_reason = _STOP_CONSECUTIVE_FAILURES
-                return True
-            return False
+            return _RETRY if failure.retryable else _GIVE_UP
         elapsed = time.monotonic() - started
-        tokens = self._tokens_since(before)
         self._entries.append(
             _entry(
                 event,
                 source=source.model_id,
                 outcome="empty" if edit is None else "answered",
-                attempts=attempt,
+                attempts=attempts,
                 elapsed_s=elapsed,
-                tokens=tokens,
+                tokens=source.accounting.tokens_estimated - tokens_before,
             )
         )
         if edit is not None:
             # A suggestion is a record, not a decision: written under the
             # source's own author, applied by nobody until the reviewer says.
-            record_review_suggestion(
-                self._context,
-                project_id=self._project_id,
-                version_id=self._version_id,
-                feedback_id=event.feedback_id,
-                part=edit.part,
-                paragraph=edit.paragraph,
-                old_text=edit.old_text,
-                new_text=edit.new_text,
-                author=edit.author,
-                proposed_at=datetime.fromisoformat(edit.date),
-            )
-            self._suggestions_recorded += 1
+            self._store_suggestion(event, edit)
             self._consecutive_failures = 0
-        if self._over_token_budget():
-            self._stopped_reason = _STOP_TOKEN_BUDGET
-        return True
+        self._check_token_budget()
+        return _ANSWERED
 
     def _fall_back(self, event: FeedbackEvent) -> None:
         """Let the substitute answer an opinion the real model could not.
@@ -661,51 +728,8 @@ class SuggestionLoop:
         row, whose author is the substitute's. Neither surface can be read
         as the real model's answer.
         """
-        if self._substitute is None:
-            return
-        self._source = self._substitute
-        self._model_id = self._substitute.model_id
-        started = time.monotonic()
-        before = self._substitute.accounting.requests_made
-        try:
-            edit = self._substitute(event)
-        except Exception as error:  # noqa: BLE001 - the fallback is best-effort
-            self._entries.append(
-                _entry(
-                    event,
-                    source=self._substitute.model_id,
-                    outcome="failed",
-                    attempts=1,
-                    elapsed_s=time.monotonic() - started,
-                    detail=type(error).__name__,
-                )
-            )
-            return
-        self._entries.append(
-            _entry(
-                event,
-                source=self._substitute.model_id,
-                outcome="empty" if edit is None else "answered",
-                attempts=1,
-                elapsed_s=time.monotonic() - started,
-                tokens=self._substitute.accounting.tokens_estimated - before,
-            )
-        )
-        if edit is not None:
-            record_review_suggestion(
-                self._context,
-                project_id=self._project_id,
-                version_id=self._version_id,
-                feedback_id=event.feedback_id,
-                part=edit.part,
-                paragraph=edit.paragraph,
-                old_text=edit.old_text,
-                new_text=edit.new_text,
-                author=edit.author,
-                proposed_at=datetime.fromisoformat(edit.date),
-            )
-            self._suggestions_recorded += 1
-            self._consecutive_failures = 0
+        assert self._fallback is not None
+        self._attempt_with(self._fallback, event, attempts=1)
 
     # --- the gates --------------------------------------------------------
 
@@ -722,15 +746,15 @@ class SuggestionLoop:
         approval_id = self._approvals.get(event.feedback_id)
         if approval_id is None:
             self._entries.append(
-                _entry(event, source=self._source.model_id, outcome="unauthorised")
+                _entry(event, source=self._primary.model_id, outcome="unauthorised")
             )
             self._opinions_skipped += 1
             return False
         use = suggestion_approval_use(
             self._context,
             event,
-            provider=self._mode,
-            model=self._source.model_id,
+            provider=self._provider,
+            model=self._primary.model_id,
             redactor=self._redactor,
         )
         try:
@@ -748,40 +772,83 @@ class SuggestionLoop:
             self._entries.append(
                 _entry(
                     event,
-                    source=self._source.model_id,
+                    source=self._primary.model_id,
                     outcome="refused",
                     detail=error.reason.value,
                 )
             )
-            self._consecutive_failures += 1
-            if self._consecutive_failures >= self._config.max_consecutive_failures:
-                self._stopped_reason = _STOP_CONSECUTIVE_FAILURES
+            self._count_failure()
             return False
         return True
 
-    def _within_request_budget(self) -> bool:
+    def _within_request_budget(self, event: FeedbackEvent) -> bool:
         """The request ceiling, checked before the call it bounds.
 
         A ceiling checked only afterwards bounds nothing — the overshoot
         would already be paid. Crossing it stops the run before the request
-        exists, which is why the overshoot is zero requests.
+        exists, which is why the overshoot is zero requests. The ceiling
+        bounds the **real** model's calls; the substitute's are local and
+        free, and asking them would only pad the account.
         """
         ceiling = self._config.max_requests
-        if ceiling is not None and self._source.accounting.requests_made >= ceiling:
+        if ceiling is not None and self._primary.accounting.requests_made >= ceiling:
             self._stopped_reason = _STOP_REQUEST_BUDGET
+            self._entries.append(
+                _entry(event, source=self._primary.model_id, outcome="budget_stop")
+            )
+            self._opinions_skipped += 1
             return False
         return True
 
-    def _over_token_budget(self) -> bool:
-        """Whether the token estimate has crossed its ceiling."""
-        ceiling = self._config.max_tokens
-        return ceiling is not None and self._source.accounting.tokens_estimated > ceiling
+    def _check_token_budget(self) -> None:
+        """The token-estimate ceiling, checked after the call it bounds.
 
-    def _tokens_since(self, before: int) -> int:
-        """The tokens the last attempt added, for the entry's figure."""
-        return max(0, self._source.accounting.tokens_estimated - before)
+        The estimate is the only figure the transport seam offers, and it
+        is recorded as an estimate. The call that crosses the ceiling is
+        the last one: the next opinion is skipped, and the row says which
+        stop fired.
+        """
+        ceiling = self._config.max_tokens
+        if ceiling is not None and self._tokens_total() > ceiling:
+            self._stopped_reason = _STOP_TOKEN_BUDGET
+
+    def _count_failure(self) -> None:
+        """One more failed or refused opinion, and the stop it may fire."""
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self._config.max_consecutive_failures:
+            self._stopped_reason = _STOP_CONSECUTIVE_FAILURES
 
     # --- the record -------------------------------------------------------
+
+    def _store_suggestion(self, event: FeedbackEvent, edit: ApprovedEdit) -> None:
+        """Write one suggestion, verbatim in the seam's units, under its author."""
+        record_review_suggestion(
+            self._context,
+            project_id=self._project_id,
+            version_id=self._version_id,
+            feedback_id=event.feedback_id,
+            part=edit.part,
+            paragraph=edit.paragraph,
+            old_text=edit.old_text,
+            new_text=edit.new_text,
+            author=edit.author,
+            proposed_at=datetime.fromisoformat(edit.date),
+        )
+        self._suggestions_recorded += 1
+
+    def _tokens_total(self) -> int:
+        """Both sources' estimates, together. The run's own figure."""
+        total = self._primary.accounting.tokens_estimated
+        if self._fallback is not None:
+            total += self._fallback.accounting.tokens_estimated
+        return total
+
+    def _requests_total(self) -> int:
+        """Both sources' calls, together. The run's own figure."""
+        total = self._primary.accounting.requests_made
+        if self._fallback is not None:
+            total += self._fallback.accounting.requests_made
+        return total
 
     def _finish(self) -> ModelSuggestionRunData:
         """Write the run row and return the caller's reading of it.
@@ -792,14 +859,19 @@ class SuggestionLoop:
         class names, never request text.
         """
         finished_at = datetime.now(UTC)
+        model_id = (
+            self._fallback.model_id
+            if self._exhausted and self._fallback is not None
+            else self._primary.model_id
+        )
         row = ModelSuggestionRunRow(
             run_id=self._run_id,
             project_id=self._project_id,
             version_id=self._version_id,
             mode=self._mode,
-            model_id=self._model_id,
-            requests_made=self._source.accounting.requests_made,
-            tokens_estimated=self._source.accounting.tokens_estimated,
+            model_id=model_id,
+            requests_made=self._requests_total(),
+            tokens_estimated=self._tokens_total(),
             stopped_reason=self._stopped_reason,
             suggestions_recorded=self._suggestions_recorded,
             opinions_skipped=self._opinions_skipped,
@@ -815,15 +887,30 @@ class SuggestionLoop:
             project_id=self._project_id,
             version_id=self._version_id,
             mode=self._mode,
-            model_id=self._model_id,
-            requests_made=self._source.accounting.requests_made,
-            tokens_estimated=self._source.accounting.tokens_estimated,
+            model_id=model_id,
+            requests_made=self._requests_total(),
+            tokens_estimated=self._tokens_total(),
             stopped_reason=self._stopped_reason,
             suggestions_recorded=self._suggestions_recorded,
             opinions_skipped=self._opinions_skipped,
             started_at=self._started_at,
             finished_at=finished_at,
         )
+
+
+#: Why a loop run stopped before the opinions ran out. The closed
+#: vocabulary the run row's ``stopped_reason`` holds; ``None`` on the row
+#: means the walk finished because the opinions ran out.
+StopReason = str
+
+_STOP_REQUEST_BUDGET: StopReason = "request_budget"
+_STOP_TOKEN_BUDGET: StopReason = "token_budget"
+_STOP_CONSECUTIVE_FAILURES: StopReason = "consecutive_failures"
+
+#: What one attempt came to, in the loop's own control flow.
+_ANSWERED: str = "answered"
+_GIVE_UP: str = "give_up"
+_RETRY: str = "retry"
 
 
 def _locatable(event: FeedbackEvent) -> bool:
@@ -876,6 +963,7 @@ def suggest_for_version(
     project_id: str,
     version_id: str,
     mode: str,
+    provider: str = "",
     transport: ModelSuggestionTransport | None = None,
     approvals: Mapping[str, ApprovalId] | None = None,
     grants: Sequence[Grant] = (),
@@ -897,8 +985,8 @@ def suggest_for_version(
         no real transport, or the mode is not one of the two.
     """
     if mode == MODEL_SUGGESTION_MODE_SUBSTITUTE:
-        source: ModelSuggestionSource = SubstituteSuggestionSource()
-        substitute: ModelSuggestionSource | None = None
+        primary: ModelSuggestionSource = SubstituteSuggestionSource()
+        fallback: ModelSuggestionSource | None = None
     elif mode == MODEL_SUGGESTION_MODE_REAL:
         if transport is None:
             raise ApplicationRefusedError(
@@ -908,8 +996,8 @@ def suggest_for_version(
                 "invented suggestion would put words in a model's mouth that no "
                 "model said.",
             )
-        source = ProviderSuggestionSource(transport, redactor=redactor)
-        substitute = SubstituteSuggestionSource()
+        primary = ProviderSuggestionSource(transport, redactor=redactor)
+        fallback = SubstituteSuggestionSource()
     else:
         raise ApplicationRefusedError(
             ApplicationRefusal.ARGUMENTS_INVALID,
@@ -922,8 +1010,9 @@ def suggest_for_version(
         project_id=project_id,
         version_id=version_id,
         mode=mode,
-        source=source,
-        substitute=substitute,
+        primary=primary,
+        fallback=fallback,
+        provider=provider,
         config=config,
         redactor=redactor,
         approvals=approvals,
