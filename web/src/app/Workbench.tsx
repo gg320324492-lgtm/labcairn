@@ -44,6 +44,8 @@ import {
   reportRenderBody,
   taskSelectBody,
 } from '../api/paths'
+import { DeliveryCenterView } from '../views/DeliveryCenterView'
+import { StageFeedbackBar } from '../views/StageFeedbackBar'
 import { ApprovalView } from '../views/ApprovalView'
 import { ArtefactsView } from '../views/ArtefactsView'
 import { EventsView } from '../views/EventsView'
@@ -163,6 +165,8 @@ export function Workbench(): JSX.Element {
         ) : null}
       </header>
 
+      <StageFeedbackBar plan={reads.plan.data} state={reads.state.data} />
+
       <p className="workbench__actions">
         <button
           className="button"
@@ -182,6 +186,7 @@ export function Workbench(): JSX.Element {
       />
       {boundTaskId !== null ? <EventsView key={boundTaskId} /> : null}
       <ReviewDeskView />
+      <DeliveryCenterView />
       <PlanView plan={reads.plan} />
       <StepsView steps={reads.steps} />
       <ApprovalView state={reads.state} onGrant={onGrant} granting={action.granting} />

@@ -46,6 +46,7 @@ import type {
   TaskStep,
   Trajectory,
 } from '../api/generated'
+import { fixtureDeliverablesExport, fixturePreview } from '../views/deliveryFixture'
 
 /** The token the fake service mints. */
 export const FAKE_TOKEN = 'fake-session-token-2f4a9c'
@@ -590,6 +591,28 @@ export class FakeApi {
   /** How many report renders the service has been asked for. */
   reportRenders = 0
 
+  /** How many review previews the service has been asked to measure. */
+  reviewPreviews = 0
+
+  /** How many review applies the service has been asked to commit. */
+  reviewApplies = 0
+
+  /**
+   * Whether the service refuses the review apply.
+   *
+   * **The dry run and the commit are refused together**, because they take
+   * the same body: a round whose preview answers but whose apply refuses is
+   * the reviewer's round with no decisions in the store, and the fake's
+   * refusal is what the centre is asked to show.
+   */
+  refuseReview = false
+
+  /** The review preview the fake answers with. */
+  reviewPreview: unknown = fixturePreview
+
+  /** The deliverables export the fake answers with. */
+  deliverablesExport: unknown = fixtureDeliverablesExport
+
   /**
    * Whether the service refuses the figure run.
    *
@@ -873,6 +896,49 @@ export class FakeApi {
 
     if (method === 'POST' && path.startsWith('/guidance/rules/') && path.endsWith('/confirm')) {
       return this.settleTheRule(path, init)
+    }
+
+    // The review round's preview, apply and deliverables — the delivery
+    // centre's three routes. The preview is a dry run: it answers and writes
+    // nothing. The apply answers with the binding the round closed, and the
+    // deliverables are answered from the dossier the apply named.
+    if (method === 'POST' && path === '/review/preview') {
+      this.reviewPreviews += 1
+      if (this.refuseReview) {
+        return jsonResponse(403, {
+          reason: 'arguments_invalid',
+          message: 'no review decision stands for this round.',
+        })
+      }
+      return jsonResponse(200, this.reviewPreview)
+    }
+
+    if (method === 'POST' && path === '/review/apply') {
+      this.reviewApplies += 1
+      if (this.refuseReview) {
+        return jsonResponse(403, {
+          reason: 'arguments_invalid',
+          message: 'no review decision stands for this round.',
+        })
+      }
+      return jsonResponse(200, {
+        project_id: 'proj-lc-p4-cap',
+        input_version_id: 'ver-baseline-04',
+        output_version_id: 'ver-applied-05',
+        edge_id: '0193f0a1-0000-7000-8000-00000000e001',
+        marked_receipt_id: '0193f0a1-0000-7000-8000-00000000a101',
+        marked_sha256: 'a'.repeat(64),
+        clean_receipt_id: '0193f0a1-0000-7000-8000-00000000a102',
+        clean_sha256: 'b'.repeat(64),
+        dossier_artifact_id: '0193f0a1-0000-7000-8000-00000000d001',
+        applied: ['fb-0193f0a1-0000-7000-8000-00000000c101'],
+        handovers: [],
+        unresolved: [],
+      })
+    }
+
+    if (method === 'GET' && path.startsWith('/review/deliverables')) {
+      return jsonResponse(200, this.deliverablesExport)
     }
 
     if (method === 'GET' && path.startsWith('/trajectory/issue-keys')) {
