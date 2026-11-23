@@ -593,26 +593,12 @@ def apply_approved_edits(
     operator = _operator_of(decisions)
     verdicts = {decision.feedback_id: decision for decision in decisions}
     approved = _approved_suggestions(opened.suggestions, verdicts)
+    folded = fold_approved_edits(opened.original_bytes, approved)
 
-    handovers: list[Handover] = []
-    applied: list[ModelSuggestion] = []
-    marked_bytes = opened.original_bytes
-    clean_bytes = opened.original_bytes
-    for suggestion in approved:
-        try:
-            marked_bytes = surgical_bytes(marked_bytes, suggestion.edit, DraftForm.MARKED)
-            clean_bytes = surgical_bytes(clean_bytes, suggestion.edit, DraftForm.CLEAN)
-        except EditRefusedError as error:
-            handovers.append(
-                Handover(
-                    feedback_id=suggestion.feedback_id,
-                    reason=error.refusal.reason,
-                    detail=error.refusal.detail,
-                    handover=error.refusal.handover,
-                )
-            )
-            continue
-        applied.append(suggestion)
+    marked_bytes = folded.marked_bytes
+    clean_bytes = folded.clean_bytes
+    applied = list(folded.applied)
+    handovers: list[Handover] = list(folded.handovers)
 
     # One loop per draft: 03's own rule is that a further publication is a
     # further loop, so the marked and the clean draft each carry their own
@@ -738,6 +724,69 @@ def _publish_draft(
         approval_id=publication_granted.approval.approval_id,
         edited_bytes=data,
         now=now,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class FoldedEdits:
+    """The two drafts the seam would produce, and what the fold did to them.
+
+    ``applied`` is the approved suggestions the seam accepted, in the order
+    they were approved; ``handovers`` is the ones it refused, with the
+    refusal's own words. The two lists together account for every approved
+    suggestion — an approved suggestion absent from both would be one the
+    fold silently dropped, which is the one outcome the binding exists to
+    make impossible.
+    """
+
+    marked_bytes: bytes
+    clean_bytes: bytes
+    applied: tuple[ModelSuggestion, ...]
+    handovers: tuple[Handover, ...]
+
+
+def fold_approved_edits(
+    original_bytes: bytes,
+    approved: Sequence[ModelSuggestion],
+) -> FoldedEdits:
+    """Fold the approved suggestions through the seam, onto pure copies.
+
+    **One fold, two surfaces, no writes.** The loop below is the apply
+    step's own rewrite loop, extracted so the preview can run the very same
+    bytes through the very same order and hand back the drafts the apply
+    would publish — without publishing them. A preview that re-derived the
+    drafts differently would be a second spelling of the apply, and the two
+    would drift; a preview that called the apply would not be a preview.
+
+    **The seam's refusals are folded, not raised.** Exactly as in the apply
+    step, one unsupported structure is a handover with the refusal's own
+    words, and the rest of the approved set still folds — so the preview
+    shows the operator what the apply would actually do, refusals included.
+    """
+    handovers: list[Handover] = []
+    applied: list[ModelSuggestion] = []
+    marked_bytes = original_bytes
+    clean_bytes = original_bytes
+    for suggestion in approved:
+        try:
+            marked_bytes = surgical_bytes(marked_bytes, suggestion.edit, DraftForm.MARKED)
+            clean_bytes = surgical_bytes(clean_bytes, suggestion.edit, DraftForm.CLEAN)
+        except EditRefusedError as error:
+            handovers.append(
+                Handover(
+                    feedback_id=suggestion.feedback_id,
+                    reason=error.refusal.reason,
+                    detail=error.refusal.detail,
+                    handover=error.refusal.handover,
+                )
+            )
+            continue
+        applied.append(suggestion)
+    return FoldedEdits(
+        marked_bytes=marked_bytes,
+        clean_bytes=clean_bytes,
+        applied=tuple(applied),
+        handovers=tuple(handovers),
     )
 
 

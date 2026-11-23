@@ -418,7 +418,9 @@ class ApplyReviewBody(Result):
     The application layer's own :class:`~labcairn.application.review.ApplyReviewRequest`
     is the model; this body exists because the request body is the API's
     own — and it is the same fields, validated the same way, so the two
-    do not drift.
+    do not drift. The preview route takes the same body, because the
+    preview answers the same question about the same round — what this
+    request's addresses name — and it needs nothing the apply does not.
     """
 
     project_id: str = Field(min_length=1)
@@ -429,6 +431,45 @@ class ApplyReviewBody(Result):
     window_end: str = Field(min_length=1)
 
 
+class DeliverableFileWire(Result):
+    """One deliverable on the wire: its bytes, base64-encoded.
+
+    The layer's :class:`~labcairn.application.review.DeliverableFile`
+    carries raw bytes, because a caller that saves a deliverable writes
+    bytes to disk. A JSON body cannot carry raw bytes — a DOCX is a zip,
+    and a zip is not text — so the API's encoding of one is the bytes'
+    base64. A client decodes it and hashes the decoded bytes; the sha256
+    field is over the decoded bytes, the same digest the receipt and the
+    manifest bind.
+    """
+
+    kind: str
+    relative_path: str
+    content_base64: str
+    sha256: str
+    size_bytes: int
+
+
+class DeliverablesExportWire(Result):
+    """The four deliverables of one closed binding, as the wire carries them.
+
+    The ids are the layer's own, unchanged — the export's whole claim is
+    that these four files bind to one round, and the wire shape exists only
+    to carry their bytes; re-spelling an id here would be a second place
+    for the binding to drift.
+    """
+
+    project_id: str
+    dossier_artifact_id: str
+    task_id: str
+    input_version_id: str
+    output_version_id: str
+    marked_receipt_id: str
+    clean_receipt_id: str
+    edge_id: str
+    deliverables: tuple[DeliverableFileWire, ...]
+
+
 __all__ = [
     "AnalysisBody",
     "ApplyReviewBody",
@@ -436,6 +477,8 @@ __all__ = [
     "ApprovalUseBody",
     "ClaimBody",
     "CommentResponses",
+    "DeliverableFileWire",
+    "DeliverablesExportWire",
     "GuidanceRuleVerdictBody",
     "Health",
     "IssueKeys",
