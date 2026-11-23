@@ -382,6 +382,14 @@ _ALLOWED_STORE_READERS = frozenset(
         # staleness guards. It is recorded here because a module that
         # reaches the store must be named.
         "labcairn.application.review",
+        # P4-MS's first slice: the trajectory index and the usable-rule
+        # listing. The ingest reads the chain's own facts through the
+        # layer's read operations and writes the index rows through the
+        # store's writers under the same consent the papers' operations
+        # ask; the usable-rules read resolves each rule's sources against
+        # the chain at query time. It is recorded here because a module
+        # that reaches the store must be named.
+        "labcairn.application.trajectory",
         # The scholarly-identifier shelf (LC-P2-17). Its operations are layer
         # operations like the writers beside it: each evaluates the policy
         # about the task's own area before it touches the store, and the

@@ -545,6 +545,7 @@ export type ReviewOpinion = {
   anchor_start: number | null
   anchor_end: number | null
   anchor_text: string | null
+  comment_locator: Record<string, unknown> | null
   location_state: string
   suggestion: ReviewSuggestionData | null
   decision: ReviewDecisionData | null
