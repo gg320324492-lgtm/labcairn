@@ -67,10 +67,12 @@ __all__ = [
 ]
 
 
-#: Severity's closed vocabulary: §9.4's 阻断/严重/一般/建议.
+#: Severity's closed vocabulary: §9.4's four grades, from the one that
+#: stops a wider trial to the one that is a suggestion.
 PILOT_ISSUE_SEVERITIES: tuple[str, ...] = ("blocker", "serious", "minor", "suggestion")
 
-#: Type's closed vocabulary: §9.4's 功能/界面/性能/模型/文档.
+#: Type's closed vocabulary: §9.4's five kinds, from what the product does
+#: to what the trial writes down about it.
 PILOT_ISSUE_CATEGORIES: tuple[str, ...] = (
     "function",
     "interface",

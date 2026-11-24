@@ -7,7 +7,9 @@
  * approved, which paragraphs they touch, what each change says, and the
  * digests the committed apply will publish — and the apply button stands
  * down until that measure has landed. The order is the plan's own
- * (execution plan §3.2: *应用修改前必须预览修改数量、影响段落和输出变化摘要*),
+ * (execution plan §3.2, read 2026-11-25: the preview must show the number
+ * of changes, the paragraphs they affect and a summary of the output before
+ * anything is modified),
  * not a layout preference: a round committed before its preview would be a
  * round the operator never saw coming.
  *

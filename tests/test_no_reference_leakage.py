@@ -1502,8 +1502,6 @@ CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md": 5,
     "docs/acceptance/LC-P3-08-exit-decision-2026-11-22.md": 7,
     "docs/plans/PHASE_4-execution-plan.md": 27,
-    "web/src/views/DeliveryCenterView.tsx": 13,
-    "src/labcairn/application/issues.py": 2,
     "docs/plans/PHASE_2-work-orders.md": 10,
     "tests/test_status_consistency.py": 5,
     "tests/test_cli_json_forms.py": 2,
