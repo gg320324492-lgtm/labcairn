@@ -12,12 +12,12 @@ a release record rather than a wish:
 - ``created_at`` is a UTC ISO-8601 timestamp that does not sit in the future;
 - the ``version`` matches the file name, so the record cannot be renamed
   past its own content;
-- the artifact digest is an explicit ``null`` **with** its reason -- no
-  installer artifact exists yet, and the record says so instead of inventing
-  a digest;
-- the version number and date are announced as **defaults pending owner
-  confirmation**, because plan §12's third decision is still ``TBD — owner
-  to fill``;
+- the artifact digest is the sha256 the installer build measured from the
+  produced bytes, and the build's own companion record says so -- the
+  installer's own version line still reads 0.0.3, and the record names that
+  rather than glossing over it;
+- the version number and date are announced as **confirmed by the owner on
+  2026-11-24**, which is plan §12's third decision;
 - the tool's own ``check`` subcommand accepts the record (exit code 0).
 
 The witnesses read this checkout's record but never write into the
@@ -41,9 +41,6 @@ RECORD_RELATIVE = Path("docs") / "releases" / "v0.1.0.json"
 
 #: The version the record names -- and the file name stem it must match.
 VERSION = "v0.1.0"
-
-#: The phrase that must announce the unconfirmed version number and date.
-PENDING_PHRASE = "pending owner confirmation"
 
 #: The migration range the data-compatibility column must name, measured:
 #: the Phase 4 store work runs from 0025 (trajectory index) to 0030 (rule
@@ -196,22 +193,69 @@ def test_the_version_matches_the_file_name(repo_root: Path) -> None:
     assert path.stem == VERSION
 
 
-def test_the_artifact_digest_is_null_with_a_reason(repo_root: Path) -> None:
-    """No installer artifact exists, and the record says so explicitly.
+def test_the_artifact_digest_is_the_measured_installer_digest(repo_root: Path) -> None:
+    """The digest is the one the build measured, and the build's own record says so.
 
-    The honest state is ``null`` plus a reason -- not a digest of the wrong
-    file, and not a silent null that reads as if a digest were forgotten.
+    **Why the digest is not simply present.** A field carrying a plausible
+    64-character string is not a measurement. The release record's digest
+    must be the digest the installer build actually measured from the
+    produced bytes, and the companion record
+    (``docs/releases/v0.1.0-artifact.json``) is where that measurement
+    lives -- with the build's commands, the toolchain versions and the
+    evidence. So the witness compares the two records against each other:
+    a digest in the release record that no build produced is a digest of
+    nothing.
+
+    **And the version line is named.** The installer's own name and
+    product version still read 0.0.3, because the shell's package
+    manifest was not bumped for this workbench release. That is the
+    owner's call to make, and until it is made the release record has to
+    say so rather than let a reader infer that the installer's name
+    agrees with the version it carries.
     """
     record = _record(repo_root)
-    assert record.get("artifact_sha256") is None, (
-        "this release has no installer artifact; the digest must be null, "
-        f"found {record.get('artifact_sha256')!r}"
+    digest = record.get("artifact_sha256")
+    assert isinstance(digest, str) and len(digest) == 64, (
+        "the release record must carry the installer's measured sha256, "
+        f"found {digest!r}"
     )
     reason = record.get("artifact_sha256_reason")
-    assert _nonempty(reason), "a null artifact_sha256 needs its reason"
+    assert _nonempty(reason), "the digest needs the record that says what it is"
     assert isinstance(reason, str)
-    assert "no installer artifact" in reason.lower(), (
-        "the reason must say why the digest is null, not merely that it is"
+
+    companion_path = repo_root / "docs" / "releases" / "v0.1.0-artifact.json"
+    assert companion_path.is_file(), (
+        "the build's own measurement record is missing: " f"{companion_path}"
+    )
+    companion: Any = json.loads(companion_path.read_text(encoding="utf-8"))
+    assert isinstance(companion, dict), "the companion record must be a JSON object"
+
+    measured = companion.get("artifact_sha256")
+    assert isinstance(measured, str) and len(measured) == 64, (
+        f"the build record carries no measured digest: {measured!r}"
+    )
+    assert digest == measured, (
+        "the release record's digest is not the digest the build measured: "
+        f"{digest!r} against {measured!r}"
+    )
+
+    # The build measured from the recorded commit, so the two records
+    # describe the same tree.
+    assert companion.get("commit") == record.get("commit"), (
+        "the build was made from a different commit than the record names: "
+        f"{companion.get('commit')!r} against {record.get('commit')!r}"
+    )
+
+    # The bytes are counted, so the digest is not the digest of an empty file.
+    size = companion.get("artifact_bytes")
+    assert isinstance(size, int) and size > 0, (
+        f"the build record carries no artifact size: {size!r}"
+    )
+
+    # The unsettled version line is named rather than glossed over.
+    assert "0.0.3" in reason, (
+        "the record must name the installer's own version line, which still "
+        "reads 0.0.3 and is the owner's call to settle"
     )
 
 
