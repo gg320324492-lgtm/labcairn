@@ -1,7 +1,9 @@
 # LC-P4-G0 — Phase 4 baseline freeze
 
 **Ticket:** LC-P4-G0 (Phase 4 G0)
-**Status:** `IN PROGRESS`
+**Status:** `IN PROGRESS — the real-model authorisation closed on
+2026-11-24 (§5); one completion condition is still open: the tagged
+baseline record (§3)`
 **Source plan:** [`PHASE_4-execution-plan.md`](PHASE_4-execution-plan.md) §5
 (P4-G0 baseline freeze), opened after Phase 3's exit decision was signed
 2026-11-22 (`PASS WITH NOTES`).
@@ -97,16 +99,19 @@ Frozen at this ticket's commit:
 
 ## 5. Real-model service boundary (fills the plan's pre-kickoff input)
 
-- **Provider/model:** to be authorised by the owner before P4-CAP's
-  real-model step runs; the authorisation record names provider, model id,
-  purpose and scope, in the style of the LC-P3-06 bounded-run
-  authorisation.
+- **Provider/model:** authorised by the owner on 2026-11-24. The signed
+  record ([`LC-P4-PILOT-model-authorisation-draft.md`](LC-P4-PILOT-model-authorisation-draft.md),
+  `AUTHORISED`, signed `owner / 2026-11-24` in its §9) names provider,
+  model id, purpose and scope, in the style of the LC-P3-06 bounded-run
+  authorisation. **This section states the boundary; the record holds the
+  values** — a real request stays inside the record's scope and limits,
+  and a change to any of its §1–§7 fields re-opens it.
 - **Requests carry only** the desensitised manuscript excerpts needed for
   a suggestion — no names, affiliations, project numbers, or material
   outside the pilot paper.
 - **Budget:** a per-pilot token ceiling, counted and recorded per request
   batch (Phase 3's bounded run counted 5,136 / 50,000 authorised tokens;
-  the pilot sets its own ceiling in the authorisation record).
+  the pilot's ceiling is the one the signed authorisation record sets).
 - **Timeouts and errors:** every model call carries a timeout; a failure
   is classified retryable (network/timeout/5xx) or not (refusal, policy,
   auth) at the call boundary; retry uses backoff with a bounded count.
@@ -116,6 +121,11 @@ Frozen at this ticket's commit:
 - **Stop conditions:** the loop stops on budget exhaustion, repeated
   refusal, or owner cancellation, and says which stop fired in the run
   record.
+
+The plan's pre-kickoff input — the owner's authorisation of the real
+model — is therefore supplied as of 2026-11-24: P4-CAP's real-model step
+and the pilot's step 3 may run inside the signed record's limits, and
+nothing outside them.
 
 ## 6. Pilot data model — link fields
 
@@ -158,6 +168,16 @@ when material is withdrawn or records are archived.
       (board-row updates land with this ticket's commits).
 - [ ] Baseline version + environment frozen and witnessed by a tagged
       record (§3) — completed when the pilot's first release notes cite
-      this section's identities.
-- [ ] Real-model authorisation record signed (§5) — before P4-CAP's
-      real-model step runs.
+      this section's identities. **Still open — the witness is missing.**
+      §3 names the identities; what is missing is the record that
+      witnesses them: the pilot's first release notes (the structured
+      record under `docs/releases/` and the release-notes section) must
+      cite them, and the release must carry a git tag. The structured
+      record `docs/releases/v0.1.0.json` is in the tree but does not yet
+      cite this section's identities, and no tag has been cut
+      (`git tag --list` is empty), so the box stays open.
+- [x] Real-model authorisation record signed (§5) — before P4-CAP's
+      real-model step runs. **Closed 2026-11-24**: the owner signed the
+      record ([`LC-P4-PILOT-model-authorisation-draft.md`](LC-P4-PILOT-model-authorisation-draft.md),
+      `AUTHORISED`, signed `owner / 2026-11-24` in its §9), and that
+      record holds the values §5 points at.

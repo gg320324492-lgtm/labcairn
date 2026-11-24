@@ -9,11 +9,16 @@ evidence slot is PENDING until the trial fills it`
 [`LC-P4-PILOT-desensitisation-checklist.md`](LC-P4-PILOT-desensitisation-checklist.md),
 [`LC-P4-PILOT-model-authorisation-draft.md`](LC-P4-PILOT-model-authorisation-draft.md),
 [`LC-P4-PILOT-feedback-form-template.md`](LC-P4-PILOT-feedback-form-template.md)
-— all three `DRAFT` at the time this runbook was written — plus the
-owner-decisions form
+— whose states are **not** the same. The model-authorisation record is
+signed (`AUTHORISED`, `owner / 2026-11-24`); the desensitisation
+checklist and the feedback-form template are still `DRAFT`, so the steps
+they gate — importing the desensitised copy (step 1) and collecting the
+participants' quality conclusions (step 12) — stay closed until the owner
+signs them. The owner-decisions form
 ([`LC-P4-PILOT-owner-decisions.md`](LC-P4-PILOT-owner-decisions.md))
-for plan §12's three decisions, and a release record under
-`docs/releases/` for the version the pilot runs on (plan §10; §0 below).
+carries plan §12's three decisions, decided and signed on 2026-11-24, and
+a release record under `docs/releases/` is required for the version the
+pilot runs on (plan §10; §0 below).
 **Format precedent:** the Phase 3 trial's protocol and record pair
 ([`../acceptance/LC-P3-08-trial-protocol-2026-11-14.md`](../acceptance/LC-P3-08-trial-protocol-2026-11-14.md),
 [`../acceptance/LC-P3-08-trial-record-2026-11-22.md`](../acceptance/LC-P3-08-trial-record-2026-11-22.md)).
@@ -35,9 +40,10 @@ the owner before the work orders are cut (plan §12: rule case-validation,
 material retention/withdrawal/sharing, first runnable version and trial
 date), and the owner-decisions form
 ([`LC-P4-PILOT-owner-decisions.md`](LC-P4-PILOT-owner-decisions.md)) is
-where they are filled and signed. A decision still marked
-`TBD — owner to fill` keeps the flow it gates blocked; the form names
-which.
+where they are filled and signed. **All three were decided and signed on
+2026-11-24**, so the flows they gated are open against the recorded
+answers. A decision still marked `TBD — owner to fill` keeps the flow it
+gates blocked, and the form names which.
 
 **The first runnable version must carry a release record.** Plan §10
 requires every version to have one structured record under
@@ -73,15 +79,18 @@ pilot records *where* a thing is and *what it hashes to*, never the thing.
 
 **The authorisation boundary (the model-authorisation draft §9).** No
 real-model request is sent until the authorisation record's §1–§7 fields
-are filled and signed. A step that would send a real request **refuses**
-when the record is unfilled; the substitute path (step 3's fallback) is
-the only model work an unfilled record permits.
+are filled and signed — **they are, as of 2026-11-24** (`owner /
+2026-11-24` in the record's §9), so step 3's real request may run inside
+the record's scope and limits. A step that would send a real request
+**refuses** when the record is unfilled; the substitute path (step 3's
+fallback) is the only model work an unfilled record permits.
 
 **The desensitisation boundary (the checklist, part E).** The copy that
 enters the pilot has passed every checklist item, and the import step
 re-verifies the digest (D-4) and the metadata counts (D-3) on its side.
 The pilot does not re-desensitise; it refuses a copy that fails either
-re-check.
+re-check. The checklist is still `DRAFT`, so no copy has entered the
+pilot yet and step 1 stays closed until the owner signs it.
 
 **The vocabulary for every problem (plan §9.4, as the code spells it).**
 Severity: `blocker`, `serious`, `minor`, `suggestion`. Type:
@@ -484,7 +493,9 @@ any).
 **What.** The participants record what the system cannot: subjective
 experience, problem descriptions, improvement suggestions — through the
 unified feedback form, and through the system's issue record for
-anything that names a concrete defect.
+anything that names a concrete defect. The form is still `DRAFT`, so
+until the owner signs it the form must not be handed to participants and
+this step does not run.
 
 **Entry points.** The feedback form
 ([`LC-P4-PILOT-feedback-form-template.md`](LC-P4-PILOT-feedback-form-template.md)):
