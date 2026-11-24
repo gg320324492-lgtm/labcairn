@@ -20,10 +20,13 @@ stays `DRAFT` until then.
 This checklist turns plan §9.1's desensitisation requirement — *retain
 annotations, revision marks and structure; remove names, affiliations,
 project numbers and other unnecessary sensitive information* — into
-checkable items. It covers the path from an authorised paper to the
-desensitised working copy the pilot imports, and the registration of the
-copy's digest and metadata. **The repository never receives the material
-itself** — raw files stay in the authorised environment
+checkable items. **Read 2026-11-25** from
+`docs/plans/PHASE_4-execution-plan.md` §9.1; the paraphrase is the
+plan's own requirement carried into English, and the section number says
+where the wording lives. It covers the path from an authorised paper to
+the desensitised working copy the pilot imports, and the registration of
+the copy's digest and metadata. **The repository never receives the
+material itself** — raw files stay in the authorised environment
 (`E:/trial-material/`), and this checklist's records carry digests, counts,
 ids and paths only, per G0 §4.
 

@@ -23,6 +23,14 @@ transcribed for the same reason the trial's records carry no corpus
 text: the repository's working language is English, and the section
 numbers are the stable addresses.
 
+**When the plan was read.** Every paraphrase below was taken from
+`docs/plans/PHASE_4-execution-plan.md` **Read 2026-11-25**, and the
+section number beside each one says where the wording lives. The plan's
+section numbers do not move, but a paraphrase carries the date it was
+made, the way the Phase 3 protocol record carries its reading dates
+(`docs/acceptance/LC-P3-08-trial-protocol-2026-11-14.md`, "**Read
+2026-11-18**").
+
 **What is already covered by system capability, and what is not.** Some
 conditions are backed by built and witnessed machinery — the
 apply/publish binding, the real-model loop's authorisation gate, the
@@ -37,7 +45,7 @@ verdict is written in advance.
 
 ## P4-G1 — UI interaction
 
-**Plan §11 conditions, paraphrased (§11, P4-G1).**
+**Plan §11 conditions, paraphrased (§11, P4-G1).** Read 2026-11-25.
 
 - The manuscript-driven workbench carries an operator from task entry
   through to the delivery centre.
@@ -63,7 +71,7 @@ evidence and the participants' observations are in.
 
 ## P4-G2 — Key capabilities
 
-**Plan §11 conditions, paraphrased (§11, P4-G2).**
+**Plan §11 conditions, paraphrased (§11, P4-G2).** Read 2026-11-25.
 
 - A real desensitised paper completes the full revision loop.
 - All four deliverables are generated and consistently bound.
@@ -90,7 +98,7 @@ not a silent carry.
 
 ## P4-G3 — Multi-source learning
 
-**Plan §11 conditions, paraphrased (§11, P4-G3).**
+**Plan §11 conditions, paraphrased (§11, P4-G3).** Read 2026-11-25.
 
 - The paper and its revision trajectory, the PPT decks and the meeting
   notes are all retrievable, located by their source.
@@ -117,7 +125,7 @@ deck, a real meeting text) to exercise the surfaces against.
 
 ## P4-G4 — Real trial
 
-**Plan §11 conditions, paraphrased (§11, P4-G4).**
+**Plan §11 conditions, paraphrased (§11, P4-G4).** Read 2026-11-25.
 
 - 3–5 members completed the first trial round.
 - One paper completed the full loop.

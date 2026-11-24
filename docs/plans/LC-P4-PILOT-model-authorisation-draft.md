@@ -28,6 +28,12 @@ The owner fills each field; the filled record is what P4-CAP's model step
 and P4-PILOT's trial run against. **No request is sent against an
 unfilled field** — an unfilled field means the step it gates does not run.
 
+**Where the plan's wording this record carries was read.** §7's stop
+conditions and §2's scope are the plan's own requirements carried into
+English; they were read from
+[`PHASE_4-execution-plan.md`](PHASE_4-execution-plan.md) **Read
+2026-11-25**, and the section numbers say where each one lives.
+
 ## 1. Provider and model
 
 | Field | Owner to fill | Notes / precedent |

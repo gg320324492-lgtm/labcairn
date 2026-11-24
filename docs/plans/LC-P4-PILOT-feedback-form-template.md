@@ -15,7 +15,7 @@ quality conclusions) must not run.** The signature goes on the pilot
 ticket's preparation record; this document stays `DRAFT` until then.
 **Source plan:** [`PHASE_4-execution-plan.md`](PHASE_4-execution-plan.md)
 §9.4 (problem recording: severity + type on every issue) and §9.2 step 12
-(participants supply quality conclusions).
+(participants supply quality conclusions). **Read 2026-11-25.**
 **Data-model source:** [`LC-P4-G0-baseline-freeze.md`](LC-P4-G0-baseline-freeze.md)
 §6 (Issue link fields).
 
@@ -27,12 +27,12 @@ feedback item is designed to map onto one Issue record in the pilot data
 model (G0 §6), so a completed form can be ingested without re-typing or
 guessing links.
 
-**Severity scale (plan §9.4):** `blocking` — the loop cannot
+**Severity scale (plan §9.4, Read 2026-11-25):** `blocking` — the loop cannot
 continue; `severe` — a wrong or lost result, or a workaround that
 risks the data; `normal` — an inconvenience with a usable
 workaround; `suggestion` — an improvement idea, nothing broken.
 
-**Type scale (plan §9.4):** `function`, `ui`,
+**Type scale (plan §9.4, Read 2026-11-25):** `function`, `ui`,
 `performance`, `model`, `documentation`.
 
 ## Part 1 — Submitter context (once per form)
