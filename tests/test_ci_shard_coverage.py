@@ -2693,9 +2693,7 @@ def test_the_remeasurement_reads_a_shard_summary_that_carries_no_warning(
     second run — the residual becomes negative, is clamped to zero, and the
     file absent from the log lands on 0.0 instead of its share.
     """
-    warning_free = UBUNTU_JOB_LOG.replace(
-        "9 passed, 1116 warnings in 13.00s", "9 passed in 13.00s"
-    )
+    warning_free = UBUNTU_JOB_LOG.replace("9 passed, 1116 warnings in 13.00s", "9 passed in 13.00s")
     assert warning_free != UBUNTU_JOB_LOG, (
         "the fixture must differ from the warning-bearing log in the very "
         "thing this witnesses: the word 'warnings' in the summary line"

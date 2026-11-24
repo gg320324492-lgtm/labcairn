@@ -216,8 +216,7 @@ def test_the_artifact_digest_is_the_measured_installer_digest(repo_root: Path) -
     record = _record(repo_root)
     digest = record.get("artifact_sha256")
     assert isinstance(digest, str) and len(digest) == 64, (
-        "the release record must carry the installer's measured sha256, "
-        f"found {digest!r}"
+        f"the release record must carry the installer's measured sha256, found {digest!r}"
     )
     reason = record.get("artifact_sha256_reason")
     assert _nonempty(reason), "the digest needs the record that says what it is"
@@ -225,7 +224,7 @@ def test_the_artifact_digest_is_the_measured_installer_digest(repo_root: Path) -
 
     companion_path = repo_root / "docs" / "releases" / "v0.1.0-artifact.json"
     assert companion_path.is_file(), (
-        "the build's own measurement record is missing: " f"{companion_path}"
+        f"the build's own measurement record is missing: {companion_path}"
     )
     companion: Any = json.loads(companion_path.read_text(encoding="utf-8"))
     assert isinstance(companion, dict), "the companion record must be a JSON object"

@@ -47,11 +47,21 @@ workspace in which one paper goes from ingestion through claims extraction,
 staged analysis, report and figure generation to revision and restart
 recovery, with the multi-source index (the paper revision trajectory, PPT
 decks and meeting text), the pilot's issue record, the rule-sharing door
-and the real-model service wiring in place. **It is a source tree, not a
-distributed artifact** — no installer has been cut for v0.1.0, and the
-structured record says so with an explicit `null` and the reason
+and the real-model service wiring in place. **A Windows per-user installer
+was built from that tree and measured**: 354,229,356 bytes, sha256
+`32bca391…`, unsigned, with the frozen backend tree and the copy the
+installer carries measuring the same digest — so the installer carries
+that freeze byte for byte. The structured record carries the digest and
+the build's own companion record
+([`v0.1.0-artifact.json`](releases/v0.1.0-artifact.json)) carries the
+commands, the toolchain and the evidence
 ([`docs/releases/v0.1.0.json`](releases/v0.1.0.json), written and checked
-by [`scripts/release_record.py`](../scripts/release_record.py)).
+by [`scripts/release_record.py`](../scripts/release_record.py)). **One
+thing the build did not settle**: the installer's own file name and
+product version line still read 0.0.3, because the shell's package
+manifest was not bumped for this release. The bytes carry this tree's
+product code; the name does not yet say so, and that version line is the
+owner's call.
 
 **The tree it is cut from.** `main` at `fc73386` — the merge of pull request
 #223, whose seventeen required checks were all green when it landed (the
