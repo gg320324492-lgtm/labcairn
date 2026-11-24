@@ -36,6 +36,7 @@ under test.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -240,7 +241,7 @@ def _allowing_context(workspace: Path, task_id: str) -> Iterator[ApplicationCont
     """
     location = locate(workspace)
     config = read_config(location)
-    workspace_bound = bind_workspace(location, config, TaskId(task_id))
+    workspace_bound = bind_workspace(location, config, TaskId(uuid.UUID(task_id)))
     engine = create_db_engine(location.root / config.database)
     factory = create_session_factory(engine)
     try:
@@ -549,7 +550,7 @@ def test_sources_ingest_reports_a_refused_project_and_still_succeeds(
                 "trajectory is a project's revision history, and a history of a "
                 "project nobody holds is a history of nothing.",
             )
-        return real_ingest(context, project_id=project_id)  # type: ignore[misc]
+        return real_ingest(context, project_id=project_id)
 
     monkeypatch.setattr(trajectory_module, "ingest_paper_trajectory", selective)
 
