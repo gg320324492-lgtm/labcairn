@@ -692,6 +692,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # clause is insufficient evidence, because the property it watches is
     # that a release is not recorded on fields that were never measured.
     "test_release_record.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The first runnable version's record itself, measured: the seven
+    # elements present, the commit an ancestor of HEAD, the timestamp a real
+    # UTC measurement, the version matching the file name, the absent
+    # artifact stated with its reason, the default version number and date
+    # announced as pending owner confirmation, and the tool's own check
+    # accepting the record.
+    "test_first_release_record.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_release_workflow.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_threat_model.py": (REPOSITORY_CLASS, "repository-gate"),
 }

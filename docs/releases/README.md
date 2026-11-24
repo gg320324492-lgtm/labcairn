@@ -76,3 +76,22 @@ from the artifact's bytes, and `created_at` is written by the tool.  A
 value from an older record is never reused for a new one — a record that
 carries a previous release's numbers describes a release that does not
 exist.
+
+## v0.1.0 — the first runnable Phase 4 version
+
+[`v0.1.0.json`](v0.1.0.json) is the first runnable version's record: it
+covers the Phase 4 delivery work merged through the sixth batch (the
+closed delivery loop, the multi-source index over paper trajectories,
+slide decks and meeting text, rule sharing, the pilot preparation
+records and the structured release-record tool itself).  Its version
+number and date are **defaults written by the Phase 4 seventh batch —
+pending owner confirmation**.  Plan §12's third decision (the first
+runnable Phase 4 version and the first trial date) is still `TBD — owner
+to fill` in
+[`../plans/LC-P4-PILOT-owner-decisions.md`](../plans/LC-P4-PILOT-owner-decisions.md),
+so the owner may rename the version, set the date, or both, before the
+pilot runs; a rename is a deliberate act and goes through `create
+--force` on the new version number, never by editing the file in place.
+The record's `artifact_sha256` is an explicit `null` with its reason: no
+installer artifact has been built, and the digest must be measured from
+real installer bytes, not asserted.

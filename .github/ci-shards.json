@@ -143,7 +143,8 @@
         "tests/test_pilot_runbook.py",
         "tests/test_trajectory_api.py",
         "tests/test_pilot_decisions.py",
-        "tests/test_pilot_feedback_ingest.py"
+        "tests/test_pilot_feedback_ingest.py",
+        "tests/test_first_release_record.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -349,7 +350,8 @@
         "tests/test_pilot_runbook.py",
         "tests/test_trajectory_api.py",
         "tests/test_pilot_decisions.py",
-        "tests/test_pilot_feedback_ingest.py"
+        "tests/test_pilot_feedback_ingest.py",
+        "tests/test_first_release_record.py"
       ],
       [
         "tests/test_analysis_service.py",
@@ -670,7 +672,8 @@
       "test_recovery_quality_api.py": 0.0,
       "test_trajectory_api.py": 0.0,
       "test_pilot_decisions.py": 0.0,
-      "test_pilot_feedback_ingest.py": 0.0
+      "test_pilot_feedback_ingest.py": 0.0,
+      "test_first_release_record.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 2.89,
@@ -885,7 +888,8 @@
       "test_recovery_quality_api.py": 0.0,
       "test_trajectory_api.py": 0.0,
       "test_pilot_decisions.py": 0.0,
-      "test_pilot_feedback_ingest.py": 0.0
+      "test_pilot_feedback_ingest.py": 0.0,
+      "test_first_release_record.py": 0.0
     }
   }
 }

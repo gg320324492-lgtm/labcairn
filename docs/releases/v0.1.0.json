@@ -1,0 +1,38 @@
+{
+  "version": "v0.1.0",
+  "commit": "e2a1c9652c8e3966df0440609eac4f60738fe119",
+  "branch": "p4-first-release-record",
+  "created_at": "2026-11-24T06:35:38.052728+00:00",
+  "artifact_sha256": null,
+  "artifact_sha256_reason": "No installer artifact exists for this version: no wheel, sdist or packaged build has been produced. This record describes the workstation source tree at the recorded commit (Phase 4 seventh batch, batch branch p4-batch-merge lineage), not a distributed artifact. An artifact_sha256 must be measured from real installer bytes, and none exist to hash; the field stays explicitly null until the owner cuts a packaged build.",
+  "compatibility": {
+    "data": "SQLite store schema of migrations 0001-0030 (linear chain, head 0030_rule_sharing). v0.1.0 reads and writes the schema those revisions build; a workspace created by it migrates forward through the same chain, and rolling back the application without downgrading the database is the supported path (see rollback). No data migration compresses or rewrites existing rows: 0025-0030 add indexes, tables and columns for the Phase 4 features (revision-trajectory index, PPT index, model-suggestion runs, meeting index, pilot issue records, rule-sharing scope) and leave earlier rows readable.",
+    "api": "FastAPI routes on the single APIRouter mounted by src/labcairn/api/app.py (no path prefix), 55 endpoints measured at this commit: /health, /session, /tasks, /task, /task/select, /plan, /steps, /sources, /sources/{source_id}, /claims, /claims/extract, /records, /artifacts, /artifacts/{artifact_id}, /artifacts/{artifact_id}/content, /approvals/{approval_id}/grant, /stages, /report, /events, /events/stream, /trajectory, /trajectory/issue-keys, /trajectory/graph, /guidance/rules, /guidance/rules/{rule_id}, /guidance/rules/{rule_id}/confirm, /review/opinions, /review/manuscript, /review/suggest, /review/decision, /review/apply, /review/preview, plus the ingestion, recovery, roles, drill, analysis and rule-sharing routes registered alongside them. These are the same paths tests/test_api.py exercises; the web package and the CLI talk to this surface only."
+  },
+  "added": [
+    "Delivery loop closed end to end: a paper goes from ingestion through claims extraction, staged analysis, report and figure generation to revision and restart recovery, exercised by the repository's own quickstart walk (docs/QUICKSTART.md).",
+    "Multi-source index: the paper revision trajectory (migration 0025), slide decks (0026) and meeting text (0028) are indexed alongside the document store, searchable from the API and the CLI workbench.",
+    "Rule sharing (Phase 4 section 8.5 / P4-G3): a mentor can confirm a distilled rule and share it with the group under a per-rule sharing scope (migration 0030), with the confirm/publish surface on the API and the workbench.",
+    "Pilot preparation: the LC-P4-PILOT runbook, desensitisation checklist, model-authorisation draft and feedback-form template are in the tree, with the owner-decisions form (docs/plans/LC-P4-PILOT-owner-decisions.md) carrying the three section-12 decisions as TBD pending the owner's signature.",
+    "Pilot issue records (migration 0029): issues found in a trial round are recorded against the run and surfaced through the trajectory issue-key routes.",
+    "Model-suggestion runs (migration 0027) and the recovery/quality API routes (window G): recovery approvals and round-level quality/evidence checks are reachable from the API surface.",
+    "Workbench UI: the ingestion and quality report views, the pilot's issue record and the rule-sharing door are on the web workbench (windows of batches five and six).",
+    "Structured release records: scripts/release_record.py writes and checks the seven-element JSON record this file is one of (Phase 4 section 10)."
+  ],
+  "fixed": [
+    "Dual-head migration hazard: migrations 0024-0030 keep the revision chain linear (each revision's down_revision points at exactly one predecessor; no branch heads), so alembic upgrade has one path and a frozen revision cannot import a later one's state.",
+    "Layer boundaries: the application layer does not leak store types across the boundary; the trajectory layer is re-exported at a single seam (commit 3750040) so the API and CLI surfaces share one implementation.",
+    "Anchor drift: position anchors survive the revision/apply cycle without drifting, and the anchor registry (migration 0007) remains the single source of locator truth.",
+    "Type fidelity across the merge seams: the sixth batch's merge surfaced drift in the rule-sharing test helpers and the CLI ingest witnesses; both are typed for mypy --strict now (commits 033909f, 6066e01).",
+    "Crash-recovery matrix: the interrupted-write and interrupted-rewrite paths (drills) are witnessed to leave the store reconcilable, including the windows where a crash lands between write and confirm."
+  ],
+  "known_limits": [
+    "The real model loop is not authorised for this release: the LC-P4-PILOT model-authorisation draft is unsigned, so every demonstration runs against the deterministic FakeProvider; no paid provider is called and no credential is needed.",
+    "The trial exit gate is PENDING: the Windows internal-trial exit for Phase 4 (P4-G4) has not run, because the owner has not set the first trial date (owner-decisions form decision 3, still TBD).",
+    "Three section-12 decisions are unfilled in docs/plans/LC-P4-PILOT-owner-decisions.md: rule case-validation method (D-1), material retention/withdrawal/sharing boundary (D-2), and the first runnable version plus first trial date (D-3). The flows each decision blocks stay blocked.",
+    "The version number and date of this record are defaults written by the Phase 4 seventh batch (v0.1.0, 2026-11-24), pending owner confirmation; the owner may rename the version before the pilot runs.",
+    "The web workbench ships as a development build served by the repository's own tooling; no installer or packaged artifact is produced yet (see artifact_sha256_reason).",
+    "Real-model rehearsal remains bounded to the rehearsal harness: provider budgets, capability probing and the bounded-rehearsal path are wired, but the authorisation record that would unlock a real provider is deliberately absent."
+  ],
+  "rollback": "Roll the application back by checking out the pre-release commit on main (16df3db04ef645212d303e5a4bd1817a8cd3fbbb, the merge-base of this record's commit and main) and reinstalling from that tree; the SQLite workspace needs no downgrade because migrations 0025-0030 only add tables, columns and indexes that an older application ignores. If a downgrade is required anyway, run alembic downgrade through the chain from 0030_rule_sharing back to the pinned base revision (0001) on a copy of the workspace database first -- never on the only copy -- and verify the result with tests/test_store_migrations.py before touching the original."
+}
