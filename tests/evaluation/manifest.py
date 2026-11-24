@@ -559,6 +559,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # the layer's operation behind the same guard, and the CLI's command
     # reaches the same operation -- one serialization, two surfaces.
     "test_role_run_entry.py": ("integration", "api-auth"),
+    # Batch 8, window I: the judgement's vocabulary. A part carrying a field
+    # the role does not take is refused by name -- the API already refuses it,
+    # and the CLI's own docstring promised that it would too. The vocabulary
+    # itself is a typed contract: the layer's dataclasses own it, and both
+    # surfaces' spellings are compared against them.
+    "test_cli_unknown_field_refusal.py": ("integration", "typed-contracts"),
     # LC-P3-03: the loop binds the pieces; its refusals are negative.
     "test_revision_loop.py": ("integration", "approvals"),
     "test_revision_loop_refusals.py": ("negative", "path-traversal"),

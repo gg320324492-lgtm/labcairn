@@ -146,7 +146,8 @@
         "tests/test_pilot_feedback_ingest.py",
         "tests/test_first_release_record.py",
         "tests/test_cancel_entry.py",
-        "tests/test_role_run_entry.py"
+        "tests/test_role_run_entry.py",
+        "tests/test_cli_unknown_field_refusal.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -355,7 +356,8 @@
         "tests/test_pilot_feedback_ingest.py",
         "tests/test_first_release_record.py",
         "tests/test_cancel_entry.py",
-        "tests/test_role_run_entry.py"
+        "tests/test_role_run_entry.py",
+        "tests/test_cli_unknown_field_refusal.py"
       ],
       [
         "tests/test_analysis_service.py",
@@ -679,7 +681,8 @@
       "test_pilot_feedback_ingest.py": 0.0,
       "test_first_release_record.py": 0.0,
       "test_cancel_entry.py": 0.0,
-      "test_role_run_entry.py": 0.0
+      "test_role_run_entry.py": 0.0,
+      "test_cli_unknown_field_refusal.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 2.89,
@@ -897,7 +900,8 @@
       "test_pilot_feedback_ingest.py": 0.0,
       "test_first_release_record.py": 0.0,
       "test_cancel_entry.py": 0.0,
-      "test_role_run_entry.py": 0.0
+      "test_role_run_entry.py": 0.0,
+      "test_cli_unknown_field_refusal.py": 0.0
     }
   }
 }
