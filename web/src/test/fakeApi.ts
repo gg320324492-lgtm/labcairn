@@ -33,6 +33,8 @@ import type {
   GuidanceRuleVerdictBody,
   Health,
   IssueKeys,
+  MeetingHit,
+  PptHit,
   ProjectGraph,
   ProposalAcceptanceBody,
   ProposalSettled,
@@ -46,6 +48,8 @@ import type {
   TaskState,
   TaskStep,
   Trajectory,
+  TrajectoryHit,
+  UsableRule,
 } from '../api/generated'
 import { fixtureDeliverablesExport, fixturePreview } from '../views/deliveryFixture'
 
@@ -100,6 +104,14 @@ export interface FakeApiState {
   issueKeys: IssueKeys
   /** The guidance rules the memory holds. */
   guidanceRules: GuidanceRule[]
+  /** The rules the retrieval answers with: confirmed, standing, resolved. */
+  guidanceUsable: UsableRule[]
+  /** The trajectory index's hits, for the search the panel asks. */
+  trajectoryHits: TrajectoryHit[]
+  /** The deck index's hits, for the search the panel asks. */
+  pptHits: PptHit[]
+  /** The meeting index's hits, for the search the panel asks. */
+  meetingHits: MeetingHit[]
   /** The ledger's records for this task. */
   records: EvidenceRecord[]
 }
@@ -157,6 +169,179 @@ export const FEEDBACK_ID = 'fb-method'
 
 /** The rule the fake serves as a candidate, with a case against it. */
 export const RULE_ID = 'rule-method'
+
+/** A digest the search fixtures carry, where the service carries a hash. */
+const SEARCH_SHA = 'c'.repeat(64)
+
+/** An instant every search fixture is stamped with. */
+const SEARCH_TIME = '2026-11-20T08:00:00+00:00'
+
+/**
+ * The trajectory index's hits, as the search route serves them.
+ *
+ * **The comment and the edit that answered it are two rows.** The index
+ * indexes both, and the route answers with whichever matched — so a query
+ * that reaches both kinds arrives as two hits, each carrying its own
+ * locator and its own version.
+ */
+export function trajectoryHitsFixture(): TrajectoryHit[] {
+  return [
+    {
+      trajectory_id: 'traj-comment-method',
+      project_id: PROJECT_ID,
+      entry_kind: 'comment',
+      feedback_id: FEEDBACK_ID,
+      edit_action_id: null,
+      revision_event_id: null,
+      version_id: 'v1',
+      issue_key: ISSUE_KEY,
+      comment_text: 'Name the method before its result.',
+      anchor_text: 'the method was not named',
+      anchor_paragraph: 2,
+      verdict: null,
+      change_kind: null,
+      change_text: null,
+      text_digest: 'a'.repeat(64),
+      source_version_id: 'v1',
+      source_locator: 'paragraph:2:start:12:end:40',
+      source_sha256: SEARCH_SHA,
+      ingested_at: SEARCH_TIME,
+    },
+    {
+      trajectory_id: 'traj-edit-method',
+      project_id: PROJECT_ID,
+      entry_kind: 'edit',
+      feedback_id: FEEDBACK_ID,
+      edit_action_id: 'edit-method',
+      revision_event_id: 'rev-1',
+      version_id: 'v2',
+      issue_key: ISSUE_KEY,
+      comment_text: null,
+      anchor_text: null,
+      anchor_paragraph: null,
+      verdict: null,
+      change_kind: 'insertion',
+      change_text: 'The method was X-ray diffraction.',
+      text_digest: 'b'.repeat(64),
+      source_version_id: 'v2',
+      source_locator: 'word/document.xml#/w:body/w:p[2]',
+      source_sha256: SEARCH_SHA,
+      ingested_at: SEARCH_TIME,
+    },
+  ]
+}
+
+/**
+ * The deck index's hits, as the search route serves them.
+ *
+ * **A title and its note are two objects on one slide.** The index indexes
+ * each object the deck carries, so one slide can arrive twice with two
+ * different texts — and the locator says which object, not only which
+ * slide.
+ */
+export function pptHitsFixture(): PptHit[] {
+  return [
+    {
+      object_id: 'ppt-object-title',
+      project_id: PROJECT_ID,
+      source_sha256: SEARCH_SHA,
+      slide_no: 4,
+      object_position: 1,
+      object_kind: 'title',
+      object_fingerprint: 'ppt-fp-title',
+      text: 'The silt record of the northern core',
+      media_target: null,
+      locator_json: '{"locator_kind":"pptx","object_kind":"title","position":1,"slide":4}',
+      ingested_at: SEARCH_TIME,
+    },
+    {
+      object_id: 'ppt-object-note',
+      project_id: PROJECT_ID,
+      source_sha256: SEARCH_SHA,
+      slide_no: 4,
+      object_position: 3,
+      object_kind: 'notes',
+      object_fingerprint: 'ppt-fp-note',
+      text: 'The depth was measured at 4.2 mm.',
+      media_target: null,
+      locator_json: '{"locator_kind":"pptx","object_kind":"notes","position":3,"slide":4}',
+      ingested_at: SEARCH_TIME,
+    },
+  ]
+}
+
+/**
+ * The meeting index's hits, as the search route serves them.
+ *
+ * **A timestamped entry and an organised paragraph are two shapes.** The
+ * same container can carry both, and the locator names the shape as well as
+ * the place: the entry carries its timestamp, the paragraph its index.
+ */
+export function meetingHitsFixture(): MeetingHit[] {
+  return [
+    {
+      record_id: 'meeting-record-entry',
+      project_id: PROJECT_ID,
+      source_sha256: SEARCH_SHA,
+      record_format: 'entry',
+      record_index: 7,
+      timestamp_label: '00:14:32',
+      record_fingerprint: 'meeting-fp-entry',
+      text: 'We agreed to name the method in the revision.',
+      locator_json:
+        '{"locator_kind":"meeting","record_format":"entry","record_index":7,"timestamp":"00:14:32"}',
+      ingested_at: SEARCH_TIME,
+    },
+    {
+      record_id: 'meeting-record-paragraph',
+      project_id: PROJECT_ID,
+      source_sha256: SEARCH_SHA,
+      record_format: 'paragraph',
+      record_index: 2,
+      timestamp_label: null,
+      record_fingerprint: 'meeting-fp-paragraph',
+      text: 'The depth measurement stands at 4.2 mm.',
+      locator_json:
+        '{"locator_kind":"meeting","record_format":"paragraph","record_index":2,"timestamp":null}',
+      ingested_at: SEARCH_TIME,
+    },
+  ]
+}
+
+/**
+ * The rules the retrieval answers with, as the usable route serves them.
+ *
+ * **The withdrawn one is not here.** The fixture carries a confirmed rule
+ * beside the candidate's confirmed neighbour, and nothing else: the route
+ * serves confirmed-and-standing rules only, so a test that needs a withdrawn
+ * rule absent finds it absent because the route said so.
+ */
+export function guidanceUsableFixture(): UsableRule[] {
+  return [
+    {
+      rule_id: 'rule-units',
+      version: 2,
+      name: 'Give the unit with the number.',
+      summary: 'A number without a unit is not a quantity.',
+      scope: 'Every numeric claim.',
+      state: 'confirmed',
+      sources: ['issue-units'],
+      confirmed_by: 'carol',
+      confirmed_at: '2026-10-22T09:00:00+00:00',
+    },
+    {
+      rule_id: 'rule-anchors',
+      version: 3,
+      name: 'Cite the anchor the claim rests on.',
+      summary: 'A claim with no address cannot be found again.',
+      scope: 'Every claim.',
+      state: 'confirmed',
+      sources: ['issue-anchors', 'issue-method'],
+      confirmed_by: 'dave',
+      confirmed_at: '2026-10-23T08:00:00+00:00',
+    },
+  ]
+}
 
 /**
  * The chain's rows, as the mentor line's route serves them.
@@ -515,6 +700,10 @@ export function initialState(): FakeApiState {
     trajectoryGraph: projectGraphFixture(),
     issueKeys: issueKeysFixture(),
     guidanceRules: guidanceRulesFixture(),
+    guidanceUsable: guidanceUsableFixture(),
+    trajectoryHits: trajectoryHitsFixture(),
+    pptHits: pptHitsFixture(),
+    meetingHits: meetingHitsFixture(),
     records: recordsFixture(),
   }
 }
@@ -642,6 +831,19 @@ export class FakeApi {
 
   /** The deliverables export the fake answers with. */
   deliverablesExport: unknown = fixtureDeliverablesExport
+
+  /**
+   * Which of the three search sources refuse the query.
+   *
+   * **One source's failure is that source's.** The flags are per source, so
+   * a test can fail one and find the others still answering — which is the
+   * property the search panel is written to hold, and the reason the three
+   * reads are separate requests in the first place.
+   */
+  refuseSearch = { trajectory: false, ppt: false, meeting: false }
+
+  /** The searches the service has been asked to run, by the path asked. */
+  searchesRun: string[] = []
 
   /**
    * Whether the service refuses the figure run.
@@ -1000,6 +1202,22 @@ export class FakeApi {
       return jsonResponse(200, this.deliverablesExport)
     }
 
+    if (method === 'GET' && path.startsWith('/trajectory/search')) {
+      return this.answerTheSearch(path, 'trajectory')
+    }
+
+    if (method === 'GET' && path.startsWith('/ppt/search')) {
+      return this.answerTheSearch(path, 'ppt')
+    }
+
+    if (method === 'GET' && path.startsWith('/meeting/search')) {
+      return this.answerTheSearch(path, 'meeting')
+    }
+
+    if (method === 'GET' && path.startsWith('/guidance/usable')) {
+      return this.answerTheUsableRules(path)
+    }
+
     if (method === 'GET' && path.startsWith('/trajectory/issue-keys')) {
       return this.answerTheIssueKeys(path)
     }
@@ -1205,6 +1423,59 @@ export class FakeApi {
       rule.resolution_reason = body.reason ?? null
     }
     return jsonResponse(200, rule)
+  }
+
+  /**
+   * One search source's answer, at the question the panel asked.
+   *
+   * **The question is checked, not assumed.** The route requires at least
+   * one character, so an empty term is refused in the service's own
+   * vocabulary — the panel should never send one, and a test that wants to
+   * know whether it did can look at `searchesRun`. A source's refusal is
+   * that source's: the flags are per source, and the other two keep
+   * answering.
+   */
+  private answerTheSearch(path: string, source: 'trajectory' | 'ppt' | 'meeting'): Response {
+    this.searchesRun.push(path)
+    const query = queryOf(path)
+    const term = query.get('q') ?? ''
+    if (term.trim() === '') {
+      return jsonResponse(422, {
+        detail: [{ loc: ['query', 'q'], msg: 'String should have at least 1 character' }],
+      })
+    }
+    if (this.refuseSearch[source]) {
+      return jsonResponse(503, {
+        reason: 'search_unavailable',
+        message: `the ${source} index could not be reached for this query.`,
+      })
+    }
+    const hits =
+      source === 'trajectory'
+        ? this.state.trajectoryHits
+        : source === 'ppt'
+          ? this.state.pptHits
+          : this.state.meetingHits
+    return jsonResponse(200, hits)
+  }
+
+  /**
+   * The rules the retrieval answers with.
+   *
+   * **The scope is the route's own filter, and the fake applies it.** A
+   * caller that names a scope is answered with the rules that carry it —
+   * the service's rule — so a panel that asked for the wrong scope sees the
+   * emptiness that wrong scope deserves, not a list meant for another
+   * question.
+   */
+  private answerTheUsableRules(path: string): Response {
+    const query = queryOf(path)
+    const scope = query.get('scope')
+    const rules =
+      scope === null || scope === ''
+        ? this.state.guidanceUsable
+        : this.state.guidanceUsable.filter((rule) => rule.scope === scope)
+    return jsonResponse(200, rules)
   }
 
   /**
