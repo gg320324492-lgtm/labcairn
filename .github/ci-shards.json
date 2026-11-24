@@ -140,7 +140,8 @@
         "tests/test_issues.py",
         "tests/test_rule_sharing.py",
         "tests/test_service_model_wiring.py",
-        "tests/test_pilot_runbook.py"
+        "tests/test_pilot_runbook.py",
+        "tests/test_pilot_decisions.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -343,7 +344,8 @@
         "tests/test_meeting_text.py",
         "tests/test_issues.py",
         "tests/test_service_model_wiring.py",
-        "tests/test_pilot_runbook.py"
+        "tests/test_pilot_runbook.py",
+        "tests/test_pilot_decisions.py"
       ],
       [
         "tests/test_analysis_service.py",
@@ -661,6 +663,7 @@
       "test_rule_sharing.py": 0.0,
       "test_service_model_wiring.py": 0.0,
       "test_pilot_runbook.py": 0.0,
+      "test_pilot_decisions.py": 0.0,
       "test_recovery_quality_api.py": 0.0
     },
     "windows-latest": {
@@ -873,6 +876,7 @@
       "test_rule_sharing.py": 0.0,
       "test_service_model_wiring.py": 0.0,
       "test_pilot_runbook.py": 0.0,
+      "test_pilot_decisions.py": 0.0,
       "test_recovery_quality_api.py": 0.0
     }
   }

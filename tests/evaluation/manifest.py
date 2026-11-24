@@ -618,6 +618,14 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_scaffolding.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_status_consistency.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_pilot_runbook.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §12). The owner-decisions form and the three
+    # preparation drafts' confirmation sections: the pilot's prerequisite
+    # papers carry the How-to-confirm sections, the three plan-§12
+    # decisions are still explicitly TBD, the runbook's preparation entry
+    # points exist, and none of the documents carries a name,
+    # affiliation or project number. Its clause is the repository gates,
+    # because it watches the repository's own documents.
+    "test_pilot_decisions.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------
