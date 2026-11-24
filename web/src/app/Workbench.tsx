@@ -64,6 +64,7 @@ import { SourcesView } from '../views/SourcesView'
 import { StepsView } from '../views/StepsView'
 import { TrajectoryView } from '../views/TrajectoryView'
 import { VersionSelect } from '../views/VersionSelect'
+import { MotionPreference } from './MotionPreference'
 import { useWorkbench } from './useWorkbench'
 
 /** What the last request did, and whether one is in flight. */
@@ -165,6 +166,7 @@ export function Workbench(): JSX.Element {
             The service refused that: {action.refusal}
           </p>
         ) : null}
+        <MotionPreference />
       </header>
 
       <StageFeedbackBar plan={reads.plan.data} state={reads.state.data} />

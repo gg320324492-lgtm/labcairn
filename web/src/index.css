@@ -78,6 +78,39 @@ body {
   color: var(--labcairn-warn);
 }
 
+/* The motion preference, in the workbench's header: the control that reduces
+ * the page's motion, the sentence that says what the page is doing, and the
+ * note a browser that refuses to remember the choice earns. */
+.motion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.6rem;
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+}
+
+.motion__label {
+  font-weight: 600;
+  color: var(--labcairn-fg);
+}
+
+.motion__choice {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+}
+
+.motion__note {
+  flex-basis: 100%;
+  color: var(--labcairn-warn);
+}
+
 .workbench__footer {
   margin-top: 2.5rem;
   padding-top: 1rem;
@@ -687,6 +720,29 @@ body {
     transition: none;
     animation: none;
   }
+}
+
+/* The same rule, from the application side.
+ *
+ * The media query above is how the system asks for less motion. This is how
+ * the workbench asks for it: a reader whose system does not ask can still
+ * ask from inside the product, and the plan's §6.3 requires that there be
+ * such an entry point.
+ *
+ * **The two paths stand down the same motion.** A selector the media query
+ * covers and this rule does not would be motion that one path could not
+ * turn off, and the two would disagree about what "reduced" means — so the
+ * selector lists are the same, and `app/motionStyles.test.ts` watches that
+ * they stay the same.
+ *
+ * The attribute is on the document root, so the rule covers the whole page
+ * and not only the part of it that is under the workbench's header. */
+[data-motion='reduced'] .stage-bar__phase,
+[data-motion='reduced'] .delivery__deliverable,
+[data-motion='reduced'] .delivery__apply,
+[data-motion='reduced'] .delivery__download {
+  transition: none;
+  animation: none;
 }
 
 /* --- Delivery centre ----------------------------------------------------- */
