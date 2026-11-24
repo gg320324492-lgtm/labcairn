@@ -72,6 +72,7 @@ from labcairn.application.context import ApplicationContext
 from labcairn.application.guidance import read_guidance_rule
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.db.models import PaperProjectRow
+from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.retrieval import search_rules
 from labcairn.guidance.rules import (
     confirm_rule,
@@ -189,7 +190,7 @@ def _second_project(context: ApplicationContext, project_id: str) -> None:
     session.commit()
 
 
-def _propose(context: ApplicationContext, *, proposed_by: str = PROPOSER):
+def _propose(context: ApplicationContext, *, proposed_by: str = PROPOSER) -> GuidanceRule:
     """A candidate over the first project's first source.
 
     **The write is flushed and committed by the caller that needs the row
@@ -210,7 +211,7 @@ def _propose(context: ApplicationContext, *, proposed_by: str = PROPOSER):
     )
 
 
-def _confirmed(context: ApplicationContext, *, proposed_by: str = PROPOSER):
+def _confirmed(context: ApplicationContext, *, proposed_by: str = PROPOSER) -> GuidanceRule:
     """A confirmed rule: proposed by one person, confirmed by a second."""
     rule = _propose(context, proposed_by=proposed_by)
     return confirm_rule(context, rule_id=rule.rule_id, confirmed_by=MENTOR, now=LATER)
@@ -708,7 +709,7 @@ def _propose_over_api(context: ApplicationContext, *, proposed_by: str = PROPOSE
     rule = _propose(context, proposed_by=proposed_by)
     confirm_rule(context, rule_id=rule.rule_id, confirmed_by=MENTOR, now=LATER)
     context.store.session.commit()
-    return rule.rule_id
+    return str(rule.rule_id)
 
 
 def test_the_api_publishes_and_retracts_a_rule(
