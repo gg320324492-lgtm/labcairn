@@ -1364,12 +1364,14 @@ def post_review_preview(
     """Measure what the apply round would do, before anything is written.
 
     **The preview is the dry run the workbench shows before the operator
-    commits** (execution plan §3.2: *应用修改前必须预览修改数量、影响段落和
-    输出变化摘要*). It takes the same body the apply route takes, because
-    it answers the apply's question about the same round; it writes
-    nothing — no file, no store row — and the digests it returns are the
-    sha256 of the drafts the apply would publish. A caller applies the
-    round and compares; the equality is the preview's own witness.
+    commits** (execution plan §3.2, read 2026-11-25: *before changes are
+    applied, the number of changes, the affected paragraphs and a summary
+    of the output changes must be previewed*). It takes the same body the
+    apply route takes, because it answers the apply's question about the
+    same round; it writes nothing — no file, no store row — and the
+    digests it returns are the sha256 of the drafts the apply would
+    publish. A caller applies the round and compares; the equality is the
+    preview's own witness.
     """
     return preview_review_apply(
         context,

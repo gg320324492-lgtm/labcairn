@@ -676,8 +676,10 @@ def test_the_preview_matches_the_apply_byte_for_byte(
     could act on: the applied count, the affected paragraphs, and above all
     the sha256 of the marked and the clean draft. A preview whose digests
     differed from the apply's would be a forecast the operator cannot
-    trust, which is the one outcome execution plan §3.2's *预览修改数量、
-    影响段落和输出变化摘要* exists to prevent.
+    trust, which is the one outcome execution plan §3.2's requirement
+    (read 2026-11-25: *before changes are applied, the number of changes,
+    the affected paragraphs and a summary of the output changes must be
+    previewed*) exists to prevent.
 
     **And the preview writes nothing.** The artefact count is read before
     and after the preview call: a dry run that published a draft, wrote a
