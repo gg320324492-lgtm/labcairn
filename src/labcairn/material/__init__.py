@@ -23,8 +23,10 @@ rather than a registry somebody has to remember to populate.
 """
 
 from labcairn.material import delimited as _delimited  # noqa: F401 - registration
+from labcairn.material import meetingtext as _meetingtext  # noqa: F401 - registration
 from labcairn.material import ooxml as _ooxml  # noqa: F401 - registration
 from labcairn.material import pdf as _pdf  # noqa: F401 - registration
+from labcairn.material import pptx as _pptx  # noqa: F401 - registration
 from labcairn.material import spreadsheet as _spreadsheet  # noqa: F401 - registration
 from labcairn.material import text as _text  # noqa: F401 - registration
 from labcairn.material.addressing import (
@@ -42,6 +44,12 @@ from labcairn.material.ingest import (
     kind_for_path,
     to_text_row,
 )
+from labcairn.material.meetingtext import (
+    MeetingRecord,
+    MeetingText,
+    MeetingTextAdapter,
+    read_meeting_text,
+)
 from labcairn.material.ooxml import (
     CommentAnchor,
     CommentEvent,
@@ -51,6 +59,7 @@ from labcairn.material.ooxml import (
     read_document,
 )
 from labcairn.material.pdf import PdfAdapter
+from labcairn.material.pptx import PptxAdapter, read_deck
 from labcairn.material.spreadsheet import SpreadsheetAdapter, render_cell
 from labcairn.material.text import MarkdownAdapter, PlainTextAdapter, decode_text
 from labcairn.material.units import (
@@ -86,8 +95,12 @@ __all__ = [
     "IngestedText",
     "LocatorKeyError",
     "MarkdownAdapter",
+    "MeetingRecord",
+    "MeetingText",
+    "MeetingTextAdapter",
     "PdfAdapter",
     "PlainTextAdapter",
+    "PptxAdapter",
     "RevisionDocument",
     "RevisionEvent",
     "SpreadsheetAdapter",
@@ -102,7 +115,9 @@ __all__ = [
     "ingest_workspace",
     "kind_for_path",
     "library_versions",
+    "read_deck",
     "read_document",
+    "read_meeting_text",
     "register",
     "registered_kinds",
     "render_cell",

@@ -43,3 +43,9 @@ class ModelRefusal(StrEnum):
     #: never silently turned into evidence** — ADR-0016 keeps a model's
     #: say-so out of the record until it is verifiable.
     ANSWER_UNDECODABLE = "answer_undecodable"
+    #: A real-model run was asked of a service with no real-model transport
+    #: wired. **Refused, never simulated** — the suggestion loop's rule,
+    #: the same one claim extraction holds: an invented suggestion would
+    #: put words in a model's mouth that no model said. The substitute
+    #: path is a mode of its own, labelled as such, not a silent stand-in.
+    SUGGESTION_NO_PROVIDER = "suggestion_no_provider"

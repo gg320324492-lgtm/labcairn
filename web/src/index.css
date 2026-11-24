@@ -292,3 +292,564 @@ body {
   border-top: none;
   padding-top: 0;
 }
+
+/* The review desk: the three-column surface where opinions, manuscript and
+ * verdicts sit side by side. The columns collapse on a narrow pane in the
+ * order a person reads them: the manuscript, the opinions, then the verdict. */
+.review-desk__fixture-note {
+  border: 1px dashed var(--labcairn-rule);
+  border-radius: 0.35rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.review-desk__fixture-note code {
+  font-size: 0.85em;
+}
+
+.review-desk__columns {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(18rem, 1.4fr) minmax(16rem, 1.2fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+@media (max-width: 60rem) {
+  .review-desk__columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-desk__column {
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  min-width: 0;
+}
+
+.review-desk__column-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--labcairn-muted);
+}
+
+/* The opinions' list: a navigation, so the rows are buttons and the one on
+ * the desk is marked. */
+.review-desk__opinion-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.review-desk__opinion-button {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+}
+
+.review-desk__opinion-button--active {
+  border-color: var(--labcairn-fg);
+  background: color-mix(in srgb, var(--labcairn-fg) 6%, transparent);
+}
+
+.review-desk__opinion-number {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__opinion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.review-desk__opinion-summary {
+  overflow-wrap: anywhere;
+}
+
+.review-desk__opinion-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: baseline;
+}
+
+.review-desk__opinion-place {
+  font-size: 0.8rem;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__flag {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__flag--accepted {
+  color: var(--labcairn-fg);
+  border-color: var(--labcairn-fg);
+}
+
+.review-desk__flag--partly_accepted,
+.review-desk__flag--pending {
+  color: var(--labcairn-warn);
+  border-color: var(--labcairn-warn);
+}
+
+.review-desk__flag--rejected,
+.review-desk__flag--needs_evidence {
+  color: var(--labcairn-warn);
+  border-color: var(--labcairn-warn);
+}
+
+.review-desk__flag--unreviewed,
+.review-desk__flag--state {
+  font-style: italic;
+}
+
+/* The manuscript pane: the paragraphs, in document order, with the one
+ * under the eye marked. The pane scrolls so the desk can put a paragraph at
+ * its top. */
+.review-desk__column--manuscript {
+  max-height: 34rem;
+  overflow-y: auto;
+}
+
+.review-desk__paragraphs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.review-desk__paragraph {
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+}
+
+.review-desk__paragraph--active {
+  border-color: var(--labcairn-fg);
+  background: color-mix(in srgb, var(--labcairn-fg) 6%, transparent);
+}
+
+.review-desk__paragraph-number {
+  display: inline-block;
+  margin-right: 0.45rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--labcairn-muted);
+}
+
+/* The verdict column: the comment, the paired texts, the ground, and the
+ * four verdicts. */
+.review-desk__comment {
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border-left: 3px solid var(--labcairn-rule);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.review-desk__comment-author {
+  display: block;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+  margin-bottom: 0.15rem;
+}
+
+.review-desk__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
+}
+
+.review-desk__pair-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__text {
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.review-desk__text--old {
+  color: var(--labcairn-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.review-desk__text--new {
+  border-style: solid;
+  border-color: var(--labcairn-fg);
+}
+
+.review-desk__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+
+.review-desk__button--chosen {
+  border-color: var(--labcairn-fg);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--labcairn-fg) 10%, transparent);
+}
+
+.review-desk__evidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__unsynced {
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+  color: var(--labcairn-warn);
+}
+
+/* The suggestion loop: the desk's door to the model, its mode choice, the
+ * run's own account, and the way out of a refusal. The failure is carried
+ * in text — never in colour alone. */
+.review-desk__refusal {
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+  color: var(--labcairn-warn);
+  overflow-wrap: anywhere;
+}
+
+.review-desk__suggest {
+  margin-top: 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--labcairn-rule);
+}
+
+.review-desk__suggest-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-start;
+  margin-top: 0.5rem;
+}
+
+.review-desk__suggest-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.review-desk__suggest-failure {
+  margin-top: 0.4rem;
+}
+
+.review-desk__run {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0.7rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+}
+
+.review-desk__run-item dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--labcairn-muted);
+}
+
+.review-desk__run-item dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+/* --- Stage feedback bar ------------------------------------------------- */
+
+.stage-bar {
+  margin-bottom: 1.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+}
+
+.stage-bar__status {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.stage-bar__phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-bar__phase {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.3rem;
+  font-size: 0.8rem;
+  opacity: 0.65;
+  transition:
+    opacity 240ms ease,
+    border-color 240ms ease,
+    background-color 240ms ease;
+}
+
+.stage-bar__phase--active {
+  opacity: 1;
+  border-color: var(--labcairn-fg);
+  background: color-mix(in srgb, var(--labcairn-fg) 8%, transparent);
+  font-weight: 600;
+}
+
+.stage-bar__phase--completed {
+  opacity: 0.9;
+  border-style: solid;
+}
+
+.stage-bar__phase-label {
+  font-weight: 600;
+}
+
+.stage-bar__phase-status {
+  color: var(--labcairn-muted);
+}
+
+.stage-bar__phase-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.stage-bar__phase-stages code {
+  font-size: 0.72rem;
+  color: var(--labcairn-muted);
+}
+
+.stage-bar__phase-stages--absent {
+  font-style: italic;
+}
+
+.stage-bar--empty {
+  color: var(--labcairn-muted);
+}
+
+/* The transition is the decoration; the text and attributes are the
+ * information. A reader who has asked for reduced motion still gets the
+ * state change — the text flips in the live region and the attributes move —
+ * and only the animated settling is given up. */
+@media (prefers-reduced-motion: reduce) {
+  .stage-bar__phase,
+  .delivery__deliverable,
+  .delivery__apply,
+  .delivery__download {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* --- Delivery centre ----------------------------------------------------- */
+
+.delivery__section-title {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.delivery__commit {
+  margin-bottom: 1.25rem;
+}
+
+.delivery__preview {
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.delivery__preview-counts {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+}
+
+.delivery__preview-paragraphs {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--labcairn-muted);
+}
+
+.delivery__edits {
+  margin: 0 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.delivery__edit {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) 1fr;
+  gap: 0.15rem 0.75rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--labcairn-rule);
+  font-size: 0.88rem;
+}
+
+.delivery__edit-place {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  color: var(--labcairn-muted);
+}
+
+.delivery__edit-old {
+  color: var(--labcairn-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.delivery__edit-new {
+  font-weight: 500;
+}
+
+.delivery__digests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.delivery__digests dt {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--labcairn-muted);
+}
+
+.delivery__digests dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.delivery__apply {
+  font-weight: 600;
+}
+
+.delivery__apply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.delivery__outcome {
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+}
+
+.delivery__export {
+  border-top: 1px solid var(--labcairn-rule);
+  padding-top: 0.9rem;
+}
+
+.delivery__binding {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+  overflow-wrap: anywhere;
+}
+
+.delivery__deliverables {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.delivery__deliverable {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--labcairn-rule);
+  transition: background-color 240ms ease;
+}
+
+.delivery__deliverable:first-child {
+  border-top: none;
+}
+
+.delivery__deliverable--missing {
+  color: var(--labcairn-muted);
+}
+
+.delivery__deliverable-kind {
+  font-weight: 600;
+  min-width: 8.5rem;
+}
+
+.delivery__deliverable-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.delivery__deliverable-meta {
+  font-size: 0.8rem;
+  color: var(--labcairn-muted);
+  overflow-wrap: anywhere;
+}
+
+.delivery__download {
+  margin-left: auto;
+}
+
+.delivery__refusal {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--labcairn-warn);
+  border-radius: 0.35rem;
+  color: var(--labcairn-warn);
+  font-size: 0.9rem;
+}
+
+.delivery__fixture-note {
+  margin-bottom: 0.75rem;
+}

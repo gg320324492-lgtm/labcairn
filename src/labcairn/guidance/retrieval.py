@@ -270,12 +270,49 @@ def _resolvable_rules(
         yield rule
 
 
+def _rules_in_scope(
+    context: ApplicationContext, *, project_id: str | None
+) -> tuple[GuidanceRule, ...]:
+    """The rules a caller with *project_id* may be served, at their newest.
+
+    **Without a project, every rule — the workbench's own view.** The
+    mentor reads and settles the whole memory, whatever project each rule
+    was learned in.
+
+    **With a project, the project's rules and the group's.** A rule is in
+    scope when it was learned from that project's chain material, **or**
+    when a mentor has published it to the group (``shared_scope =
+    "group"``, Phase 4 §8.5 / P4-G3). A private rule learned in another
+    project is not here — a rule is private to the project it was
+    learned in until a second reader publishes it — and a candidate is
+    never shared: a publication moves only a rule that stands.
+
+    **The sources' permission is still asked at serve time.** Scope
+    decides *which rules are asked about*; it never decides *what a
+    reader may be shown*. Each served rule's sources go through the
+    permission layer below, so a shared rule whose source this reader
+    cannot reach is not served to them (ADR-0003 C5, unchanged).
+    """
+    rules = guidance_layer.read_guidance_rules(context)
+    if project_id is None:
+        return rules
+    scoped: list[GuidanceRule] = []
+    for rule in rules:
+        if rule.shared_scope == "group":
+            scoped.append(rule)
+            continue
+        if project_id in guidance_layer.read_guidance_rule_project_ids(context, rule=rule):
+            scoped.append(rule)
+    return tuple(scoped)
+
+
 def search_rules(
     context: ApplicationContext,
     *,
     issue_type: str | None = None,
     query: str | None = None,
     include_candidates: bool = False,
+    project_id: str | None = None,
     limit: int = DEFAULT_LIMIT,
 ) -> tuple[RuleHit, ...]:
     """The confirmed rules that match, with their sources and their cases.
@@ -307,6 +344,14 @@ def search_rules(
     ordering, so the hits cut are the ones the order ranked last and not
     whichever came off the table first.
 
+    :param project_id: narrow the answer to the rules this project may be
+        served — the ones learned from its chain material, plus the ones
+        a mentor has published to the group (Phase 4 §8.5 / P4-G3).
+        ``None`` serves every rule, which is the workbench's own view.
+        A shared rule's sources are still resolved through the
+        permission layer, so a source this reader may not reach is
+        dropped, never widened.
+
     :raises ApplicationRefusedError: an issue type outside the closed
         vocabulary was asked for.
     """
@@ -325,7 +370,7 @@ def search_rules(
     )
     needle = query.strip() if query else ""
     hits: list[RuleHit] = []
-    rules = guidance_layer.read_guidance_rules(context)
+    rules = _rules_in_scope(context, project_id=project_id)
     for rule in _resolvable_rules(rules, issue_type=issue_type, needle=needle, states=states):
         sources = _living_sources(context, rule.sources)
         standing = tuple(
@@ -345,6 +390,7 @@ def invalidated_rules(
     *,
     issue_type: str | None = None,
     query: str | None = None,
+    project_id: str | None = None,
     limit: int = DEFAULT_LIMIT,
 ) -> tuple[InvalidatedRule, ...]:
     """The rules the memory has stopped serving, and the reasons it stopped.
@@ -358,6 +404,9 @@ def invalidated_rules(
     The same filters apply as to :func:`search_rules`, minus the
     candidates — a candidate was never served, so it cannot be
     invalidated; it is simply awaiting its second reader.
+    :param project_id: narrow the report to the rules this project may be
+        served — its own, plus the ones published to the group. ``None``
+        reports over every rule.
     """
     if issue_type is not None and issue_type not in ISSUE_LABELS:
         raise guidance_refused(
@@ -366,7 +415,7 @@ def invalidated_rules(
         )
     needle = query.strip() if query else ""
     invalidations: list[InvalidatedRule] = []
-    rules = guidance_layer.read_guidance_rules(context)
+    rules = _rules_in_scope(context, project_id=project_id)
     for rule in _resolvable_rules(
         rules,
         issue_type=issue_type,

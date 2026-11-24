@@ -267,6 +267,19 @@ class GuidanceRuleVerdictBody(Result):
     reason: str = ""
 
 
+class GuidanceRulePublishBody(Result):
+    """A mentor's publication of a rule to the group, as the API accepts it.
+
+    **Only a confirmed rule may be published, and only by a second
+    reader.** The body names the mentor whose word the publication is —
+    the proposer cannot be that person, which the application layer
+    refuses by the same second-reader rule the confirmation carries
+    (Phase 4 §8.5 / P4-G3).
+    """
+
+    user_id: str = Field(min_length=1)
+
+
 class SessionInfo(Result):
     """The session the caller is in, and the token that proves it.
 
@@ -356,18 +369,543 @@ class IssueKeys(Result):
     issue_keys: tuple[str, ...]
 
 
+class ReviewOpinionsQuery(Result):
+    """Which review round to read, as the API accepts it.
+
+    **A project and a version, and nothing else.** The opinions, their
+    suggestions and their decisions are the round's own; the response is the
+    application layer's :class:`~labcairn.application.review.ReviewOpinions`.
+    """
+
+    project_id: str = Field(min_length=1)
+    version_id: str = Field(min_length=1)
+
+
+class TrajectorySearchQuery(Result):
+    """Which trajectory to search, as the API accepts it.
+
+    **A query, and optionally a project.** Without the project the search
+    answers over every indexed trajectory; with it, the hits narrow to the
+    one project's history. The response is the application layer's
+    :class:`~labcairn.application.trajectory.TrajectoryHit` records.
+    """
+
+    q: str = Field(min_length=1)
+    project_id: str | None = None
+    limit: int = Field(default=20, ge=1, le=200)
+
+
+class PptIngestBody(Result):
+    """Which deck to index, as the API accepts it.
+
+    **The body names where to read; it does not carry the deck.** The
+    project the deck belongs to, the root the file sits in, and the key it
+    has in that root -- the same spelling every other request body that
+    names a resource uses. The bytes come from the workspace, through the
+    ``source.read`` gate, never from the request.
+    """
+
+    project_id: str = Field(min_length=1)
+    root_id: str = Field(min_length=1)
+    resource_key: str = Field(min_length=1)
+
+
+class MeetingIngestBody(Result):
+    """Which meeting-text file to index, as the API accepts it.
+
+    **The body names where to read; it does not carry the text.** The
+    project the file belongs to, the root the file sits in, and the key it
+    has in that root -- the same spelling every other request body that
+    names a resource uses. The bytes come from the workspace, through the
+    ``source.read`` gate, never from the request.
+    """
+
+    project_id: str = Field(min_length=1)
+    root_id: str = Field(min_length=1)
+    resource_key: str = Field(min_length=1)
+
+
+class TrajectoryIngestBody(Result):
+    """Which paper project's revision trajectory to index, as the API accepts it.
+
+    **The body names the project and nothing else.** A trajectory is a
+    project's revision history, and the chain's own rows are where it is
+    read from -- the request carries no material and no version list. The
+    optional ``ingested_at`` stamps the entries; the ingest supplies the
+    current moment when it is absent, the way every other ingest does.
+    """
+
+    project_id: str = Field(min_length=1)
+    ingested_at: datetime | None = None
+
+
+class UsableGuidanceQuery(Result):
+    """Which rules a card may cite, as the API accepts it.
+
+    **A scope, and a project, optionally.** Without the scope the listing
+    serves every standing confirmed rule; with it, the rules whose scope
+    mentions the text. Without the project the listing serves every rule;
+    with it, the rules the project may be served — its own, plus the ones
+    a mentor has published to the group (Phase 4 §8.5 / P4-G3). The
+    response is the application layer's
+    :class:`~labcairn.application.trajectory.UsableRule` records — and a
+    candidate is never among them (§8.5).
+    """
+
+    scope: str | None = None
+    project_id: str | None = None
+    limit: int = Field(default=20, ge=1, le=200)
+
+
+class ReviewManuscriptQuery(Result):
+    """Which manuscript to read, as the API accepts it."""
+
+    project_id: str = Field(min_length=1)
+    version_id: str = Field(min_length=1)
+
+
+class ReviewSuggestionBody(Result):
+    """One suggestion the model proposed, as the API accepts it.
+
+    **A proposal is a record, not a decision.** The body carries the seam's
+    own units — one whole plain run of one paragraph — and nothing that
+    looks like a verdict: writing a suggestion grants nothing and applies
+    nothing. The verdict is :class:`ReviewDecisionBody`'s to take.
+    """
+
+    project_id: str = Field(min_length=1)
+    version_id: str = Field(min_length=1)
+    feedback_id: str = Field(min_length=1)
+    part: str = Field(min_length=1)
+    paragraph: int = Field(ge=1)
+    old_text: str
+    new_text: str
+    author: str = Field(min_length=1)
+
+
+class ReviewDecisionBody(Result):
+    """The reviewer's verdict, as the API accepts it.
+
+    **The vocabulary is in the type rather than in the handler**, the way
+    :class:`GuidanceRuleVerdictBody` puts it: the four words are execution
+    plan §4's own statuses, and the application layer refuses a fifth. The
+    body carries no ``decided_by`` — every decision this route takes is a
+    person's, and the chain's word for that is ``user`` — and the
+    reviewer's own handle travels in ``operator``.
+    """
+
+    project_id: str = Field(min_length=1)
+    feedback_id: str = Field(min_length=1)
+    verdict: Literal["accepted", "partly_accepted", "rejected", "pending"]
+    operator: str = Field(min_length=1)
+    needs_evidence: bool = False
+
+
+class IssueRecordBody(Result):
+    """One problem the trial met, as the API accepts it (P4-PILOT §9.4).
+
+    **The record is about something.** The project is required; the task,
+    the version and the opinion are named when the trial can name them.
+    The two vocabularies -- severity and type -- are closed here, in the
+    type rather than in the handler, the way
+    :class:`GuidanceRuleVerdictBody` puts it: a workbench that drew a tag
+    the service does not accept would be offering a door that is not
+    there, and a tag outside the closed list is refused at the wire with
+    the same 422 every other closed vocabulary answers with.
+
+    **The status is not in the body.** A recorded issue is ``open``; the
+    states after that are ``PATCH /issues/{issue_id}/status``'s to move
+    along, and a body that set ``fixed`` outright would be recording a
+    confirmation nobody made.
+    """
+
+    issue_id: str = Field(min_length=1)
+    project_id: str = Field(min_length=1)
+    task_id: str | None = None
+    version_id: str | None = None
+    feedback_id: str | None = None
+    step: str = Field(min_length=1)
+    error_text: str = Field(min_length=1)
+    duration_seconds: float | None = None
+    retry_count: int | None = Field(default=None, ge=0)
+    severity: Literal["blocker", "serious", "minor", "suggestion"]
+    category: Literal["function", "interface", "performance", "model", "documentation"]
+    reported_by: str = Field(min_length=1)
+
+
+class IssueListQuery(Result):
+    """Which issues to list, as the API accepts it.
+
+    **A filter narrows; it does not refuse.** Both filters are optional,
+    and an empty answer is a fact about the trial, not an error. A filter
+    that names a word outside the closed vocabulary is refused at the wire
+    -- the same 422 the record path answers with -- because it is a
+    question the record cannot understand, not an answer of "none".
+    """
+
+    project_id: str = Field(min_length=1)
+    status: Literal["open", "confirmed", "fixed", "wontfix"] | None = None
+    severity: Literal["blocker", "serious", "minor", "suggestion"] | None = None
+
+
+class IssueStatusBody(Result):
+    """The next state of one issue, as the API accepts it.
+
+    **The states are walked, not set**, and the walk lives in the
+    application layer; this body names the target. A ``fixed`` move names
+    the version that fixed it -- the field is required by the layer for
+    that one move, and a caller that marked a problem fixed without
+    naming the fix would be making a claim the next regression cannot
+    check. The ``regression_note`` travels with the fix: what to watch,
+    in the words the team agreed on.
+    """
+
+    project_id: str = Field(min_length=1)
+    status: Literal["confirmed", "fixed", "wontfix"]
+    fix_version: str | None = None
+    regression_note: str | None = None
+
+
+class ReviewSuggestBody(Result):
+    """One suggestion-loop run, as the API asks for it.
+
+    **The mode is the whole difference between the two runs.** ``real``
+    asks the authorised model and spends one approval per opinion;
+    ``substitute`` asks the local stand-in and spends nothing, because
+    nothing leaves the machine. The approvals are named per opinion —
+    ``approval_ids`` maps the chain's ``feedback_id`` to the approval the
+    caller holds for it — because ADR-0006's consent is per request, and a
+    batch of opinions is a batch of requests, not one.
+
+    The budget fields are the authorisation record's own numbers (G0 §5).
+    An absent field is unbounded for a substitute run and the caller's
+    responsibility for a real one; the loop records what it spent either
+    way.
+    """
+
+    project_id: str = Field(min_length=1)
+    version_id: str = Field(min_length=1)
+    mode: Literal["real", "substitute"] = "substitute"
+    #: Per-opinion approvals: the chain's ``feedback_id`` to the approval id
+    #: that covers that opinion's request. A real run spends one per
+    #: opinion; a substitute run needs none.
+    approval_ids: dict[str, str] = Field(default_factory=dict)
+    max_requests: int | None = Field(default=None, ge=1)
+    max_tokens: int | None = Field(default=None, ge=1)
+    max_consecutive_failures: int = Field(default=3, ge=1, le=100)
+    retry_attempts: int = Field(default=2, ge=0, le=10)
+
+
+class ReviewSuggestRun(Result):
+    """One suggestion-loop run's account, as the API returns it.
+
+    The application layer's own
+    :class:`~labcairn.application.model_suggestions.ModelSuggestionRunData`
+    is the model; this is the same fields, validated the same way. The run
+    row it mirrors is the budget's account — a reader answers "what did
+    this run cost, what did it produce, and why did it stop" from this one
+    object, without reading the suggestion rows.
+    """
+
+    run_id: str
+    project_id: str
+    version_id: str
+    mode: str
+    model_id: str
+    requests_made: int
+    tokens_estimated: int
+    stopped_reason: str | None
+    suggestions_recorded: int
+    opinions_skipped: int
+    started_at: str
+    finished_at: str
+
+
+class ApplyReviewBody(Result):
+    """What the apply step needs, as the API accepts it.
+
+    The application layer's own :class:`~labcairn.application.review.ApplyReviewRequest`
+    is the model; this body exists because the request body is the API's
+    own — and it is the same fields, validated the same way, so the two
+    do not drift. The preview route takes the same body, because the
+    preview answers the same question about the same round — what this
+    request's addresses name — and it needs nothing the apply does not.
+    """
+
+    project_id: str = Field(min_length=1)
+    input_version_id: str = Field(min_length=1)
+    source_root_id: str = Field(min_length=1)
+    source_key: str = Field(min_length=1)
+    output_label: str = Field(min_length=1)
+    window_end: str = Field(min_length=1)
+
+
+class ReviewApplyCancelBody(Result):
+    """What a cancellation request names, as the API accepts it.
+
+    The round is addressed by the project it belongs to, the same name the
+    apply body carries. **A cancellation is asked for, not asserted**: the
+    body carries the project and the reason the operator gave, and the
+    service sets an in-process flag that the running apply round reads at
+    its next :class:`~labcairn.papers.binding.CancelCheck` point.
+
+    **The flag is in-process and deliberate.** A flag that crossed a process
+    or a restart would be a flag nobody set: the apply runs in this service,
+    and the cancellation is answered by this service, before the next
+    publication. When no apply round is running for the project, the cancel
+    route refuses with ``apply_cancelled``'s sibling -- there is nothing to
+    cancel -- rather than planting a flag for a round that will never start.
+    """
+
+    project_id: str = Field(min_length=1)
+    #: The operator's own words, carried verbatim into the round's refusal --
+    #: the record says where the round stopped and why the operator stopped it.
+    reason: str = Field(min_length=1)
+
+
+class ReviewApplyCancelled(Result):
+    """What a cancellation request did, as the API answers it.
+
+    The answer is the flag's own account: the project whose apply was asked
+    to stop, and the reason the operator gave. **It does not say the round
+    has stopped** -- the round stops at its next publication checkpoint,
+    which may be a moment away -- and the message says so, so a reader of
+    the answer is not told a round is over before the binding has said so.
+    """
+
+    project_id: str
+    reason: str
+    #: Whether a round was running and read the flag. ``False`` means the
+    #: service had no apply round in flight for this project, and the route
+    #: refused rather than planting a flag for a round that will never ask.
+    accepted: bool
+
+
+class InterruptedResolveBody(Result):
+    """The prediction a probe resolves an interrupted publication against.
+
+    **The hash is stated, not looked up.** The store keeps only the digest of
+    the operation's arguments, so the bytes' hash is not recoverable from the
+    record — the caller states it from the round's own record, and a wrong
+    statement is a ``conflict`` verdict rather than a silent overwrite.
+    """
+
+    expected_sha256: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
+
+
+class InterruptedReplayBody(Result):
+    """What replaying an interrupted publication needs, as the API accepts it.
+
+    **The bytes travel base64-encoded**, the way every other byte-carrying
+    body here travels: a draft is a zip and a zip is not text. The approval
+    is named in the body rather than inferred, because a replay is a fresh
+    attempt — the interrupted one's consent was bound to its own operation's
+    digest, and one consent, one effect stands.
+    """
+
+    edited_base64: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+
+
+class InterruptedResolutionWire(Result):
+    """What a probe answered about one interrupted publication, on the wire.
+
+    The layer's :class:`~labcairn.recovery.contracts.ReconciliationOutcome`
+    is a frozen dataclass, not a pydantic model, so it has no JSON-schema
+    spelling of its own; this is the same fields, validated, and nothing
+    more — re-spelling a field here would be a second place for the probe's
+    answer to drift.
+    """
+
+    operation_id: str
+    resolution: str
+    resulting_state: str
+    replay_permitted: bool
+    expected_sha256: str
+    observed_sha256: str | None
+    resource_key: str
+    detail: str
+
+
+class DeliverableFileWire(Result):
+    """One deliverable on the wire: its bytes, base64-encoded.
+
+    The layer's :class:`~labcairn.application.review.DeliverableFile`
+    carries raw bytes, because a caller that saves a deliverable writes
+    bytes to disk. A JSON body cannot carry raw bytes — a DOCX is a zip,
+    and a zip is not text — so the API's encoding of one is the bytes'
+    base64. A client decodes it and hashes the decoded bytes; the sha256
+    field is over the decoded bytes, the same digest the receipt and the
+    manifest bind.
+    """
+
+    kind: str
+    relative_path: str
+    content_base64: str
+    sha256: str
+    size_bytes: int
+
+
+class DeliverablesExportWire(Result):
+    """The four deliverables of one closed binding, as the wire carries them.
+
+    The ids are the layer's own, unchanged — the export's whole claim is
+    that these four files bind to one round, and the wire shape exists only
+    to carry their bytes; re-spelling an id here would be a second place
+    for the binding to drift.
+    """
+
+    project_id: str
+    dossier_artifact_id: str
+    task_id: str
+    input_version_id: str
+    output_version_id: str
+    marked_receipt_id: str
+    clean_receipt_id: str
+    edge_id: str
+    deliverables: tuple[DeliverableFileWire, ...]
+
+
+class RoleRunBody(Result):
+    """One role-loop request, as the API accepts it.
+
+    The application layer's :class:`~labcairn.application.roles_run.RoleRunRequest`
+    is the model for the work part of this body, and its
+    :class:`~labcairn.application.roles_run.ModelCallPlan` is the model for
+    the plan part: the loop is the layer's own operation, and this body
+    exists only because the request body is the API's own. The fields are
+    the same fields, validated the same way, so the wire and the CLI's
+    options do not drift.
+
+    **The plan is stated, and the loop checks it.** The material the run
+    would send is read from the chain and compared against
+    ``root_id``/``resource_key``/``material_ref``; a declaration that does
+    not match is refused by name rather than replaced. The plan is required
+    whenever a judgement is missing, because a missing judgement is a model
+    call and a model call needs to know who to ask and where the material
+    is; a request whose judgements are all supplied needs no plan at all.
+
+    **A supplied judgement is the caller's own, and it travels as the shape
+    the role takes** -- the same fields
+    :class:`~labcairn.application.roles_run.TrajectoryJudgement` and its
+    siblings take. A caller that has every judgement spends nothing and
+    reaches no wire; the loop still refuses an alignment outside the role's
+    vocabulary, because the roles' own checks are the architecture's.
+    """
+
+    roles: tuple[str, ...] = Field(min_length=1)
+    project_id: str = Field(min_length=1)
+    issue_key: str = Field(min_length=1)
+    version_ids: tuple[str, ...] = ()
+    rule_id: str | None = None
+    evidence_refs: tuple[str, ...] | None = None
+    #: The judgements the caller supplies outright. A role named without one
+    #: is answered by the model -- which is the part of the run that spends
+    #: consent -- and one supplied for a role nobody named is simply unused.
+    trajectory: RoleTrajectoryJudgement | None = None
+    guidance: RoleGuidanceJudgement | None = None
+    critique: RoleCritiqueJudgement | None = None
+    #: Who to ask, and where the material is. Required exactly when a
+    #: judgement is missing, because that is when the run asks the model.
+    provider: str | None = Field(default=None, min_length=1)
+    model: str | None = Field(default=None, min_length=1)
+    root_id: str | None = Field(default=None, min_length=1)
+    resource_key: str | None = Field(default=None, min_length=1)
+    material_ref: str | None = Field(default=None, min_length=1)
+    purpose: str | None = Field(default=None, min_length=1)
+    destination: str | None = Field(default=None, min_length=1)
+    subject_ref: str | None = Field(default=None, min_length=1)
+    #: When the consent the run will spend lapses. A run that needs a model
+    #: judgement asks for its approval with this expiry; a run that needs
+    #: none never reads it.
+    expires_at: datetime | None = None
+    #: The granted approval the run spends, on the run route. The ask mints
+    #: it pending; a person grants it over the approval door; the run
+    #: presents it here. A run whose judgements are all supplied needs none,
+    #: and never reads it.
+    approval_id: str | None = Field(default=None, min_length=1)
+
+
+class RoleTrajectoryJudgement(Result):
+    """Role A's judgement, as the API accepts it. The role checks the values."""
+
+    issue_type: str
+    alignment: str
+    advisor_quote: str
+    note: str
+    edit_action_id: str | None = None
+
+
+class RoleGuidanceJudgement(Result):
+    """Role B's judgement, as the API accepts it. The role checks the values."""
+
+    issue_type: str
+    severity: str
+    reason: str
+    suggested_next_action: str
+    uncertainty_kind: str
+    what_is_uncertain: str
+    claims: tuple[RoleClaimJudgement, ...] = ()
+    style_notes: tuple[str, ...] = ()
+
+
+class RoleClaimJudgement(Result):
+    """One claim inside role B's judgement, as the API accepts it."""
+
+    text: str
+    kind: str
+    evidence_ref: str | None = None
+    issue_key: str | None = None
+    advisor_quote: str | None = None
+
+
+class RoleCritiqueJudgement(Result):
+    """Role C's judgement, as the API accepts it. The role checks the values."""
+
+    verdict: str
+    repair_advice: str
+    handover_reason: str | None = None
+
+
 __all__ = [
     "AnalysisBody",
+    "ApplyReviewBody",
     "ApprovalBody",
     "ApprovalUseBody",
     "ClaimBody",
     "CommentResponses",
+    "DeliverableFileWire",
+    "DeliverablesExportWire",
+    "GuidanceRulePublishBody",
     "GuidanceRuleVerdictBody",
     "Health",
+    "InterruptedReplayBody",
+    "InterruptedResolutionWire",
+    "InterruptedResolveBody",
     "IssueKeys",
+    "IssueListQuery",
+    "IssueRecordBody",
+    "IssueStatusBody",
+    "MeetingIngestBody",
+    "PptIngestBody",
     "RefusalBody",
     "ReportBody",
+    "ReviewApplyCancelBody",
+    "ReviewApplyCancelled",
+    "ReviewDecisionBody",
+    "ReviewManuscriptQuery",
+    "ReviewOpinionsQuery",
+    "ReviewSuggestBody",
+    "ReviewSuggestRun",
+    "ReviewSuggestionBody",
+    "RoleClaimJudgement",
+    "RoleCritiqueJudgement",
+    "RoleGuidanceJudgement",
+    "RoleRunBody",
+    "RoleTrajectoryJudgement",
     "SessionInfo",
     "StageBody",
     "Trajectory",
+    "TrajectorySearchQuery",
+    "UsableGuidanceQuery",
 ]

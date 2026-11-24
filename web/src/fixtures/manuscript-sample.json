@@ -1,0 +1,47 @@
+{
+  "project_id": "proj-lc-p4-cap",
+  "version_id": "ver-baseline-04",
+  "sha256": "4d1f5c2a9b7e3d80f1a2c3b4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708",
+  "paragraphs": [
+    {
+      "index": 1,
+      "text": "This note reconstructs the winter temperature of the upper basin from a single varved sediment core, and asks what the record says about the severity of the Little Ice Age winters there."
+    },
+    {
+      "index": 2,
+      "text": "The winter of 1542 stands as the coldest on record for the basin, with a mean temperature reconstructed well below the series' long-run average."
+    },
+    {
+      "index": 3,
+      "text": "The core was recovered from the deepest basin at 112 m water depth, and the varve chronology reaches back to the year 1487 with an estimated uncertainty of two years."
+    },
+    {
+      "index": 4,
+      "text": "Sediment accumulation rates were estimated from varve counting, cross-checked against two independent radiometric dates at 41 cm and 88 cm depth."
+    },
+    {
+      "index": 5,
+      "text": "The varve thickness series was converted to temperature using the calibration of Lindgren et al., and the resulting anomaly series is shown in figure 2."
+    },
+    {
+      "index": 6,
+      "text": "Two intervals dominate the record: a prolonged cold phase in the mid-sixteenth century, and a second, shorter minimum around 1690."
+    },
+    {
+      "index": 7,
+      "text": "Figure 2 shows the reconstructed winter temperature anomaly across the full 1500–1900 window."
+    },
+    {
+      "index": 8,
+      "text": "The 1542 minimum is 2.1 standard deviations below the series mean, and no other single winter in the record approaches it."
+    },
+    {
+      "index": 9,
+      "text": "The reconstruction is robust to the choice of calibration, and the temperature record it yields is stable across the plausible range of the accumulation model."
+    },
+    {
+      "index": 10,
+      "text": "We conclude that the sediment record preserves a clear signal of the exceptional winter of 1542, and that varved lake sediments resolve single winters where documentary sources alone do not."
+    }
+  ]
+}

@@ -372,6 +372,53 @@ _ALLOWED_STORE_READERS = frozenset(
         # layer's consent and stage machinery; it is recorded here because a
         # module that reaches the store must be named.
         "labcairn.application.revision_loop",
+        # Phase 4's review workbench (LC-P4-CAP). The workbench's reads and
+        # writes: the opinions with their stored suggestions and decisions,
+        # the manuscript paragraphs, and the apply step that hands the
+        # stored, approved set to the binding. It asks the material
+        # permission where the material is named (the same posture as
+        # ``labcairn.papers.feedback`` beside it), and the apply step's
+        # effects run through the binding's own consent, duplicate and
+        # staleness guards. It is recorded here because a module that
+        # reaches the store must be named.
+        "labcairn.application.review",
+        # P4-MS's first slice: the trajectory index and the usable-rule
+        # listing. The ingest reads the chain's own facts through the
+        # layer's read operations and writes the index rows through the
+        # store's writers under the same consent the papers' operations
+        # ask; the usable-rules read resolves each rule's sources against
+        # the chain at query time. It is recorded here because a module
+        # that reaches the store must be named.
+        "labcairn.application.trajectory",
+        # Phase 4 (P4-CAP, real-model loop). The suggestion loop reads the
+        # version's pending opinions and writes its own run row and the
+        # suggestions it produced; a real run spends the approvals the
+        # request names. It is recorded here because a module that reaches
+        # the store must be named.
+        "labcairn.application.model_suggestions",
+        # P4-MS's second slice: the deck index. The ingest reads the deck's
+        # bytes through the material reader under the source gate and
+        # writes the index rows and the FTS index in one transaction; the
+        # search reads the FTS index. It is recorded here because a module
+        # that reaches the store must be named.
+        "labcairn.application.ppt_deck",
+        # P4-MS's third slice: the meeting-text index. The ingest reads the
+        # transcript or notes file through the material reader under the
+        # source gate and writes the index rows and the FTS index in one
+        # transaction; the search reads the FTS index. It is recorded here
+        # because a module that reaches the store must be named.
+        "labcairn.application.meeting_text",
+        # Phase 4 (P4-PILOT §9.4). The trial's issue record: the issues are
+        # written and read through their own table, and a status walk is a
+        # conditional UPDATE on the row. It is recorded here because a
+        # module that reaches the store must be named.
+        "labcairn.application.issues",
+        # Phase 4 (P4-CAP §7.4). The round's quality checks read the closed
+        # manifest, the opinions, the stored suggestions and the drafts'
+        # digests, and report per-check facts; they write nothing. It is
+        # recorded here because a module that reaches the store must be
+        # named.
+        "labcairn.application.quality_checks",
         # The scholarly-identifier shelf (LC-P2-17). Its operations are layer
         # operations like the writers beside it: each evaluates the policy
         # about the task's own area before it touches the store, and the

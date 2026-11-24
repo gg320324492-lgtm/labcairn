@@ -21,6 +21,8 @@
  * how it got there.
  */
 
+import type { ApplyReviewBody, MeetingIngestBody, PptIngestBody } from './generated'
+
 /** The paths the workbench reads, keyed by what they are for. */
 export const API_PATHS = {
   /** What the service is, and where it listens. */
@@ -53,7 +55,108 @@ export const API_PATHS = {
   trajectoryGraph: '/trajectory/graph',
   /** The issue keys a paper project's chain holds: what there is to look at. */
   issueKeys: '/trajectory/issue-keys',
+  /** One review round's opinions, with their suggestions and verdicts. */
+  reviewOpinions: '/review/opinions',
+  /** One review round's manuscript, in the anchors' own numbering. */
+  reviewManuscript: '/review/manuscript',
+  /** One suggestion the model proposed, as a record and not a decision. */
+  reviewSuggestion: '/review/suggestion',
+  /** Run the suggestion loop over one version's pending opinions. */
+  reviewSuggest: '/review/suggest',
+  /** The reviewer's verdict on one opinion's suggestion. */
+  reviewDecision: '/review/decision',
+  /** Apply the stored, approved set and close the round. */
+  reviewApply: '/review/apply',
+  /** Measure what the apply round would do, before anything is written. */
+  reviewPreview: '/review/preview',
+  /** The four deliverables of one closed binding, in one export. */
+  reviewDeliverables: '/review/deliverables',
+  /** The advisor trajectory's full-text search, answered with its provenance. */
+  trajectorySearch: '/trajectory/search',
+  /** The slide deck index's full-text search, answered with its provenance. */
+  pptSearch: '/ppt/search',
+  /** Index one deck's objects, read through the same gate every reader uses. */
+  pptIngest: '/ppt/ingest',
+  /** The meeting-text index's full-text search, answered with its provenance. */
+  meetingSearch: '/meeting/search',
+  /** Index one meeting container's records, read through the same gate. */
+  meetingIngest: '/meeting/ingest',
+  /** The six quality checks over one closed round's dossier manifest. */
+  reviewQuality: '/review/quality',
+  /** Ask the running apply round to stop at its next publication checkpoint. */
+  reviewApplyCancel: '/review/apply/cancel',
+  /** The rules a card may cite: mentor-confirmed, still standing, in scope. */
+  guidanceUsable: '/guidance/usable',
+  /** The pilot's issue record: what the trial met, as it was seen. */
+  issues: '/issues',
+  /** The four states one issue walks, from its record to its close. */
+  issueStatus: '/issues/{issue_id}/status',
+  /** One mentor's publication of a confirmed rule to the group. */
+  guidanceRulePublish: '/guidance/rules/{rule_id}/publish',
+  /** The retraction of one rule's sharing, leaving the rule standing. */
+  guidanceRuleRetract: '/guidance/rules/{rule_id}/retract',
 } as const
+
+/** One review round's opinions, addressed by the round's two names. */
+export function reviewOpinionsPath(projectId: string, versionId: string): string {
+  const query = new URLSearchParams({ project_id: projectId, version_id: versionId })
+  return `${API_PATHS.reviewOpinions}?${query.toString()}`
+}
+
+/** One review round's manuscript, addressed the same way its opinions are. */
+export function reviewManuscriptPath(projectId: string, versionId: string): string {
+  const query = new URLSearchParams({ project_id: projectId, version_id: versionId })
+  return `${API_PATHS.reviewManuscript}?${query.toString()}`
+}
+
+/**
+ * One closed binding's four deliverables, addressed by the dossier that binds
+ * them.
+ *
+ * **The binding is named by its dossier, not remembered.** The apply's answer
+ * carries the dossier's id, and the export is asked for by that id — so the
+ * four files a panel draws are the four files *that round* bound, and not
+ * whichever dossier happens to be the latest.
+ */
+export function reviewDeliverablesPath(projectId: string, dossierArtifactId: string): string {
+  const query = new URLSearchParams({
+    project_id: projectId,
+    dossier_artifact_id: dossierArtifactId,
+  })
+  return `${API_PATHS.reviewDeliverables}?${query.toString()}`
+}
+
+/**
+ * What the apply round is asked for, in the service's own words.
+ *
+ * The preview and the apply routes take **the same body**, because the
+ * preview answers the apply's question about the same round — what these
+ * addresses name. The fields are the service's (`ApplyReviewBody`, from the
+ * generated types), so the client's spelling and the service's cannot drift:
+ * a field renamed on one side fails the compile, not the round.
+ */
+export type ApplyReviewRequest = ApplyReviewBody
+
+/** One review round's previews and writes, addressed by its two names. */
+export function reviewApplyBody(
+  projectId: string,
+  inputVersionId: string,
+  options: {
+    readonly sourceRootId: string
+    readonly sourceKey: string
+    readonly outputLabel: string
+    readonly windowEnd: string
+  },
+): ApplyReviewRequest {
+  return {
+    project_id: projectId,
+    input_version_id: inputVersionId,
+    source_root_id: options.sourceRootId,
+    source_key: options.sourceKey,
+    output_label: options.outputLabel,
+    window_end: options.windowEnd,
+  }
+}
 
 /**
  * The template of an artefact's bytes.
@@ -185,6 +288,123 @@ export function issueKeysPath(projectId: string): string {
 }
 
 /**
+ * The query the three search routes share.
+ *
+ * **The question carries its own limit**, because a search over three
+ * sources is three searches and the panel asks for a page's worth of each
+ * rather than the whole index. The fields are the service's own query
+ * parameters — `q`, `project_id`, `limit` — so the client's spelling and the
+ * service's cannot drift without the route answering nothing.
+ */
+export interface SearchQuery {
+  /** The words to look for. The route requires at least one character. */
+  readonly q: string
+  /** The paper project to search within, when the search is scoped. */
+  readonly projectId?: string | undefined
+  /** How many hits to ask for. The service caps this at 200. */
+  readonly limit?: number | undefined
+}
+
+/** One search route's question, as the query string it is served with. */
+function searchPath(path: string, query: SearchQuery): string {
+  const params = new URLSearchParams({ q: query.q })
+  if (query.projectId !== undefined && query.projectId !== '') {
+    params.set('project_id', query.projectId)
+  }
+  if (query.limit !== undefined) {
+    params.set('limit', String(query.limit))
+  }
+  return `${path}?${params.toString()}`
+}
+
+/** The advisor trajectory's search: what was said and changed, and where. */
+export function trajectorySearchPath(query: SearchQuery): string {
+  return searchPath(API_PATHS.trajectorySearch, query)
+}
+
+/** The slide deck index's search: what a slide or its notes say, and where. */
+export function pptSearchPath(query: SearchQuery): string {
+  return searchPath(API_PATHS.pptSearch, query)
+}
+
+/** The meeting-text index's search: what a record of a meeting says, and where. */
+export function meetingSearchPath(query: SearchQuery): string {
+  return searchPath(API_PATHS.meetingSearch, query)
+}
+
+/**
+ * Where one ingest asks the service to read from.
+ *
+ * **The body names where to read; the bytes come from the workspace.** The
+ * routes take no bytes — the deck or the meeting container is read through
+ * the `source.read` gate from the root and resource key the caller names —
+ * so the request is the three names and nothing more. The fields are the
+ * service's own (`PptIngestBody` / `MeetingIngestBody`, from the generated
+ * types), so a field renamed on one side fails the compile, not the ingest.
+ */
+export interface IngestRequest {
+  /** The paper project the material is bound to. */
+  readonly projectId: string
+  /** The workspace root the material stands in. */
+  readonly rootId: string
+  /** The material's key inside its root. */
+  readonly resourceKey: string
+}
+
+/** The slide-deck ingest's body, in the service's own field names. */
+export function pptIngestBody(request: IngestRequest): PptIngestBody {
+  return {
+    project_id: request.projectId,
+    root_id: request.rootId,
+    resource_key: request.resourceKey,
+  }
+}
+
+/** The meeting-text ingest's body, in the service's own field names. */
+export function meetingIngestBody(request: IngestRequest): MeetingIngestBody {
+  return {
+    project_id: request.projectId,
+    root_id: request.rootId,
+    resource_key: request.resourceKey,
+  }
+}
+
+/**
+ * One closed round's six quality checks, addressed by its dossier.
+ *
+ * **The round is named by the dossier the apply answered with**, the same
+ * name the deliverables are asked by — so the six checks measure the
+ * manifest *that round* bound, and not whichever dossier is latest.
+ */
+export function reviewQualityPath(projectId: string, dossierArtifactId: string): string {
+  const query = new URLSearchParams({
+    project_id: projectId,
+    dossier_artifact_id: dossierArtifactId,
+  })
+  return `${API_PATHS.reviewQuality}?${query.toString()}`
+}
+
+/**
+ * The rules a card may cite.
+ *
+ * **The route serves confirmed rules only** — a candidate reaching a card
+ * would be a proposal dressed as a record — and the scope is the caller's to
+ * name, because the card that asks knows the narrowest scope it can live
+ * with. The limit is the page size, and the service caps it at 200.
+ */
+export function guidanceUsablePath(scope?: string, limit?: number): string {
+  const params = new URLSearchParams()
+  if (scope !== undefined && scope !== '') {
+    params.set('scope', scope)
+  }
+  if (limit !== undefined) {
+    params.set('limit', String(limit))
+  }
+  const query = params.toString()
+  return query === '' ? API_PATHS.guidanceUsable : `${API_PATHS.guidanceUsable}?${query}`
+}
+
+/**
  * The report render.
  *
  * A change, so it needs the session token: the service writes the report's four
@@ -291,4 +511,45 @@ export function analysisBody(
     ...analysisArguments(inputs),
     approval_id: inputs.approvalId,
   }
+}
+
+/**
+ * The pilot's issues, narrowed by what is asked for.
+ *
+ * **The project is required, the service refuses a list without one** — an
+ * issue is recorded about a project, so a listing without a project would be
+ * a listing of nothing. The two filters are optional, and a filter narrows
+ * rather than refuses: the service answers an empty list, not a 404.
+ */
+export function issuesPath(projectId: string, status?: string, severity?: string): string {
+  const params = new URLSearchParams({ project_id: projectId })
+  if (status !== undefined && status !== '') {
+    params.set('status', status)
+  }
+  if (severity !== undefined && severity !== '') {
+    params.set('severity', severity)
+  }
+  return `${API_PATHS.issues}?${params.toString()}`
+}
+
+/**
+ * One issue's walk along its four states.
+ *
+ * **The id is encoded, because a path is not a place for a raw id.** The body
+ * is the service's (`IssueStatusBody`, from the generated types), and the
+ * project travels in it — the route refuses an issue that belongs to another
+ * project rather than answering the move.
+ */
+export function issueStatusPath(issueId: string): string {
+  return API_PATHS.issueStatus.replace('{issue_id}', encodeURIComponent(issueId))
+}
+
+/** One rule's publication to the group, at the path the service declares. */
+export function guidanceRulePublishPath(ruleId: string): string {
+  return API_PATHS.guidanceRulePublish.replace('{rule_id}', encodeURIComponent(ruleId))
+}
+
+/** The retraction of one rule's sharing, leaving the rule itself standing. */
+export function guidanceRuleRetractPath(ruleId: string): string {
+  return API_PATHS.guidanceRuleRetract.replace('{rule_id}', encodeURIComponent(ruleId))
 }

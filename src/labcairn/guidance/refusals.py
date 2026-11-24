@@ -56,3 +56,12 @@ class GuidanceRefusal(StrEnum):
     #: a proposal, and a rule that leans on a proposal leans on nothing
     #: that has been decided.
     CHECK_NOT_CONFIRMED = "check_not_confirmed"
+    #: Only a mentor-confirmed rule may be published to the group
+    #: (Phase 4 §8.5 / P4-G3). A candidate is unreviewed experience, and a
+    #: disputed or withdrawn rule is not standing — none of them is a rule
+    #: the group may cite.
+    PUBLISH_NOT_CONFIRMED = "publish_not_confirmed"
+    #: Whoever proposed a rule cannot be the one who publishes it to the
+    #: group. The same second-reader rule the confirmation carries: one
+    #: person reading twice is one person reading once with extra steps.
+    PUBLISHER_IS_PROPOSER = "publisher_is_proposer"

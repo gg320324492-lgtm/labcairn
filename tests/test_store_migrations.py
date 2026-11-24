@@ -178,6 +178,47 @@ EXPECTED_TABLES = frozenset(
         # no UNIQUE on `stage` -- a re-run appends a second row, and the
         # current view is the latest entry per stage.
         "artifact_ledger_entries",
+        # Phase 4 (LC-P4-CAP). The model's proposal and the reviewer's
+        # verdict, keyed by the opinion each answers. Two tables, never one:
+        # ADR-0016's rule that a suggestion and its decision are separate
+        # records is made durable here -- reading one must not read as the
+        # other. The apply step reads the approved set from these rows.
+        "review_suggestions",
+        "review_decisions",
+        # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
+        # revision trajectory, one row per indexed entry with the provenance
+        # §8.2 requires, and the FTS5 index over the entries' digests. The
+        # FTS table is the second deliberately-ORM-less table here, after
+        # ``evidence_fts``, for the same reason it is listed by hand.
+        "trajectory_index_rows",
+        "trajectory_fts",
+        # Phase 4 (P4-CAP, real-model loop). One row per loop run: the
+        # budget's own account -- mode, model id, counts, the stop that
+        # fired -- without which a ceiling would bound an unrecorded spend.
+        "model_suggestion_runs",
+        # Phase 4 (P4-MS), second source. A deck's objects -- titles, body
+        # text, speaker notes, table rows and picture names -- one row per
+        # indexed object with the provenance §8.3 requires, and the FTS5
+        # index over the objects' text. Listed by hand for the same reason
+        # the two FTS tables above are.
+        "ppt_index_rows",
+        "ppt_fts",
+        # P4-MS third source (§8.4): the meeting-text index -- one row per
+        # transcript entry or organised paragraph with the provenance §8.3
+        # requires (record index, container timestamp when it has one,
+        # fingerprint), and the FTS5 index over the records' text. Listed
+        # by hand for the same reason the deck index's two tables are.
+        "meeting_index_rows",
+        "meeting_fts",
+        # Phase 4 (P4-PILOT §9.4). The real trial's in-system issue record:
+        # one row per problem, naming what it happened to (task, version,
+        # opinion), where it happened (the operation step), what the user
+        # saw, how long it took and how often it was retried, under the two
+        # closed vocabularies -- severity (blocker/serious/minor/suggestion)
+        # and type (function/interface/performance/model/documentation). The
+        # unified feedback form records the subjective experience; this
+        # table is the system-side record the form's line points at.
+        "pilot_issues",
     }
 )
 

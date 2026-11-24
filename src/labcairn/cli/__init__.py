@@ -13,7 +13,7 @@ The commands — ``init``, ``doctor``, ``serve``,
 ``task claim-attest/proposal-confirm``,
 ``task approval-request/approval-grant``,
 ``sources inspect/ingest/addresses``, ``artifacts list``,
-``guidance rule-confirm`` — and the plumbing they share:
+``guidance rule-confirm``, ``roles run`` — and the plumbing they share:
 
 * **every command's data comes from the application layer.** A command here
   decides what to ask and how to draw the answer. It never reads the store

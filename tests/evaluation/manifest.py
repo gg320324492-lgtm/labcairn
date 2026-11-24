@@ -185,6 +185,76 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_capability_namespaces.py": ("unit", "typed-contracts"),
     "test_api.py": ("integration", "api-auth"),
     "test_api_concurrency.py": ("integration", "event-append"),
+    # Phase 4 (LC-P4-CAP). The review workbench's seam: opinions read with
+    # their suggestion and decision as separate records, the manuscript in
+    # the anchor numbering, a verdict refused on nothing, and the apply
+    # round reading the approved set from the store. Integration, because
+    # the witnesses are the service's own routes over real bytes.
+    "test_review_api.py": ("integration", "api-auth"),
+    # Phase 4 (P4-CAP, real-model loop). The loop behind the binding's own
+    # suggestion-source seam: desensitised requests, the budget's stops
+    # naming themselves, retry classification at the boundary, the
+    # twice-labelled substitute, the honest empty set, and the run row
+    # that accounts for every call. Integration, because the witnesses are
+    # the service's own routes and the store's own rows over real bytes.
+    "test_model_suggestions.py": ("integration", "api-auth"),
+    # Phase 4 (P4-CAP §7.2). The service's real-model wiring: the workspace's
+    # own authorisation record, read from providers.json, resolved against
+    # the provider it names, and carried onto the service as the backend a
+    # real run spends — and every unauthorised state (a draft record, a
+    # missing field, an unknown provider, a credential that is not there, a
+    # file that is not JSON) resolving to no backend with the service up and
+    # the route's own refusal unchanged. Integration, because the witnesses
+    # are the CLI's own assembly over real files and the service's routes.
+    "test_service_model_wiring.py": ("integration", "api-auth"),
+    # Phase 4 (LC-P4-CAP). The review desk's live seam: the service's
+    # /review JSON read as the workbench's own contract types, field by
+    # field, and the desk's round — one verdict, one re-read, one apply —
+    # driven against the service. Integration, because the witness is the
+    # service over real bytes, and the contract file read as text.
+    "test_review_desk_live.py": ("integration", "api-auth"),
+    # Phase 4 (P4-CAP §7.4). The round-level quality and evidence checks:
+    # every opinion accounted for, every suggestion answering a real
+    # opinion, the edits inside the anchored paragraphs, a needs-evidence
+    # verdict leaving an explicit task, the response table saying what
+    # landed, and the quality report binding to the same manifest the four
+    # deliverables bind. Integration, because the checks read the binding's
+    # own dossier manifest over real bytes.
+    "test_quality_checks.py": ("integration", "api-auth"),
+    # Phase 4 (P4-MS). The multi-source index's first slice: the paper's
+    # revision trajectory searchable with its provenance, a rule candidate
+    # drafted from an entry and confirmed by a mentor, and the usable
+    # listing serving confirmed rules only — a candidate is never a code of
+    # conduct, and a withdrawn rule stops being served (§8.5). Integration,
+    # because the witnesses are the chain's real rows read through the
+    # index, the memory and the retrieval.
+    "test_trajectory_index.py": ("integration", "api-auth"),
+    # Phase 4 (P4-MS). The trajectory index's two surfaces: the API route
+    # that indexes one paper project's revision trajectory and answers a
+    # search over it, and the CLI's ``sources ingest``, which indexes every
+    # paper project the ingested material carries and reports, per project,
+    # what indexed and what was refused. Integration, because the witnesses
+    # are a real chain read through the index over both surfaces.
+    "test_trajectory_api.py": ("integration", "api-auth"),
+    # Phase 4 (P4-MS). The multi-source index's second slice: a deck's
+    # titles, body text, speaker notes, tables and images searchable with
+    # their provenance -- slide, object position, kind and fingerprint --
+    # so a hit points at the correct slide or object (§8.3, §8.5). A chart
+    # is a recorded limitation, never invented content; a denied deck is
+    # refused and writes nothing. Integration, because the witnesses are a
+    # hand-built but real .pptx read through the reader, the ingest, the
+    # retrieval and the API.
+    "test_ppt_deck.py": ("integration", "api-auth"),
+    "test_meeting_text.py": ("integration", "api-auth"),
+    # P4-MS third source (§8.4): the meeting-text index. Integration-level
+    # because it drives the workspace, the store and the API; api-auth
+    # because the two /meeting routes are part of the served surface.
+    # Phase 4 (P4-PILOT §9.4). The trial's in-system issue record: an
+    # issue recorded against a trial round, listed by severity and status,
+    # and its status advanced along the four states with the fix fields.
+    # Integration, because the witnesses are the service's own routes over
+    # the binding's real sample.
+    "test_issues.py": ("integration", "api-auth"),
     "test_application_approvals.py": ("integration", "approvals"),
     # LC-P2-02. The two facts the approval row now carries, and the spend
     # that reads them there rather than trusting an argument. Integration,
@@ -386,6 +456,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # conditions. Its clause is the dataset locators, because the property
     # is that a returned rule addresses the material it names.
     "test_guidance_retrieval.py": ("integration", "dataset-locators"),
+    # Phase 4 §8.5 / P4-G3: the group sharing of a confirmed rule. The
+    # publication and its retraction, the second reader who may not be the
+    # proposer, the project that sees its rules and the group's, and the
+    # serve-time permission that the sharing never widens. Its clause is
+    # the state transitions, because the sharing is a scope a door moves
+    # and the state machine it travels beside is closed.
+    "test_rule_sharing.py": ("integration", "state-transitions"),
     # The memory's own demonstration: the rule with its source and its
     # counterexample, the conflict beside it, the source withdrawn from
     # under a rule, and the candidate nobody has confirmed. Its clause is
@@ -459,6 +536,29 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_recovery_crash_matrix.py": ("negative", "crash-between-write-and-confirm"),
     "test_recovery_resume.py": ("integration", "restart-recovery"),
     "test_recovery_stage_bridge.py": ("unit", "typed-contracts"),
+    # Phase 4 §7.3: the deliver round's cancel, retry and recovery. The
+    # cancellation and the pre-publication source check are the approval
+    # clause's shape at the round's surface; the interrupted-publication
+    # replay is restart recovery; the export resume is artifact hashes.
+    "test_apply_cancel_recover.py": ("integration", "restart-recovery"),
+    # Phase 4 §7.3 (window N): the operator's cancellation at the two
+    # surfaces the CLI is not — the service's apply route carries the
+    # binding's CancelCheck, and the cancel route plants the flag it reads.
+    # Integration, because the witnesses are the service's own routes over
+    # the binding's real sample; api-auth, because the cancel is a served
+    # write behind the same guard.
+    "test_cancel_entry.py": ("integration", "api-auth"),
+    # Phase 4 (window G): the recovery and quality doors at the surface.
+    # The interrupted publication is findable, probed and replayed over the
+    # service's own routes, and a closed round's quality report is read —
+    # the layer's restart-recovery and api-auth clauses, on one real sample.
+    "test_recovery_quality_api.py": ("integration", "restart-recovery"),
+    # Phase 4 §8.2 (window M): the role loop's two doors at the surface.
+    # The ask writes the question down and spends nothing; the run spends a
+    # granted approval and answers with the roles' own outputs. Both are
+    # the layer's operation behind the same guard, and the CLI's command
+    # reaches the same operation -- one serialization, two surfaces.
+    "test_role_run_entry.py": ("integration", "api-auth"),
     # LC-P3-03: the loop binds the pieces; its refusals are negative.
     "test_revision_loop.py": ("integration", "approvals"),
     "test_revision_loop_refusals.py": ("negative", "path-traversal"),
@@ -537,6 +637,23 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_repo_root_guard.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_scaffolding.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_status_consistency.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_pilot_runbook.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §12). The owner-decisions form and the three
+    # preparation drafts' confirmation sections: the pilot's prerequisite
+    # papers carry the How-to-confirm sections, the three plan-§12
+    # decisions are still explicitly TBD, the runbook's preparation entry
+    # points exist, and none of the documents carries a name,
+    # affiliation or project number. Its clause is the repository gates,
+    # because it watches the repository's own documents.
+    "test_pilot_decisions.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §9.4). The completed feedback form's walk into the
+    # system's issue record: the dry run previews what would be written,
+    # the form's two closed vocabularies map onto the record's, and
+    # re-ingesting a file does not duplicate rows. Its clause is the
+    # repository gates, because the walk itself is the repository's tool
+    # and its witnesses run against a temporary database, not the
+    # repository's own.
+    "test_pilot_feedback_ingest.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------
@@ -580,6 +697,21 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),
     "test_blind_evaluation_machinery.py": ("integration", "approvals"),
     "test_review_dossier.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 §10's structured release records: the tool that writes and
+    # checks the seven-element JSON record under docs/releases/, and the
+    # witnesses that a complete record passes, an incomplete one names every
+    # missing element, the commit is measured in git rather than taken from
+    # the notes, and a duplicate version is refused without --force. Its
+    # clause is insufficient evidence, because the property it watches is
+    # that a release is not recorded on fields that were never measured.
+    "test_release_record.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The first runnable version's record itself, measured: the seven
+    # elements present, the commit an ancestor of HEAD, the timestamp a real
+    # UTC measurement, the version matching the file name, the absent
+    # artifact stated with its reason, the default version number and date
+    # announced as pending owner confirmation, and the tool's own check
+    # accepting the record.
+    "test_first_release_record.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_release_workflow.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_threat_model.py": (REPOSITORY_CLASS, "repository-gate"),
 }

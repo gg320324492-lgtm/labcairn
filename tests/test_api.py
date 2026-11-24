@@ -1200,6 +1200,68 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /records/{evidence_id}/accept",
         "POST /guidance/rules/{rule_id}/confirm",
         "POST /task/select",
+        # The review workbench's writes (Phase 4, LC-P4-CAP): a suggestion
+        # the model proposed is recorded, a person's verdict is recorded,
+        # and the approved set is applied through the binding. The preview
+        # is a POST because it takes the apply body — it is the dry run of
+        # that same round, and it writes nothing. All of them are the
+        # layer's own operations behind the same token and origin guard.
+        "POST /review/suggestion",
+        "POST /review/decision",
+        "POST /review/apply",
+        "POST /review/preview",
+        # The suggestion loop's own run (Phase 4, P4-CAP real-model loop):
+        # one POST per run, over a version's pending opinions. It records
+        # suggestions and a run row, and it spends only approvals the body
+        # presents — the substitute mode sends nothing out of the machine.
+        "POST /review/suggest",
+        # The deck index's write (Phase 4, P4-MS second source): index one
+        # deck's objects into the searchable store. It reads the deck
+        # through the workspace's own source gate, and the bytes never
+        # travel in the request.
+        "POST /ppt/ingest",
+        # The meeting-text index's write (Phase 4, P4-MS third source):
+        # index one transcript's or one notes file's records into the
+        # searchable store. It reads the file through the workspace's own
+        # source gate, and the bytes never travel in the request.
+        "POST /meeting/ingest",
+        # The trajectory index's write (Phase 4, P4-MS first source): index
+        # one paper project's revision trajectory into the searchable store.
+        # The comments and tracked changes are read through the workspace's
+        # own source gate (``source.inventory``, per version), and the
+        # request carries only the project's id.
+        "POST /trajectory/ingest",
+        # The pilot's in-system issue record (Phase 4, P4-PILOT §9.4): an
+        # issue is recorded against a trial round, and its status is moved
+        # along the four states -- the walk the record's own history is.
+        # Both are the layer's own operations behind the same guard.
+        "POST /issues",
+        "PATCH /issues/{issue_id}/status",
+        # The group sharing of a confirmed rule (Phase 4, P4-G3 §8.5): a
+        # mentor publishes a confirmed rule to the group and retracts the
+        # sharing again. Both are the layer's own operations behind the
+        # same guard, and the second-reader rule is the layer's.
+        "POST /guidance/rules/{rule_id}/publish",
+        "POST /guidance/rules/{rule_id}/retract",
+        # Restart recovery and round quality at the surface (Phase 4,
+        # window G): the interrupted publication is resolved by a probe and
+        # replayed under a fresh consent, both writes behind the same guard.
+        # The find is a GET and the quality report is a GET — they read.
+        "POST /revision/interrupted/{receipt_id}/resolve",
+        "POST /revision/interrupted/{receipt_id}/replay",
+        # The operator's cancellation of a running apply round (Phase 4,
+        # §7.3): the page asks the round it is watching to stop, and the
+        # binding answers at its next publication checkpoint. Same guard as
+        # the apply it cancels.
+        "POST /review/apply/cancel",
+        # The role loop on demand (Phase 4, §8.2, window M): the ask writes
+        # the question down -- it spends nothing, and it is a POST because
+        # it mints a pending approval row; the run spends a granted
+        # approval and records the model's exchange. Both are the layer's
+        # own operation behind the same guard, and the CLI's `roles run`
+        # reaches the same operation.
+        "POST /roles/run-questions",
+        "POST /roles/run",
     }
 
 

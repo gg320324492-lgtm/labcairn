@@ -32,10 +32,19 @@ import type {
   GuidanceRule,
   GuidanceRuleVerdictBody,
   Health,
+  IssueData,
   IssueKeys,
+  IssueRecordBody,
+  IssueStatusBody,
+  MeetingHit,
+  MeetingTextIngested,
+  PptDeckIngested,
+  PptHit,
   ProjectGraph,
   ProposalAcceptanceBody,
   ProposalSettled,
+  ReviewSuggestRun,
+  RoundQualityReport,
   Selection,
   SessionInfo,
   Source,
@@ -45,7 +54,10 @@ import type {
   TaskState,
   TaskStep,
   Trajectory,
+  TrajectoryHit,
+  UsableRule,
 } from '../api/generated'
+import { fixtureDeliverablesExport, fixturePreview } from '../views/deliveryFixture'
 
 /** The token the fake service mints. */
 export const FAKE_TOKEN = 'fake-session-token-2f4a9c'
@@ -98,8 +110,18 @@ export interface FakeApiState {
   issueKeys: IssueKeys
   /** The guidance rules the memory holds. */
   guidanceRules: GuidanceRule[]
+  /** The rules the retrieval answers with: confirmed, standing, resolved. */
+  guidanceUsable: UsableRule[]
+  /** The trajectory index's hits, for the search the panel asks. */
+  trajectoryHits: TrajectoryHit[]
+  /** The deck index's hits, for the search the panel asks. */
+  pptHits: PptHit[]
+  /** The meeting index's hits, for the search the panel asks. */
+  meetingHits: MeetingHit[]
   /** The ledger's records for this task. */
   records: EvidenceRecord[]
+  /** The pilot's issues, as the listing route serves them. */
+  issues: IssueData[]
 }
 
 /** The task the fake service is bound to. */
@@ -155,6 +177,255 @@ export const FEEDBACK_ID = 'fb-method'
 
 /** The rule the fake serves as a candidate, with a case against it. */
 export const RULE_ID = 'rule-method'
+
+/** A digest the search fixtures carry, where the service carries a hash. */
+const SEARCH_SHA = 'c'.repeat(64)
+
+/** An instant every search fixture is stamped with. */
+const SEARCH_TIME = '2026-11-20T08:00:00+00:00'
+
+/**
+ * The slide-deck ingest's answer, as the route serves it.
+ *
+ * **The counts are the disclosure.** `limitations_recorded` counts the
+ * objects the reader honestly could not index — a chart, a missing part —
+ * so a panel that draws it draws the deck's limits beside its contents.
+ */
+export const PPT_INGEST_FIXTURE: PptDeckIngested = {
+  project_id: PROJECT_ID,
+  source_sha256: SEARCH_SHA,
+  objects_indexed: 14,
+  title_objects: 2,
+  body_objects: 7,
+  notes_objects: 3,
+  table_objects: 1,
+  image_objects: 1,
+  limitations_recorded: 1,
+  ingested_at: SEARCH_TIME,
+}
+
+/**
+ * The meeting-text ingest's answer, as the route serves it.
+ *
+ * **The two shapes are counted apart.** The timestamped entries and the
+ * organised paragraphs are indexed by the same route and addressed
+ * differently, so the answer names both counts rather than one total.
+ */
+export const MEETING_INGEST_FIXTURE: MeetingTextIngested = {
+  project_id: PROJECT_ID,
+  source_sha256: SEARCH_SHA,
+  records_indexed: 9,
+  entry_records: 6,
+  paragraph_records: 3,
+  limitations_recorded: 1,
+  ingested_at: SEARCH_TIME,
+}
+
+/**
+ * The six quality checks' verdicts, as the route serves them.
+ *
+ * **Five stand, one fails, and the failure names its facts.** A report
+ * where every check passed would teach nothing about how a failing check
+ * is drawn; the failing one here carries the fact's own fields — the
+ * opinion it is about, the paragraph, and the two sides of the mismatch —
+ * the way the service's checks write them.
+ */
+export const QUALITY_REPORT_FIXTURE: RoundQualityReport = {
+  project_id: PROJECT_ID,
+  input_version_id: 'ver-baseline-04',
+  output_version_id: 'ver-applied-05',
+  dossier_artifact_id: '0193f0a1-0000-7000-8000-00000000d001',
+  checks: [
+    { check: 'opinion_coverage', passed: true, facts: [] },
+    { check: 'suggestion_correspondence', passed: true, facts: [] },
+    {
+      check: 'edit_scope',
+      passed: false,
+      facts: [
+        {
+          check: 'edit_scope',
+          detail:
+            'An edit landed outside the paragraphs the round anchored: the anchor names ¶4, ' +
+            'the edit sits at ¶9.',
+          feedback_id: 'fb-method',
+          paragraph: 9,
+          expected: '4',
+          actual: '9',
+        },
+      ],
+    },
+    { check: 'evidence_complete', passed: true, facts: [] },
+    { check: 'response_table_consistency', passed: true, facts: [] },
+    { check: 'report_binding', passed: true, facts: [] },
+  ],
+}
+
+/**
+ * The trajectory index's hits, as the search route serves them.
+ *
+ * **The comment and the edit that answered it are two rows.** The index
+ * indexes both, and the route answers with whichever matched — so a query
+ * that reaches both kinds arrives as two hits, each carrying its own
+ * locator and its own version.
+ */
+export function trajectoryHitsFixture(): TrajectoryHit[] {
+  return [
+    {
+      trajectory_id: 'traj-comment-method',
+      project_id: PROJECT_ID,
+      entry_kind: 'comment',
+      feedback_id: FEEDBACK_ID,
+      edit_action_id: null,
+      revision_event_id: null,
+      version_id: 'v1',
+      issue_key: ISSUE_KEY,
+      comment_text: 'Name the method before its result.',
+      anchor_text: 'the method was not named',
+      anchor_paragraph: 2,
+      verdict: null,
+      change_kind: null,
+      change_text: null,
+      text_digest: 'a'.repeat(64),
+      source_version_id: 'v1',
+      source_locator: 'paragraph:2:start:12:end:40',
+      source_sha256: SEARCH_SHA,
+      ingested_at: SEARCH_TIME,
+    },
+    {
+      trajectory_id: 'traj-edit-method',
+      project_id: PROJECT_ID,
+      entry_kind: 'edit',
+      feedback_id: FEEDBACK_ID,
+      edit_action_id: 'edit-method',
+      revision_event_id: 'rev-1',
+      version_id: 'v2',
+      issue_key: ISSUE_KEY,
+      comment_text: null,
+      anchor_text: null,
+      anchor_paragraph: null,
+      verdict: null,
+      change_kind: 'insertion',
+      change_text: 'The method was X-ray diffraction.',
+      text_digest: 'b'.repeat(64),
+      source_version_id: 'v2',
+      source_locator: 'word/document.xml#/w:body/w:p[2]',
+      source_sha256: SEARCH_SHA,
+      ingested_at: SEARCH_TIME,
+    },
+  ]
+}
+
+/**
+ * The deck index's hits, as the search route serves them.
+ *
+ * **A title and its note are two objects on one slide.** The index indexes
+ * each object the deck carries, so one slide can arrive twice with two
+ * different texts — and the locator says which object, not only which
+ * slide.
+ */
+export function pptHitsFixture(): PptHit[] {
+  return [
+    {
+      object_id: 'ppt-object-title',
+      project_id: PROJECT_ID,
+      source_sha256: SEARCH_SHA,
+      slide_no: 4,
+      object_position: 1,
+      object_kind: 'title',
+      object_fingerprint: 'ppt-fp-title',
+      text: 'The silt record of the northern core',
+      media_target: null,
+      locator_json: '{"locator_kind":"pptx","object_kind":"title","position":1,"slide":4}',
+      ingested_at: SEARCH_TIME,
+    },
+    {
+      object_id: 'ppt-object-note',
+      project_id: PROJECT_ID,
+      source_sha256: SEARCH_SHA,
+      slide_no: 4,
+      object_position: 3,
+      object_kind: 'notes',
+      object_fingerprint: 'ppt-fp-note',
+      text: 'The depth was measured at 4.2 mm.',
+      media_target: null,
+      locator_json: '{"locator_kind":"pptx","object_kind":"notes","position":3,"slide":4}',
+      ingested_at: SEARCH_TIME,
+    },
+  ]
+}
+
+/**
+ * The meeting index's hits, as the search route serves them.
+ *
+ * **A timestamped entry and an organised paragraph are two shapes.** The
+ * same container can carry both, and the locator names the shape as well as
+ * the place: the entry carries its timestamp, the paragraph its index.
+ */
+export function meetingHitsFixture(): MeetingHit[] {
+  return [
+    {
+      record_id: 'meeting-record-entry',
+      project_id: PROJECT_ID,
+      source_sha256: SEARCH_SHA,
+      record_format: 'entry',
+      record_index: 7,
+      timestamp_label: '00:14:32',
+      record_fingerprint: 'meeting-fp-entry',
+      text: 'We agreed to name the method in the revision.',
+      locator_json:
+        '{"locator_kind":"meeting","record_format":"entry","record_index":7,"timestamp":"00:14:32"}',
+      ingested_at: SEARCH_TIME,
+    },
+    {
+      record_id: 'meeting-record-paragraph',
+      project_id: PROJECT_ID,
+      source_sha256: SEARCH_SHA,
+      record_format: 'paragraph',
+      record_index: 2,
+      timestamp_label: null,
+      record_fingerprint: 'meeting-fp-paragraph',
+      text: 'The depth measurement stands at 4.2 mm.',
+      locator_json:
+        '{"locator_kind":"meeting","record_format":"paragraph","record_index":2,"timestamp":null}',
+      ingested_at: SEARCH_TIME,
+    },
+  ]
+}
+
+/**
+ * The rules the retrieval answers with, as the usable route serves them.
+ *
+ * **The withdrawn one is not here.** The fixture carries a confirmed rule
+ * beside the candidate's confirmed neighbour, and nothing else: the route
+ * serves confirmed-and-standing rules only, so a test that needs a withdrawn
+ * rule absent finds it absent because the route said so.
+ */
+export function guidanceUsableFixture(): UsableRule[] {
+  return [
+    {
+      rule_id: 'rule-units',
+      version: 2,
+      name: 'Give the unit with the number.',
+      summary: 'A number without a unit is not a quantity.',
+      scope: 'Every numeric claim.',
+      state: 'confirmed',
+      sources: ['issue-units'],
+      confirmed_by: 'carol',
+      confirmed_at: '2026-10-22T09:00:00+00:00',
+    },
+    {
+      rule_id: 'rule-anchors',
+      version: 3,
+      name: 'Cite the anchor the claim rests on.',
+      summary: 'A claim with no address cannot be found again.',
+      scope: 'Every claim.',
+      state: 'confirmed',
+      sources: ['issue-anchors', 'issue-method'],
+      confirmed_by: 'dave',
+      confirmed_at: '2026-10-23T08:00:00+00:00',
+    },
+  ]
+}
 
 /**
  * The chain's rows, as the mentor line's route serves them.
@@ -314,6 +585,11 @@ export function guidanceRulesFixture(): GuidanceRule[] {
           recorded_at: '2026-10-23T10:00:00+00:00',
         },
       ],
+      // The confirmed rule stands unshared: it is the one a mentor may
+      // publish, and the publication is the second reader's act.
+      shared_scope: 'private',
+      published_by: null,
+      published_at: null,
     },
     {
       rule_id: 'rule-anchors',
@@ -332,6 +608,11 @@ export function guidanceRulesFixture(): GuidanceRule[] {
       sources: ['issue-anchors'],
       checks: [],
       counterexamples: [],
+      // The withdrawn rule was once shared, and the sharing's record is
+      // kept: a retraction clears it, and a withdrawn rule keeps its own.
+      shared_scope: 'group',
+      published_by: 'dave',
+      published_at: '2026-10-19T12:00:00+00:00',
     },
   ]
 }
@@ -426,6 +707,81 @@ export function recordsFixture(): EvidenceRecord[] {
   ]
 }
 
+/** The issue the fake serves as open, with the two numbers recorded. */
+export const OPEN_ISSUE_ID = 'issue-pilot-method'
+
+/** The issue the fake serves as confirmed, with neither number recorded. */
+export const CONFIRMED_ISSUE_ID = 'issue-pilot-units'
+
+/**
+ * The pilot's issues, as the listing route serves them.
+ *
+ * **One of each of the walk's middle states.** An open issue and a confirmed
+ * one are the two a reader can move; a closed one is here so the panel's
+ * "closed" line is drawn against a real answer rather than assumed. The
+ * first carries both numbers, the second neither — the contract makes the
+ * two nullable, and a panel that drew a zero for an absent number would be
+ * drawing a measurement nobody made.
+ */
+export function issuesFixture(): IssueData[] {
+  return [
+    {
+      issue_id: OPEN_ISSUE_ID,
+      project_id: PROJECT_ID,
+      task_id: TASK_ID,
+      version_id: 'v1',
+      feedback_id: FEEDBACK_ID,
+      step: 'draft',
+      error_text: 'The method was named after the result it produced.',
+      duration_seconds: 12.5,
+      retry_count: 1,
+      severity: 'serious',
+      category: 'function',
+      reported_by: 'alice',
+      reported_at: '2026-11-20T09:00:00+00:00',
+      status: 'open',
+      fix_version: null,
+      regression_note: null,
+    },
+    {
+      issue_id: CONFIRMED_ISSUE_ID,
+      project_id: PROJECT_ID,
+      task_id: null,
+      version_id: 'v2',
+      feedback_id: null,
+      step: 'review',
+      error_text: 'The depth was reported without its unit.',
+      duration_seconds: null,
+      retry_count: null,
+      severity: 'blocker',
+      category: 'documentation',
+      reported_by: 'bob',
+      reported_at: '2026-11-21T10:00:00+00:00',
+      status: 'confirmed',
+      fix_version: null,
+      regression_note: null,
+    },
+    {
+      issue_id: 'issue-pilot-anchors',
+      project_id: PROJECT_ID,
+      task_id: null,
+      version_id: 'v1',
+      feedback_id: null,
+      step: 'render',
+      error_text: 'The figure carried no anchor for its own caption.',
+      duration_seconds: 3,
+      retry_count: 0,
+      severity: 'minor',
+      category: 'interface',
+      reported_by: 'carol',
+      reported_at: '2026-11-22T11:00:00+00:00',
+      status: 'wontfix',
+      fix_version: null,
+      regression_note: null,
+    },
+  ]
+}
+
 /** The state the fake service starts in. */
 export function initialState(): FakeApiState {
   const task: Task = {
@@ -513,7 +869,12 @@ export function initialState(): FakeApiState {
     trajectoryGraph: projectGraphFixture(),
     issueKeys: issueKeysFixture(),
     guidanceRules: guidanceRulesFixture(),
+    guidanceUsable: guidanceUsableFixture(),
+    trajectoryHits: trajectoryHitsFixture(),
+    pptHits: pptHitsFixture(),
+    meetingHits: meetingHitsFixture(),
     records: recordsFixture(),
+    issues: issuesFixture(),
   }
 }
 
@@ -590,6 +951,131 @@ export class FakeApi {
   /** How many report renders the service has been asked for. */
   reportRenders = 0
 
+  /** How many review previews the service has been asked to measure. */
+  reviewPreviews = 0
+
+  /** How many review applies the service has been asked to commit. */
+  reviewApplies = 0
+
+  /** How many apply cancellations the service has been asked for. */
+  reviewApplyCancels = 0
+
+  /**
+   * Whether the service refuses the review apply.
+   *
+   * **The dry run and the commit are refused together**, because they take
+   * the same body: a round whose preview answers but whose apply refuses is
+   * the reviewer's round with no decisions in the store, and the fake's
+   * refusal is what the centre is asked to show.
+   */
+  refuseReview = false
+
+  /**
+   * Whether an apply round is in flight for the fake to cancel.
+   *
+   * **The cancel answers like the service's own route**: an in-flight round
+   * accepts the cancellation, and the *next* apply refuses with the service's
+   * `apply_cancelled`; no round in flight is refused — a cancellation is a
+   * request about a round that is running, not a standing order.
+   */
+  applyInFlight = false
+
+  /** The review preview the fake answers with. */
+  reviewPreview: unknown = fixturePreview
+
+  /** How many suggestion runs the service has been asked to start. */
+  suggestionRuns = 0
+
+  /**
+   * What the suggestion loop answers with, as the service would.
+   *
+   * `'run'` answers with `suggestionRun`; `'no_provider'` is the route's own
+   * refusal of a real run with no transport wired in; `'failure'` answers
+   * `503` — a retryable transport failure, the kind the loop's own budget
+   * and retry machinery exists for.
+   */
+  suggestionOutcome: 'run' | 'no_provider' | 'failure' = 'run'
+
+  /** The suggestion run the fake answers with, in the API's own shape. */
+  suggestionRun: ReviewSuggestRun = {
+    run_id: '0193f0a1-0000-7000-8000-00000000s001',
+    project_id: 'proj-lc-p4-cap',
+    version_id: 'ver-baseline-04',
+    mode: 'substitute',
+    model_id: 'substitute-model',
+    requests_made: 0,
+    tokens_estimated: 0,
+    stopped_reason: null,
+    suggestions_recorded: 4,
+    opinions_skipped: 0,
+    started_at: '2026-11-24T09:00:00+00:00',
+    finished_at: '2026-11-24T09:00:01+00:00',
+  }
+
+  /** The deliverables export the fake answers with. */
+  deliverablesExport: unknown = fixtureDeliverablesExport
+
+  /**
+   * Which of the three search sources refuse the query.
+   *
+   * **One source's failure is that source's.** The flags are per source, so
+   * a test can fail one and find the others still answering — which is the
+   * property the search panel is written to hold, and the reason the three
+   * reads are separate requests in the first place.
+   */
+  refuseSearch = { trajectory: false, ppt: false, meeting: false }
+
+  /** The searches the service has been asked to run, by the path asked. */
+  searchesRun: string[] = []
+
+  /**
+   * Whether the service refuses the slide-deck ingest.
+   *
+   * **The ingest's own refusal**: `source_unreadable`, for a resource the
+   * workspace does not hold at the size the gate reads. The flag exists so
+   * a test can watch the panel draw the service's reason rather than a
+   * success the service never sent.
+   */
+  refusePptIngest = false
+
+  /**
+   * Whether the service refuses the meeting-text ingest.
+   *
+   * **The gate's own refusal**: `permission_denied`, for a read the policy
+   * does not cover. A refusal and a zero-count success are different facts,
+   * and the fake keeps them apart the way the service does.
+   */
+  refuseMeetingIngest = false
+
+  /** How many deck ingests the service has been asked for. */
+  pptIngests = 0
+
+  /** How many meeting-text ingests the service has been asked for. */
+  meetingIngests = 0
+
+  /** How many quality reports the service has been asked to run. */
+  qualityReads = 0
+
+  /**
+   * Whether the service refuses the quality report.
+   *
+   * **The report's own refusals**, by name: `chain_project_not_found` for a
+   * project nobody holds, `artifact_not_found` for a dossier that is not
+   * there, and `arguments_invalid` for an artefact that is not a manifest.
+   * The value is the reason the fake answers with.
+   */
+  refuseQualityWith: null | 'chain_project_not_found' | 'artifact_not_found' | 'arguments_invalid' =
+    null
+
+  /**
+   * What the quality report answers with.
+   *
+   * **The answer is replaceable, as every answer here is.** A test that
+   * changes the report and reads the panel again is how "the panel holds no
+   * state" is checked rather than assumed; the default is the fixture.
+   */
+  qualityReport: unknown = QUALITY_REPORT_FIXTURE
+
   /**
    * Whether the service refuses the figure run.
    *
@@ -629,6 +1115,58 @@ export class FakeApi {
    * schema's own lines about which part of the body it would not accept.
    */
   refuseWithSchema = false
+
+  /**
+   * Whether the service refuses the issue record.
+   *
+   * **The layer's own refusal**, by name: a severity or a type outside the
+   * closed vocabulary is refused where the mistake is made, and a project
+   * nobody holds is refused before the store is asked. The flag exists so a
+   * test can watch the panel draw the service's reason rather than its own.
+   */
+  refuseIssueRecord = false
+
+  /**
+   * Whether the service refuses an issue's status move.
+   *
+   * **The walk's own refusal**: `pilot_issue_status_move_refused`, for a move
+   * that skips a state or closes a closed issue. The panel draws the moves
+   * the state machine allows, so a refused move is the service answering
+   * something the panel should not have offered — and a test that wants to
+   * see that answer sets this flag and makes the move anyway.
+   */
+  refuseIssueMove = false
+
+  /**
+   * Whether the service refuses the guidance rule's publication.
+   *
+   * **The publication's own refusal**: `guidance_publish_not_confirmed`, for
+   * a rule that does not stand. The panel offers the button only for a
+   * confirmed, unshared rule, so a refused publication is the service
+   * answering a rule that moved under the reader — and the answer is the
+   * reader sees the service's reason.
+   */
+  refuseRulePublish = false
+
+  /**
+   * Whether the service refuses the guidance rule's retraction.
+   *
+   * **The retraction's own refusal**: `guidance_transition_not_possible`,
+   * because a rule that is not shared has no sharing to retract.
+   */
+  refuseRuleRetract = false
+
+  /** How many issues the service has been asked to record. */
+  issueRecords = 0
+
+  /** How many status moves the service has been asked for. */
+  issueMoves = 0
+
+  /** How many publications the service has been asked for. */
+  rulePublications = 0
+
+  /** How many retractions the service has been asked for. */
+  ruleRetractions = 0
 
   /**
    * Whether the trajectory's answer carries a change that answers no
@@ -875,6 +1413,159 @@ export class FakeApi {
       return this.settleTheRule(path, init)
     }
 
+    if (method === 'GET' && path.startsWith('/issues')) {
+      return this.answerTheIssues(path)
+    }
+
+    if (method === 'POST' && path === '/issues') {
+      return this.recordTheIssue(init)
+    }
+
+    if (method === 'POST' && path.startsWith('/issues/') && path.endsWith('/status')) {
+      return this.moveTheIssue(path, init)
+    }
+
+    if (method === 'POST' && path.startsWith('/guidance/rules/') && path.endsWith('/publish')) {
+      return this.publishTheRule(path, init)
+    }
+
+    if (method === 'POST' && path.startsWith('/guidance/rules/') && path.endsWith('/retract')) {
+      return this.retractTheRule(path)
+    }
+
+    // The review round's preview, apply and deliverables — the delivery
+    // centre's three routes. The preview is a dry run: it answers and writes
+    // nothing. The apply answers with the binding the round closed, and the
+    // deliverables are answered from the dossier the apply named.
+    if (method === 'POST' && path === '/review/preview') {
+      this.reviewPreviews += 1
+      if (this.refuseReview) {
+        return jsonResponse(403, {
+          reason: 'arguments_invalid',
+          message: 'no review decision stands for this round.',
+        })
+      }
+      return jsonResponse(200, this.reviewPreview)
+    }
+
+    if (method === 'POST' && path === '/review/apply') {
+      this.reviewApplies += 1
+      if (this.refuseReview) {
+        return jsonResponse(403, {
+          reason: 'arguments_invalid',
+          message: 'no review decision stands for this round.',
+        })
+      }
+      // **A cancellation asked for while the round ran is the round's own
+      // outcome.** The next apply after a cancel answers with the service's
+      // `apply_cancelled`, and the flag is spent: the round after that runs
+      // clean, the way the real service's per-round flag does.
+      if (this.applyInFlight) {
+        this.applyInFlight = false
+        return jsonResponse(403, {
+          reason: 'apply_cancelled',
+          message:
+            "the apply round was cancelled at 'before_marked_publication': " +
+            'cancelled from the delivery centre. Nothing further was published; ' +
+            'the round may be applied again from the start, and the approvals it ' +
+            'had not spent remain granted.',
+        })
+      }
+      return jsonResponse(200, {
+        project_id: 'proj-lc-p4-cap',
+        input_version_id: 'ver-baseline-04',
+        output_version_id: 'ver-applied-05',
+        edge_id: '0193f0a1-0000-7000-8000-00000000e001',
+        marked_receipt_id: '0193f0a1-0000-7000-8000-00000000a101',
+        marked_sha256: 'a'.repeat(64),
+        clean_receipt_id: '0193f0a1-0000-7000-8000-00000000a102',
+        clean_sha256: 'b'.repeat(64),
+        dossier_artifact_id: '0193f0a1-0000-7000-8000-00000000d001',
+        applied: ['fb-0193f0a1-0000-7000-8000-00000000c101'],
+        handovers: [],
+        unresolved: [],
+      })
+    }
+
+    if (method === 'POST' && path === '/review/apply/cancel') {
+      this.reviewApplyCancels += 1
+      if (!this.applyInFlight) {
+        return jsonResponse(403, {
+          reason: 'arguments_invalid',
+          message:
+            'no apply round for this project is running, so there is nothing ' +
+            'to cancel. A cancellation is a request about a round in flight, ' +
+            'not a standing order for the next one.',
+        })
+      }
+      return jsonResponse(200, {
+        project_id: 'proj-lc-p4-cap',
+        reason: 'cancelled from the delivery centre',
+        accepted: true,
+      })
+    }
+
+    // The suggestion loop: the desk asks one version's pending opinions be
+    // walked by a source. The refusals and the failure are the route's own —
+    // no transport wired in refuses a real run by name, and a transport that
+    // cannot be reached answers with the failure the loop's budget exists
+    // for. The run's answer is the account, and the suggestions themselves
+    // are read back through `/review/opinions`.
+    if (method === 'POST' && path === '/review/suggest') {
+      this.suggestionRuns += 1
+      const body = JSON.parse(init?.body as string) as { mode?: string }
+      const mode = body.mode ?? 'substitute'
+      if (this.suggestionOutcome === 'no_provider' && mode === 'real') {
+        return jsonResponse(403, {
+          reason: 'model_suggestion_no_provider',
+          message:
+            'no real-model transport is wired into this service, so there is ' +
+            'nothing to ask. A real run is refused rather than simulated: an ' +
+            'invented suggestion would put words in a model’s mouth that no ' +
+            'model said.',
+        })
+      }
+      if (this.suggestionOutcome === 'failure') {
+        return jsonResponse(503, {
+          reason: 'model_suggestion_unavailable',
+          message: 'the suggestion source could not be reached for this opinion.',
+        })
+      }
+      return jsonResponse(201, { ...this.suggestionRun, mode })
+    }
+
+    if (method === 'GET' && path.startsWith('/review/deliverables')) {
+      return jsonResponse(200, this.deliverablesExport)
+    }
+
+    if (method === 'GET' && path.startsWith('/trajectory/search')) {
+      return this.answerTheSearch(path, 'trajectory')
+    }
+
+    if (method === 'GET' && path.startsWith('/ppt/search')) {
+      return this.answerTheSearch(path, 'ppt')
+    }
+
+    if (method === 'POST' && path === '/ppt/ingest') {
+      return this.ingestTheDeck()
+    }
+
+    if (method === 'GET' && path.startsWith('/meeting/search')) {
+      return this.answerTheSearch(path, 'meeting')
+    }
+
+    if (method === 'POST' && path === '/meeting/ingest') {
+      return this.ingestTheMeeting()
+    }
+
+    if (method === 'GET' && path.startsWith('/review/quality')) {
+      return this.answerTheQuality(path)
+    }
+
+    if (method === 'GET' && path.startsWith('/guidance/usable')) {
+      return this.answerTheUsableRules(path)
+    }
+
     if (method === 'GET' && path.startsWith('/trajectory/issue-keys')) {
       return this.answerTheIssueKeys(path)
     }
@@ -1080,6 +1771,403 @@ export class FakeApi {
       rule.resolution_reason = body.reason ?? null
     }
     return jsonResponse(200, rule)
+  }
+
+  /**
+   * The pilot's issues, narrowed by what the panel asked for.
+   *
+   * **The project is required, the service refuses a listing without one** —
+   * an issue is recorded about a project — and the two filters narrow the
+   * answer rather than refusing it: an empty answer is a fact about the
+   * project, not a failure. A filter outside the closed vocabulary is
+   * refused by name, the way the layer refuses it.
+   */
+  private answerTheIssues(path: string): Response {
+    const query = queryOf(path)
+    const projectId = query.get('project_id')
+    if (projectId === null || projectId.trim() === '') {
+      return jsonResponse(422, {
+        detail: [{ loc: ['query', 'project_id'], msg: 'String should have at least 1 character' }],
+      })
+    }
+    const status = query.get('status')
+    const SEVERITIES = ['blocker', 'serious', 'minor', 'suggestion']
+    const STATUSES = ['open', 'confirmed', 'fixed', 'wontfix']
+    if (status !== null && status !== '' && !STATUSES.includes(status)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_status_move_refused',
+        message: `${JSON.stringify(status)} is not one of the four statuses.`,
+      })
+    }
+    const severity = query.get('severity')
+    if (severity !== null && severity !== '' && !SEVERITIES.includes(severity)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_severity_unknown',
+        message: `${JSON.stringify(severity)} is not one of the four severities.`,
+      })
+    }
+    const issues = this.state.issues.filter(
+      (issue) =>
+        issue.project_id === projectId &&
+        (status === null || status === '' || issue.status === status) &&
+        (severity === null || severity === '' || issue.severity === severity),
+    )
+    return jsonResponse(200, issues)
+  }
+
+  /**
+   * The record of one problem the trial met.
+   *
+   * **The record is about something, and the vocabularies are closed.** The
+   * project, the step, the error text and the reporter are required; the
+   * severity and the type are checked against the service's closed
+   * vocabularies, in the service's own order — the vocabulary before the
+   * store — and the answer is the record as it stands: `open`, and dated.
+   */
+  private recordTheIssue(init?: RequestInit): Response {
+    this.issueRecords += 1
+    const body = JSON.parse(init?.body as string) as IssueRecordBody
+    if (this.refuseIssueRecord) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_severity_unknown',
+        message:
+          'application refused (pilot_issue_severity_unknown): the severity is outside the ' +
+          'closed vocabulary, and the record refuses it where the mistake was made.',
+      })
+    }
+    if (body.project_id.trim() === '') {
+      return jsonResponse(422, {
+        detail: [{ loc: ['body', 'project_id'], msg: 'String should have at least 1 character' }],
+      })
+    }
+    const SEVERITIES = ['blocker', 'serious', 'minor', 'suggestion']
+    const CATEGORIES = ['function', 'interface', 'performance', 'model', 'documentation']
+    if (!SEVERITIES.includes(body.severity)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_severity_unknown',
+        message: `${JSON.stringify(body.severity)} is not one of the four severities.`,
+      })
+    }
+    if (!CATEGORIES.includes(body.category)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_category_unknown',
+        message: `${JSON.stringify(body.category)} is not one of the five categories.`,
+      })
+    }
+    const issue: IssueData = {
+      issue_id: body.issue_id,
+      project_id: body.project_id,
+      task_id: body.task_id ?? null,
+      version_id: body.version_id ?? null,
+      feedback_id: body.feedback_id ?? null,
+      step: body.step,
+      error_text: body.error_text,
+      duration_seconds: body.duration_seconds ?? null,
+      retry_count: body.retry_count ?? null,
+      severity: body.severity,
+      category: body.category,
+      reported_by: body.reported_by,
+      reported_at: '2026-11-24T09:00:00+00:00',
+      status: 'open',
+      fix_version: null,
+      regression_note: null,
+    }
+    this.state.issues = [issue, ...this.state.issues]
+    return jsonResponse(201, issue)
+  }
+
+  /**
+   * One issue's walk along its four states.
+   *
+   * **The states are walked, not set.** `open` is confirmed; `confirmed` is
+   * fixed — naming the version that fixed it — or wontfix; a closed issue
+   * moves nowhere. The refusals are the layer's, in the layer's own order:
+   * the issue, the project it belongs to, the vocabulary, the walk, and the
+   * fix version a `fixed` move must name.
+   */
+  private moveTheIssue(path: string, init?: RequestInit): Response {
+    this.issueMoves += 1
+    const issueId = decodeURIComponent(path.slice('/issues/'.length, -'/status'.length))
+    const body = JSON.parse(init?.body as string) as IssueStatusBody
+    if (this.refuseIssueMove) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_status_move_refused',
+        message:
+          'an issue in state open moves to one of (confirmed), not to confirmed. ' +
+          'The states are walked, not set.',
+      })
+    }
+    const issue = this.state.issues.find((row) => row.issue_id === issueId)
+    if (issue === undefined || issue.project_id !== body.project_id) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_not_found',
+        message: `the store holds no pilot issue with the id ${JSON.stringify(issueId)}.`,
+      })
+    }
+    const MOVES: Record<string, string[]> = {
+      open: ['confirmed'],
+      confirmed: ['fixed', 'wontfix'],
+      fixed: [],
+      wontfix: [],
+    }
+    const allowed = MOVES[issue.status] ?? []
+    if (!allowed.includes(body.status)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_status_move_refused',
+        message:
+          `an issue in state ${JSON.stringify(issue.status)} moves to one of ` +
+          `(${allowed.length === 0 ? 'nothing — the state is closed' : allowed.join(', ')}), ` +
+          `not to ${JSON.stringify(body.status)}. The states are walked, not set.`,
+      })
+    }
+    if (body.status === 'fixed' && (body.fix_version ?? '').trim() === '') {
+      return jsonResponse(403, {
+        reason: 'arguments_invalid',
+        message:
+          'a fixed issue names the version that fixed it; the fix version was empty. ' +
+          'A fix without a version is a claim the next regression cannot check.',
+      })
+    }
+    issue.status = body.status
+    if (body.status === 'fixed') {
+      issue.fix_version = body.fix_version ?? null
+      issue.regression_note = body.regression_note ?? null
+    }
+    return jsonResponse(200, { issue })
+  }
+
+  /**
+   * The publication of a confirmed rule to the group.
+   *
+   * **The refusals are the service's own, in the service's own order.** The
+   * route checks its body first, so an empty `user_id` is
+   * `arguments_invalid`; the memory's own reasons come after — the
+   * second reader, the state the rule stands in, and the sharing that has
+   * already happened. The answer is the rule as it now stands: shared with
+   * the group, and dated.
+   */
+  private publishTheRule(path: string, init?: RequestInit): Response {
+    this.rulePublications += 1
+    const ruleId = decodeURIComponent(path.slice('/guidance/rules/'.length, -'/publish'.length))
+    const body = JSON.parse(init?.body as string) as { user_id?: string }
+    if ((body.user_id ?? '').trim() === '') {
+      return jsonResponse(403, {
+        reason: 'arguments_invalid',
+        message:
+          'a publication nobody signs is not a publication. Name the mentor whose word it is.',
+      })
+    }
+    if (this.refuseRulePublish) {
+      return jsonResponse(403, {
+        reason: 'guidance_publish_not_confirmed',
+        message:
+          'the rule is not confirmed, and only a confirmed rule is published to the group. ' +
+          'A candidate is unreviewed experience, and a disputed or withdrawn rule is not standing.',
+      })
+    }
+    const rule = this.state.guidanceRules.find((row) => row.rule_id === ruleId)
+    if (rule === undefined) {
+      return jsonResponse(403, {
+        reason: 'guidance_rule_not_found',
+        message: `the memory holds no rule with the id ${JSON.stringify(ruleId)}.`,
+      })
+    }
+    if (rule.proposed_by === body.user_id) {
+      return jsonResponse(403, {
+        reason: 'guidance_publisher_is_proposer',
+        message:
+          `the rule was proposed by ${rule.proposed_by}, and its proposer` +
+          ' cannot be the one who publishes it to the group',
+      })
+    }
+    if (rule.state !== 'confirmed') {
+      return jsonResponse(403, {
+        reason: 'guidance_publish_not_confirmed',
+        message:
+          `the rule is ${JSON.stringify(rule.state)}, and only a confirmed rule is published ` +
+          'to the group.',
+      })
+    }
+    if (rule.shared_scope === 'group') {
+      return jsonResponse(403, {
+        reason: 'guidance_transition_not_possible',
+        message: 'the rule is already shared with the group, and a publication is not twice.',
+      })
+    }
+    rule.shared_scope = 'group'
+    rule.published_by = body.user_id ?? null
+    rule.published_at = '2026-11-24T09:00:00+00:00'
+    return jsonResponse(200, rule)
+  }
+
+  /**
+   * The retraction of a rule's sharing, leaving the rule standing.
+   *
+   * **Retracting a sharing is not withdrawing a rule.** The scope goes back
+   * to `private` and the publication's name and moment are cleared; the
+   * rule's own state is untouched. A rule that is not shared has no sharing
+   * to retract, and the service refuses that by name.
+   */
+  private retractTheRule(path: string): Response {
+    this.ruleRetractions += 1
+    const ruleId = decodeURIComponent(path.slice('/guidance/rules/'.length, -'/retract'.length))
+    if (this.refuseRuleRetract) {
+      return jsonResponse(403, {
+        reason: 'guidance_transition_not_possible',
+        message: 'the rule is not shared with the group, so there is no sharing to retract',
+      })
+    }
+    const rule = this.state.guidanceRules.find((row) => row.rule_id === ruleId)
+    if (rule === undefined) {
+      return jsonResponse(403, {
+        reason: 'guidance_rule_not_found',
+        message: `the memory holds no rule with the id ${JSON.stringify(ruleId)}.`,
+      })
+    }
+    if (rule.shared_scope !== 'group') {
+      return jsonResponse(403, {
+        reason: 'guidance_transition_not_possible',
+        message: 'the rule is not shared with the group, so there is no sharing to retract',
+      })
+    }
+    rule.shared_scope = 'private'
+    rule.published_by = null
+    rule.published_at = null
+    return jsonResponse(200, rule)
+  }
+
+  /**
+   * One search source's answer, at the question the panel asked.
+   *
+   * **The question is checked, not assumed.** The route requires at least
+   * one character, so an empty term is refused in the service's own
+   * vocabulary — the panel should never send one, and a test that wants to
+   * know whether it did can look at `searchesRun`. A source's refusal is
+   * that source's: the flags are per source, and the other two keep
+   * answering.
+   */
+  private answerTheSearch(path: string, source: 'trajectory' | 'ppt' | 'meeting'): Response {
+    this.searchesRun.push(path)
+    const query = queryOf(path)
+    const term = query.get('q') ?? ''
+    if (term.trim() === '') {
+      return jsonResponse(422, {
+        detail: [{ loc: ['query', 'q'], msg: 'String should have at least 1 character' }],
+      })
+    }
+    if (this.refuseSearch[source]) {
+      return jsonResponse(503, {
+        reason: 'search_unavailable',
+        message: `the ${source} index could not be reached for this query.`,
+      })
+    }
+    const hits =
+      source === 'trajectory'
+        ? this.state.trajectoryHits
+        : source === 'ppt'
+          ? this.state.pptHits
+          : this.state.meetingHits
+    return jsonResponse(200, hits)
+  }
+
+  /**
+   * One deck ingest, and the count it honestly answers with.
+   *
+   * **The body names where to read; the fake does not read anything.** The
+   * answer is the fixture, counted the way the service counts: objects by
+   * kind, and the limitations the reader recorded. A refusal is the gate's
+   * own — `source_unreadable` — and it is a refusal, never a zero-count
+   * success dressed up as one.
+   */
+  private ingestTheDeck(): Response {
+    this.pptIngests += 1
+    if (this.refusePptIngest) {
+      return jsonResponse(403, {
+        reason: 'source_unreadable',
+        message:
+          'the deck at the named resource key could not be read as a PowerPoint container. ' +
+          'Nothing was indexed.',
+      })
+    }
+    return jsonResponse(201, PPT_INGEST_FIXTURE)
+  }
+
+  /**
+   * One meeting-text ingest, and the records it honestly answers with.
+   *
+   * **The refusal is the policy's, not the reader's.** `permission_denied`
+   * is what a read the policy does not cover answers with, and the fake
+   * keeps that distinct from an empty container — a container with no
+   * records is a count, a denied read is a refusal.
+   */
+  private ingestTheMeeting(): Response {
+    this.meetingIngests += 1
+    if (this.refuseMeetingIngest) {
+      return jsonResponse(403, {
+        reason: 'permission_denied',
+        message: 'the policy denied reading the meeting container at the named resource key.',
+      })
+    }
+    return jsonResponse(201, MEETING_INGEST_FIXTURE)
+  }
+
+  /**
+   * The six quality checks over one closed round's manifest.
+   *
+   * **The refusals are the route's own, in its own vocabulary.** A project
+   * nobody holds is `chain_project_not_found`; a dossier that is not there
+   * is `artifact_not_found`; an artefact that is not a manifest is
+   * `arguments_invalid`. A fake that answered every question with the same
+   * green report would let a panel that asked about the wrong round look
+   * right.
+   */
+  private answerTheQuality(path: string): Response {
+    this.qualityReads += 1
+    const query = queryOf(path)
+    const projectId = query.get('project_id')
+    const dossierId = query.get('dossier_artifact_id')
+    if (projectId === null || projectId === '') {
+      return jsonResponse(422, {
+        detail: [{ loc: ['query', 'project_id'], msg: 'String should have at least 1 character' }],
+      })
+    }
+    if (dossierId === null || dossierId === '') {
+      return jsonResponse(422, {
+        detail: [
+          { loc: ['query', 'dossier_artifact_id'], msg: 'String should have at least 1 character' },
+        ],
+      })
+    }
+    if (this.refuseQualityWith !== null) {
+      const reason = this.refuseQualityWith
+      const message =
+        reason === 'chain_project_not_found'
+          ? `the store holds no paper project with the id ${projectId}.`
+          : reason === 'artifact_not_found'
+            ? `no artefact carries the id ${dossierId}.`
+            : `the artefact ${dossierId} is not a dossier manifest.`
+      return jsonResponse(403, { reason, message })
+    }
+    return jsonResponse(200, this.qualityReport)
+  }
+
+  /**
+   * The rules the retrieval answers with.
+   *
+   * **The scope is the route's own filter, and the fake applies it.** A
+   * caller that names a scope is answered with the rules that carry it —
+   * the service's rule — so a panel that asked for the wrong scope sees the
+   * emptiness that wrong scope deserves, not a list meant for another
+   * question.
+   */
+  private answerTheUsableRules(path: string): Response {
+    const query = queryOf(path)
+    const scope = query.get('scope')
+    const rules =
+      scope === null || scope === ''
+        ? this.state.guidanceUsable
+        : this.state.guidanceUsable.filter((rule) => rule.scope === scope)
+    return jsonResponse(200, rules)
   }
 
   /**

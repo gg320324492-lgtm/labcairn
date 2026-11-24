@@ -80,6 +80,7 @@ from pydantic import create_model
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse, request_approval
 from labcairn.application.context import ApplicationContext
 from labcairn.application.model_request import ModelInvocation, request_model
+from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import ApprovalId
 from labcairn.core.schema import LabCairnModel
@@ -1135,13 +1136,373 @@ __all__ = [
     "GuidanceJudgementModel",
     "MaterialAddress",
     "ModelCallPlan",
+    "RoleRunBackend",
+    "RoleRunCandidate",
+    "RoleRunCard",
+    "RoleRunCardClaim",
     "RoleRunQuestion",
     "RoleRunRequest",
     "RoleRunResult",
+    "RoleRunRuleCitation",
+    "RoleRunRun",
     "RoleRunTicket",
+    "RoleRunTicketWire",
+    "RoleRunUncertainty",
+    "RoleRunVerdict",
     "TrajectoryJudgement",
     "TrajectoryJudgementModel",
     "request_role_run",
     "run_role_run",
+    "run_role_run_service",
     "the_role_run_question",
+    "the_role_run_run",
+    "the_role_run_ticket",
 ]
+
+
+# --------------------------------------------------------------------------- #
+# the result on the wire
+# --------------------------------------------------------------------------- #
+
+
+class RoleRunRuleCitation(Result):
+    """A rule the card cites, with the cases against it, as the wire carries it.
+
+    The fields are
+    :class:`labcairn.roles.guidance.RuleCitation`'s own, spelled out because
+    the role outputs are frozen dataclasses and have no schema of their own.
+    """
+
+    rule_id: str
+    version: int
+    statement: str
+    counterexamples: tuple[str, ...] = ()
+
+
+class RoleRunCardClaim(Result):
+    """One claim on a card, as the wire carries it."""
+
+    text: str
+    kind: str
+    evidence_ref: str | None = None
+    issue_key: str | None = None
+    advisor_quote: str | None = None
+
+
+class RoleRunUncertainty(Result):
+    """How sure the card is, as the wire carries it."""
+
+    kind: str
+    what_is_uncertain: str
+    missing: tuple[str, ...] = ()
+
+
+class RoleRunCandidate(Result):
+    """Role A's candidate, as the wire carries it.
+
+    The role outputs are frozen dataclasses rather than pydantic models, so
+    the run's result carries them as these validated shapes: the same
+    fields, and nothing added. ``role_id`` and ``role_version`` are the
+    contract the candidate was made under -- the pair a replay opens.
+    """
+
+    role_id: str
+    role_version: int
+    issue_key: str
+    issue_type: str
+    edit_action_id: str | None
+    alignment: str
+    advisor_quote: str
+    note: str
+
+
+class RoleRunCard(Result):
+    """Role B's card, as the wire carries it. The fields are the card's own."""
+
+    role_id: str
+    role_version: int
+    target_locator: str
+    issue_type: str
+    severity: str
+    reason: str
+    evidence_refs: tuple[str, ...]
+    suggested_next_action: str
+    uncertainty: RoleRunUncertainty
+    claims: tuple[RoleRunCardClaim, ...] = ()
+    style_notes: tuple[str, ...] = ()
+    rule_refs: tuple[RoleRunRuleCitation, ...] = ()
+    historical_case_refs: tuple[str, ...] = ()
+    counterexamples_or_limits: tuple[str, ...] = ()
+
+
+class RoleRunVerdict(Result):
+    """Role C's verdict, as the wire carries it. The fields are the verdict's own."""
+
+    role_id: str
+    role_version: int
+    reviewed_locator: str
+    reviewed_issue_type: str
+    verdict: str
+    grade: str
+    counter_evidence: tuple[RoleRunRuleCitation, ...] = ()
+    repair_advice: str
+    handover_reason: str | None
+
+
+class RoleRunRun(Result):
+    """What a run produced, as the wire carries it.
+
+    The layer's :class:`RoleRunResult` is the model; the role outputs it
+    holds are spelled out as the validated shapes above, because a frozen
+    dataclass has no JSON schema of its own and the API's document is read
+    from schemas. **Nothing is added and nothing is re-spelled**: a field
+    the layer's result carries reaches this shape unchanged, so the wire
+    and the CLI's ``--json`` are the same bytes.
+    """
+
+    roles: tuple[str, ...]
+    #: The model's own words, when the run asked for one. ``None`` is the
+    #: ordinary state of a run whose judgements were all supplied: nothing
+    #: was asked, so there is no answer to carry.
+    answer: str | None
+    #: The exchange record the model call landed in, when one was made.
+    exchange_event_id: str | None
+    candidate: RoleRunCandidate | None = None
+    card: RoleRunCard | None = None
+    verdict: RoleRunVerdict | None = None
+
+
+class RoleRunTicketWire(Result):
+    """The question, written down, as the wire carries it.
+
+    The layer's :class:`RoleRunTicket` is the model. **This is the ask's
+    whole output, and it spends nothing**: the approval it names is
+    *pending* -- a person grants it over the approval door, or does not --
+    and no role has run. The prompt and the excerpts are carried so the
+    caller can read exactly what a run would send before it consents.
+    """
+
+    roles: tuple[str, ...]
+    #: The contracts the roles run under, each with the role id and the
+    #: version that was read.
+    contracts: tuple[dict[str, Any], ...]
+    #: The question, as it will be asked.
+    prompt: str
+    #: The material that leaves the machine, and nothing else.
+    excerpts: tuple[str, ...]
+    #: Where the material is: the workspace path, the root it landed in and
+    #: the key it holds.
+    material: dict[str, str]
+    #: Who the model call would ask, and where the material is declared.
+    plan: dict[str, str]
+    #: The approval the run will spend, when a judgement is missing and one
+    #: was asked for. It is *pending*; the run refuses to spend it until a
+    #: person grants it.
+    approval_id: str | None
+    asked_at: datetime
+
+
+def the_role_run_ticket(ticket: RoleRunTicket) -> RoleRunTicketWire:
+    """The ticket, as the wire carries it.
+
+    **One conversion, one place**, for the same reason the run's is: the
+    API and the CLI read the same bytes from the same function.
+    """
+    from dataclasses import asdict
+
+    return RoleRunTicketWire(
+        roles=tuple(contract.role_id for contract in ticket.contracts),
+        contracts=tuple(asdict(contract) for contract in ticket.contracts),
+        prompt=ticket.prompt,
+        excerpts=ticket.excerpts,
+        material=asdict(ticket.question.material),
+        plan=asdict(ticket.plan),
+        approval_id=str(ticket.approval_id) if ticket.approval_id is not None else None,
+        asked_at=ticket.asked_at,
+    )
+
+
+def _the_rule_citation_wire(citation: RuleCitation) -> RoleRunRuleCitation:
+    """The citation, as the wire carries it."""
+    return RoleRunRuleCitation(
+        rule_id=citation.rule_id,
+        version=citation.version,
+        statement=citation.statement,
+        counterexamples=citation.counterexamples,
+    )
+
+
+def _the_candidate_wire(candidate: TrajectoryCandidate) -> RoleRunCandidate:
+    """The candidate, as the wire carries it."""
+    return RoleRunCandidate(
+        role_id=candidate.role_id,
+        role_version=candidate.role_version,
+        issue_key=candidate.issue_key,
+        issue_type=candidate.issue_type,
+        edit_action_id=candidate.edit_action_id,
+        alignment=candidate.alignment,
+        advisor_quote=candidate.advisor_quote,
+        note=candidate.note,
+    )
+
+
+def _the_card_wire(card: GuidanceCard) -> RoleRunCard:
+    """The card, as the wire carries it."""
+    return RoleRunCard(
+        role_id=card.role_id,
+        role_version=card.role_version,
+        target_locator=card.target_locator,
+        issue_type=card.issue_type,
+        severity=card.severity,
+        reason=card.reason,
+        evidence_refs=card.evidence_refs,
+        suggested_next_action=card.suggested_next_action,
+        uncertainty=RoleRunUncertainty(
+            kind=card.uncertainty.kind,
+            what_is_uncertain=card.uncertainty.what_is_uncertain,
+            missing=card.uncertainty.missing,
+        ),
+        claims=tuple(
+            RoleRunCardClaim(
+                text=claim.text,
+                kind=claim.kind,
+                evidence_ref=claim.evidence_ref,
+                issue_key=claim.issue_key,
+                advisor_quote=claim.advisor_quote,
+            )
+            for claim in card.claims
+        ),
+        style_notes=card.style_notes,
+        rule_refs=tuple(_the_rule_citation_wire(item) for item in card.rule_refs),
+        historical_case_refs=card.historical_case_refs,
+        counterexamples_or_limits=card.counterexamples_or_limits,
+    )
+
+
+def _the_verdict_wire(verdict: ReviewVerdict) -> RoleRunVerdict:
+    """The verdict, as the wire carries it."""
+    return RoleRunVerdict(
+        role_id=verdict.role_id,
+        role_version=verdict.role_version,
+        reviewed_locator=verdict.reviewed_locator,
+        reviewed_issue_type=verdict.reviewed_issue_type,
+        verdict=verdict.verdict,
+        grade=verdict.grade,
+        counter_evidence=tuple(_the_rule_citation_wire(item) for item in verdict.counter_evidence),
+        repair_advice=verdict.repair_advice,
+        handover_reason=verdict.handover_reason,
+    )
+
+
+def the_role_run_run(result: RoleRunResult) -> RoleRunRun:
+    """The run's result, as the wire carries it.
+
+    **One conversion, one place.** The API's route and the CLI's ``--json``
+    both pass through this function, so the two surfaces serve the same
+    bytes by construction rather than by a promise that somebody will keep
+    two serialisations in step.
+    """
+    return RoleRunRun(
+        roles=result.roles,
+        answer=result.answer,
+        exchange_event_id=result.exchange_event_id,
+        candidate=None if result.candidate is None else _the_candidate_wire(result.candidate),
+        card=None if result.card is None else _the_card_wire(result.card),
+        verdict=None if result.verdict is None else _the_verdict_wire(result.verdict),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the service's assembly point
+# --------------------------------------------------------------------------- #
+
+
+class RoleRunBackend:
+    """The service's assembly point for a real-model role-loop run.
+
+    **This is the service's wiring, not a consent of its own** — the same
+    shape the suggestion loop's backend holds. A service that carries no
+    backend refuses a run that needs a model judgement with
+    ``role_run_no_provider`` — the refusal, not a failure, is the honest
+    state of a service the owner has not authorised — and a run whose
+    judgements are all supplied needs no backend at all, because it
+    reaches no wire and spends nothing.
+
+    ``grants`` are the material-purpose grants the model call is judged
+    against, and ``destination`` is the destination they name. Neither is
+    read from anywhere here: the service wires them, and the run spends
+    through the consent gates like every other call that leaves the
+    machine.
+    """
+
+    def __init__(
+        self,
+        *,
+        provider: str,
+        model: str,
+        send: Callable[[str], ModelInvocation],
+        capabilities: ProviderCapabilities | None = None,
+        grants: Sequence[Grant] = (),
+        destination: str = "",
+    ) -> None:
+        self.provider = provider
+        self.model = model
+        self.send = send
+        self.capabilities = capabilities
+        self.grants = grants
+        self.destination = destination
+
+
+def run_role_run_service(
+    context: ApplicationContext,
+    ticket: RoleRunTicket,
+    *,
+    backend: RoleRunBackend | None,
+    at: datetime,
+) -> RoleRunRun:
+    """Run the roles a ticket names, through the service's backend.
+
+    **The backend is the service's wiring, and its absence is a refusal
+    with a name.** A run that needs a model judgement and finds no backend
+    is refused with ``role_run_no_provider`` -- the honest state of a
+    service the owner has not authorised -- rather than simulated, because
+    an invented judgement would put words in a model's mouth that no model
+    said. A run whose judgements are all supplied needs no backend, and
+    reaches no wire.
+
+    **The consent has already been given.** The ticket carries the approval
+    id the ask minted; a person granted it over the approval door
+    (``POST /approvals/{id}/grant`` or ``task approval-grant``) before this
+    was called, and the run spends it through
+    :func:`labcairn.application.model_request.request_model` like every
+    other call that leaves the machine. This operation mints no consent of
+    its own.
+
+    :raises ApplicationRefusedError: the run needs a model judgement and no
+        backend is wired; the consent refused the call; the answer did not
+        carry a judgement for a role the request named; or a role refused
+        its own judgement.
+    """
+    if backend is None:
+        missing = _missing_judgements(
+            ticket.request, tuple(contract.role_id for contract in ticket.contracts)
+        )
+        if missing:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ROLE_RUN_NO_PROVIDER,
+                "no real-model transport is wired into this service, so there is"
+                " nothing to ask. A run that needs a model judgement is refused"
+                " rather than simulated: an invented judgement would put words in"
+                " a model's mouth that no model said.",
+            )
+        return the_role_run_run(run_role_run(context, ticket, grants=(), at=at))
+    return the_role_run_run(
+        run_role_run(
+            context,
+            ticket,
+            grants=backend.grants,
+            at=at,
+            send=backend.send,
+            capabilities=backend.capabilities,
+        )
+    )

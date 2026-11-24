@@ -37,15 +37,37 @@
  * with `confirmed_by` and `confirmed_at` whatever the verdict was, so a
  * dispute records its disputer in the same field, and a panel that renamed
  * them would be a second spelling of the rule.
+ *
+ * **The sharing is a mentor's second act, and it has its own door.** A
+ * confirmed rule is private to the project it was learned in until a second
+ * reader publishes it to the group, and the same reader may retract the
+ * sharing — leaving the rule standing. The panel draws what the service
+ * answers: `shared_scope`, `published_by` and `published_at` when the record
+ * carries them, the buttons for exactly the moves the service allows, and
+ * the service's refusal when a move is refused. The buttons carry the same
+ * name the listing's sign field holds, because the publication is that
+ * person's word too.
  */
 
 import { useId, useState } from 'react'
 import type { JSX } from 'react'
 
 import { ApiFailure, ApiRefusal, api } from '../api/client'
-import type { GuidanceRule, GuidanceRuleVerdictBody } from '../api/generated'
-import { API_PATHS, guidanceRuleConfirmPath } from '../api/paths'
+import type {
+  GuidanceRule,
+  GuidanceRulePublishBody,
+  GuidanceRuleVerdictBody,
+  UsableRule,
+} from '../api/generated'
+import {
+  API_PATHS,
+  guidanceRuleConfirmPath,
+  guidanceRulePublishPath,
+  guidanceRuleRetractPath,
+  guidanceUsablePath,
+} from '../api/paths'
 import { Panel, RecordList } from './Panel'
+import type { PanelRead } from './usePanelRead'
 import { asApiRead, usePanelRead } from './usePanelRead'
 
 /**
@@ -169,6 +191,83 @@ function Counterexample({
   )
 }
 
+/**
+ * The usable rules: what a card may cite, as the memory resolves it now.
+ *
+ * **This is the retrieval's answer, and the list above is the memory's.**
+ * The rules panel draws every rule the memory holds — candidates, disputes
+ * and withdrawn ones among them, because the verdict is offered on every
+ * rule — while this section draws only what `/guidance/usable` answers with:
+ * the mentor-confirmed rules that still stand, with their sources resolved
+ * against the chain at the time of the ask. **The two lists are not the same
+ * list**, and a section that drew one and called it the other would let a
+ * candidate read as a settled rule.
+ *
+ * **A source is named as the chain names it.** The contract carries the
+ * sources as the ids they were distilled from, so the section draws them as
+ * they arrive and explains none of them: what an id addresses is the
+ * chain's answer, not this panel's.
+ *
+ * **An empty answer says what it means.** No usable rule is not the same
+ * statement as no rule at all — the memory above may hold rules that are
+ * still waiting for a person's word — so the empty state says the citation
+ * is what is missing.
+ */
+function UsableRules({ usable }: { readonly usable: PanelRead<UsableRule[]> }): JSX.Element {
+  if (usable.kind === 'failed') {
+    return (
+      <section aria-label="Usable rules">
+        <h3 className="panel__subtitle">Usable rules</h3>
+        <p className="panel__error" role="status">
+          The service did not answer this: {usable.error.message}
+        </p>
+      </section>
+    )
+  }
+  if (usable.kind !== 'answered') {
+    return (
+      <section aria-label="Usable rules">
+        <h3 className="panel__subtitle">Usable rules</h3>
+        <p className="panel__pending" role="status">
+          Reading…
+        </p>
+      </section>
+    )
+  }
+  return (
+    <section aria-label="Usable rules">
+      <h3 className="panel__subtitle">Usable rules</h3>
+      <p className="panel__note">
+        The rules a card may cite: confirmed by a mentor, not withdrawn, and still standing against
+        the chain. This is what the retrieval serves — a candidate is never here, and a rule the
+        memory withdrew is gone from here too.
+      </p>
+      {usable.data.length === 0 ? (
+        <p className="panel__status">
+          No rule may be cited yet: the memory holds rules, but none is confirmed and standing.
+        </p>
+      ) : (
+        <RecordList>
+          {usable.data.map((rule) => (
+            <li className="record" key={`${rule.rule_id}@${rule.version}`}>
+              <span className="record__name">{rule.name}</span>
+              <span className={`record__flag record__flag--${rule.state}`}>{rule.state}</span>
+              <span className="record__detail">{rule.summary}</span>
+              <span className="record__detail">scope {rule.scope}</span>
+              <span className="record__detail">
+                rule {rule.rule_id} version {rule.version}
+              </span>
+              <span className="record__detail">
+                sources {rule.sources.length === 0 ? 'none' : rule.sources.join(', ')}
+              </span>
+            </li>
+          ))}
+        </RecordList>
+      )}
+    </section>
+  )
+}
+
 interface GuidanceViewProps {
   /**
    * The workbench's cycle.
@@ -191,6 +290,7 @@ interface GuidanceViewProps {
 
 export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Element {
   const rules = usePanelRead<GuidanceRule[]>(API_PATHS.guidanceRules, cycle)
+  const usable = usePanelRead<UsableRule[]>(guidanceUsablePath(), cycle)
   const [userId, setUserId] = useState('')
   const [reason, setReason] = useState('')
   const [action, setAction] = useState<ActionState>(IDLE)
@@ -234,6 +334,43 @@ export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Eleme
     )
   }
 
+  /** Publish a confirmed rule to the group, as the signed second reader. */
+  const publish = (rule: GuidanceRule): void => {
+    const who = userId.trim()
+    if (who === '') {
+      setAction({
+        busy: null,
+        outcome: { kind: 'panel', message: 'name the mentor whose word the publication is.' },
+      })
+      return
+    }
+    const body: GuidanceRulePublishBody = { user_id: who }
+    setAction({ busy: rule.rule_id, outcome: null })
+    void api.post<GuidanceRule>(guidanceRulePublishPath(rule.rule_id), body).then(
+      () => {
+        setAction(IDLE)
+        onChanged()
+      },
+      (error: unknown) => {
+        setAction({ busy: null, outcome: classify(error) })
+      },
+    )
+  }
+
+  /** Retract a rule's sharing, leaving the rule itself standing. */
+  const retract = (rule: GuidanceRule): void => {
+    setAction({ busy: rule.rule_id, outcome: null })
+    void api.post<GuidanceRule>(guidanceRuleRetractPath(rule.rule_id)).then(
+      () => {
+        setAction(IDLE)
+        onChanged()
+      },
+      (error: unknown) => {
+        setAction({ busy: null, outcome: classify(error) })
+      },
+    )
+  }
+
   return (
     <Panel title="Guidance" read={asApiRead(rules)}>
       {(data) => (
@@ -244,6 +381,7 @@ export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Eleme
             distilled from cases is a candidate until a person confirms it, and the service refuses
             a confirmation the proposer gave themselves.
           </p>
+          <UsableRules usable={usable} />
           {action.outcome !== null ? (
             <p className="panel__error" role="status">
               {outcomeText(action.outcome)}
@@ -296,6 +434,12 @@ export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Eleme
                     <span className="record__detail">reason {rule.resolution_reason}</span>
                   ) : null}
                   <span className="record__detail">
+                    shared {rule.shared_scope ?? 'private'}
+                    {rule.shared_scope === 'group' && rule.published_by !== null
+                      ? ` by ${rule.published_by} at ${rule.published_at ?? 'an unrecorded moment'}`
+                      : ''}
+                  </span>
+                  <span className="record__detail">
                     sources {rule.sources.length === 0 ? 'none' : rule.sources.join(', ')}
                   </span>
                   {rule.counterexamples.length === 0 ? (
@@ -336,6 +480,36 @@ export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Eleme
                     >
                       Dispute
                     </button>
+                    {rule.state === 'confirmed' && rule.shared_scope !== 'group' ? (
+                      <>
+                        {' '}
+                        <button
+                          className="button"
+                          type="button"
+                          disabled={action.busy !== null}
+                          onClick={() => {
+                            publish(rule)
+                          }}
+                        >
+                          Publish
+                        </button>
+                      </>
+                    ) : null}
+                    {rule.shared_scope === 'group' ? (
+                      <>
+                        {' '}
+                        <button
+                          className="button"
+                          type="button"
+                          disabled={action.busy !== null}
+                          onClick={() => {
+                            retract(rule)
+                          }}
+                        >
+                          Retract
+                        </button>
+                      </>
+                    ) : null}
                   </p>
                 </li>
               ))}

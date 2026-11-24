@@ -1,4 +1,4 @@
-"""The thirty-seven tables that make SQLite the task authority.
+"""The forty-four tables that make SQLite the task authority.
 
 Thirty-seven is not a claim to be trusted: ``tests/test_store_migrations.py``'s
 parity test walks ``Base.metadata`` and the migrated schema independently, and
@@ -9,6 +9,14 @@ LC-P2-06 added five more, "twenty-four" while the file held thirty, and
 "thirty-two" by the time the feedback chain and the identifier registry had
 outgrown it -- because nothing recomputed it. The count above was re-derived
 from the ``__tablename__`` lines when the artifact ledger was made durable.
+The count reads **forty-four** at this writing: the two review tables
+(``review_suggestions``, ``review_decisions``), the trajectory index's two
+(``trajectory_index_rows``, ``trajectory_fts``), the real-model loop's
+``model_suggestion_runs``, the deck index's two (``ppt_index_rows``,
+``ppt_fts``), the meeting-text index's two (``meeting_index_rows``,
+``meeting_fts``), and the pilot's in-system issue record (``pilot_issues``)
+are this phase's additions. The number is re-derived from the
+``__tablename__`` lines, never carried forward.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -3070,6 +3078,21 @@ class GuidanceRuleRow(Base):
     #: Why the rule was disputed or withdrawn. **A retraction without a
     #: reason is a shrug, and the schema refuses a shrug.**
     resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The sharing scope: ``private`` to the project the rule was learned
+    #: in, or ``group`` once a mentor has published it to the whole
+    #: research group (Phase 4 §8.5 / P4-G3). **The default is the fact**:
+    #: every rule that predates sharing served its own project only.
+    shared_scope: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="private", server_default="private"
+    )
+    #: The mentor who published the rule to the group. **A second reader
+    #: again**: the proposer cannot be the publisher, which the
+    #: application layer refuses and this column is what that refusal
+    #: protects. Null while the rule is private.
+    published_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: When the rule was published to the group. Null while it is private,
+    #: and cleared again on a retraction of the sharing.
+    published_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
     __table_args__ = (
         # **The problem comes from the closed vocabulary.** The thirteen
@@ -3122,6 +3145,22 @@ class GuidanceRuleRow(Base):
         CheckConstraint(
             "state IN ('disputed','withdrawn') OR resolution_reason IS NULL",
             name="guidance_rules_a_live_rule_carries_no_resolution",
+        ),
+        # **The sharing scope is closed: private to the project, or the
+        # group.** (Phase 4 §8.5 / P4-G3.) A scope outside the vocabulary
+        # is a word nobody can filter by.
+        CheckConstraint(
+            "shared_scope IN ('private', 'group')",
+            name="guidance_rules_sharing_vocabulary",
+        ),
+        # **A publication carries its publisher and its moment.** A rule
+        # shared with the group names the mentor who published it and when
+        # — and a rule that is private carries neither: the publication is
+        # the sharing, not a diary kept beside it.
+        CheckConstraint(
+            "(shared_scope = 'group') = (published_by IS NOT NULL"
+            " AND length(trim(published_by)) > 0 AND published_at IS NOT NULL)",
+            name="guidance_rules_a_publication_carries_its_publisher_and_moment",
         ),
     )
 
@@ -3585,5 +3624,613 @@ class ArtifactLedgerEntryRow(Base):
             "ix_artifact_ledger_entries_ledger",
             "ledger_id",
             "entry_id",
+        ),
+    )
+
+
+class ReviewSuggestionRow(Base):
+    """One suggestion the review loop holds for one opinion.
+
+    **A suggestion is a record of what the model proposed, and never a
+    decision.** ADR-0016's rule, made durable: the reviewer's verdict lives
+    in :class:`ReviewDecisionRow`, under the same ``feedback_id``, and the
+    two are never merged into one row — reading one must not read as the
+    other.
+
+    **The edit is stored verbatim in the seam's own vocabulary** — one whole
+    plain run of one paragraph, addressed the way the reader addresses text —
+    because that is the unit :func:`labcairn.editing.surgical_bytes` rewrites.
+    A suggestion stored in any other shape would have to be translated before
+    it could be applied, and a translation is a second place to lose the
+    reviewer's meaning.
+    """
+
+    __tablename__ = "review_suggestions"
+
+    #: The opinion this suggestion answers. One suggestion per opinion: a
+    #: second insert under the same id refreshes the proposal, and the row
+    #: the store holds is the proposal that stands.
+    feedback_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The package part the edit is addressed into, e.g. ``word/document.xml``.
+    part: Mapped[str] = mapped_column(String(500), nullable=False)
+    #: The 1-based paragraph ordinal, in the reader's own numbering.
+    paragraph: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The whole run's text the seam would rewrite, and what replaces it.
+    old_text: Mapped[str] = mapped_column(Text, nullable=False)
+    new_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: Who proposed it — a model id in the product's own spelling, or the
+    #: operator handle of a person who drafted one. Recorded, never judged.
+    author: Mapped[str] = mapped_column(String(200), nullable=False)
+    #: ISO-8601 with an offset, the way ``w:date`` carries it. Never the
+    #: wall clock: a suggestion stamped from the clock cannot be reproduced.
+    proposed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_review_suggestions_project", "project_id"),
+        CheckConstraint(
+            "length(feedback_id) > 0 AND length(project_id) > 0 AND length(version_id) > 0",
+            name="review_suggestions_ids_present",
+        ),
+        CheckConstraint("paragraph >= 1", name="review_suggestions_paragraph_positive"),
+        CheckConstraint(
+            "length(part) > 0 AND length(author) > 0",
+            name="review_suggestions_part_and_author_present",
+        ),
+    )
+
+
+class ReviewDecisionRow(Base):
+    """One person's verdict on one opinion's suggestion, made in the open.
+
+    **The verdict is the reviewer's word, and the row is where it stands.**
+    The primary key is the opinion's ``feedback_id``: a reviewer who revises
+    their own verdict writes the row again, and the store holds the verdict
+    that stands. The apply step reads the approved set from here — so the
+    second read of a decision is the same decision, not a memory of the
+    request that made it.
+
+    **``decided_by`` is not stored because it is not variable**: every row
+    here is a person's review, and the chain's word for that is ``user``.
+    The reviewer's own handle is ``operator``, which is what the edge's
+    acceptance and the manifest's decision entry carry.
+    """
+
+    __tablename__ = "review_decisions"
+
+    #: The opinion this verdict is about — the same id the suggestion and
+    #: the chain's comment carry.
+    feedback_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``accepted``, ``partly_accepted``, ``rejected`` or ``pending`` —
+    #: the four statuses execution plan §4 names.
+    verdict: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: The flag that turns an opinion into an explicit unresolved task,
+    #: whatever the verdict was: the opinion asks for evidence the
+    #: manuscript does not carry.
+    needs_evidence: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    #: The reviewer's own handle. The chain's decider word is ``user`` for
+    #: every row here, so it is not stored — one fact, one spelling.
+    operator: Mapped[str] = mapped_column(String(200), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_review_decisions_project", "project_id"),
+        CheckConstraint(
+            "verdict IN ('accepted', 'partly_accepted', 'rejected', 'pending')",
+            name="review_decisions_verdict_vocabulary",
+        ),
+        CheckConstraint(
+            "length(feedback_id) > 0 AND length(project_id) > 0 AND length(version_id) > 0",
+            name="review_decisions_ids_present",
+        ),
+        CheckConstraint(
+            "length(operator) > 0",
+            name="review_decisions_operator_present",
+        ),
+    )
+
+
+class TrajectoryIndexRow(Base):
+    """One searchable entry of a paper's revision trajectory.
+
+    **Phase 4 (P4-MS), first source.** The chain's four tables hold the
+    facts of a revision round, and this index is the one place a learner
+    can ask about them without joining the chain by hand: each row carries
+    **what was said or changed, and where it came from** -- the advisor's
+    comment with the text it was anchored to, or a tracked change with the
+    comment it answered -- together with the version and locator the entry
+    was read from, which is execution plan §8.2's rule that raw material
+    enters the knowledge base with its provenance intact.
+
+    **Two kinds of entry, and the vocabulary is closed**: ``comment`` and
+    ``edit``. A comment entry names the feedback event it came from; an
+    edit entry names the edit action and, behind it, the revision event
+    the file recorded. The CHECK refuses an entry that names neither --
+    an index row about nothing is a row nobody can check.
+
+    **And the id is derived, so re-ingesting a project is the same rows.**
+    The application layer hashes the project, the kind and the chain's own
+    id; a second ingestion finds the rows that are already there, the same
+    rule the feedback chain's derived ids apply to re-reading a manuscript.
+    """
+
+    __tablename__ = "trajectory_index_rows"
+
+    #: Derived by the application layer from the project, the kind and the
+    #: chain's own id. Re-ingesting the same trajectory is the same row.
+    trajectory_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``comment`` or ``edit`` -- the closed vocabulary of what this entry
+    #: holds. A comment entry is the advisor's words; an edit entry is a
+    #: change and the comment it answered.
+    entry_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: The comment this entry carries, or the comment an edit entry answers.
+    feedback_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"), nullable=True
+    )
+    #: The edit row behind an ``edit`` entry, when it is one.
+    edit_action_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("edit_actions.edit_action_id", ondelete="CASCADE"), nullable=True
+    )
+    #: The revision event behind the edit, carried so the change's own
+    #: address stays reachable without a join through the edit row.
+    revision_event_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The manuscript version the entry's material was read from.
+    version_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("paper_versions.version_id", ondelete="CASCADE"), nullable=False
+    )
+    #: The chain's own key for the issue, when a person has given one.
+    issue_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The advisor's words, for a comment entry.
+    comment_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The text the comment was anchored to, when its anchor resolved.
+    anchor_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The 1-based paragraph the comment sits in, when the anchor carries it.
+    anchor_paragraph: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: The judgement that answered the comment, as the response link spells
+    #: it -- or ``None`` while nobody has judged. **A verdict nobody gave is
+    #: never invented**: absence is the honest value.
+    verdict: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ``ins``, ``del``, ``moveFrom`` or ``moveTo`` -- what an edit entry did.
+    change_kind: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The words the change inserted or deleted, for an edit entry.
+    change_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The searchable digest: the comment and its anchor for a comment
+    #: entry, the change and its comment for an edit entry. What
+    #: ``trajectory_fts`` indexes.
+    text_digest: Mapped[str] = mapped_column(Text, nullable=False)
+    #: -- provenance ----------------------------------------------------- #
+    #: The version the entry was read from, where in it, and the content
+    #: hash that makes drift detectable. §8.2: raw material carries its
+    #: source version and locator, or it is not raw material any more.
+    source_version_id: Mapped[str] = mapped_column(Text, nullable=False)
+    source_locator: Mapped[str] = mapped_column(Text, nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: When the entry was indexed.
+    ingested_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_trajectory_index_project", "project_id"),
+        CheckConstraint(
+            "entry_kind IN ('comment', 'edit')",
+            name="trajectory_index_entry_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "length(trajectory_id) > 0 AND length(project_id) > 0",
+            name="trajectory_index_ids_present",
+        ),
+        CheckConstraint(
+            "(entry_kind = 'comment' AND feedback_id IS NOT NULL) OR "
+            "(entry_kind = 'edit' AND edit_action_id IS NOT NULL)",
+            name="trajectory_index_entry_names_its_source",
+        ),
+        CheckConstraint(
+            "length(trim(text_digest)) > 0",
+            name="trajectory_index_digest_present",
+        ),
+        CheckConstraint(
+            "length(source_version_id) > 0 AND length(source_locator) > 0",
+            name="trajectory_index_provenance_present",
+        ),
+    )
+
+
+class ModelSuggestionRunRow(Base):
+    """One suggestion-loop run's account: what was asked, what it cost, what stopped.
+
+    **A budget is only a budget if the spend is recorded.** G0 §5 bounds a
+    real-model loop by requests and tokens, and the loop's own stop
+    conditions bound it by consecutive failures and cancellation — but a
+    ceiling over an unrecorded spend bounds nothing. This row is the
+    account: one per run, written when the run finishes, carrying the mode
+    (``real`` or ``substitute``), the model id, the counts, and the
+    per-opinion request entries as JSON.
+
+    **The entries are counts and class names, never text.** The request
+    body a loop sends is desensitised, but desensitised is not published:
+    the record names what happened (which opinion, which outcome, how
+    long, how many tokens) and not what was said, which is the exchange
+    event's own discipline carried to this table.
+    """
+
+    __tablename__ = "model_suggestion_runs"
+
+    #: Caller-minted, so a run may be cited before it is finished and two
+    #: runs of the same version stay distinct.
+    run_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``real`` or ``substitute``. **Both surfaces carry the mode** — this
+    #: row and the suggestion rows' author — so no reader has to guess
+    #: which model answered.
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: The model the transport names. A real run's id is the authorised
+    #: model; a substitute run's is the substitute label.
+    model_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: LabCairn-issued transport calls, counted. Retries are separate
+    #: calls and each is counted.
+    requests_made: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The loop's own estimate, named as an estimate: the transport seam
+    #: returns text, not usage, so this is characters-over-four and never
+    #: dressed up as a measured figure.
+    tokens_estimated: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Which stop condition fired: ``request_budget``, ``token_budget``,
+    #: ``consecutive_failures``, ``cancelled`` — or ``None`` when the walk
+    #: finished because the opinions ran out.
+    stopped_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: Opinions that received a stored suggestion.
+    suggestions_recorded: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Opinions the run never reached, because a stop fired first.
+    opinions_skipped: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: One JSON array entry per transport call: the opinion's id, the
+    #: outcome kind, the duration, the token estimate and a failure class
+    #: name. No request text.
+    requests_json: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    started_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    finished_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_model_suggestion_runs_project", "project_id"),
+        CheckConstraint(
+            "mode IN ('real', 'substitute')",
+            name="model_suggestion_runs_mode_vocabulary",
+        ),
+        CheckConstraint(
+            "requests_made >= 0 AND tokens_estimated >= 0 "
+            "AND suggestions_recorded >= 0 AND opinions_skipped >= 0",
+            name="model_suggestion_runs_counts_non_negative",
+        ),
+        CheckConstraint(
+            "length(run_id) > 0 AND length(project_id) > 0 "
+            "AND length(version_id) > 0 AND length(model_id) > 0",
+            name="model_suggestion_runs_ids_present",
+        ),
+    )
+
+
+class PptIndexRow(Base):
+    """One searchable object of a PowerPoint deck.
+
+    **Phase 4 (P4-MS), second source (execution plan §8.3).** A deck's
+    titles, body paragraphs, speaker notes, table rows and picture names
+    become rows that carry **what the object says and where it sits** -- the
+    1-based slide number, the 1-based position within the slide and the
+    object kind, which together are the address §8.5 asks a hit to point
+    at, plus the source fingerprint the extraction recorded so a hit is
+    checkable against the file it came from.
+
+    **Five kinds of object, and the vocabulary is closed**: ``title``,
+    ``body``, ``notes``, ``table`` and ``image``. A picture's text is its
+    name -- the deck's own word for the object -- and the kind column is
+    what keeps that distinction readable; a row whose kind is ``image`` and
+    whose text is a description of the pixels would be a conclusion the
+    bytes do not carry.
+
+    **And the id is derived, so re-ingesting a deck is the same rows.**
+    The application layer hashes the project, the source file's content
+    hash and the object's own fingerprint; a second ingestion finds the
+    rows that are already there, the same rule the trajectory index's
+    derived ids apply to re-reading a trajectory.
+    """
+
+    __tablename__ = "ppt_index_rows"
+
+    #: Derived by the application layer from the project, the source hash
+    #: and the object's fingerprint. Re-ingesting the same deck is the same
+    #: row.
+    object_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The content hash of the deck the object was read from. Two decks
+    #: with the same words are two decks, and the hash is what says so.
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The 1-based slide number -- the number a viewer shows -- and the
+    #: 1-based position within the slide, in document order.
+    slide_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    object_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: ``title``, ``body``, ``notes``, ``table`` or ``image`` -- the closed
+    #: vocabulary of what this row holds.
+    object_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: The object's own fingerprint, as the extraction recorded it.
+    object_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    #: What the object says. Never empty: an object with no words is not a
+    #: row, it is nothing.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The media part a picture references, resolved through the slide's
+    #: relationships, or ``None`` for every other kind.
+    media_target: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The structured locator, as JSON -- the ``PptxLocator``'s fields -- so
+    #: a hit can hand back the address without re-deriving it.
+    locator_json: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When the object was indexed.
+    ingested_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_ppt_index_project", "project_id"),
+        Index("ix_ppt_index_source", "source_sha256"),
+        CheckConstraint(
+            "object_kind IN ('title', 'body', 'notes', 'table', 'image')",
+            name="ppt_index_object_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "slide_no >= 1 AND object_position >= 1",
+            name="ppt_index_positions_positive",
+        ),
+        CheckConstraint(
+            "length(object_id) > 0 AND length(project_id) > 0",
+            name="ppt_index_ids_present",
+        ),
+        CheckConstraint(
+            "length(trim(text)) > 0",
+            name="ppt_index_text_present",
+        ),
+        CheckConstraint(
+            "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="ppt_index_source_sha256_well_formed",
+        ),
+        CheckConstraint(
+            "length(trim(object_fingerprint)) > 0 AND length(trim(locator_json)) > 0",
+            name="ppt_index_address_present",
+        ),
+    )
+
+
+class MeetingIndexRow(Base):
+    """One searchable record of meeting text.
+
+    **Phase 4 (P4-MS), third source (execution plan §8.4).** Meeting
+    material that already exists as text -- a transcript someone else
+    produced (SRT, WebVTT) or notes someone organised by hand (TXT,
+    Markdown) -- becomes rows that carry **what the record says and where
+    it sits**: the 1-based record index within the file, the container's
+    timestamp when the record has one, and the record's shape (a
+    transcript ``entry`` or an organised ``paragraph``), plus the source
+    fingerprint the extraction recorded so a hit is checkable against the
+    file it came from. Together those are the address §8.5 asks a hit to
+    point at.
+
+    **Two shapes of record, and the vocabulary is closed**: ``entry`` and
+    ``paragraph``. An entry is timed -- the container's own timestamp
+    spelling -- and a paragraph is not: a paragraph has no time, and
+    inventing one would be a conclusion the bytes do not carry. Both
+    halves of that sentence are CHECK constraints, so a row that claims a
+    paragraph with a timestamp is a row the store refuses.
+
+    **And the id is derived, so re-ingesting a file is the same rows.**
+    The application layer hashes the project, the source file's content
+    hash and the record's own fingerprint; a second ingestion finds the
+    rows that are already there, the same rule the deck index's derived
+    ids apply to re-reading a deck.
+    """
+
+    __tablename__ = "meeting_index_rows"
+
+    #: Derived by the application layer from the project, the source hash
+    #: and the record's fingerprint. Re-ingesting the same file is the
+    #: same row.
+    record_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The content hash of the file the record was read from. Two files
+    #: with the same words are two files, and the hash is what says so.
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: ``entry`` (a timestamped transcript cue) or ``paragraph`` (a block
+    #: of manually organised text) -- the closed vocabulary of what this
+    #: row holds.
+    record_format: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: The record's 1-based index within the file -- the cue's order in
+    #: the transcript, or the paragraph's order in the notes.
+    record_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The container's timestamp for a transcript entry, as the file
+    #: spells it, or ``None`` for a paragraph.
+    timestamp_label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The record's own fingerprint, as the extraction recorded it.
+    record_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    #: What the record says. Never empty: a record with no words is not a
+    #: row, it is nothing.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The structured locator, as JSON -- the ``MeetingTextLocator``'s
+    #: fields -- so a hit can hand back the address without re-deriving it.
+    locator_json: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When the record was indexed.
+    ingested_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_meeting_index_project", "project_id"),
+        Index("ix_meeting_index_source", "source_sha256"),
+        CheckConstraint(
+            "record_format IN ('entry', 'paragraph')",
+            name="meeting_index_format_vocabulary",
+        ),
+        CheckConstraint(
+            "record_index >= 1",
+            name="meeting_index_positions_positive",
+        ),
+        CheckConstraint(
+            "record_format != 'entry' OR timestamp_label IS NOT NULL",
+            name="meeting_index_entry_is_timed",
+        ),
+        CheckConstraint(
+            "record_format != 'paragraph' OR timestamp_label IS NULL",
+            name="meeting_index_paragraph_is_untimed",
+        ),
+        CheckConstraint(
+            "length(record_id) > 0 AND length(project_id) > 0",
+            name="meeting_index_ids_present",
+        ),
+        CheckConstraint(
+            "length(trim(text)) > 0",
+            name="meeting_index_text_present",
+        ),
+        CheckConstraint(
+            "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="meeting_index_source_sha256_well_formed",
+        ),
+        CheckConstraint(
+            "length(trim(record_fingerprint)) > 0 AND length(trim(locator_json)) > 0",
+            name="meeting_index_address_present",
+        ),
+    )
+
+
+class PilotIssueRow(Base):
+    """One problem the pilot's team recorded, in the system's own record.
+
+    **Phase 4 (P4-PILOT §9.4).** The real trial records each problem twice:
+    once in the unified feedback form (the subjective experience, the
+    description, the improvement suggestion) and once here, in the system
+    -- the row the form's line points at. The row carries what the trial's
+    evaluation reads: the task, the version, the opinion it concerns, the
+    operation step it happened at, the error the user saw, how long the
+    step took and how often it was retried, plus the severity and the
+    type the team tagged it with.
+
+    **The vocabularies are closed.** Severity is ``blocker``, ``serious``,
+    ``minor`` or ``suggestion`` (阻断/严重/一般/建议); type is
+    ``function``, ``interface``, ``performance``, ``model`` or
+    ``documentation`` (功能/界面/性能/模型/文档). A tag outside either
+    is a tag nobody can group the trial's findings by, so the vocabulary
+    is a constraint on the row and not a convention on the writer.
+
+    **The status is the team's word, moved along its states.** A row is
+    ``open`` when recorded, ``confirmed`` when a second person has seen
+    it, and then ``fixed`` -- naming the version that fixed it -- or
+    ``wontfix`` with a reason. The application layer moves the row along
+    those states; a caller that set it outright could skip the
+    confirmation the record says happened.
+    """
+
+    __tablename__ = "pilot_issues"
+
+    #: Caller-minted, so a problem may be cited the moment it is seen.
+    issue_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: What the problem is about. All three may be unknown at the moment of
+    #: recording -- a login failure names no version -- and None is a fact
+    #: the row keeps rather than a blank it papers over.
+    task_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    feedback_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The operation step the problem happened at, e.g. ``apply``,
+    #: ``export``, ``suggest``.
+    step: Mapped[str] = mapped_column(String(100), nullable=False)
+    #: What the user saw, in their own words, verbatim.
+    error_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: How long the step took, in seconds, and how often it was retried --
+    #: the trial's efficiency readings (execution plan §9.3).
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    retry_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: §9.4's two closed vocabularies.
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    category: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: Who saw the problem, and when they said so.
+    reported_by: Mapped[str] = mapped_column(Text, nullable=False)
+    reported_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    #: The team's word on the problem, moved along the four states by the
+    #: application layer, not set by a caller.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    #: A fixed issue names the version that fixed it and, when the fix needs
+    #: watching, what the regression watch is.
+    fix_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    regression_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("ix_pilot_issues_project", "project_id"),
+        Index("ix_pilot_issues_status", "status"),
+        CheckConstraint(
+            "severity IN ('blocker', 'serious', 'minor', 'suggestion')",
+            name="pilot_issues_severity_vocabulary",
+        ),
+        CheckConstraint(
+            "category IN ('function', 'interface', 'performance', 'model', 'documentation')",
+            name="pilot_issues_category_vocabulary",
+        ),
+        CheckConstraint(
+            "status IN ('open', 'confirmed', 'fixed', 'wontfix')",
+            name="pilot_issues_status_vocabulary",
+        ),
+        CheckConstraint(
+            "length(issue_id) > 0 AND length(project_id) > 0 "
+            "AND length(step) > 0 AND length(reported_by) > 0",
+            name="pilot_issues_ids_present",
+        ),
+        CheckConstraint(
+            "retry_count IS NULL OR retry_count >= 0",
+            name="pilot_issues_retry_non_negative",
         ),
     )

@@ -52,7 +52,7 @@ import socket
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Final, NoReturn, cast
@@ -68,6 +68,9 @@ if TYPE_CHECKING:
 
     from labcairn.api.selection import TaskSelector
     from labcairn.application import ApplicationContext, MaterialIngested, SourceAddress
+    from labcairn.application.model_request import ModelInvocation
+    from labcairn.application.model_suggestions import ModelSuggestionBackend
+    from labcairn.application.roles_run import RoleRunBackend
     from labcairn.application.sources import SourceView
     from labcairn.application.stages import StageOutcome, TaskPlan
     from labcairn.application.tasks import TaskState
@@ -77,13 +80,16 @@ if TYPE_CHECKING:
         ProviderFinding,
         ServiceStarting,
         SourceRootFinding,
+        SourcesIngested,
     )
     from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
     from labcairn.core.ids import TaskId
+    from labcairn.core.providers.protocol import ModelRequest, ModelResponse
     from labcairn.guidance.models import GuidanceCheck, GuidanceRule
     from labcairn.providers.capabilities import Capability, ProviderCapabilities
     from labcairn.providers.credentials import ProviderSettings
     from labcairn.security.paths import CanonicalPath
+    from labcairn.security.permissions import Grant
 
 #: The exit code a refusal carries.
 #:
@@ -101,6 +107,51 @@ EXIT_USAGE = 2
 #: The product's own format — :func:`labcairn.providers.credentials.
 #: load_providers_config` reads it — so the CLI does not invent a second one.
 PROVIDERS_FILE_NAME = "providers.json"
+
+#: The key of the real-model suggestion authorisation record, at the top
+#: level of ``providers.json``.
+#:
+#: The record is the owner's answer to the fields
+#: ``docs/plans/LC-P4-PILOT-model-authorisation-draft.md`` lays out — which
+#: provider, which destination, whose project, who granted it and when. The
+#: credential itself is **not** here: it stays in the provider entry's
+#: ``credential_env`` / ``credential_file`` sources, so no secret sits beside
+#: the authorisation it is spent under.
+MODEL_SUGGESTIONS_KEY = "model_suggestions"
+
+#: The field value that means "the owner has not answered yet". An
+#: authorisation record still carrying it is a draft, and a draft authorises
+#: nothing: the service starts, and a real run is refused for want of a
+#: provider rather than sent under an unfilled field.
+TBD_BY_OWNER = "TBD by owner"
+
+#: The fields an authorisation record must carry before a real-model backend
+#: is wired. **Closed**: an unknown field is refused rather than ignored, on
+#: the same standard ``ProviderSettings.from_mapping`` applies — a misspelled
+#: field is a field that silently does not apply.
+MODEL_SUGGESTIONS_FIELDS: Final[frozenset[str]] = frozenset(
+    {
+        "provider",
+        "destination",
+        "subject_ref",
+        "granted_by",
+        "granted_at",
+        "expires_at",
+        "scope",
+        "grant_id",
+    }
+)
+
+#: The fields that must hold a filled, non-placeholder value. The rest are
+#: optional refinements (``expires_at``, ``scope``, ``grant_id``); an
+#: absent optional field is narrowed to the value recorded here.
+MODEL_SUGGESTIONS_REQUIRED: Final[tuple[str, ...]] = (
+    "provider",
+    "destination",
+    "subject_ref",
+    "granted_by",
+    "granted_at",
+)
 
 #: The verdicts a person may return about a guidance rule.
 #:
@@ -171,11 +222,16 @@ guidance_app = typer.Typer(
     help="Settle the guidance rules — confirm one, or dispute it.",
     no_args_is_help=True,
 )
+roles_app = typer.Typer(
+    help="Run the roles a request names, on demand.",
+    no_args_is_help=True,
+)
 
 app.add_typer(task_app, name="task")
 app.add_typer(sources_app, name="sources")
 app.add_typer(artifacts_app, name="artifacts")
 app.add_typer(guidance_app, name="guidance")
+app.add_typer(roles_app, name="roles")
 
 
 @app.callback()
@@ -1846,11 +1902,25 @@ def sources_ingest(
     Running it again over the same material writes nothing new, and running it
     again over an edited file refreshes what the ledger records about it.
 
-    A file that could not be read is **reported, not swallowed**: the report
-    names it and says why, and the rest of the material is still ingested.
+    **Each paper project the workspace holds has its revision trajectory
+    indexed after the material is ingested.** A paper project's chain rows
+    point into the ledger the ingestion just refreshed, so the index is
+    built from what this run read. One project whose index is refused is
+    **reported, not swallowed** — the same rule a file that could not be
+    read follows — and the report says which projects indexed and which
+    were refused, rather than letting the whole command pass as if
+    everything had.
     """
-    from labcairn.application import ingest_material
-    from labcairn.cli.models import emit_model
+    from labcairn.application import ApplicationRefusedError, ingest_material
+    from labcairn.application.trajectory import (
+        ingest_paper_trajectory,
+        list_paper_projects,
+    )
+    from labcairn.cli.models import (
+        SourcesIngested,
+        TrajectoryIngestOutcome,
+        emit_model,
+    )
     from labcairn.cli.workspace import application_context, locate
 
     options = _options(ctx)
@@ -1859,20 +1929,35 @@ def sources_ingest(
         config = _require_workspace(location, as_json=as_json)
         task_id = _select_task(config, task, as_json=as_json)
         with application_context(location, config, task_id) as context:
-            model: MaterialIngested = ingest_material(context)
+            ingested = ingest_material(context)
+            outcomes: list[TrajectoryIngestOutcome] = []
+            for project in list_paper_projects(context):
+                try:
+                    outcomes.append(
+                        TrajectoryIngestOutcome.indexed(
+                            ingest_paper_trajectory(context, project_id=project.project_id)
+                        )
+                    )
+                except ApplicationRefusedError as error:
+                    outcomes.append(TrajectoryIngestOutcome.refused(project.project_id, error))
+        report = SourcesIngested(
+            **ingested.model_dump(),
+            trajectory_projects=tuple(outcomes),
+        )
     if as_json:
-        emit_model(model)
+        emit_model(report)
     else:
-        _console().print(_render_ingestion(model))
+        _console().print(_render_ingestion(report))
 
 
-def _render_ingestion(model: MaterialIngested) -> RenderableType:
+def _render_ingestion(model: SourcesIngested) -> RenderableType:
     """What the ingestion produced, drawn from the model.
 
     The picture is generated from the same value the ``--json`` form
     serialises, so the two cannot disagree. The failures are on their own
     lines: a file that could not be read is a fact the reader has to act on,
-    and a count alone would not say which one.
+    and a count alone would not say which one. A paper project whose
+    trajectory index was refused is on its own line for the same reason.
     """
     from rich.panel import Panel
     from rich.table import Table
@@ -1889,6 +1974,24 @@ def _render_ingestion(model: MaterialIngested) -> RenderableType:
     table.add_row("bound", ", ".join(model.bound_source_ids) or "(nothing)")
     for failure in model.failures:
         table.add_row("failed", f"{failure.relative_path}: {failure.reason}")
+    for outcome in model.trajectory_projects:
+        if outcome.ingested is not None:
+            ingested = outcome.ingested
+            table.add_row(
+                "trajectory",
+                f"{outcome.project_id}: {ingested.entries_indexed} entr"
+                f"{'y' if ingested.entries_indexed == 1 else 'ies'} indexed"
+                + (
+                    f", {ingested.skipped_versions} version(s) skipped by policy"
+                    if ingested.skipped_versions
+                    else ""
+                ),
+            )
+        else:
+            refusal = outcome.refusal
+            reason = refusal.reason if refusal is not None else "refused"
+            message = refusal.message if refusal is not None else "the index was not written"
+            table.add_row("trajectory", f"{outcome.project_id}: refused ({reason}): {message}")
     return Panel(table, title="ingested", expand=False)
 
 
@@ -2226,6 +2329,13 @@ def service_app(
     the origins, the task and the way to select another one — is the thing
     worth looking at, and a test that had to bind a socket to look at it
     would be a test that fails when the machine's ports are busy.
+
+    The real-model suggestion backend is wired here, from the workspace's
+    own authorisation record, and **its absence is not a fault**: a service
+    with no authorisation to ask a model starts exactly the same service,
+    and ``POST /review/suggest`` in ``real`` mode is refused with
+    ``model_suggestion_no_provider`` — the refusal, not a failure, is the
+    honest state of a service the owner has not authorised.
     """
     from labcairn.api import create_app
 
@@ -2236,7 +2346,322 @@ def service_app(
         extra_origins=extra_origins,
         static_dir=static_dir,
         select_task=select_task,
+        model_suggestions=model_suggestion_backend(context),
     )
+
+
+def model_suggestion_backend(context: ApplicationContext) -> ModelSuggestionBackend | None:
+    """The real-model suggestion backend the workspace's authorisation wires.
+
+    Reads the authorisation record from the workspace's ``providers.json``,
+    resolves the provider it names, and builds the gated transport. The
+    result carries everything a real run spends — the transport, the
+    material-purpose grants and the destination — and nothing else: no
+    credential is held here beyond what the transport itself needs, and no
+    field of the record is echoed back.
+
+    **Every way this can fail to wire resolves to ``None``, and ``None`` is
+    the ordinary state**: no ``providers.json``, no record under
+    ``model_suggestions``, a field missing or still ``TBD by owner``, a
+    provider name the file does not configure, a credential that cannot be
+    read, or a file that is not readable JSON at all. A service is never
+    refused because its model authorisation is absent or incomplete —
+    refusing the *service* would make an unauthorised workspace unusable
+    for everything else, and the real-mode route already refuses the one
+    operation that would need the backend.
+
+    **The reads and the row are finished before this returns.** The store
+    session belongs to the service's whole life; a read left uncommitted on
+    it holds SQLite's write lock — this engine opens every transaction
+    ``IMMEDIATE``, reads included — and the service would take its own
+    database hostage for as long as it ran. Every read here is committed
+    (or rolled back and re-raised, on a store that refuses), so a wired
+    backend starts a service that can still write.
+    """
+    from labcairn.providers.credentials import load_credential, load_providers_config
+
+    path = context.workspace.selected_root / PROVIDERS_FILE_NAME
+    if not path.is_file():
+        return None
+    try:
+        config = load_providers_config(path)
+    except (ValueError, OSError):
+        # A file another window wrote or an operator is editing is not a
+        # reason the service cannot start. The unreadable file is the
+        # operator's to fix; the refusal path covers the gap.
+        return None
+
+    record = _model_suggestions_record(path)
+    if record is None:
+        return None
+
+    settings = config.get(record["provider"])
+    if settings is None:
+        return None
+
+    try:
+        credential = load_credential(settings)
+    except Exception:
+        # MissingCredentialError and anything a misconfigured source raises:
+        # a credential that is not there is the unauthorised state, not a
+        # crash, and the message names where it looked without printing a
+        # value.
+        return None
+
+    return _real_suggestion_backend(context, record, settings, credential)
+
+
+def _model_suggestions_record(path: Path) -> Mapping[str, str] | None:
+    """The authorisation record, or ``None`` when it does not authorise.
+
+    A record that is not a mapping, that carries an unknown field, that
+    leaves a required field empty or placeholder, or whose ``granted_at``
+    is not a timestamp, authorises nothing. The refusals here are silent
+    by design: the record's own fill state is the operator's to check, and
+    a service that logged one line per missing field would turn every
+    unauthorised start-up into a warning about the one feature the record
+    does not cover.
+    """
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(raw, Mapping):
+        return None
+    record = raw.get(MODEL_SUGGESTIONS_KEY)
+    if not isinstance(record, Mapping):
+        return None
+
+    fields = set(record)
+    if not fields <= set(MODEL_SUGGESTIONS_FIELDS):
+        return None
+    values: dict[str, str] = {}
+    for field in MODEL_SUGGESTIONS_FIELDS:
+        value = record.get(field)
+        if value is None:
+            if field in MODEL_SUGGESTIONS_REQUIRED:
+                return None
+            continue
+        if not isinstance(value, str) or not value.strip():
+            return None
+        if value.strip() == TBD_BY_OWNER:
+            return None
+        values[field] = value.strip()
+
+    try:
+        datetime.fromisoformat(values["granted_at"])
+    except (KeyError, ValueError):
+        return None
+    if "expires_at" in values:
+        try:
+            datetime.fromisoformat(values["expires_at"])
+        except ValueError:
+            return None
+    return values
+
+
+def _real_suggestion_backend(
+    context: ApplicationContext,
+    record: Mapping[str, str],
+    settings: Any,
+    credential: Any,
+) -> ModelSuggestionBackend | None:
+    """The backend, built — or ``None`` when the wiring itself refuses.
+
+    The transport and the grant row are built here rather than in
+    :func:`model_suggestion_backend` so that the import of the provider
+    layer — pydantic-ai and its HTTP stack — happens only when a real
+    backend is actually being assembled: a workspace with no
+    authorisation never pays for the import.
+    """
+    from labcairn.application.approvals import access_grants, register_access_grant
+    from labcairn.application.model_suggestions import ModelSuggestionBackend
+
+    transport = _suggestion_transport(settings, credential)
+    if transport is None:
+        return None
+
+    grant = _suggestion_grant(record)
+    if grant is not None:
+        register_access_grant(context, grant)
+    grants = [
+        candidate
+        for candidate in access_grants(context)
+        if candidate.permission == "external_transmit"
+        and candidate.purpose == "transmit"
+        and candidate.subject_ref == record["subject_ref"]
+    ]
+
+    return ModelSuggestionBackend(
+        provider=record["provider"],
+        real_transport=transport,
+        grants=grants,
+        destination=record["destination"],
+    )
+
+
+def _suggestion_grant(record: Mapping[str, str]) -> Grant | None:
+    """The transmit grant the authorisation record describes, as a value.
+
+    The record *is* the owner's grant: it names the subject, the scope,
+    the destination and the window. Building the :class:`Grant` here and
+    writing the row is what makes the record checkable by the same
+    machinery every other transmit use is checked by — the loop does not
+    get a parallel permission path.
+    """
+    from datetime import UTC
+
+    from labcairn.security.permissions import Grant
+
+    try:
+        granted_at = datetime.fromisoformat(record["granted_at"])
+        if granted_at.tzinfo is None:
+            granted_at = granted_at.replace(tzinfo=UTC)
+        expires_at: datetime | None = None
+        if "expires_at" in record:
+            expires_at = datetime.fromisoformat(record["expires_at"])
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+    except ValueError:
+        return None
+    return Grant(
+        grant_id=record.get("grant_id", f"grant-model-suggestions-{record['subject_ref']}"),
+        subject_ref=record["subject_ref"],
+        permission="external_transmit",
+        purpose="transmit",
+        scope=record.get("scope", f"{record['subject_ref']}/**"),
+        destination=record["destination"],
+        granted_by=record["granted_by"],
+        granted_at=granted_at,
+        expires_at=expires_at,
+        state="active",
+        withdrawn_at=None,
+        withdrawn_by=None,
+        withdrawal_reason=None,
+    )
+
+
+def _suggestion_transport(settings: Any, credential: Any) -> Any:
+    """The gated transport one provider's settings build, or ``None``.
+
+    The adapter is built with the same five gates every other real call
+    goes through. The consent port is a **decision-carrier**, not a second
+    consent path: the suggestion loop spends the digest-bound approval and
+    runs the transmit gate *before* it calls the transport, so by the time
+    ``send`` is reached the permission decision is already in hand — this
+    port carries that decision to the provider layer, which ADR-0006
+    requires to be handed the result rather than to evaluate it.
+
+    **The loop's seam names a ``model_id``**, and the adapter names itself
+    ``label:model``; the seam is what the loop reads and records, so the
+    returned object carries that name, not the adapter's.
+    """
+    from labcairn.providers.adapter import PydanticAiModelProvider
+    from labcairn.providers.pydantic_models import (
+        build_http_client,
+        build_model,
+        make_sniffer,
+    )
+
+    try:
+        sniffer = make_sniffer()
+        model = build_model(
+            settings,
+            credential=credential,
+            http_client=build_http_client(settings, sniffer=sniffer),
+        )
+        adapter = PydanticAiModelProvider(
+            model=model,
+            consent=_LoopSpentConsent(),
+            usage_capture=sniffer,
+            redactor=credential_redactor(credential),
+            timeout_s=settings.timeout_s,
+            clock=lambda: 0.0,
+        )
+        return _SuggestionTransportAdapter(
+            adapter,
+            model_id=settings.model,
+            credential_fingerprint=str(credential.fingerprint),
+        )
+    except Exception:
+        # A provider this build cannot construct — a protocol whose SDK is
+        # missing, a base URL that will not parse — is the unauthorised
+        # state again: no transport, no backend, the ordinary refusal.
+        return None
+
+
+class _SuggestionTransportAdapter:
+    """The provider adapter, wearing the loop's transport seam.
+
+    The seam asks for one attribute the adapter does not carry —
+    ``model_id``, the name the run row and the approval derivation record —
+    and one method it does. Nothing else is added: the adapter's own five
+    gates run exactly as every other real call runs them.
+    """
+
+    def __init__(self, adapter: Any, *, model_id: str, credential_fingerprint: str) -> None:
+        self._adapter = adapter
+        self.model_id = model_id
+        self._credential_fingerprint = credential_fingerprint
+
+    def send(self, request: ModelRequest) -> str:
+        """One request through the adapter's gates, one answer text out."""
+        answer = cast(ModelResponse, self._adapter.send(request))
+        return answer.text
+
+    @property
+    def credential_fingerprint(self) -> str:
+        """Which credential the exchanges were recorded under, and no value.
+
+        The adapter does not carry the credential -- it carries the
+        redactor built around it -- so the fingerprint travels beside the
+        transport, set by the wiring that read the credential and never
+        the value itself.
+        """
+        return self._credential_fingerprint
+
+
+def credential_redactor(credential: Any) -> Any:
+    """A redactor carrying the transport's own credential, value hidden.
+
+    The secret reaches the scrubber through :func:`credential_reveal`
+    (below), the one place outside the provider factory where the value is
+    taken out of its :class:`~labcairn.providers.credentials.Credential`
+    wrapper. It goes to a scrubber, not to a wire: the redactor exists so
+    the value never survives in a log, which is the reason the wrapper
+    exists too.
+    """
+    from labcairn.providers.redaction import Redactor
+
+    return Redactor((credential_reveal(credential),))
+
+
+def credential_reveal(credential: Any) -> str:
+    """The credential's value, for the redactor that must recognise it.
+
+    The one extraction point outside the provider factory. Named apart so
+    the call site is findable by the same search that watches the factory's.
+    """
+    return cast(str, credential.reveal())
+
+
+class _LoopSpentConsent:
+    """The consent port a loop-spent request carries to the provider layer.
+
+    The suggestion loop's own gate (:meth:`SuggestionLoop._spend_approval`)
+    runs the transmit check and consumes the digest-bound approval before
+    the transport is called. This port is what the provider layer is
+    handed as the *result* of that decision (ADR-0006: the permission
+    layer's decision must be in hand before the request exists). It adds
+    no approval, widens none, and cannot be reached except after the loop
+    has spent its own — a caller that bypassed the loop would not have a
+    backend transport to call, because the backend is only wired into the
+    route that runs the loop.
+    """
+
+    def require(self, request: Any) -> None:
+        """Permit the request: the loop's gate already decided it."""
+        return
 
 
 def _service_report(
@@ -2479,8 +2904,457 @@ __all__ = [
     "EXIT_USAGE",
     "app",
     "artifacts_app",
+    "roles_app",
     "serve",
     "service_app",
     "sources_app",
     "task_app",
 ]
+
+
+@roles_app.command("run")
+def roles_run(
+    ctx: typer.Context,
+    roles: Annotated[
+        list[str],
+        typer.Option(
+            "--role",
+            help=(
+                "A role to run: trajectory, guidance or critique. May be given "
+                "more than once; the loop runs them in the order they depend on "
+                "each other, whatever order they were named in."
+            ),
+        ),
+    ],
+    project: Annotated[str, typer.Option("--project", help="The paper project's id.")],
+    issue_key: Annotated[str, typer.Option("--issue-key", help="The comment's issue key.")],
+    version: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--version",
+            help=(
+                "A version the loop reads the chain through. May be given more "
+                "than once; the default is the project's whole graph."
+            ),
+        ),
+    ] = None,
+    rule: Annotated[
+        str | None,
+        typer.Option("--rule", help="The id of the confirmed rule the card cites."),
+    ] = None,
+    evidence: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--evidence",
+            help=(
+                "An evidence reference the card declares. May be given more than "
+                "once; the default is the chain reference of the comment itself."
+            ),
+        ),
+    ] = None,
+    provider: Annotated[
+        str | None, typer.Option("--provider", help="Who the model call asks.")
+    ] = None,
+    model: Annotated[
+        str | None, typer.Option("--model", help="What the model call asks for.")
+    ] = None,
+    root: Annotated[
+        str | None,
+        typer.Option("--root", help="The source root the comment's material landed in."),
+    ] = None,
+    resource_key: Annotated[
+        str | None,
+        typer.Option("--resource-key", help="The material's key inside that root."),
+    ] = None,
+    material_ref: Annotated[
+        str | None,
+        typer.Option(
+            "--material-ref",
+            help="The workspace-relative path of the material the run would send.",
+        ),
+    ] = None,
+    purpose: Annotated[
+        str | None,
+        typer.Option(
+            "--purpose",
+            help="The data purpose the run declares, as the role contracts name it.",
+        ),
+    ] = None,
+    destination: Annotated[
+        str | None,
+        typer.Option("--destination", help="Where the model call is authorised to send material."),
+    ] = None,
+    subject_ref: Annotated[
+        str | None,
+        typer.Option("--subject-ref", help="Whose project the material belongs to."),
+    ] = None,
+    approval: Annotated[
+        str | None,
+        typer.Option(
+            "--approval",
+            help=(
+                "A granted approval id to spend. Without one, a run that needs a "
+                "model judgement asks first and prints the pending approval to "
+                "grant -- the ask spends nothing."
+            ),
+        ),
+    ] = None,
+    expires: Annotated[
+        str | None,
+        typer.Option(
+            "--expires",
+            help="When the approval the run asks for lapses, as an ISO-8601 moment.",
+        ),
+    ] = None,
+    judgements: Annotated[
+        str | None,
+        typer.Option(
+            "--judgements",
+            help=(
+                "The judgements the caller supplies outright, as one JSON object "
+                "with an optional 'trajectory', 'guidance' and 'critique' part -- "
+                "the same shape the API's body takes. A role named without a "
+                "judgement is answered by the model."
+            ),
+        ),
+    ] = None,
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Run the roles a request names, and only those.
+
+    The loop is the layer's own ``roles_run`` operation, reached the way the
+    API's ``POST /roles/run`` reaches it: the request names the roles, the
+    material and the plan; the ask writes the question down and spends
+    nothing; and the run spends one granted approval through the consent
+    gates, when a judgement is missing and the model must supply it.
+
+    **A run whose judgements are all supplied needs no approval and reaches
+    no wire** -- the roles judge what the caller brought, under the contracts
+    the store holds. A run that needs the model asks first, and the approval
+    it names is *pending*: grant it (``labcairn task approval-grant``) and
+    run again with ``--approval``.
+    """
+    from datetime import timedelta
+
+    from labcairn.application.roles_run import (
+        ModelCallPlan,
+        RoleRunRequest,
+        request_role_run,
+        run_role_run_service,
+        the_role_run_ticket,
+    )
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import ApprovalId
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        expires_at: datetime | None = None
+        if expires is not None:
+            try:
+                expires_at = datetime.fromisoformat(expires)
+            except ValueError as error:
+                _refuse(
+                    CLI_REFUSAL_INVALID_ARGUMENTS,
+                    f"{expires!r} is not an ISO-8601 moment: {error}",
+                    as_json=as_json,
+                )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            backend = role_run_backend(context)
+            supplied = _the_judgements_from_json(judgements, as_json=as_json)
+            request = RoleRunRequest(
+                roles=tuple(roles),
+                project_id=project,
+                issue_key=issue_key,
+                version_ids=tuple(version or ()),
+                rule_id=rule,
+                evidence_refs=tuple(evidence) if evidence is not None else None,
+                trajectory=supplied.get("trajectory"),
+                guidance=supplied.get("guidance"),
+                critique=supplied.get("critique"),
+            )
+            plan = ModelCallPlan(
+                provider=provider or "",
+                model=model or "",
+                root_id=root or "",
+                resource_key=resource_key or "",
+                material_ref=material_ref or "",
+                purpose=purpose or "",
+                destination=destination or "",
+                subject_ref=subject_ref or "",
+            )
+            ticket = request_role_run(
+                context,
+                request,
+                plan=plan,
+                expires_at=expires_at or datetime.now(UTC) + timedelta(days=1),
+            )
+            if approval is None and ticket.approval_id is not None:
+                # **The ask, not the spend.** A caller that did not present an
+                # approval is asking, when the run needs one; the ticket names
+                # the pending approval to grant, and nothing has been spent.
+                # The roles have not run -- a second call with --approval runs
+                # them.
+                if as_json:
+                    emit_model(the_role_run_ticket(ticket))
+                else:
+                    _console().print(the_role_run_ticket_rendered(ticket))
+                return
+            spend = (
+                replace(ticket, approval_id=ApprovalId(uuid.UUID(approval)))
+                if approval is not None
+                else ticket
+            )
+            result = run_role_run_service(context, spend, backend=backend, at=datetime.now(UTC))
+            if as_json:
+                emit_model(result)
+            else:
+                _console().print(the_role_run_run_rendered(result))
+
+
+def role_run_backend(context: ApplicationContext) -> RoleRunBackend | None:
+    """The real-model backend the workspace's authorisation wires, for the loop.
+
+    **The same record, the same gates, one more seam.** The suggestion
+    loop's backend and the role loop's are wired from the same
+    ``providers.json`` authorisation record and the same credential
+    sources, because the owner authorised *a provider and a destination*,
+    not a feature: a second record for the loop would be a second place
+    for the authorisation to drift from the one the suggestion loop spends
+    under. The transport is the provider adapter's, and it is handed to
+    the loop as the callable the layer's own gate wraps -- the adapter is
+    reached only after the transmit gate and the approval have permitted,
+    so this wiring adds no consent path of its own.
+
+    ``None`` is the ordinary state, for every reason the suggestion
+    backend's is: no record, a draft, an unreadable credential, a provider
+    this build cannot construct. A service or a command with no backend
+    still runs; the loop's own refusal says what a run that needs the
+    model may not do.
+    """
+    from labcairn.providers.credentials import load_credential, load_providers_config
+
+    path = context.workspace.selected_root / PROVIDERS_FILE_NAME
+    if not path.is_file():
+        return None
+    try:
+        config = load_providers_config(path)
+    except (ValueError, OSError):
+        return None
+    record = _model_suggestions_record(path)
+    if record is None:
+        return None
+    settings = config.get(record["provider"])
+    if settings is None:
+        return None
+    try:
+        credential = load_credential(settings)
+    except Exception:
+        return None
+    transport = _suggestion_transport(settings, credential)
+    if transport is None:
+        return None
+    grant = _suggestion_grant(record)
+    if grant is not None:
+        from labcairn.application.approvals import register_access_grant
+
+        register_access_grant(context, grant)
+    from labcairn.application.approvals import access_grants
+
+    grants = [
+        candidate
+        for candidate in access_grants(context)
+        if candidate.permission == "external_transmit"
+        and candidate.purpose == "transmit"
+        and candidate.subject_ref == record["subject_ref"]
+    ]
+    return RoleRunBackend(
+        provider=record["provider"],
+        model=settings.model,
+        send=lambda prompt: _the_loop_invocation(transport, prompt),
+        capabilities=transport._adapter.capabilities if hasattr(transport, "_adapter") else None,
+        grants=grants,
+        destination=record["destination"],
+    )
+
+
+def _the_loop_invocation(transport: Any, prompt: str) -> ModelInvocation:
+    """One call through the wired transport, recorded in the layer's wire form.
+
+    **The record is the adapter's own.** The transport is the provider
+    adapter, and its exchange records are what the loop's model call
+    lands in the event log as -- digests and counts, never text -- so the
+    invocation carries them through unchanged, with the adapter's answer
+    as the call's. The adapter names itself ``provider:model``, and the
+    fingerprint it records is the credential's own -- the same shape every
+    exchange record in the log carries.
+    """
+    from labcairn.application.model_request import ModelInvocation
+
+    request = ModelRequest(prompt=prompt)
+    before = transport._adapter.exchanges() if hasattr(transport, "_adapter") else ()
+    answer = transport.send(request)
+    after = transport._adapter.exchanges() if hasattr(transport, "_adapter") else ()
+    fresh = after[len(before) :] if len(after) >= len(before) else after
+    model_id = transport.model_id
+    return ModelInvocation(
+        answer=answer,
+        provider=model_id.split(":", 1)[0] if ":" in model_id else model_id,
+        model=model_id,
+        exchanges=tuple(exchange.to_wire() for exchange in fresh),
+        credential_fingerprint=transport.credential_fingerprint,
+    )
+
+
+def the_role_run_ticket_rendered(ticket: Any) -> RenderableType:
+    """What ``roles run`` shows when it is asking, not spending.
+
+    The question's own words are the point: a person grants an approval
+    for *this* prompt and *these* excerpts, so the render puts them where
+    a reader can read them, beside the approval id that grants them.
+    """
+    from rich.panel import Panel
+    from rich.table import Table
+
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("roles", ", ".join(ticket.roles))
+    table.add_row("material", ", ".join(ticket.excerpts))
+    table.add_row(
+        "approval",
+        ticket.approval_id if ticket.approval_id is not None else "none needed",
+    )
+    table.add_row("prompt", ticket.prompt)
+    return Panel(
+        table,
+        title="the loop's question -- nothing spent; grant the approval to run",
+        expand=False,
+    )
+
+
+def the_role_run_run_rendered(result: Any) -> RenderableType:
+    """What ``roles run`` shows when the roles have run.
+
+    One line per role that ran, in the order it ran, with the model's own
+    words when the run asked for them. The outputs are the layer's own
+    shapes, so what is printed is what the API returned.
+    """
+    from rich.panel import Panel
+    from rich.table import Table
+
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("roles", ", ".join(result.roles))
+    if result.candidate is not None:
+        table.add_row("candidate", f"{result.candidate.issue_key}: {result.candidate.alignment}")
+    if result.card is not None:
+        table.add_row("card", f"{result.card.target_locator}: {result.card.reason}")
+    if result.verdict is not None:
+        table.add_row("verdict", f"{result.verdict.verdict}: {result.verdict.repair_advice}")
+    if result.answer is not None:
+        table.add_row("answer", result.answer)
+    if result.exchange_event_id is not None:
+        table.add_row("exchange", result.exchange_event_id)
+    return Panel(table, title="the loop's run", expand=False)
+
+
+def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, Any]:
+    """The caller's own judgements, from one JSON object.
+
+    **The shape is the API body's**, so one spelling of a judgement serves
+    both surfaces: a ``trajectory``, ``guidance`` or ``critique`` part, each
+    with the fields the role takes. An absent part is not an error here --
+    it is the part the model supplies, and the loop's own ask is what
+    decides whether that is needed. A part that is not an object, or a
+    part with a field the role does not take, is refused here: the refusal
+    is about the command's own arguments, and it is the CLI's vocabulary
+    rather than a 500 from a bad cast.
+    """
+    from labcairn.application.roles_run import (
+        CritiqueJudgement,
+        GuidanceJudgement,
+        TrajectoryJudgement,
+    )
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+    from labcairn.roles.guidance import CardClaim
+
+    if raw is None:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as error:
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"--judgements is not JSON: {error}",
+            as_json=as_json,
+        )
+    if not isinstance(parsed, dict):
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            "--judgements is one JSON object with optional 'trajectory',"
+            " 'guidance' and 'critique' parts.",
+            as_json=as_json,
+        )
+    judgements: dict[str, Any] = {}
+    trajectory = parsed.get("trajectory")
+    if trajectory is not None:
+        if not isinstance(trajectory, dict):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "the 'trajectory' judgement is one JSON object.",
+                as_json=as_json,
+            )
+        judgements["trajectory"] = TrajectoryJudgement(
+            issue_type=str(trajectory.get("issue_type", "")),
+            alignment=str(trajectory.get("alignment", "")),
+            advisor_quote=str(trajectory.get("advisor_quote", "")),
+            note=str(trajectory.get("note", "")),
+            edit_action_id=trajectory.get("edit_action_id"),
+        )
+    guidance = parsed.get("guidance")
+    if guidance is not None:
+        if not isinstance(guidance, dict):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "the 'guidance' judgement is one JSON object.",
+                as_json=as_json,
+            )
+        judgements["guidance"] = GuidanceJudgement(
+            issue_type=str(guidance.get("issue_type", "")),
+            severity=str(guidance.get("severity", "")),
+            reason=str(guidance.get("reason", "")),
+            suggested_next_action=str(guidance.get("suggested_next_action", "")),
+            uncertainty_kind=str(guidance.get("uncertainty_kind", "")),
+            what_is_uncertain=str(guidance.get("what_is_uncertain", "")),
+            claims=tuple(
+                CardClaim(
+                    text=str(claim.get("text", "")),
+                    kind=str(claim.get("kind", "")),
+                    evidence_ref=claim.get("evidence_ref"),
+                    issue_key=claim.get("issue_key"),
+                    advisor_quote=claim.get("advisor_quote"),
+                )
+                for claim in guidance.get("claims", ())
+            ),
+            style_notes=tuple(guidance.get("style_notes", ())),
+        )
+    critique = parsed.get("critique")
+    if critique is not None:
+        if not isinstance(critique, dict):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "the 'critique' judgement is one JSON object.",
+                as_json=as_json,
+            )
+        judgements["critique"] = CritiqueJudgement(
+            verdict=str(critique.get("verdict", "")),
+            repair_advice=str(critique.get("repair_advice", "")),
+            handover_reason=critique.get("handover_reason"),
+        )
+    return judgements

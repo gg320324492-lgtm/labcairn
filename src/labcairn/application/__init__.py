@@ -165,16 +165,29 @@ Operation  The permission that governs it
 ``read_guidance_checks``              the material's — asked where it is named
 ``read_guidance_rule_checks``         the material's — asked where it is named
 ``read_guidance_check_rules``         the material's — asked where it is named
+``read_guidance_rule_project_ids``    the material's — asked where it is named
 ``write_guidance_check``              the material's — asked where it is named
 ``write_guidance_check_confirmation`` the material's — asked where it is named
 ``write_guidance_check_withdrawal``   the material's — asked where it is named
 ``write_guidance_rule_check``         the material's — asked where it is named
+``write_guidance_rule_publication``   the material's — asked where it is named
+``write_guidance_rule_retraction``    the material's — asked where it is named
 ``read_role_spec``                    the contract's own allowed capabilities
 ``write_role_spec``                   the contract's own allowed capabilities
 ``request_role_run``                  the contract's own allowed capabilities
 ``run_role_run``                      the contract's own allowed capabilities
+``run_role_run_service``              the contract's own allowed capabilities
 ``the_role_run_question``             the contract's own allowed capabilities
+``run_round_quality_checks``          ``fs.read`` — the round's own records
 ====================================  ========================================
+
+**The trajectory index answers to the material too, from its own module.**
+:func:`labcairn.application.trajectory.ingest_paper_trajectory` asks
+``source.inventory`` on each version's material it indexes, and
+:func:`labcairn.application.trajectory.list_paper_projects` reads only the
+material a caller has already named. They are not aggregated into this
+package's namespace because that import would close a cycle (see the note
+above); the capability is no different for being reached from the submodule.
 
 **And one of them is not the mentor's rows at all.** ``read_replies`` reads
 the exchanges a *response document* holds: a reviewer's objection and the
@@ -258,6 +271,7 @@ from labcairn.application.guidance import (
     read_guidance_checks,
     read_guidance_rule,
     read_guidance_rule_checks,
+    read_guidance_rule_project_ids,
     read_guidance_rule_version,
     read_guidance_rules,
     write_guidance_check,
@@ -266,7 +280,9 @@ from labcairn.application.guidance import (
     write_guidance_counterexample,
     write_guidance_rule_check,
     write_guidance_rule_confirmation,
+    write_guidance_rule_publication,
     write_guidance_rule_resolution,
+    write_guidance_rule_retraction,
     write_guidance_rule_version,
     write_guidance_rule_withdrawal,
 )
@@ -305,6 +321,12 @@ from labcairn.application.papers import (
     record_project,
     record_version,
 )
+from labcairn.application.quality_checks import (
+    CheckOutcome,
+    QualityCheckFact,
+    RoundQualityReport,
+    run_round_quality_checks,
+)
 from labcairn.application.recovery import (
     describe_abandoned,
     reconcile_abandoned,
@@ -324,6 +346,7 @@ from labcairn.application.roles_run import (
     GuidanceJudgement,
     MaterialAddress,
     ModelCallPlan,
+    RoleRunBackend,
     RoleRunQuestion,
     RoleRunRequest,
     RoleRunResult,
@@ -331,6 +354,7 @@ from labcairn.application.roles_run import (
     TrajectoryJudgement,
     request_role_run,
     run_role_run,
+    run_role_run_service,
     the_role_run_question,
 )
 from labcairn.application.sources import SourceView, inspect_source, list_sources
@@ -354,6 +378,16 @@ from labcairn.application.tasks import (
     read_task_state,
 )
 
+# **The trajectory index is deliberately not aggregated here.** Its module
+# imports the guidance memory's rules at the top, and the guidance memory's
+# modules import this package back -- so a module-level import here would
+# close a cycle that breaks when ``labcairn.guidance.rules`` is the first
+# import of a process. Surfaces import it from
+# :mod:`labcairn.application.trajectory` directly, the way the API's router
+# always has. The two operations are named in the prose below, not in the
+# table: the table lists what this package exports, and naming a row here
+# that a caller cannot import from here would make the table a false map.
+
 __all__ = [
     "DEFAULT_TEMPLATE_ID",
     "REPORT_TEMPLATES",
@@ -372,6 +406,7 @@ __all__ = [
     "ChainEdit",
     "ChainReply",
     "CheckDraft",
+    "CheckOutcome",
     "ClaimExtractionBackend",
     "ClaimRecorded",
     "ClaimRequest",
@@ -398,14 +433,17 @@ __all__ = [
     "ProjectRequest",
     "ProjectStored",
     "ProposalSettled",
+    "QualityCheckFact",
     "ReportRendered",
     "ReportRequest",
     "Result",
+    "RoleRunBackend",
     "RoleRunQuestion",
     "RoleRunRequest",
     "RoleRunResult",
     "RoleRunTicket",
     "RoleSpecDraft",
+    "RoundQualityReport",
     "RuleDraft",
     "SourceAddress",
     "SourceView",
@@ -450,6 +488,7 @@ __all__ = [
     "read_guidance_checks",
     "read_guidance_rule",
     "read_guidance_rule_checks",
+    "read_guidance_rule_project_ids",
     "read_guidance_rule_version",
     "read_guidance_rules",
     "read_issue_keys",
@@ -483,6 +522,8 @@ __all__ = [
     "resolve_abandoned",
     "run_figure",
     "run_role_run",
+    "run_role_run_service",
+    "run_round_quality_checks",
     "run_stage",
     "settle_reply",
     "the_role_run_question",
@@ -492,7 +533,9 @@ __all__ = [
     "write_guidance_counterexample",
     "write_guidance_rule_check",
     "write_guidance_rule_confirmation",
+    "write_guidance_rule_publication",
     "write_guidance_rule_resolution",
+    "write_guidance_rule_retraction",
     "write_guidance_rule_version",
     "write_guidance_rule_withdrawal",
     "write_role_spec",

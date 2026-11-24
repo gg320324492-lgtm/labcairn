@@ -60,7 +60,7 @@ hard parts are.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/runtime/event.py:39-77` (`EventType`), `src/labcairn/db/models.py:584` — `__tablename__ = "events"` (`events`) |
+| **Where** | `src/labcairn/runtime/event.py:39-77` (`EventType`), `src/labcairn/db/models.py:592` — `__tablename__ = "events"` (`events`) |
 | **Watched by** | `tests/test_event_payload_vocabulary.py`, `tests/test_store_events.py` |
 | **Verdict** | **reuse, with one addition (see §3.1)** |
 
@@ -145,7 +145,7 @@ operation-approval table does not.**
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/sources/source.py:88` — `class SourceKind(StrEnum):` (`SourceKind`), `src/labcairn/sources/locators.py:73` — `class LocatorKind(StrEnum):` (`LocatorKind`), `src/labcairn/material/addressing.py:135` — `def render_locator_key(locator: SourceLocator) -> str:` (`render_locator_key`), `src/labcairn/db/models.py:674,836,1059` (`sources`, `source_texts`, `source_anchors`) |
+| **Where** | `src/labcairn/sources/source.py:88` — `class SourceKind(StrEnum):` (`SourceKind`), `src/labcairn/sources/locators.py:79` — `class LocatorKind(StrEnum):` (`LocatorKind`), `src/labcairn/material/addressing.py:172` — `def render_locator_key(locator: SourceLocator) -> str:` (`render_locator_key`), `src/labcairn/db/models.py:674,836,1059` (`sources`, `source_texts`, `source_anchors`) |
 | **Watched by** | `tests/test_source_contracts.py`, `tests/test_material_addressing.py`, `tests/test_material_schema.py`, `tests/test_source_id_type.py`, `tests/test_evidence_anchor_registry.py` |
 | **Verdict** | **reuse the model; extend the vocabulary (see §3.2)** |
 
@@ -169,7 +169,7 @@ Three things Phase 2 gets for free:
 - **Content addressing.** Bytes are hashed and stored by hash; the workspace
   walk records *where* the material is, not the key it was handed.
 - **Readability as a distinct state.** `SourceReadability` separates "we
-  could not look" from "there was nothing there" (`src/labcairn/sources/source.py:109` — `class SourceReadability(StrEnum):`).
+  could not look" from "there was nothing there" (`src/labcairn/sources/source.py:121` — `class SourceReadability(StrEnum):`).
   Phase 2's "the revision exists but its author is unknown" needs exactly
   this discipline, and it is already the project's.
 - **Derive the extraction version from the source.** `material/version.py`

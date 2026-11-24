@@ -44,15 +44,20 @@ import {
   reportRenderBody,
   taskSelectBody,
 } from '../api/paths'
+import { DeliveryCenterView } from '../views/DeliveryCenterView'
+import { StageFeedbackBar } from '../views/StageFeedbackBar'
 import { ApprovalView } from '../views/ApprovalView'
 import { ArtefactsView } from '../views/ArtefactsView'
 import { EventsView } from '../views/EventsView'
 import { EvidenceView } from '../views/EvidenceView'
 import { FigureView } from '../views/FigureView'
 import { GuidanceView } from '../views/GuidanceView'
+import { IssuesView } from '../views/IssuesView'
+import { MultiSourceSearchView } from '../views/MultiSourceSearchView'
 import { PlanView } from '../views/PlanView'
 import { ProposalsView } from '../views/ProposalsView'
 import { ProjectsView } from '../views/ProjectsView'
+import { ReviewDeskView } from '../views/ReviewDeskView'
 import { ReviewView } from '../views/ReviewView'
 import { RevisionsView } from '../views/RevisionsView'
 import { SourcesView } from '../views/SourcesView'
@@ -162,6 +167,8 @@ export function Workbench(): JSX.Element {
         ) : null}
       </header>
 
+      <StageFeedbackBar plan={reads.plan.data} state={reads.state.data} />
+
       <p className="workbench__actions">
         <button
           className="button"
@@ -180,6 +187,8 @@ export function Workbench(): JSX.Element {
         selecting={action.selecting}
       />
       {boundTaskId !== null ? <EventsView key={boundTaskId} /> : null}
+      <ReviewDeskView />
+      <DeliveryCenterView />
       <PlanView plan={reads.plan} />
       <StepsView steps={reads.steps} />
       <ApprovalView state={reads.state} onGrant={onGrant} granting={action.granting} />
@@ -191,7 +200,9 @@ export function Workbench(): JSX.Element {
       <RevisionsView artifacts={reads.artifacts} />
       <ReviewView artifacts={reads.artifacts.data ?? []} cycle={readCycle} />
       <TrajectoryView cycle={readCycle} />
+      <MultiSourceSearchView cycle={readCycle} onChanged={readAgain} />
       <GuidanceView cycle={readCycle} onChanged={readAgain} />
+      <IssuesView cycle={readCycle} onChanged={readAgain} />
       <ProposalsView cycle={readCycle} onChanged={readAgain} />
 
       <footer className="workbench__footer">

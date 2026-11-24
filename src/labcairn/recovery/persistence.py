@@ -85,6 +85,29 @@ def find_operations_in_state(
     return tuple(row_to_operation(row) for row in rows)
 
 
+def find_operations_for_resource(
+    session: Session, task_id: TaskId, resource_key: str
+) -> tuple[Operation, ...]:
+    """Every operation of *task_id* aimed at one resource key, ordered by id.
+
+    **This is a read of the attempts, not of one state.** A publication that
+    was resolved out of ``UNCERTAIN`` — confirmed, replay-authorised, even
+    failed — has left its ``ATTEMPTING`` state behind, and a finder that
+    matched on state would stop finding it exactly when a replay needs it.
+    The key is the durable address: every attempt on the same publication
+    names it, and the id order is the order the attempts were planned in.
+    """
+    rows = session.execute(
+        select(OperationRow)
+        .where(
+            OperationRow.task_id == str(task_id),
+            OperationRow.resource_key == resource_key,
+        )
+        .order_by(OperationRow.operation_id.asc())
+    ).scalars()
+    return tuple(row_to_operation(row) for row in rows)
+
+
 def load_stage(session: Session, stage_id: StageId) -> Stage:
     """One Stage by its domain id."""
     row = session.execute(
@@ -238,6 +261,7 @@ def row_to_receipt(row: ArtifactRow) -> ArtifactReceipt:
 
 
 __all__ = [
+    "find_operations_for_resource",
     "find_operations_in_state",
     "find_stage",
     "list_checkpoints",

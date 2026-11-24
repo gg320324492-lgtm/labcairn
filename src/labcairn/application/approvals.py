@@ -60,13 +60,21 @@ from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import ValidationError
+from sqlalchemy import select
 
 from labcairn.application import consent, records
 from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import ApprovalId, OperationId, RunId, new_id
-from labcairn.db.repository import list_approvals, list_operations, list_runs
+from labcairn.db.models import AccessGrantRow
+from labcairn.db.repository import (
+    StoreError,
+    list_access_grants,
+    list_approvals,
+    list_operations,
+    list_runs,
+)
 from labcairn.runtime.event import EventType
 from labcairn.runtime.operation import (
     Approval,
@@ -77,6 +85,7 @@ from labcairn.runtime.operation import (
 )
 from labcairn.security.approval import ApprovalGrant, SourceBinding, make_approval
 from labcairn.security.capabilities import CapabilityId
+from labcairn.security.permissions import Grant
 
 
 @dataclass(frozen=True, slots=True)
@@ -475,14 +484,78 @@ def _run_of(context: ApplicationContext, approval: Approval) -> RunId:
     return runs[-1].run_id
 
 
+def register_access_grant(context: ApplicationContext, grant: Grant) -> None:
+    """Record an operator's transmit authorisation so the consent layer reads it.
+
+    **A grant the store holds is the same row every caller checks.** The
+    workspace's authorisation record is an operator's act; turning it into a
+    row here means a surface never writes the consent table itself, and the
+    layer owns both halves of the wiring: the row and the read that resolves
+    it. An existing row with the same id is the same grant already recorded,
+    and is left as it stands rather than overwritten.
+
+    **No transaction is left open on the service's session.** This engine
+    opens every transaction ``IMMEDIATE``, reads included; a read left
+    uncommitted would hold the write lock for the service's whole life.
+    """
+    session = context.store.session
+    try:
+        existing = session.execute(
+            select(AccessGrantRow).where(AccessGrantRow.grant_id == grant.grant_id)
+        ).scalar_one_or_none()
+        if existing is not None:
+            session.commit()
+            return
+        session.add(
+            AccessGrantRow(
+                grant_id=grant.grant_id,
+                subject_ref=grant.subject_ref,
+                permission=grant.permission,
+                purpose=grant.purpose,
+                scope=grant.scope,
+                destination=grant.destination,
+                granted_by=grant.granted_by,
+                granted_at=grant.granted_at,
+                expires_at=grant.expires_at,
+                state=grant.state,
+                withdrawn_at=None,
+                withdrawn_by=None,
+                withdrawal_reason=None,
+            )
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
+
+def access_grants(context: ApplicationContext) -> tuple[Grant, ...]:
+    """The grants the store holds, read through the layer and lock-free.
+
+    The read is committed before it returns, for the same reason
+    :func:`register_access_grant` commits its write: a reader that leaves a
+    transaction open on the service's session holds the database hostage.
+    """
+    session = context.store.session
+    try:
+        grants = list_access_grants(session)
+        session.commit()
+    except StoreError:
+        session.rollback()
+        raise
+    return grants
+
+
 __all__ = [
     "ApprovalConsumed",
     "ApprovalGranted",
     "ApprovalRequest",
     "ApprovalRequested",
     "ApprovalUse",
+    "access_grants",
     "consume_approval",
     "grant_approval",
+    "register_access_grant",
     "request_approval",
     "spendable_approval",
 ]

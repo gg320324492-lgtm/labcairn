@@ -31,11 +31,14 @@ refusal as well.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import threading
 import time
 import uuid
 from collections.abc import Iterator
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -43,20 +46,39 @@ from fastapi.responses import StreamingResponse
 
 from labcairn.api.contracts import (
     AnalysisBody,
+    ApplyReviewBody,
     ApprovalBody,
     ApprovalUseBody,
     ClaimBody,
     ClaimExtractionBody,
     CommentResponses,
+    DeliverableFileWire,
+    DeliverablesExportWire,
+    GuidanceRulePublishBody,
     GuidanceRuleVerdictBody,
     Health,
+    InterruptedReplayBody,
+    InterruptedResolutionWire,
+    InterruptedResolveBody,
     IssueKeys,
+    IssueRecordBody,
+    IssueStatusBody,
+    MeetingIngestBody,
+    PptIngestBody,
     ProposalAcceptanceBody,
     ReportBody,
+    ReviewApplyCancelBody,
+    ReviewApplyCancelled,
+    ReviewDecisionBody,
+    ReviewSuggestBody,
+    ReviewSuggestionBody,
+    ReviewSuggestRun,
+    RoleRunBody,
     SessionInfo,
     StageBody,
     TaskSelectBody,
     Trajectory,
+    TrajectoryIngestBody,
 )
 from labcairn.api.events import EventSource, UnwiredEventSource, sse_frame, unwired_refusal
 from labcairn.api.guards import OriginPolicy
@@ -113,12 +135,86 @@ from labcairn.application import (
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
 from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
+from labcairn.application.issues import (
+    IssueData,
+    IssueStatusUpdate,
+    list_issues,
+    record_issue,
+    update_issue_status,
+)
+from labcairn.application.meeting_text import (
+    MeetingHit,
+    MeetingTextIngested,
+    ingest_meeting_text,
+    search_meeting_text,
+)
+from labcairn.application.model_suggestions import (
+    MODEL_SUGGESTION_MODE_REAL,
+    ModelSuggestionBackend,
+    SuggestionLoopConfig,
+    parse_approval_ids,
+    suggest_for_version,
+)
+from labcairn.application.ppt_deck import PptDeckIngested, PptHit, ingest_ppt_deck, search_ppt_deck
+from labcairn.application.quality_checks import RoundQualityReport, run_round_quality_checks
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.application.review import (
+    ApplyReviewRequest,
+    ExportDeliverablesRequest,
+    ReviewApplyResult,
+    ReviewDecisionData,
+    ReviewManuscript,
+    ReviewOpinions,
+    ReviewPreview,
+    ReviewSuggestionData,
+    _require_project,
+    apply_review,
+    export_deliverables,
+    preview_review_apply,
+    read_review_manuscript,
+    read_review_opinions,
+    record_review_decision,
+    record_review_suggestion,
+)
+from labcairn.application.revision_loop import (
+    InterruptedPublication,
+    RevisionPublished,
+    find_interrupted_publication,
+    replay_interrupted_publication,
+    resolve_interrupted_publication,
+)
+from labcairn.application.roles_run import (
+    CritiqueJudgement,
+    GuidanceJudgement,
+    ModelCallPlan,
+    RoleRunBackend,
+    RoleRunRequest,
+    RoleRunRun,
+    RoleRunTicketWire,
+    TrajectoryJudgement,
+    request_role_run,
+    run_role_run_service,
+    the_role_run_ticket,
+)
 from labcairn.application.stages import StageRequest, StageWork
-from labcairn.core.ids import ApprovalId, TaskId, is_uuid7
+from labcairn.application.trajectory import (
+    TrajectoryHit,
+    TrajectoryIngested,
+    UsableRule,
+    ingest_paper_trajectory,
+    search_trajectory,
+    usable_guidance,
+)
+from labcairn.core.ids import ApprovalId, TaskId, is_uuid7, new_id
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.guidance.models import GuidanceRule
-from labcairn.guidance.rules import confirm_rule, dispute_rule
+from labcairn.guidance.rules import (
+    confirm_rule,
+    dispute_rule,
+    publish_rule_to_group,
+    retract_rule_from_group,
+)
+from labcairn.roles.guidance import CardClaim
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest
 from labcairn.runtime.lifecycle import Task
 
@@ -1073,3 +1169,1053 @@ def _settle_the_rule(
 
 
 __all__ = ["router"]
+
+
+# --------------------------------------------------------------------------- #
+# the review workbench
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/review/opinions", response_model=ReviewOpinions, tags=["review"])
+def get_review_opinions(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    version_id: Annotated[str, Query(min_length=1)],
+) -> ReviewOpinions:
+    """The opinions one review round holds, with their suggestions and verdicts.
+
+    **One read, three separate facts.** The comment and its anchor are the
+    chain's; the suggestion is what the model proposed; the decision is what
+    the reviewer did with it — and the two stored records are never merged
+    into one (ADR-0016's rule, at the surface).
+    """
+    return read_review_opinions(context, project_id=project_id, version_id=version_id)
+
+
+@router.get("/review/manuscript", response_model=ReviewManuscript, tags=["review"])
+def get_review_manuscript(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    version_id: Annotated[str, Query(min_length=1)],
+) -> ReviewManuscript:
+    """The manuscript's paragraphs, in document order, in the accepted view.
+
+    The middle column's text. The paragraph numbering is the feedback
+    anchors' own — 1-based, document order — so the workbench's scroll-sync
+    is an equality test rather than a lookup.
+    """
+    return read_review_manuscript(context, project_id=project_id, version_id=version_id)
+
+
+@router.post(
+    "/review/suggestion", response_model=ReviewSuggestionData, status_code=201, tags=["review"]
+)
+def post_review_suggestion(
+    body: ReviewSuggestionBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewSuggestionData:
+    """Store one suggestion the model proposed, verbatim in the seam's units.
+
+    **A proposal is a record, not a decision.** This grants nothing, changes
+    nothing, and applies nothing; the verdict is ``POST /review/decision``'s
+    to take.
+    """
+    return record_review_suggestion(
+        context,
+        project_id=body.project_id,
+        version_id=body.version_id,
+        feedback_id=body.feedback_id,
+        part=body.part,
+        paragraph=body.paragraph,
+        old_text=body.old_text,
+        new_text=body.new_text,
+        author=body.author,
+    )
+
+
+@router.post("/review/suggest", response_model=ReviewSuggestRun, status_code=201, tags=["review"])
+def post_review_suggest(
+    body: ReviewSuggestBody,
+    request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewSuggestRun:
+    """Run the suggestion loop over one version's pending opinions.
+
+    **The mode names who answers.** ``substitute`` asks the local stand-in
+    and spends nothing — nothing leaves the machine, so nothing needs an
+    approval. ``real`` asks the authorised model and spends one
+    digest-bound approval per opinion: the caller presents
+    ``approval_ids``, one per opinion it holds consent for, and an opinion
+    without one is recorded as unauthorised and skipped, not asked.
+
+    **The response is the account, not the suggestions.** The suggestions
+    land in the store under their own route's read
+    (``GET /review/opinions``); this response says what the run cost, what
+    it produced, and why it stopped — the budget's own record (G0 §5).
+    """
+    backend = cast(ModelSuggestionBackend | None, request.app.state.model_suggestions)
+    if body.mode == MODEL_SUGGESTION_MODE_REAL and backend is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.MODEL_SUGGESTION_NO_PROVIDER,
+            "no real-model transport is wired into this service, so there is "
+            "nothing to ask. A real run is refused rather than simulated: an "
+            "invented suggestion would put words in a model's mouth that no "
+            "model said.",
+        )
+    run = suggest_for_version(
+        context,
+        run_id=str(new_id()),
+        project_id=body.project_id,
+        version_id=body.version_id,
+        mode=body.mode,
+        provider="" if backend is None else backend.provider,
+        transport=None if backend is None else backend.real_transport,
+        approvals=parse_approval_ids(body.approval_ids),
+        grants=() if backend is None else backend.grants,
+        destination="" if backend is None else backend.destination,
+        subject_ref=body.project_id,
+        config=SuggestionLoopConfig(
+            max_requests=body.max_requests,
+            max_tokens=body.max_tokens,
+            max_consecutive_failures=body.max_consecutive_failures,
+            retry_attempts=body.retry_attempts,
+        ),
+    )
+    return ReviewSuggestRun(
+        run_id=run.run_id,
+        project_id=run.project_id,
+        version_id=run.version_id,
+        mode=run.mode,
+        model_id=run.model_id,
+        requests_made=run.requests_made,
+        tokens_estimated=run.tokens_estimated,
+        stopped_reason=run.stopped_reason,
+        suggestions_recorded=run.suggestions_recorded,
+        opinions_skipped=run.opinions_skipped,
+        started_at=run.started_at.isoformat(),
+        finished_at=run.finished_at.isoformat(),
+    )
+
+
+@router.post("/review/decision", response_model=ReviewDecisionData, tags=["review"])
+def post_review_decision(
+    body: ReviewDecisionBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewDecisionData:
+    """Store the reviewer's verdict on one opinion's suggestion.
+
+    **The verdict is the reviewer's word, written once.** A revised verdict
+    overwrites the standing one under the same id; the apply step reads the
+    verdicts from the store, never from the request that applies them.
+    """
+    return record_review_decision(
+        context,
+        project_id=body.project_id,
+        feedback_id=body.feedback_id,
+        verdict=body.verdict,
+        operator=body.operator,
+        needs_evidence=body.needs_evidence,
+    )
+
+
+@router.post("/review/apply", response_model=ReviewApplyResult, tags=["review"])
+def post_review_apply(
+    body: ApplyReviewBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewApplyResult:
+    """Run the stored, approved set through the binding and close the round.
+
+    **The decisions come from the store.** The workbench does not send
+    verdicts with the apply call; the binding reads what the reviewer wrote,
+    which is what makes the applied set auditable after the fact. The
+    binding's own duplicate, staleness and consent guards are the guards —
+    this route adds none.
+
+    **The round answers to the operator's cancel flag.** A
+    ``POST /review/apply/cancel`` for the same project — asked while this
+    apply runs, or before it starts — sets a flag the route hands the
+    binding as its :class:`CancelCheck`; the binding asks it before each
+    publication, and an answered check stops the round with
+    ``apply_cancelled`` — nothing further published, unspent approvals
+    still granted. The cancellation takes effect at the next checkpoint, not
+    mid-publication, and the flag is retired when the round ends either way,
+    so it is a request about one round and not a standing order.
+    """
+    with _ApplyCancelGuard(body.project_id) as cancelled:
+        return apply_review(
+            context,
+            ApplyReviewRequest(
+                project_id=body.project_id,
+                input_version_id=body.input_version_id,
+                source_root_id=body.source_root_id,
+                source_key=body.source_key,
+                output_label=body.output_label,
+                window_end=body.window_end,
+            ),
+            cancel_check=lambda point: cancelled.reason if cancelled.set else None,
+        )
+
+
+@router.post("/review/preview", response_model=ReviewPreview, tags=["review"])
+def post_review_preview(
+    body: ApplyReviewBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewPreview:
+    """Measure what the apply round would do, before anything is written.
+
+    **The preview is the dry run the workbench shows before the operator
+    commits** (execution plan §3.2: *应用修改前必须预览修改数量、影响段落和
+    输出变化摘要*). It takes the same body the apply route takes, because
+    it answers the apply's question about the same round; it writes
+    nothing — no file, no store row — and the digests it returns are the
+    sha256 of the drafts the apply would publish. A caller applies the
+    round and compares; the equality is the preview's own witness.
+    """
+    return preview_review_apply(
+        context,
+        ApplyReviewRequest(
+            project_id=body.project_id,
+            input_version_id=body.input_version_id,
+            source_root_id=body.source_root_id,
+            source_key=body.source_key,
+            output_label=body.output_label,
+            window_end=body.window_end,
+        ),
+    )
+
+
+@router.get("/review/deliverables", response_model=DeliverablesExportWire, tags=["review"])
+def get_review_deliverables(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    dossier_artifact_id: Annotated[str, Query(min_length=1)],
+) -> DeliverablesExportWire:
+    """The four deliverables of one closed binding, in one export.
+
+    **One round, four files, one manifest.** The dossier names the binding;
+    the marked and the clean drafts are read back and hash-checked against
+    it, and the response table and the quality report are rendered from the
+    manifest's own JSON. The bytes travel base64-encoded, because a DOCX is
+    a zip and a zip is not text; the sha256 beside each is over the decoded
+    bytes, so a client decodes, saves and verifies against the same digest
+    the binding recorded (execution plan §7.1's step 9, at the surface).
+    """
+    export = export_deliverables(
+        context,
+        ExportDeliverablesRequest(project_id=project_id, dossier_artifact_id=dossier_artifact_id),
+    )
+    return DeliverablesExportWire(
+        project_id=export.project_id,
+        dossier_artifact_id=export.dossier_artifact_id,
+        task_id=export.task_id,
+        input_version_id=export.input_version_id,
+        output_version_id=export.output_version_id,
+        marked_receipt_id=export.marked_receipt_id,
+        clean_receipt_id=export.clean_receipt_id,
+        edge_id=export.edge_id,
+        deliverables=tuple(
+            DeliverableFileWire(
+                kind=file.kind,
+                relative_path=file.relative_path,
+                content_base64=base64.b64encode(file.content).decode("ascii"),
+                sha256=file.sha256,
+                size_bytes=file.size_bytes,
+            )
+            for file in export.deliverables
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the pilot's in-system issue record (P4-PILOT §9.4)
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/issues", response_model=IssueData, status_code=201, tags=["review"])
+def post_issue(
+    body: IssueRecordBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> IssueData:
+    """Record one problem the trial met, in the system's own record.
+
+    **The record is about something, and it is recorded as seen.** The
+    step, the error text and the severity are the trial's own words; the
+    two vocabularies -- severity and type -- are closed, and a word
+    outside either is refused (422 at the wire, from the body's own
+    ``Literal``; by name from the layer, for a caller that reached past
+    it). A recorded issue is ``open``; the states after that are
+    ``PATCH /issues/{issue_id}/status``'s to walk.
+    """
+    return record_issue(
+        context,
+        issue_id=body.issue_id,
+        project_id=body.project_id,
+        task_id=body.task_id,
+        version_id=body.version_id,
+        feedback_id=body.feedback_id,
+        step=body.step,
+        error_text=body.error_text,
+        duration_seconds=body.duration_seconds,
+        retry_count=body.retry_count,
+        severity=body.severity,
+        category=body.category,
+        reported_by=body.reported_by,
+    )
+
+
+@router.get("/issues", response_model=list[IssueData], tags=["review"])
+def get_issues(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    status: Annotated[str | None, Query()] = None,
+    severity: Annotated[str | None, Query()] = None,
+) -> list[IssueData]:
+    """The project's issues, newest first, narrowed by what is asked for.
+
+    **A filter narrows; it does not refuse.** An empty answer is a fact
+    about the trial -- "no blocker has been recorded" -- and not an error.
+    A filter that names a word outside the closed vocabulary is refused by
+    name from the layer, because a question the record cannot understand
+    is not the same as an answer of "none recorded".
+    """
+    return list(list_issues(context, project_id=project_id, status=status, severity=severity))
+
+
+@router.patch("/issues/{issue_id}/status", response_model=IssueStatusUpdate, tags=["review"])
+def patch_issue_status(
+    issue_id: str,
+    body: IssueStatusBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> IssueStatusUpdate:
+    """Move an issue along the four states, refusing a move that skips one.
+
+    **The states are walked, not set.** ``open`` is confirmed;
+    ``confirmed`` is fixed -- naming the version that fixed it -- or
+    wontfix. A closed issue moves nowhere: reopening it is a new record,
+    not an edit of the first. The layer carries the walk, so a caller that
+    reached past the wire meets the same refusal by name.
+    """
+    return update_issue_status(
+        context,
+        project_id=body.project_id,
+        issue_id=issue_id,
+        status=body.status,
+        fix_version=body.fix_version,
+        regression_note=body.regression_note,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# multi-source learning: the trajectory index and the usable rules (P4-MS)
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/guidance/usable", response_model=list[UsableRule], tags=["mentor"])
+def get_usable_guidance(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    scope: Annotated[str | None, Query()] = None,
+    project_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> list[UsableRule]:
+    """The rules a card may cite: mentor-confirmed, still standing, in scope.
+
+    **A candidate is never here.** The listing serves confirmed rules only —
+    a proposal reaching a card would be a proposal dressed as a record, and
+    the plan's §8.5 makes that a hard line: *unreviewed experience is a
+    candidate, not a code of conduct*. A withdrawn rule is not here either;
+    the retrieval resolves each rule's sources against the chain at query
+    time, so what comes back is what stands for this reader, now.
+
+    **A project narrows the answer without widening it.** With
+    ``project_id``, the listing serves the rules learned from that
+    project's chain material plus the rules a mentor has published to the
+    group (Phase 4 §8.5 / P4-G3); a private rule learned in another
+    project is not served. A shared rule's sources still go through the
+    permission layer, so a source this reader may not reach is dropped,
+    never widened.
+    """
+    return list(usable_guidance(context, scope=scope, project_id=project_id, limit=limit))
+
+
+@router.get("/trajectory/search", response_model=list[TrajectoryHit], tags=["review"])
+def search_trajectory_route(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    q: Annotated[str, Query(min_length=1)],
+    project_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> list[TrajectoryHit]:
+    """Search a paper's revision trajectory, and answer with its provenance.
+
+    **A hit says what was said or changed, and where it came from**: the
+    source version, the locator within it, and the content hash. That is
+    §8.5's acceptance — a trajectory entry is findable *and* points at the
+    opinion and revision position it came from — served from the index the
+    ingest wrote.
+    """
+    return list(search_trajectory(context, query=q, project_id=project_id, limit=limit))
+
+
+# --------------------------------------------------------------------------- #
+# multi-source learning: the deck index (P4-MS, §8.3)
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/ppt/search", response_model=list[PptHit], tags=["review"])
+def search_ppt_deck_route(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    q: Annotated[str, Query(min_length=1)],
+    project_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> list[PptHit]:
+    """Search a deck's indexed objects, and answer with their provenance.
+
+    **A hit says what the deck says, and which slide and object say it**:
+    the text, the 1-based slide number, the object's position and kind, the
+    structured locator, and the source fingerprint that ties the hit to the
+    file it was read from. That is §8.5's acceptance — a deck's words,
+    notes, tables and images are findable *and* point at the correct slide
+    or object — served from the index the ingest wrote.
+    """
+    return list(search_ppt_deck(context, query=q, project_id=project_id, limit=limit))
+
+
+@router.post("/ppt/ingest", response_model=PptDeckIngested, status_code=201, tags=["review"])
+def post_ppt_ingest(
+    body: PptIngestBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> PptDeckIngested:
+    """Index one deck's objects, and report the count and the limitations.
+
+    **The body names where to read; the bytes come from the workspace.**
+    The deck is read through the ``source.read`` gate the same way every
+    other reader of supplied material reads, and the ingest reports both
+    what it indexed and what it honestly could not: ``limitations_recorded``
+    counts the extraction problems — a chart this reader does not parse, a
+    slide whose part is missing — because §8.3's rule is that an
+    unparseable object is a recorded limitation, never an invented
+    conclusion.
+    """
+    return ingest_ppt_deck(
+        context,
+        project_id=body.project_id,
+        root_id=body.root_id,
+        resource_key=body.resource_key,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# multi-source learning: the meeting-text index (P4-MS, §8.4)
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/meeting/search", response_model=list[MeetingHit], tags=["review"])
+def search_meeting_text_route(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    q: Annotated[str, Query(min_length=1)],
+    project_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> list[MeetingHit]:
+    """Search indexed meeting text, and answer with its provenance.
+
+    **A hit says what the meeting text says, and which entry or paragraph
+    says it**: the text, the record's shape and index, the container's
+    timestamp when it has one, the structured locator, and the source
+    fingerprint that ties the hit to the file it was read from. That is
+    §8.5's acceptance — meeting text is findable *and* points at the
+    correct entry or paragraph — served from the index the ingest wrote.
+    """
+    return list(search_meeting_text(context, query=q, project_id=project_id, limit=limit))
+
+
+@router.post(
+    "/meeting/ingest", response_model=MeetingTextIngested, status_code=201, tags=["review"]
+)
+def post_meeting_ingest(
+    body: MeetingIngestBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> MeetingTextIngested:
+    """Index one meeting-text file's records, and report the counts.
+
+    **The body names where to read; the bytes come from the workspace.**
+    The file is read through the ``source.read`` gate the same way every
+    other reader of supplied material reads, and the ingest reports both
+    what it indexed and what it honestly could not:
+    ``limitations_recorded`` counts the extraction problems — a cue with
+    no timing line, a block that is empty — because §8.3's rule is that
+    unreadable input is recorded, never fabricated.
+    """
+    return ingest_meeting_text(
+        context,
+        project_id=body.project_id,
+        root_id=body.root_id,
+        resource_key=body.resource_key,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the group sharing of a confirmed rule (Phase 4 §8.5 / P4-G3)
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/guidance/rules/{rule_id}/publish", response_model=GuidanceRule, tags=["mentor"])
+def post_guidance_rule_publication(
+    rule_id: str,
+    body: GuidanceRulePublishBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> GuidanceRule:
+    """A mentor publishes a confirmed rule to the whole group.
+
+    **Only a rule that stands is shared.** A candidate is unreviewed
+    experience and a disputed or withdrawn rule is not standing — the
+    layer refuses each by name, because a rule the group may cite is a
+    rule a second reader has stood behind (Phase 4 §8.5 / P4-G3).
+
+    **And the publisher is a second reader.** Whoever proposed the rule
+    cannot be the one who publishes it — the same rule the confirmation
+    carries, asked here rather than restated.
+
+    **Nothing is written when the door is refused.** The write happens
+    inside the store's own unit of work, so a refusal rolls the
+    transaction back and the rule keeps the scope it had.
+    """
+    if not body.user_id.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            "a publication nobody signs is not a publication. Name the mentor whose word it is.",
+        )
+    moment = datetime.now(UTC)
+    with context.store.unit(context.task_id):
+        return publish_rule_to_group(
+            context, rule_id=rule_id, published_by=body.user_id, now=moment
+        )
+
+
+@router.post("/guidance/rules/{rule_id}/retract", response_model=GuidanceRule, tags=["mentor"])
+def post_guidance_rule_retraction(
+    rule_id: str,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> GuidanceRule:
+    """Retract a rule from the group's reach, leaving the rule itself standing.
+
+    **A retraction of the sharing is not a withdrawal of the rule.** The
+    rule's own state is untouched: the group stops seeing a rule its own
+    project may still cite. The state machine's ``withdrawn`` keeps its
+    meaning — *this stopped being true* — and this door says only *this
+    stopped being shared*.
+
+    **Nothing is written when the door is refused.** The write happens
+    inside the store's own unit of work, so a refusal rolls the
+    transaction back and the rule keeps the scope it had.
+    """
+    with context.store.unit(context.task_id):
+        return retract_rule_from_group(context, rule_id=rule_id)
+
+
+# --------------------------------------------------------------------------- #
+# restart recovery and round quality, at the surface (Phase 4, window G)
+# --------------------------------------------------------------------------- #
+
+
+def _interrupted_or_refuse(context: ApplicationContext, receipt_id: str) -> InterruptedPublication:
+    """The loop's interrupted publication, or the refusal for one that is not there.
+
+    ``find_interrupted_publication`` answers ``None`` for a loop the record
+    holds no publication attempt for, and the docstring calls that the
+    caller's mistake — so the route turns it into the refusal a mistake
+    deserves, in the same two fields every other refusal uses, rather than
+    a bare ``null`` that a client would have to guess at.
+    """
+    found = find_interrupted_publication(context, receipt_id=receipt_id)
+    if found is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.IDENTIFIER_NOT_FOUND,
+            f"the record holds no interrupted publication for the loop receipt "
+            f"{receipt_id!r}. A loop that is not interrupted, or was never "
+            "opened, names nothing to resolve or replay.",
+        )
+    return found
+
+
+@router.get("/revision/interrupted", response_model=InterruptedPublication, tags=["review"])
+def get_interrupted_publication(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    receipt_id: Annotated[str, Query(min_length=1)],
+) -> InterruptedPublication:
+    """What a crash left undone, for one revision loop.
+
+    **The read is the recovery pass's own question, at the surface.** The
+    loop is reassembled from its durable pieces — the import receipt on
+    disk, the operation rows in the store — and an answer carries everything
+    a replay needs, because the replay happens in a process that did not
+    witness the interruption. ``edited_sha256`` is the prediction the
+    interrupted attempt was reaching for; a probe resolves against it, and
+    the replay is checked against it.
+
+    **A loop with nothing in flight is a refusal, not a null.** An empty
+    answer would say "nothing to do" about a receipt that may not exist at
+    all, and the two facts are different — one is a quiet loop, the other is
+    a mistyped id.
+    """
+    return _interrupted_or_refuse(context, receipt_id)
+
+
+@router.post(
+    "/revision/interrupted/{receipt_id}/resolve",
+    response_model=InterruptedResolutionWire,
+    tags=["review"],
+)
+def post_interrupted_resolution(
+    receipt_id: str,
+    body: InterruptedResolveBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> InterruptedResolutionWire:
+    """Resolve one interrupted publication with a probe, and nothing more.
+
+    **The caller states the prediction; the probe answers.** The store keeps
+    only the digest of the operation's arguments, so the bytes' hash is not
+    recoverable from the record — the body carries it, from the round's own
+    record, and a probe compares it with what is on disk. A match resolves
+    the operation and unblocks the stage; a miss reports that a replay is
+    safe; different bytes are a conflict the layer refuses, because
+    overwriting a file this operation did not write is a second writer.
+
+    **The resolution is what makes a replay legal**, and this route is the
+    answer only — the replay is the next door, and it refuses an operation
+    this route has not resolved.
+    """
+    interrupted = _interrupted_or_refuse(context, receipt_id)
+    outcome = resolve_interrupted_publication(
+        context,
+        interrupted,
+        expected_sha256=body.expected_sha256,
+    )
+    return InterruptedResolutionWire(
+        operation_id=str(outcome.operation_id),
+        resolution=outcome.resolution.value,
+        resulting_state=outcome.resulting_state.value,
+        replay_permitted=outcome.replay_permitted,
+        expected_sha256=outcome.verdict.expected_sha256,
+        observed_sha256=outcome.verdict.observed_sha256,
+        resource_key=outcome.verdict.resource_key,
+        detail=outcome.verdict.detail,
+    )
+
+
+@router.post(
+    "/revision/interrupted/{receipt_id}/replay",
+    response_model=RevisionPublished,
+    tags=["review"],
+)
+def post_interrupted_replay(
+    receipt_id: str,
+    body: InterruptedReplayBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> RevisionPublished:
+    """Replay an interrupted publication, under a fresh approval, once resolved.
+
+    **The replay is the loop's own publication, on the loop's own
+    addresses.** The interrupted attempt's operation stays on the record;
+    the replay plans its own operation for the same publication id, and the
+    idempotent upsert lands one artifact row. The bytes travel
+    base64-encoded, the way every byte-carrying body here travels, and they
+    are checked against the prediction the resolve step recorded — a replay
+    of bytes the record did not predict is refused, because "the same
+    publication" is a claim about bytes and not about intent.
+
+    **A fresh approval is required, not reused.** The interrupted attempt's
+    consent was bound to its own operation's digest; a replay is a new
+    attempt, and one consent, one effect stands. The approval is named in
+    the body — asked for and granted over ``/approvals`` beforehand — and
+    this route spends what it is given.
+    """
+    interrupted = _interrupted_or_refuse(context, receipt_id)
+    try:
+        edited_bytes = base64.b64decode(body.edited_base64, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"edited_base64 is not valid base64: {error}. The replay publishes "
+            "the bytes the record predicted, and bytes that do not decode "
+            "predict nothing.",
+        ) from error
+    try:
+        approval_id = ApprovalId(uuid.UUID(body.approval_id))
+    except ValueError as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"approval_id {body.approval_id!r} is not a UUID. Approvals are "
+            "minted by POST /approvals, and their ids are the store's own.",
+        ) from error
+    return replay_interrupted_publication(
+        context,
+        interrupted,
+        edited_bytes=edited_bytes,
+        approval_id=approval_id,
+    )
+
+
+@router.get("/review/quality", response_model=RoundQualityReport, tags=["review"])
+def get_review_quality(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    dossier_artifact_id: Annotated[str, Query(min_length=1)],
+) -> RoundQualityReport:
+    """The six §7.4 checks over one closed round's dossier manifest.
+
+    **The manifest is the authority, and it is read through the layer's own
+    door.** Every check reads the binding's own record — that every opinion
+    is accounted for, that every suggestion answers a real opinion, that the
+    edits stayed inside the anchored paragraphs, that a needs-evidence
+    verdict left an explicit task behind, that the response table says what
+    actually landed, and that the quality report binds the same manifest the
+    four deliverables bind. A project that is not there, an artefact that is
+    not a dossier manifest, or a manifest that binds another project is
+    refused rather than measured.
+    """
+    return run_round_quality_checks(
+        context,
+        project_id=project_id,
+        dossier_artifact_id=dossier_artifact_id,
+    )
+
+
+@router.post(
+    "/trajectory/ingest", response_model=TrajectoryIngested, status_code=201, tags=["review"]
+)
+def post_trajectory_ingest(
+    body: TrajectoryIngestBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> TrajectoryIngested:
+    """Index one paper project's revision trajectory, and report the count.
+
+    **The body names the project; the facts come from the chain.** The
+    comments and tracked changes are read through the ``source.inventory``
+    gate the same way every other bulk reader of supplied material reads
+    (ADR-0003 C5), and the ingest reports both what it indexed and what it
+    honestly skipped: ``skipped_versions`` counts the versions whose
+    material the policy denied, because a bulk write that refused whole
+    would disclose that the version exists.
+    """
+    return ingest_paper_trajectory(
+        context,
+        project_id=body.project_id,
+        ingested_at=body.ingested_at,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the operator's cancellation of a running apply round (§7.3)
+# --------------------------------------------------------------------------- #
+
+
+class _ApplyCancelFlag:
+    """One project's cancellation flag, as an apply round reads it.
+
+    **A flag, not a channel.** The cancel route sets ``reason``; the running
+    apply reads it at the binding's own checkpoints. Nothing here interrupts
+    a publication once it has begun — that is the binding's rule, and this
+    flag exists to answer the binding's question, not to reach past it. The
+    lock guards the one word a route writes and a request reads, so the flag
+    is safe under FastAPI's threadpool without pretending to be more.
+    """
+
+    __slots__ = ("_lock", "_reason")
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._reason: str | None = None
+
+    @property
+    def set(self) -> bool:
+        """Whether a cancellation has been asked for this round."""
+        with self._lock:
+            return self._reason is not None
+
+    @property
+    def reason(self) -> str:
+        """The reason the operator gave, or an empty string while unset."""
+        with self._lock:
+            return self._reason or ""
+
+    def request(self, reason: str) -> bool:
+        """Ask the running round to stop; ``False`` when no round is reading.
+
+        The reason is kept verbatim: the refusal the round raises carries
+        the operator's own words, so the record says why the round stopped.
+        """
+        with self._lock:
+            self._reason = reason
+        return True
+
+    def clear(self) -> None:
+        """Retire the flag. The round is over; a later cancel starts fresh."""
+        with self._lock:
+            self._reason = None
+
+
+#: The in-process cancellation flags, keyed by the project whose apply round
+#: they would stop. **Process-local, and meant to be**: the apply runs inside
+#: this service, so the cancellation is answered inside this service; a flag
+#: that outlived the process would answer a round nobody is running. One flag
+#: per project, so a cancel names the round it means and cannot stop another
+#: project's work by accident.
+_apply_cancel_flags: dict[str, _ApplyCancelFlag] = {}
+_apply_cancel_flags_lock = threading.Lock()
+
+
+class _ApplyCancelGuard:
+    """Adopt the project's flag for one round, and retire it when the round ends.
+
+    **The flag lives exactly as long as the round that honours it.** A flag
+    standing when the round registers was planted by a cancel — asked for
+    before the round started or while one ran — and this round adopts it, so
+    the cancellation is answered at the round's first checkpoint. When the
+    round ends — applied, cancelled or refused — the flag is retired, so a
+    cancellation is never a standing order past the round that honoured it.
+    """
+
+    __slots__ = ("_flag", "_project_id", "_registered")
+
+    def __init__(self, project_id: str) -> None:
+        self._project_id = project_id
+        self._flag = _ApplyCancelFlag()
+        self._registered = False
+
+    def __enter__(self) -> _ApplyCancelFlag:
+        with _apply_cancel_flags_lock:
+            # One round at a time per project is the binding's own duplicate
+            # guard's business, so a flag already standing here belongs to a
+            # round this one cannot run beside. This round adopts it rather
+            # than replacing it, so a cancellation asked for while a round is
+            # registered names the round that reads it — and a flag is never
+            # silently swapped under a cancel that has just been accepted.
+            existing = _apply_cancel_flags.get(self._project_id)
+            if existing is not None:
+                self._flag = existing
+            else:
+                _apply_cancel_flags[self._project_id] = self._flag
+            self._registered = True
+        return self._flag
+
+    def __exit__(self, *exc_info: object) -> None:
+        if self._registered:
+            with _apply_cancel_flags_lock:
+                if _apply_cancel_flags.get(self._project_id) is self._flag:
+                    del _apply_cancel_flags[self._project_id]
+            self._flag.clear()
+
+
+@router.post("/review/apply/cancel", response_model=ReviewApplyCancelled, tags=["review"])
+def post_review_apply_cancel(
+    body: ReviewApplyCancelBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewApplyCancelled:
+    """Ask the running apply round for this project to stop.
+
+    **The cancellation is a question the round answers at its next
+    checkpoint.** The binding asks its :class:`CancelCheck` before each
+    publication, so an apply that is between publications stops there; an
+    apply that is inside a publication finishes that unit and stops before
+    the next. Nothing is interrupted mid-write, and the round's unspent
+    approvals stay granted — the same shape a CLI cancellation has, reached
+    from the page.
+
+    **The answer is about the request, not the round's end.** ``accepted``
+    says the flag was planted where the round reads it; the round's own
+    outcome is what ``POST /review/apply`` returns, as ``apply_cancelled``
+    when the flag was honoured. A cancel that arrives while no round is in
+    flight is still accepted — the flag stands for the project until the
+    next apply reaches its first checkpoint, which it stops at — because a
+    page that asks to cancel *means* the next round it is watching to stop,
+    and a flag that vanished before that round started would be a cancel
+    that silently did nothing.
+
+    **In-process by design.** The flag lives in this service's memory and
+    dies with the round that honours it or with the process. A cancelled
+    round is applied again from the start, as the binding's own refusal
+    says — and applying again is a fresh round that no longer sees the old
+    flag, because the round that honoured it retired it.
+    """
+    # The project is the layer's to authenticate: the cancel names a round
+    # the caller can see, and a project that is not there is refused before
+    # any flag is planted.
+    _require_project(context, body.project_id)
+    with _apply_cancel_flags_lock:
+        flag = _apply_cancel_flags.get(body.project_id)
+        if flag is None:
+            flag = _ApplyCancelFlag()
+            _apply_cancel_flags[body.project_id] = flag
+    flag.request(body.reason)
+    return ReviewApplyCancelled(project_id=body.project_id, reason=body.reason, accepted=True)
+
+
+# the role loop, on demand (Phase 4, §8.2)
+# --------------------------------------------------------------------------- #
+
+
+def _the_role_run_request(body: RoleRunBody) -> RoleRunRequest:
+    """The layer's request, from the body's work fields.
+
+    **The judgements are converted here, once.** The role dataclasses are
+    the roles' own types, and a body that carried them as plain mappings
+    would make every route re-derive them; the conversion is the API's own
+    work, and the roles still check every value.
+    """
+    trajectory = (
+        None
+        if body.trajectory is None
+        else TrajectoryJudgement(
+            issue_type=body.trajectory.issue_type,
+            alignment=body.trajectory.alignment,
+            advisor_quote=body.trajectory.advisor_quote,
+            note=body.trajectory.note,
+            edit_action_id=body.trajectory.edit_action_id,
+        )
+    )
+    guidance = (
+        None
+        if body.guidance is None
+        else GuidanceJudgement(
+            issue_type=body.guidance.issue_type,
+            severity=body.guidance.severity,
+            reason=body.guidance.reason,
+            suggested_next_action=body.guidance.suggested_next_action,
+            uncertainty_kind=body.guidance.uncertainty_kind,
+            what_is_uncertain=body.guidance.what_is_uncertain,
+            claims=tuple(
+                CardClaim(
+                    text=claim.text,
+                    kind=claim.kind,
+                    evidence_ref=claim.evidence_ref,
+                    issue_key=claim.issue_key,
+                    advisor_quote=claim.advisor_quote,
+                )
+                for claim in body.guidance.claims
+            ),
+            style_notes=body.guidance.style_notes,
+        )
+    )
+    critique = (
+        None
+        if body.critique is None
+        else CritiqueJudgement(
+            verdict=body.critique.verdict,
+            repair_advice=body.critique.repair_advice,
+            handover_reason=body.critique.handover_reason,
+        )
+    )
+    return RoleRunRequest(
+        roles=body.roles,
+        project_id=body.project_id,
+        issue_key=body.issue_key,
+        version_ids=body.version_ids,
+        rule_id=body.rule_id,
+        evidence_refs=body.evidence_refs,
+        trajectory=trajectory,
+        guidance=guidance,
+        critique=critique,
+    )
+
+
+def _the_role_run_plan(body: RoleRunBody) -> ModelCallPlan:
+    """The layer's plan, from the body's plan fields.
+
+    **A plan is built only from filled fields.** A body that names no plan
+    fields gets one that is empty of them, and the loop refuses it by name
+    when a run needs one -- the refusal is the layer's own
+    ``role_run_material_mismatch``, naming what the declaration did not
+    say, rather than a 500 from a half-built plan.
+    """
+    return ModelCallPlan(
+        provider=body.provider or "",
+        model=body.model or "",
+        root_id=body.root_id or "",
+        resource_key=body.resource_key or "",
+        material_ref=body.material_ref or "",
+        purpose=body.purpose or "",
+        destination=body.destination or "",
+        subject_ref=body.subject_ref or "",
+    )
+
+
+@router.post(
+    "/roles/run-questions",
+    response_model=RoleRunTicketWire,
+    status_code=201,
+    tags=["mentor"],
+)
+def post_role_run_question(
+    body: RoleRunBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> RoleRunTicketWire:
+    """Write the loop's question down, and spend nothing.
+
+    **This is the ask, and the ask is not the spend.** The loop rebuilds
+    the question from the request -- the roles, the material, the
+    contracts, the prompt and the excerpts a run would send -- and, only
+    when a judgement is missing, mints the *pending* approval the run will
+    spend. No approval is granted here, no wire is touched, and no role
+    runs; the response carries the prompt so a caller can read exactly
+    what a run would send before anybody consents to it.
+
+    **The consent is a person's act, on the approval door.** A run needs
+    the approval this response names to be granted first
+    (``POST /approvals/{id}/grant``), and the run refuses to spend it
+    otherwise. A request whose judgements are all supplied names no
+    approval, because it reaches no wire.
+    """
+    ticket = request_role_run(
+        context,
+        _the_role_run_request(body),
+        plan=_the_role_run_plan(body),
+        expires_at=body.expires_at or datetime.now(UTC) + timedelta(days=1),
+    )
+    return the_role_run_ticket(ticket)
+
+
+@router.post("/roles/run", response_model=RoleRunRun, status_code=201, tags=["mentor"])
+def post_role_run(
+    body: RoleRunBody,
+    request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> RoleRunRun:
+    """Run the roles the request names, and only those.
+
+    **One operation, two steps, and the consent between them.** The loop's
+    ask is :func:`request_role_run` and its spend is
+    :func:`run_role_run`; this route performs both against one body, so a
+    caller that holds a granted approval id can ask and run in one round
+    trip. The approval is **named in the body** and is the one the ask
+    minted -- a run that needed one and is not carrying it is refused, and
+    a run whose judgements are all supplied needs none.
+
+    **The response is what the roles produced, and the account of the
+    call.** Each role's output carries the contract it was made under; the
+    model's words and the exchange record are carried beside them, and a
+    run that reached no wire carries neither.
+    """
+    backend = cast(RoleRunBackend | None, request.app.state.role_runs)
+    ticket = request_role_run(
+        context,
+        _the_role_run_request(body),
+        plan=_the_role_run_plan(body),
+        expires_at=body.expires_at or datetime.now(UTC) + timedelta(days=1),
+    )
+    if ticket.approval_id is not None and body.approval_id is None:
+        # **The ask minted a pending approval, and the run cannot spend a
+        # consent nobody granted.** The caller presents the granted id; the
+        # digest check at the spend refuses a ticket that changed since.
+        raise ApplicationRefusedError(
+            ApplicationRefusal.APPROVAL_MISSING,
+            "the run needs a model judgement, and it carries no granted"
+            " approval id. Ask with `POST /roles/run-questions` first, grant"
+            " the approval it names, and present that id here.",
+        )
+    if body.approval_id is not None:
+        ticket = replace(ticket, approval_id=_parsed_approval_id(body.approval_id))
+    return run_role_run_service(
+        context,
+        ticket,
+        backend=backend,
+        at=datetime.now(UTC),
+    )

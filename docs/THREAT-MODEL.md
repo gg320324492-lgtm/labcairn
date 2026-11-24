@@ -143,7 +143,7 @@ Writes outside that path, in the whole of `src/`:
 | **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` (the pinned directory), `src/labcairn/analysis/chart/render.py:1070-1097` (the font cache), `src/labcairn/analysis/chart/render.py:1100-1157` (the settings file) | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267` — `MPL_CONFIG_DIR: Final[Path] = Path(tempfile.gettempdir()) / "labcairn-matplotlib"`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
 | **Workspace config + policy** | `src/labcairn/cli/workspace.py:284-304` | The user's own configuration, written by `labcairn init`. |
 | **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:85` — `DATABASE_NAME = "labcairn.db"`, `src/labcairn/cli/workspace.py:190-191` (where the file is named), `src/labcairn/db/session.py:112` — `engine = create_engine(` (the engine call; the read-only engine built from it refuses writes at SQLite), `src/labcairn/db/migrations.py:87` — `engine = create_engine(_as_url(db_path))` (where it is opened) | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. **The API's evidence routes write through it** — `POST /claims`, `POST /claims/extract` and `POST /records/{evidence_id}/accept` — so a record's write is the store's transaction, not a file a route names. |
-| **The workspace directories** | `src/labcairn/cli/commands.py:380-384`, `src/labcairn/workspace/roots.py:104` — `output_dir.mkdir(parents=True, exist_ok=True)` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
+| **The workspace directories** | `src/labcairn/cli/commands.py:436-440`, `src/labcairn/workspace/roots.py:104` — `output_dir.mkdir(parents=True, exist_ok=True)` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
 | **TypeScript contract** | `src/labcairn/api/typescript.py:380-381` | A build-time generator, not a runtime path. |
 
 **This section is an enumeration, and it is checked.** Every write in
@@ -351,8 +351,8 @@ platform's idea of loopback rather than this file's opinion of it. `127.0.0.1`
 and `::1` are loopback; `0.0.0.0` is not.
 
 **The check is made twice**, and the second one is at the point where the
-socket is about to be opened: `create_app` calls it (`src/labcairn/api/app.py:281` — `ensure_loopback(host)`) and
-`serve` calls it again (`src/labcairn/api/app.py:338` — `ensure_loopback(host)`), so a service assembled by hand and
+socket is about to be opened: `create_app` calls it (`src/labcairn/api/app.py:295` — `ensure_loopback(host)`) and
+`serve` calls it again (`src/labcairn/api/app.py:354` — `ensure_loopback(host)`), so a service assembled by hand and
 handed to `serve` cannot skip the check the factory made.
 
 ### 3.2 The three request guards
@@ -414,7 +414,7 @@ OpenAPI document at `/openapi.json` — is generated locally and is served.
 | Path | Destination | Evidence |
 |---|---|---|
 | Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:120` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:190` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
-| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2334` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
+| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2759` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
 
 **There is no telemetry, no update check, no CDN fetch, no analytics, no
 font download.** `src/labcairn/sources/`, `src/labcairn/material/`,
@@ -957,7 +957,7 @@ Stated here because they were real and because the code flagged them itself:
 ### 6.13 A reviewer's change is observed; **why it was changed is not established**
 
 **The tree now holds a table of the reviewer's own prose.** ADR-0014's
-`revision_events` (`src/labcairn/db/models.py:1842` — `__tablename__ = "revision_events"`, written by the migration
+`revision_events` (`src/labcairn/db/models.py:1850` — `__tablename__ = "revision_events"`, written by the migration
 `migrations/versions/0017_revision_events.py`) stores one row per tracked
 change a Word document records: the text that changed, the address it
 changed at, the author and the date. **On the corpus that motivated it,
@@ -1021,9 +1021,9 @@ its evidence on the row.
 **That is a property of the schema and not a promise this document
 makes.** A response that is not `pending` cannot be reached without a
 decider and a non-empty evidence list
-(`src/labcairn/db/models.py:2497` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
+(`src/labcairn/db/models.py:2505` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
 assessment may rest on **has no member meaning "the change was accepted"**
-(`src/labcairn/db/models.py:2593` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
+(`src/labcairn/db/models.py:2601` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
 process and not about the science, and a product that recorded the
 advisor's correctness as a consequence of the student's change being kept
 would be claiming something it cannot know.

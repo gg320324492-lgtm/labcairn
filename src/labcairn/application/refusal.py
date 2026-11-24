@@ -119,6 +119,12 @@ class ApplicationRefusal(StrEnum):
     #: about. A proposal is bound to the material it claims to speak for, and
     #: a quotation the material does not contain binds nothing.
     CLAIM_EXTRACTION_NOT_GROUNDED = "claim_extraction_not_grounded"
+    #: A real-model suggestion run was asked for and this service has no
+    #: real-model transport wired. **Refused, never simulated** — the same
+    #: rule claim extraction holds: an invented suggestion would put words
+    #: in a model's mouth that no model said, and the substitute path is a
+    #: mode of its own, labelled as such, not a silent stand-in.
+    MODEL_SUGGESTION_NO_PROVIDER = "model_suggestion_no_provider"
     #: The ledger holds no identifier with that id.
     IDENTIFIER_NOT_FOUND = "identifier_not_found"
     #: The confirmation named nobody. A resolution is a person's word about an
@@ -152,6 +158,20 @@ class ApplicationRefusal(StrEnum):
     REPORT_CONTENT_REFUSED = "report_content_refused"
     #: The operation is declared but not implemented yet.
     NOT_IMPLEMENTED = "not_implemented"
+    # -- the reasons the pilot's issue record says ---------------------------- #
+    #
+    # The trial's issue record is a small vocabulary of its own, and its
+    # refusals name what a caller got wrong: an issue nobody recorded, a
+    # tag outside the two closed lists, or a status move the four states
+    # do not allow.
+    #: The store holds no pilot issue with that id.
+    PILOT_ISSUE_NOT_FOUND = "pilot_issue_not_found"
+    #: The severity is not one of the four §9.4 closes.
+    PILOT_ISSUE_SEVERITY_UNKNOWN = "pilot_issue_severity_unknown"
+    #: The type is not one of the five §9.4 closes.
+    PILOT_ISSUE_CATEGORY_UNKNOWN = "pilot_issue_category_unknown"
+    #: The status move is not one the four states allow.
+    PILOT_ISSUE_STATUS_MOVE_REFUSED = "pilot_issue_status_move_refused"
     # -- the reasons the analysis run path says, carried through the layer ----- #
     #
     # **Why these are the layer's own, and not one ``analysis_refused`.** The
@@ -373,6 +393,10 @@ class ApplicationRefusal(StrEnum):
     #: a proposal, and a rule that leans on a proposal leans on nothing
     #: that has been decided.
     GUIDANCE_CHECK_NOT_CONFIRMED = "guidance_check_not_confirmed"
+    #: Only a mentor-confirmed rule may be published to the group.
+    GUIDANCE_PUBLISH_NOT_CONFIRMED = "guidance_publish_not_confirmed"
+    #: The proposer cannot be the one who publishes the rule to the group.
+    GUIDANCE_PUBLISHER_IS_PROPOSER = "guidance_publisher_is_proposer"
     # -- the reasons the role contract says no ------------------------------ #
     #
     # **Why these are the contract's own.** The boundary exists to refuse a
@@ -479,6 +503,11 @@ class ApplicationRefusal(StrEnum):
     #: The run needs a judgement and there is no provider invocation to ask
     #: the model with, so there is nothing to ask it.
     ROLE_RUN_NO_PROVIDER_INVOCATION = "role_run_no_provider_invocation"
+    #: The service has no real-model transport wired for the role loop, so a
+    #: run that needs a model judgement is refused rather than simulated.
+    #: **The refusal, not a failure, is the honest state of a service the
+    #: owner has not authorised.**
+    ROLE_RUN_NO_PROVIDER = "role_run_no_provider"
     #: A role the request named received no judgement -- the answer did not
     #: carry one, or the run had none to give it. **A role the caller asked
     #: for is not run without one.**
@@ -529,6 +558,25 @@ class ApplicationRefusal(StrEnum):
     #: revision is a new import, and its import receipt is what makes it
     #: distinct.
     LOOP_ALREADY_PUBLISHED = "loop_already_published"
+    # -- Phase 4 §7.3: cancel, retry and recovery -------------------------- #
+    #: An apply round was cancelled by its operator between the approvals and
+    #: the publication. **A cancellation is a decision, not a failure**: the
+    #: round stops with nothing published, the grants it had not spent stay
+    #: granted, and the round may be applied again from the start. The refusal
+    #: carries the point the cancellation was asked at, so the record says
+    #: where it stopped rather than leaving the operator to infer it.
+    APPLY_CANCELLED = "apply_cancelled"
+    #: The model that produces the suggestions did not answer within its
+    #: window. **A timeout is retryable in a way a refusal is not**: the
+    #: material is unchanged and no decision was recorded, so asking again is
+    #: safe. The integration with the real model window's own classification
+    #: lands there; this is the apply path's name for it.
+    REVIEW_MODEL_TIMEOUT = "review_model_timeout"
+    #: The source file could not be opened for its pre-publication check
+    #: because another process holds it locked. **A lock is not a change** —
+    #: the bytes may be exactly the ones the import receipt hashed, and the
+    #: remedy is to retry once the holder lets go, not to re-ingest.
+    SOURCE_LOCKED = "source_locked"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -654,6 +702,8 @@ GUIDANCE_REFUSALS: Mapping[GuidanceRefusal, ApplicationRefusal] = {
     GuidanceRefusal.CHECK_FIELD_EMPTY: (ApplicationRefusal.GUIDANCE_CHECK_FIELD_EMPTY),
     GuidanceRefusal.CHECK_NOT_FOUND: (ApplicationRefusal.GUIDANCE_CHECK_NOT_FOUND),
     GuidanceRefusal.CHECK_NOT_CONFIRMED: (ApplicationRefusal.GUIDANCE_CHECK_NOT_CONFIRMED),
+    GuidanceRefusal.PUBLISH_NOT_CONFIRMED: (ApplicationRefusal.GUIDANCE_PUBLISH_NOT_CONFIRMED),
+    GuidanceRefusal.PUBLISHER_IS_PROPOSER: (ApplicationRefusal.GUIDANCE_PUBLISHER_IS_PROPOSER),
 }
 
 ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
@@ -809,6 +859,7 @@ MODEL_REFUSALS: Mapping[ModelRefusal, ApplicationRefusal] = {
     ModelRefusal.SCHEMA_UNSUPPORTED: ApplicationRefusal.MODEL_SCHEMA_UNSUPPORTED,
     ModelRefusal.ANSWER_EMPTY: ApplicationRefusal.MODEL_ANSWER_EMPTY,
     ModelRefusal.ANSWER_UNDECODABLE: ApplicationRefusal.MODEL_ANSWER_UNDECODABLE,
+    ModelRefusal.SUGGESTION_NO_PROVIDER: ApplicationRefusal.MODEL_SUGGESTION_NO_PROVIDER,
 }
 
 
