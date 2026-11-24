@@ -10,7 +10,8 @@ from the tree at `main` = `dfb63cd274f7c0189126d12af65cae2a276a44d4`; none was
 carried from another record.
 
 **Purpose.** This checklist distils the review rounds of 2026-11-14 into six
-checkable items. Each item names a failure that really happened today (a CI
+checkable items, plus the seventh the 2026-11-25 Phase 4 review added. Each
+item names a failure that really happened today (a CI
 run went red, or a review caught a live gap), the repair commit that fixed it,
 and the question a reviewer asks at the next gate. A review window dispatched
 for a Phase 3 gate reads this list before it starts and answers every checkbox
@@ -123,11 +124,49 @@ against the diff it reviews.
 - **Reviewer's question:** *for every number in this diff, can I re-run the
   command named beside it at the named commit and get the same value?*
 
+## R7. A witness that constructs the thing it watches cannot notice its absence
+
+- [ ] A witness **reaches** the code path it claims to watch. A test that
+      builds the value under test by hand — a refusal reason raised in the
+      test rather than by the product, a backend constructed in the test
+      rather than assembled by the wiring, a guard reached only through a
+      private attribute the production code reads behind a `hasattr` guard
+      — asserts that the value survives a round trip, **not** that the
+      product produces it**. Deleting the production half leaves the tree
+      green, which is the whole failure this item is about.
+- [ ] The same applies to a **guard nothing can reach**: a check the request
+      layer rejects first with a 422, so the application's own refusal for
+      the same condition never fires, has no witness and no caller. Either
+      it is reachable and watched, or it is removed with its vocabulary
+      entry.
+- [ ] A **mechanism that fails silently** is not watched either. A private
+      attribute read behind `hasattr` degrades to `None` rather than
+      raising, and `None` on that path usually means "refuse every real
+      request" — a total outage behind a green tree.
+- **Where it was caught today:** the Phase 4 review of 2026-11-25 (against
+  PR #223) found three of this shape. The CLI's role-run wiring had **no**
+  witness at all, and the one arm that could supply the probed capabilities
+  was behind a `hasattr` guard on an attribute the only test double did not
+  carry, so that arm never executed on CI — a misspelled attribute name
+  would have made every real role run refuse with `model_schema_unprobed`
+  while the tree stayed green. The suggestion loop's `REVIEW_MODEL_TIMEOUT`
+  refusal was **declared and never raised** by anything in `src/`, and its
+  only witness raised it by hand, so the connection the file's own docstring
+  claimed did not exist. The pilot-issue category guard was unreachable
+  through the public surface, because the request layer rejected the same
+  input with a 422 first.
+- **Repair:** the three gaps are carried by the windows of the 2026-11-25
+  batch; the R-item itself is added here in the same delivery, with the
+  review catch that justifies it.
+- **Reviewer's question:** *for each witness in this diff, is the thing it
+  asserts produced by the product, or by the test? Delete the production
+  line and see which test goes red.*
+
 ---
 
 ## How a review window uses this list
 
-1. Before reviewing, run the six reviewer's questions against the diff under
+1. Before reviewing, run the seven reviewer's questions against the diff under
    review; a "no" on any checkbox is a finding.
 2. Record the answers in the review window's own record file, with the
    evidence (test name, command output or commit SHA) beside each answer.
