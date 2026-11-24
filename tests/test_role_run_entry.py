@@ -74,6 +74,7 @@ from store_support import env as _shared_env
 
 from labcairn.api import create_app
 from labcairn.api.events import UnwiredEventSource
+from labcairn.application.judgement_fields import fields_taken
 from labcairn.application.model_request import ModelInvocation
 from labcairn.application.roles_run import (
     ModelCallPlan,
@@ -88,6 +89,7 @@ from labcairn.cli.commands import (
     PROVIDERS_FILE_NAME,
     role_run_backend,
 )
+from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
 from labcairn.core.providers.protocol import ModelRequest
 from labcairn.core.providers.usage import Known
 from labcairn.db.models import EditActionRow
@@ -1262,3 +1264,112 @@ def test_a_transport_that_cannot_present_the_seam_fails_loudly(
     assert failure.value.name in {"capabilities", "exchanges", "credential_fingerprint"}, (
         "the wiring failed on a member of the seam it needed, and not on something else"
     )
+
+
+# --------------------------------------------------------------------------- #
+# the judgement the command was given
+# --------------------------------------------------------------------------- #
+
+#: The field a test adds to a part to make it one the role does not take.
+UNKNOWN_FIELD = "field_the_role_does_not_take"
+
+#: The three parts, named as the command's own ``--judgements`` names them.
+PARTS = ("trajectory", "guidance", "critique")
+
+
+def _the_part_payload(part: str) -> dict[str, Any]:
+    """A judgement part carrying **exactly** the fields the role takes.
+
+    **Built from the vocabulary rather than written out**, so the payload and
+    the vocabulary cannot disagree: a field the role takes is here, and
+    nothing else. The values are ordinary -- the roles check the values
+    themselves, and this file is about the shape.
+    """
+    values: dict[str, dict[str, Any]] = {
+        "trajectory": {
+            "issue_type": "method_and_hypothesis",
+            "alignment": "partial",
+            "advisor_quote": QUOTE,
+            "note": "the change answered the wording, not the missing quantity.",
+            "edit_action_id": "edit-201",
+        },
+        "guidance": {
+            "issue_type": "method_and_hypothesis",
+            "severity": "blocking",
+            "reason": "the quantity is never named",
+            "suggested_next_action": "name the quantity in the methods section",
+            "uncertainty_kind": "missing_measurement",
+            "what_is_uncertain": "the size of the effect",
+            "claims": [
+                {
+                    "text": "the effect was not estimated",
+                    "kind": "scientific",
+                    "evidence_ref": f"{MATERIAL_ROOT}/{MATERIAL_KEY}",
+                    "issue_key": KEY,
+                    "advisor_quote": QUOTE,
+                }
+            ],
+            "style_notes": ["the methods section reads as a list of steps"],
+        },
+        "critique": {
+            "verdict": "not_established",
+            "repair_advice": "name the quantity and the estimate",
+            "handover_reason": "the effect was never estimated",
+        },
+    }
+    payload = values[part]
+    assert set(payload) == set(fields_taken(part)), (
+        f"the {part!r} payload must carry exactly the fields the role takes, "
+        f"and it does not: {sorted(set(payload) ^ set(fields_taken(part)))}"
+    )
+    return dict(payload)
+
+
+@pytest.mark.parametrize("part", PARTS)
+def test_the_cli_refuses_a_part_with_a_field_the_role_does_not_take(
+    loop: ChainEnv, part: str
+) -> None:
+    """The CLI refuses a part carrying a field the role does not take, by name.
+
+    **The refusal is the command's own.** The reader is where the
+    docstring says the refusal belongs: *"a part with a field the role does
+    not take, is refused here: the refusal is about the command's own
+    arguments, and it is the CLI's vocabulary rather than a 500 from a bad
+    cast."* The reason is the one the sibling refusal -- a part that is not
+    an object -- already uses.
+
+    **And the field is named.** A refusal that says only that something is
+    wrong sends the caller looking; one that names the field sends them
+    straight to it.
+    """
+    payload = {**_the_part_payload(part), UNKNOWN_FIELD: "a value"}
+    completed = _run_roles_cli(
+        loop.context.workspace.selected_root,
+        "--json",
+        "--role",
+        part,
+        "--project",
+        "proj-1",
+        "--issue-key",
+        KEY,
+        "--judgements",
+        json.dumps({part: payload}),
+        expect_refusal=True,
+    )
+    refusal = json.loads(completed.stdout)
+    assert refusal["reason"] == CLI_REFUSAL_INVALID_ARGUMENTS
+    assert UNKNOWN_FIELD in refusal["message"]
+
+
+@pytest.mark.parametrize("part", PARTS)
+def test_the_reader_takes_a_part_with_exactly_the_fields_the_role_takes(part: str) -> None:
+    """A part carrying exactly the role's fields is read, not refused.
+
+    **The refusal cannot be over-broad.** A check that refused every part
+    would refuse this one too, and the caller would be told their own answer
+    was wrong when it was not.
+    """
+    from labcairn.cli.commands import _the_judgements_from_json
+
+    read = _the_judgements_from_json(json.dumps({part: _the_part_payload(part)}), as_json=True)
+    assert part in read, f"the {part!r} part was refused"

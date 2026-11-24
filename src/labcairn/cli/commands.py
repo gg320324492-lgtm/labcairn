@@ -3387,48 +3387,6 @@ def the_role_run_run_rendered(result: Any) -> RenderableType:
     return Panel(table, title="the loop's run", expand=False)
 
 
-def _refuse_an_unknown_field(
-    part: str,
-    payload: Mapping[str, Any],
-    *,
-    as_json: bool,
-) -> None:
-    """Refuse a judgement part that carries a field the role does not take.
-
-    **The field's vocabulary has one owner.** The layer's dataclass says
-    which fields a role takes, and
-    :func:`labcairn.application.judgement_fields.unknown_fields` reads that
-    answer, so this refusal and the API's own ``extra_forbidden`` come from
-    the same list rather than from two spellings of it.
-
-    **The refusal is about the command's own arguments.** A field the role
-    does not take is a misspelling or a field from another part, and the
-    operator who typed it is the one who can fix it -- so the message names
-    the part, the field, and the fields the part does take. Silently
-    dropping the field would hand the role a judgement that is missing
-    something the caller believed they had supplied.
-
-    **A part the vocabulary does not know is a different question** and is
-    not answered here: whether such a part exists at all is the reader's
-    own business, and refusing a payload for a reason that has nothing to
-    do with its fields would mislead.
-    """
-    from labcairn.application.judgement_fields import fields_taken, unknown_fields
-    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
-
-    unknown = unknown_fields(part, payload)
-    if not unknown:
-        return
-    taken = fields_taken(part)
-    _refuse(
-        CLI_REFUSAL_INVALID_ARGUMENTS,
-        f"the '{part}' judgement takes {', '.join(taken)}; "
-        f"{', '.join(unknown)} {'is' if len(unknown) == 1 else 'are'} not "
-        "one of them.",
-        as_json=as_json,
-    )
-
-
 def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, Any]:
     """The caller's own judgements, from one JSON object.
 
@@ -3469,36 +3427,24 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
     judgements: dict[str, Any] = {}
     trajectory = parsed.get("trajectory")
     if trajectory is not None:
-        if not isinstance(trajectory, dict):
-            _refuse(
-                CLI_REFUSAL_INVALID_ARGUMENTS,
-                "the 'trajectory' judgement is one JSON object.",
-                as_json=as_json,
-            )
-        _refuse_an_unknown_field("trajectory", trajectory, as_json=as_json)
+        part = _the_part_or_refuse("trajectory", trajectory, as_json=as_json)
         judgements["trajectory"] = TrajectoryJudgement(
-            issue_type=str(trajectory.get("issue_type", "")),
-            alignment=str(trajectory.get("alignment", "")),
-            advisor_quote=str(trajectory.get("advisor_quote", "")),
-            note=str(trajectory.get("note", "")),
-            edit_action_id=trajectory.get("edit_action_id"),
+            issue_type=str(part.get("issue_type", "")),
+            alignment=str(part.get("alignment", "")),
+            advisor_quote=str(part.get("advisor_quote", "")),
+            note=str(part.get("note", "")),
+            edit_action_id=part.get("edit_action_id"),
         )
     guidance = parsed.get("guidance")
     if guidance is not None:
-        if not isinstance(guidance, dict):
-            _refuse(
-                CLI_REFUSAL_INVALID_ARGUMENTS,
-                "the 'guidance' judgement is one JSON object.",
-                as_json=as_json,
-            )
-        _refuse_an_unknown_field("guidance", guidance, as_json=as_json)
+        part = _the_part_or_refuse("guidance", guidance, as_json=as_json)
         judgements["guidance"] = GuidanceJudgement(
-            issue_type=str(guidance.get("issue_type", "")),
-            severity=str(guidance.get("severity", "")),
-            reason=str(guidance.get("reason", "")),
-            suggested_next_action=str(guidance.get("suggested_next_action", "")),
-            uncertainty_kind=str(guidance.get("uncertainty_kind", "")),
-            what_is_uncertain=str(guidance.get("what_is_uncertain", "")),
+            issue_type=str(part.get("issue_type", "")),
+            severity=str(part.get("severity", "")),
+            reason=str(part.get("reason", "")),
+            suggested_next_action=str(part.get("suggested_next_action", "")),
+            uncertainty_kind=str(part.get("uncertainty_kind", "")),
+            what_is_uncertain=str(part.get("what_is_uncertain", "")),
             claims=tuple(
                 CardClaim(
                     text=str(claim.get("text", "")),
@@ -3507,22 +3453,55 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
                     issue_key=claim.get("issue_key"),
                     advisor_quote=claim.get("advisor_quote"),
                 )
-                for claim in guidance.get("claims", ())
+                for claim in part.get("claims", ())
             ),
-            style_notes=tuple(guidance.get("style_notes", ())),
+            style_notes=tuple(part.get("style_notes", ())),
         )
     critique = parsed.get("critique")
     if critique is not None:
-        if not isinstance(critique, dict):
-            _refuse(
-                CLI_REFUSAL_INVALID_ARGUMENTS,
-                "the 'critique' judgement is one JSON object.",
-                as_json=as_json,
-            )
-        _refuse_an_unknown_field("critique", critique, as_json=as_json)
+        part = _the_part_or_refuse("critique", critique, as_json=as_json)
         judgements["critique"] = CritiqueJudgement(
-            verdict=str(critique.get("verdict", "")),
-            repair_advice=str(critique.get("repair_advice", "")),
-            handover_reason=critique.get("handover_reason"),
+            verdict=str(part.get("verdict", "")),
+            repair_advice=str(part.get("repair_advice", "")),
+            handover_reason=part.get("handover_reason"),
         )
     return judgements
+
+
+def _the_part_or_refuse(part: str, payload: object, *, as_json: bool) -> Mapping[str, Any]:
+    """One judgement part, checked against the fields the role takes.
+
+    **A part that is not an object is refused, and so is a part carrying a
+    field the role does not take.** The first is a shape the command can see
+    for itself; the second is a field the caller wrote and the role would
+    have dropped without a word -- and a judgement that loses a field
+    quietly is not the judgement the caller wrote.
+
+    **The vocabulary is the role's own.** The fields are read off the
+    layer's dataclass through
+    :mod:`labcairn.application.judgement_fields`, so the list that refuses
+    here is the list the role itself checks, and there is no second spelling
+    of it to fall behind.
+
+    **The refusal names the field.** A refusal that says only that something
+    is wrong sends the caller looking; one that names the field sends them
+    straight to it.
+    """
+    from labcairn.application.judgement_fields import unknown_fields
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
+    if not isinstance(payload, dict):
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"the '{part}' judgement is one JSON object.",
+            as_json=as_json,
+        )
+    unknown = unknown_fields(part, payload)
+    if unknown:
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"the '{part}' judgement has a field the role does not take: "
+            f"{', '.join(repr(name) for name in unknown)}.",
+            as_json=as_json,
+        )
+    return payload
