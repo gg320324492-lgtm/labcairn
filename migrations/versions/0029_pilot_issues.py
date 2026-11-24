@@ -69,9 +69,11 @@ def upgrade() -> None:
         # Both are the trial's efficiency readings (execution plan §9.3).
         sa.Column("duration_seconds", sa.Float(), nullable=True),
         sa.Column("retry_count", sa.Integer(), nullable=True),
-        # §9.4's two closed vocabularies: 阻断/严重/一般/建议 and
-        # 功能/界面/性能/模型/文档, in this repository's English. A word
-        # outside either is a tag nobody can group by.
+        # §9.4's two closed vocabularies -- severity (blocker, serious,
+        # minor, suggestion) and type (function, interface, performance,
+        # model, documentation) -- in this repository's English (execution
+        # plan §9.4, read 2026-11-25). A word outside either is a tag
+        # nobody can group by.
         sa.Column("severity", sa.String(length=16), nullable=False),
         sa.Column("category", sa.String(length=16), nullable=False),
         sa.Column("reported_by", sa.Text(), nullable=False),

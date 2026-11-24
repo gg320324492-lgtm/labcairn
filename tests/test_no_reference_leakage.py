@@ -1464,11 +1464,16 @@ def test_gitleaks_guard_still_accepts_the_repository_config(repo_root: Path) -> 
 
 
 #: The longest Han run each tracked file carried, measured 2026-11-03 by
-#: ``scripts/cjk_ceilings.py``. This is not a ban on Chinese: the project's own
-#: voice is Chinese in the ADRs, the README is bilingual, and the OOXML fixtures
-#: hold synthetic sentences. It is a pin, so that a new long Chinese run -- the
+#: ``scripts/cjk_ceilings.py``. Re-measured on 2026-11-25, after the files
+#: whose runs were quotations of external material were given English
+#: paraphrases instead: three of them carry no Chinese at all and dropped out
+#: of this table, and every remaining value was re-measured, not carried
+#: forward. This is not a ban on Chinese: the project's own voice is Chinese
+#: in the ADRs, the README is bilingual, and the OOXML fixtures hold
+#: synthetic sentences. It is a pin, so that a new long Chinese run -- the
 #: shape of a quoted comment, a distilled rule statement or a manuscript
-#: paragraph -- cannot enter without the person who added it re-measuring it here.
+#: paragraph -- cannot enter without the person who added it re-measuring it
+#: here.
 CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "README.md": 29,
     "README.zh-CN.md": 29,
@@ -1498,17 +1503,14 @@ CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "docs/acceptance/LC-P3-08-exit-decision-2026-11-22.md": 7,
     "docs/plans/PHASE_4-execution-plan.md": 27,
     "web/src/views/DeliveryCenterView.tsx": 13,
-    "migrations/versions/0029_pilot_issues.py": 2,
     "src/labcairn/application/issues.py": 2,
     "docs/plans/PHASE_2-work-orders.md": 10,
-    "src/labcairn/api/routes.py": 13,
-    "tests/test_review_api.py": 11,
     "tests/test_status_consistency.py": 5,
     "tests/test_cli_json_forms.py": 2,
     "tests/test_pilot_decisions.py": 2,
     "docs/plans/LC-P2-06-task-breakdown.md": 8,
     "docs/plans/LC-P2-11-task-breakdown.md": 8,
-    "src/labcairn/db/models.py": 8,
+    "src/labcairn/db/models.py": 3,
     "src/labcairn/security/permissions.py": 8,
     "tests/test_consent_withdrawal.py": 8,
     "tests/test_version_confirmation.py": 8,

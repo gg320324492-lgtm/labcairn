@@ -2117,10 +2117,11 @@ class DerivedCopyRow(Base):
     runs, cached model transcripts, and any guidance rule distilled from
     it."*
 
-    **And the design asks the question precisely** — *"撤回同意后历史
-    embedding/缓存/训练队列是否失效"* — so the answer has to be a fact and
-    not a promise. **A copy records the grant it came from**, and a check
-    asks whether that grant is still active.
+    **And the design asks the question precisely** — *does withdrawing
+    consent invalidate historical embeddings, caches and queued training
+    runs?* (design §7, quoted in ADR-0015 §7, read 2026-11-25) — so the
+    answer has to be a fact and not a promise. **A copy records the grant
+    it came from**, and a check asks whether that grant is still active.
 
     **What this cannot do, and says so.** It cannot find copies written
     before the mechanism existed, and it cannot undo a copy that has
@@ -4157,11 +4158,12 @@ class PilotIssueRow(Base):
     type the team tagged it with.
 
     **The vocabularies are closed.** Severity is ``blocker``, ``serious``,
-    ``minor`` or ``suggestion`` (阻断/严重/一般/建议); type is
-    ``function``, ``interface``, ``performance``, ``model`` or
-    ``documentation`` (功能/界面/性能/模型/文档). A tag outside either
-    is a tag nobody can group the trial's findings by, so the vocabulary
-    is a constraint on the row and not a convention on the writer.
+    ``minor`` or ``suggestion``; type is ``function``, ``interface``,
+    ``performance``, ``model`` or ``documentation``. Both are the plan's
+    §9.4 closed vocabularies, in this repository's English (execution plan
+    §9.4, read 2026-11-25). A tag outside either is a tag nobody can
+    group the trial's findings by, so the vocabulary is a constraint on
+    the row and not a convention on the writer.
 
     **The status is the team's word, moved along its states.** A row is
     ``open`` when recorded, ``confirmed`` when a second person has seen
