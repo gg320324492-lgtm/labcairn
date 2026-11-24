@@ -61,6 +61,7 @@ from urllib.parse import urlsplit
 import typer
 
 from labcairn.api.bind import DEFAULT_BIND_HOST, DEFAULT_BIND_PORT
+from labcairn.application.model_suggestions import ModelSuggestionBackend
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -80,10 +81,12 @@ if TYPE_CHECKING:
     )
     from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
     from labcairn.core.ids import TaskId
+    from labcairn.core.providers.protocol import ModelRequest, ModelResponse
     from labcairn.guidance.models import GuidanceCheck, GuidanceRule
     from labcairn.providers.capabilities import Capability, ProviderCapabilities
     from labcairn.providers.credentials import ProviderSettings
     from labcairn.security.paths import CanonicalPath
+    from labcairn.security.permissions import Grant
 
 #: The exit code a refusal carries.
 #:
@@ -101,6 +104,51 @@ EXIT_USAGE = 2
 #: The product's own format — :func:`labcairn.providers.credentials.
 #: load_providers_config` reads it — so the CLI does not invent a second one.
 PROVIDERS_FILE_NAME = "providers.json"
+
+#: The key of the real-model suggestion authorisation record, at the top
+#: level of ``providers.json``.
+#:
+#: The record is the owner's answer to the fields
+#: ``docs/plans/LC-P4-PILOT-model-authorisation-draft.md`` lays out — which
+#: provider, which destination, whose project, who granted it and when. The
+#: credential itself is **not** here: it stays in the provider entry's
+#: ``credential_env`` / ``credential_file`` sources, so no secret sits beside
+#: the authorisation it is spent under.
+MODEL_SUGGESTIONS_KEY = "model_suggestions"
+
+#: The field value that means "the owner has not answered yet". An
+#: authorisation record still carrying it is a draft, and a draft authorises
+#: nothing: the service starts, and a real run is refused for want of a
+#: provider rather than sent under an unfilled field.
+TBD_BY_OWNER = "TBD by owner"
+
+#: The fields an authorisation record must carry before a real-model backend
+#: is wired. **Closed**: an unknown field is refused rather than ignored, on
+#: the same standard ``ProviderSettings.from_mapping`` applies — a misspelled
+#: field is a field that silently does not apply.
+MODEL_SUGGESTIONS_FIELDS: Final[frozenset[str]] = frozenset(
+    {
+        "provider",
+        "destination",
+        "subject_ref",
+        "granted_by",
+        "granted_at",
+        "expires_at",
+        "scope",
+        "grant_id",
+    }
+)
+
+#: The fields that must hold a filled, non-placeholder value. The rest are
+#: optional refinements (``expires_at``, ``scope``, ``grant_id``); an
+#: absent optional field is narrowed to the value recorded here.
+MODEL_SUGGESTIONS_REQUIRED: Final[tuple[str, ...]] = (
+    "provider",
+    "destination",
+    "subject_ref",
+    "granted_by",
+    "granted_at",
+)
 
 #: The verdicts a person may return about a guidance rule.
 #:
@@ -2226,6 +2274,13 @@ def service_app(
     the origins, the task and the way to select another one — is the thing
     worth looking at, and a test that had to bind a socket to look at it
     would be a test that fails when the machine's ports are busy.
+
+    The real-model suggestion backend is wired here, from the workspace's
+    own authorisation record, and **its absence is not a fault**: a service
+    with no authorisation to ask a model starts exactly the same service,
+    and ``POST /review/suggest`` in ``real`` mode is refused with
+    ``model_suggestion_no_provider`` — the refusal, not a failure, is the
+    honest state of a service the owner has not authorised.
     """
     from labcairn.api import create_app
 
@@ -2236,7 +2291,360 @@ def service_app(
         extra_origins=extra_origins,
         static_dir=static_dir,
         select_task=select_task,
+        model_suggestions=model_suggestion_backend(context),
     )
+
+
+def model_suggestion_backend(context: ApplicationContext) -> ModelSuggestionBackend | None:
+    """The real-model suggestion backend the workspace's authorisation wires.
+
+    Reads the authorisation record from the workspace's ``providers.json``,
+    resolves the provider it names, and builds the gated transport. The
+    result carries everything a real run spends — the transport, the
+    material-purpose grants and the destination — and nothing else: no
+    credential is held here beyond what the transport itself needs, and no
+    field of the record is echoed back.
+
+    **Every way this can fail to wire resolves to ``None``, and ``None`` is
+    the ordinary state**: no ``providers.json``, no record under
+    ``model_suggestions``, a field missing or still ``TBD by owner``, a
+    provider name the file does not configure, a credential that cannot be
+    read, or a file that is not readable JSON at all. A service is never
+    refused because its model authorisation is absent or incomplete —
+    refusing the *service* would make an unauthorised workspace unusable
+    for everything else, and the real-mode route already refuses the one
+    operation that would need the backend.
+
+    **The reads and the row are finished before this returns.** The store
+    session belongs to the service's whole life; a read left uncommitted on
+    it holds SQLite's write lock — this engine opens every transaction
+    ``IMMEDIATE``, reads included — and the service would take its own
+    database hostage for as long as it ran. Every read here is committed
+    (or rolled back and re-raised, on a store that refuses), so a wired
+    backend starts a service that can still write.
+    """
+    from labcairn.providers.credentials import load_credential, load_providers_config
+
+    path = context.workspace.selected_root / PROVIDERS_FILE_NAME
+    if not path.is_file():
+        return None
+    try:
+        config = load_providers_config(path)
+    except (ValueError, OSError):
+        # A file another window wrote or an operator is editing is not a
+        # reason the service cannot start. The unreadable file is the
+        # operator's to fix; the refusal path covers the gap.
+        return None
+
+    record = _model_suggestions_record(path)
+    if record is None:
+        return None
+
+    settings = config.get(record["provider"])
+    if settings is None:
+        return None
+
+    try:
+        credential = load_credential(settings)
+    except Exception:
+        # MissingCredentialError and anything a misconfigured source raises:
+        # a credential that is not there is the unauthorised state, not a
+        # crash, and the message names where it looked without printing a
+        # value.
+        return None
+
+    return _real_suggestion_backend(context, record, settings, credential)
+
+
+def _model_suggestions_record(path: Path) -> Mapping[str, str] | None:
+    """The authorisation record, or ``None`` when it does not authorise.
+
+    A record that is not a mapping, that carries an unknown field, that
+    leaves a required field empty or placeholder, or whose ``granted_at``
+    is not a timestamp, authorises nothing. The refusals here are silent
+    by design: the record's own fill state is the operator's to check, and
+    a service that logged one line per missing field would turn every
+    unauthorised start-up into a warning about the one feature the record
+    does not cover.
+    """
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(raw, Mapping):
+        return None
+    record = raw.get(MODEL_SUGGESTIONS_KEY)
+    if not isinstance(record, Mapping):
+        return None
+
+    fields = set(record)
+    if not fields <= set(MODEL_SUGGESTIONS_FIELDS):
+        return None
+    values: dict[str, str] = {}
+    for field in MODEL_SUGGESTIONS_FIELDS:
+        value = record.get(field)
+        if value is None:
+            if field in MODEL_SUGGESTIONS_REQUIRED:
+                return None
+            continue
+        if not isinstance(value, str) or not value.strip():
+            return None
+        if value.strip() == TBD_BY_OWNER:
+            return None
+        values[field] = value.strip()
+
+    try:
+        datetime.fromisoformat(values["granted_at"])
+    except (KeyError, ValueError):
+        return None
+    if "expires_at" in values:
+        try:
+            datetime.fromisoformat(values["expires_at"])
+        except ValueError:
+            return None
+    return values
+
+
+def _real_suggestion_backend(
+    context: ApplicationContext,
+    record: Mapping[str, str],
+    settings: Any,
+    credential: Any,
+) -> ModelSuggestionBackend | None:
+    """The backend, built — or ``None`` when the wiring itself refuses.
+
+    The transport and the grant row are built here rather than in
+    :func:`model_suggestion_backend` so that the import of the provider
+    layer — pydantic-ai and its HTTP stack — happens only when a real
+    backend is actually being assembled: a workspace with no
+    authorisation never pays for the import.
+    """
+    from labcairn.db.repository import StoreError, list_access_grants
+
+    transport = _suggestion_transport(settings, credential)
+    if transport is None:
+        return None
+
+    grant = _suggestion_grant(record)
+    if grant is not None:
+        _write_suggestion_grant(context, grant)
+    try:
+        grants = [
+            candidate
+            for candidate in list_access_grants(context.store.session)
+            if candidate.permission == "external_transmit"
+            and candidate.purpose == "transmit"
+            and candidate.subject_ref == record["subject_ref"]
+        ]
+        # **Leave no transaction open on the service's own session.** The
+        # engine opens every transaction IMMEDIATE, so an uncommitted read
+        # holds the write lock; commit, so the service can write.
+        context.store.session.commit()
+    except StoreError:
+        context.store.session.rollback()
+        raise
+
+    return ModelSuggestionBackend(
+        provider=record["provider"],
+        real_transport=transport,
+        grants=grants,
+        destination=record["destination"],
+    )
+
+
+def _suggestion_grant(record: Mapping[str, str]) -> Grant | None:
+    """The transmit grant the authorisation record describes, as a value.
+
+    The record *is* the owner's grant: it names the subject, the scope,
+    the destination and the window. Building the :class:`Grant` here and
+    writing the row is what makes the record checkable by the same
+    machinery every other transmit use is checked by — the loop does not
+    get a parallel permission path.
+    """
+    from datetime import UTC
+
+    from labcairn.security.permissions import Grant
+
+    try:
+        granted_at = datetime.fromisoformat(record["granted_at"])
+        if granted_at.tzinfo is None:
+            granted_at = granted_at.replace(tzinfo=UTC)
+        expires_at: datetime | None = None
+        if "expires_at" in record:
+            expires_at = datetime.fromisoformat(record["expires_at"])
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+    except ValueError:
+        return None
+    return Grant(
+        grant_id=record.get("grant_id", f"grant-model-suggestions-{record['subject_ref']}"),
+        subject_ref=record["subject_ref"],
+        permission="external_transmit",
+        purpose="transmit",
+        scope=record.get("scope", f"{record['subject_ref']}/**"),
+        destination=record["destination"],
+        granted_by=record["granted_by"],
+        granted_at=granted_at,
+        expires_at=expires_at,
+        state="active",
+        withdrawn_at=None,
+        withdrawn_by=None,
+        withdrawal_reason=None,
+    )
+
+
+def _write_suggestion_grant(context: ApplicationContext, grant: Grant) -> None:
+    """Put the record's grant in the store, so the check reads a real row.
+
+    **The product has no writer for grants yet** — the table landed with
+    LC-P2-06 and the rows the checks read are written the way the fixtures
+    write them. The authorisation record is the operator's act, and this
+    is where it becomes the row the consent layer reads; an existing row
+    with the same id is the same grant already recorded, and is left as it
+    stands rather than overwritten.
+    """
+    from sqlalchemy import select
+
+    from labcairn.db.models import AccessGrantRow
+
+    session = context.store.session
+    try:
+        existing = session.execute(
+            select(AccessGrantRow).where(AccessGrantRow.grant_id == grant.grant_id)
+        ).scalar_one_or_none()
+        if existing is not None:
+            # The row is there; the read still opened a transaction, so
+            # close it before the service starts on this session.
+            session.commit()
+            return
+        session.add(
+            AccessGrantRow(
+                grant_id=grant.grant_id,
+                subject_ref=grant.subject_ref,
+                permission=grant.permission,
+                purpose=grant.purpose,
+                scope=grant.scope,
+                destination=grant.destination,
+                granted_by=grant.granted_by,
+                granted_at=grant.granted_at,
+                expires_at=grant.expires_at,
+                state=grant.state,
+                withdrawn_at=None,
+                withdrawn_by=None,
+                withdrawal_reason=None,
+            )
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
+
+def _suggestion_transport(settings: Any, credential: Any) -> Any:
+    """The gated transport one provider's settings build, or ``None``.
+
+    The adapter is built with the same five gates every other real call
+    goes through. The consent port is a **decision-carrier**, not a second
+    consent path: the suggestion loop spends the digest-bound approval and
+    runs the transmit gate *before* it calls the transport, so by the time
+    ``send`` is reached the permission decision is already in hand — this
+    port carries that decision to the provider layer, which ADR-0006
+    requires to be handed the result rather than to evaluate it.
+
+    **The loop's seam names a ``model_id``**, and the adapter names itself
+    ``label:model``; the seam is what the loop reads and records, so the
+    returned object carries that name, not the adapter's.
+    """
+    from labcairn.providers.adapter import PydanticAiModelProvider
+    from labcairn.providers.pydantic_models import (
+        build_http_client,
+        build_model,
+        make_sniffer,
+    )
+
+    try:
+        sniffer = make_sniffer()
+        model = build_model(
+            settings,
+            credential=credential,
+            http_client=build_http_client(settings, sniffer=sniffer),
+        )
+        adapter = PydanticAiModelProvider(
+            model=model,
+            consent=_LoopSpentConsent(),
+            usage_capture=sniffer,
+            redactor=credential_redactor(credential),
+            timeout_s=settings.timeout_s,
+            clock=lambda: 0.0,
+        )
+        return _SuggestionTransportAdapter(adapter, model_id=settings.model)
+    except Exception:
+        # A provider this build cannot construct — a protocol whose SDK is
+        # missing, a base URL that will not parse — is the unauthorised
+        # state again: no transport, no backend, the ordinary refusal.
+        return None
+
+
+class _SuggestionTransportAdapter:
+    """The provider adapter, wearing the loop's transport seam.
+
+    The seam asks for one attribute the adapter does not carry —
+    ``model_id``, the name the run row and the approval derivation record —
+    and one method it does. Nothing else is added: the adapter's own five
+    gates run exactly as every other real call runs them.
+    """
+
+    def __init__(self, adapter: Any, *, model_id: str) -> None:
+        self._adapter = adapter
+        self.model_id = model_id
+
+    def send(self, request: ModelRequest) -> str:
+        """One request through the adapter's gates, one answer text out."""
+        answer = cast(ModelResponse, self._adapter.send(request))
+        return answer.text
+
+
+def credential_redactor(credential: Any) -> Any:
+    """A redactor carrying the transport's own credential, value hidden.
+
+    The secret reaches the scrubber through :func:`credential_reveal`
+    (below), the one place outside the provider factory where the value is
+    taken out of its :class:`~labcairn.providers.credentials.Credential`
+    wrapper. It goes to a scrubber, not to a wire: the redactor exists so
+    the value never survives in a log, which is the reason the wrapper
+    exists too.
+    """
+    from labcairn.providers.redaction import Redactor
+
+    return Redactor((credential_reveal(credential),))
+
+
+def credential_reveal(credential: Any) -> str:
+    """The credential's value, for the redactor that must recognise it.
+
+    The one extraction point outside the provider factory. Named apart so
+    the call site is findable by the same search that watches the factory's.
+    """
+    return cast(str, credential.reveal())
+
+
+class _LoopSpentConsent:
+    """The consent port a loop-spent request carries to the provider layer.
+
+    The suggestion loop's own gate (:meth:`SuggestionLoop._spend_approval`)
+    runs the transmit check and consumes the digest-bound approval before
+    the transport is called. This port is what the provider layer is
+    handed as the *result* of that decision (ADR-0006: the permission
+    layer's decision must be in hand before the request exists). It adds
+    no approval, widens none, and cannot be reached except after the loop
+    has spent its own — a caller that bypassed the loop would not have a
+    backend transport to call, because the backend is only wired into the
+    route that runs the loop.
+    """
+
+    def require(self, request: Any) -> None:
+        """Permit the request: the loop's gate already decided it."""
+        return
 
 
 def _service_report(
