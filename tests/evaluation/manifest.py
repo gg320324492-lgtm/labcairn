@@ -198,6 +198,15 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # that accounts for every call. Integration, because the witnesses are
     # the service's own routes and the store's own rows over real bytes.
     "test_model_suggestions.py": ("integration", "api-auth"),
+    # Phase 4 (P4-CAP §7.2). The service's real-model wiring: the workspace's
+    # own authorisation record, read from providers.json, resolved against
+    # the provider it names, and carried onto the service as the backend a
+    # real run spends — and every unauthorised state (a draft record, a
+    # missing field, an unknown provider, a credential that is not there, a
+    # file that is not JSON) resolving to no backend with the service up and
+    # the route's own refusal unchanged. Integration, because the witnesses
+    # are the CLI's own assembly over real files and the service's routes.
+    "test_service_model_wiring.py": ("integration", "api-auth"),
     # Phase 4 (LC-P4-CAP). The review desk's live seam: the service's
     # /review JSON read as the workbench's own contract types, field by
     # field, and the desk's round — one verdict, one re-read, one apply —
