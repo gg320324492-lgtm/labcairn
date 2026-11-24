@@ -123,25 +123,25 @@ on `main` is the measurement.
 ## 3. What a CI job costs
 
 The per-file costs in `.github/ci-shards.json` are runner measurements,
-anchored at `2bf0ce097d8fcd572c4cc9c5a0aad4b6d652baee`. Summed over the
+anchored at `1aacd3b82076ec8a420c43e4cef0d3a3077dfe5e`. Summed over the
 five offline classes:
 
 | platform | unit | integration | negative | e2e | repository | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| ubuntu-latest | 119.6 s | 517.9 s | 123.3 s | 2244.0 s | 99.2 s | **3104.0 s ≈ 51.7 min** |
-| windows-latest | 459.5 s | 3062.7 s | 354.8 s | 2860.9 s | 191.1 s | **6929.0 s ≈ 115.5 min** |
+| ubuntu-latest | 203.1 s | 679.0 s | 132.2 s | 2338.9 s | 156.2 s | **3509.4 s ≈ 58.5 min** |
+| windows-latest | 495.5 s | 4599.8 s | 385.7 s | 2846.4 s | 244.8 s | **8572.3 s ≈ 142.9 min** |
 
 The current pull-request wall clock is set by the slowest shard: about 1218 s
 on Windows (20.3 min) and 1205 s on Ubuntu, over six shards per platform
 (the matrix has been `[0, 1, 2, 3, 4, 5]` since 2026-11-15). A job that
 runs all five offline classes **on Ubuntu** would therefore become the new
-bottleneck at about 52 minutes — roughly a thirty-two-minute increase on
+bottleneck at about 59 minutes — roughly a thirty-eight-minute increase on
 every pull request, and another full run of the suite on top of the twelve
-shard jobs. On Windows it would be about 116 minutes, which is not a
+shard jobs. On Windows it would be about 143 minutes, which is not a
 candidate.
 
 That cost is the reason for the trigger choices below: the job is valuable
-as a report, but it is not worth adding thirty-four minutes to every pull request
+as a report, but it is not worth adding forty minutes to every pull request
 while the shard jobs already run the same files.
 
 ## 4. The options
