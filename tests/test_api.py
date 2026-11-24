@@ -1237,6 +1237,12 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         # same guard, and the second-reader rule is the layer's.
         "POST /guidance/rules/{rule_id}/publish",
         "POST /guidance/rules/{rule_id}/retract",
+        # Restart recovery and round quality at the surface (Phase 4,
+        # window G): the interrupted publication is resolved by a probe and
+        # replayed under a fresh consent, both writes behind the same guard.
+        # The find is a GET and the quality report is a GET — they read.
+        "POST /revision/interrupted/{receipt_id}/resolve",
+        "POST /revision/interrupted/{receipt_id}/replay",
     }
 
 

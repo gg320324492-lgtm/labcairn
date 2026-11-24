@@ -626,6 +626,52 @@ class ApplyReviewBody(Result):
     window_end: str = Field(min_length=1)
 
 
+class InterruptedResolveBody(Result):
+    """The prediction a probe resolves an interrupted publication against.
+
+    **The hash is stated, not looked up.** The store keeps only the digest of
+    the operation's arguments, so the bytes' hash is not recoverable from the
+    record — the caller states it from the round's own record, and a wrong
+    statement is a ``conflict`` verdict rather than a silent overwrite.
+    """
+
+    expected_sha256: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
+
+
+class InterruptedReplayBody(Result):
+    """What replaying an interrupted publication needs, as the API accepts it.
+
+    **The bytes travel base64-encoded**, the way every other byte-carrying
+    body here travels: a draft is a zip and a zip is not text. The approval
+    is named in the body rather than inferred, because a replay is a fresh
+    attempt — the interrupted one's consent was bound to its own operation's
+    digest, and one consent, one effect stands.
+    """
+
+    edited_base64: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+
+
+class InterruptedResolutionWire(Result):
+    """What a probe answered about one interrupted publication, on the wire.
+
+    The layer's :class:`~labcairn.recovery.contracts.ReconciliationOutcome`
+    is a frozen dataclass, not a pydantic model, so it has no JSON-schema
+    spelling of its own; this is the same fields, validated, and nothing
+    more — re-spelling a field here would be a second place for the probe's
+    answer to drift.
+    """
+
+    operation_id: str
+    resolution: str
+    resulting_state: str
+    replay_permitted: bool
+    expected_sha256: str
+    observed_sha256: str | None
+    resource_key: str
+    detail: str
+
+
 class DeliverableFileWire(Result):
     """One deliverable on the wire: its bytes, base64-encoded.
 
@@ -677,6 +723,9 @@ __all__ = [
     "GuidanceRulePublishBody",
     "GuidanceRuleVerdictBody",
     "Health",
+    "InterruptedReplayBody",
+    "InterruptedResolutionWire",
+    "InterruptedResolveBody",
     "IssueKeys",
     "IssueListQuery",
     "IssueRecordBody",
