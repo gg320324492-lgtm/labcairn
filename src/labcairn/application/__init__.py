@@ -368,14 +368,12 @@ from labcairn.application.tasks import (
     list_tasks,
     read_task_state,
 )
-
-# **The trajectory index is deliberately not aggregated here.** Its module
-# imports the guidance memory's rules at the top, and the guidance memory's
-# modules import this package back -- so a module-level import here would
-# close a cycle that breaks when ``labcairn.guidance.rules`` is the first
-# import of a process. Surfaces import it from
-# :mod:`labcairn.application.trajectory` directly, the way the API's router
-# always has; the capability rows below are the layer's account of itself.
+from labcairn.application.trajectory import (
+    PaperProjectListed,
+    TrajectoryIngested,
+    ingest_paper_trajectory,
+    list_paper_projects,
+)
 
 __all__ = [
     "DEFAULT_TEMPLATE_ID",
@@ -417,6 +415,7 @@ __all__ = [
     "MaterialAddress",
     "MaterialIngested",
     "ModelCallPlan",
+    "PaperProjectListed",
     "PlanStage",
     "ProjectGraph",
     "ProjectRequest",
@@ -443,6 +442,7 @@ __all__ = [
     "TaskPlan",
     "TaskState",
     "TaskStep",
+    "TrajectoryIngested",
     "TrajectoryJudgement",
     "VersionRequest",
     "VersionStored",
@@ -456,9 +456,11 @@ __all__ = [
     "extract_claim",
     "grant_approval",
     "ingest_material",
+    "ingest_paper_trajectory",
     "inspect_source",
     "list_artifacts",
     "list_edges",
+    "list_paper_projects",
     "list_rejections",
     "list_source_addresses",
     "list_sources",
