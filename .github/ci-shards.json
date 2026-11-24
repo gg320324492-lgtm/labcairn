@@ -228,7 +228,8 @@
         "tests/test_first_release_record.py",
         "tests/test_evidence_anchor_registry.py",
         "tests/test_docx_fixture_corpus.py",
-        "tests/test_analysis_report_build.py"
+        "tests/test_analysis_report_build.py",
+        "tests/test_cli_unknown_field_refusal.py"
       ]
     ],
     "windows-latest": [
@@ -378,7 +379,8 @@
         "tests/test_docx_edit_samples.py",
         "tests/test_fake_provider_isolation.py",
         "tests/test_gold_set_corpus.py",
-        "tests/test_review_dossier.py"
+        "tests/test_review_dossier.py",
+        "tests/test_cli_unknown_field_refusal.py"
       ],
       [
         "tests/test_feedback_events.py",
@@ -518,6 +520,7 @@
       "test_cli_serve_bind_refusal.py": 0.54,
       "test_cli_serve_seam.py": 10.86,
       "test_cli_support.py": 0.04,
+      "test_cli_unknown_field_refusal.py": 0.0,
       "test_cli_workspace_refusals.py": 61.42,
       "test_closeout_12_rows.py": 0.6,
       "test_competitor_comparison.py": 0.34,
@@ -736,6 +739,7 @@
       "test_cli_serve_bind_refusal.py": 4.82,
       "test_cli_serve_seam.py": 27.53,
       "test_cli_support.py": 0.07,
+      "test_cli_unknown_field_refusal.py": 0.0,
       "test_cli_workspace_refusals.py": 189.78,
       "test_closeout_12_rows.py": 0.92,
       "test_competitor_comparison.py": 0.51,
