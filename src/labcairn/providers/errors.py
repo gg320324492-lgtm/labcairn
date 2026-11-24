@@ -356,13 +356,37 @@ def classify_exception(exc: BaseException, *, redactor: Redactor) -> ProviderFai
     return type has no field that holds arbitrary text.
     """
     detail_digest = redactor.digest(_safe_text(exc))
+    return ProviderFailure.of(_kind_of(exc), detail_digest=detail_digest)
+
+
+def _kind_of(exc: BaseException) -> FailureKind:
+    """The kind, from the error that carries one, or from the third party's shape.
+
+    **LabCairn's own errors carry their own classification.** A
+    :class:`ProviderTimeoutError` knows it is a timeout and a
+    :class:`ProviderCancelledError` knows it is a cancellation; deriving the
+    kind from the class name instead would call both ``provider_transient``
+    and lose two distinctions the record is asked to keep — a timeout from a
+    5xx, and a cancellation from a failure worth retrying. **The kind a
+    LabCairn error carries was written here, from the closed table, so it is
+    read rather than re-derived.**
+
+    A third party's exception carries nothing, so its HTTP status decides,
+    and its class name is the last resort.
+    """
+    if isinstance(exc, ProviderError):
+        return exc.failure.kind
     status = _status_of(exc)
-    kind = _STATUS_KINDS.get(status, FailureKind.PROVIDER_TRANSIENT) if status else _name_kind(exc)
-    return ProviderFailure.of(kind, detail_digest=detail_digest)
+    if status is not None:
+        return _STATUS_KINDS.get(status, FailureKind.PROVIDER_TRANSIENT)
+    return _name_kind(exc)
 
 
 _NAME_KINDS: Mapping[str, FailureKind] = {
     "Timeout": FailureKind.TIMEOUT,
+    # The standard spelling, and the one the adapters catch: a call that ran
+    # out of time is a timeout, not an unnamed transient.
+    "TimeoutError": FailureKind.TIMEOUT,
     "CancelledError": FailureKind.CANCELLED,
     "UserError": FailureKind.CAPABILITY_UNAVAILABLE,
 }

@@ -46,6 +46,15 @@ The properties this module exists to hold
    substitute author on every suggestion it recorded. A substitute output
    that could pass for the real model's is the defect this module exists to
    make impossible.
+
+5. **A timeout is a classified failure, not a refusal.** A call that runs
+   out of time is classified by the provider layer — retryable, with the
+   action "ask again" — and the per-call entry on the run row names it as
+   the timeout it was. The loop retries it inside the run's budget and then
+   offers the substitute, labelled; **nothing refuses, because nothing is
+   declined**: the material is unchanged, no decision was recorded, and
+   asking again is safe. A refusal vocabulary that named a timeout would
+   promise an outcome this path does not have.
 """
 
 from __future__ import annotations
