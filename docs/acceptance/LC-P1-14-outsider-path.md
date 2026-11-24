@@ -233,7 +233,7 @@ The run says this in its own output, and the report carries it:
 - **The workbench cannot switch the selected project.** The API has no such
   operation, so there was nothing to drive.
   **Corrected 2026-11-03:** closed by the same commit — `POST /task/select`
-  (`src/labcairn/api/routes.py:329`) — and driven against one live service by
+  (`src/labcairn/api/routes.py:335`) — and driven against one live service by
   `tests/test_workbench_live_service.py`. What this run did not do was drive
   the page in a browser, so *measured between the two surfaces* remains the
   walk's limit and is not discharged by the correction.

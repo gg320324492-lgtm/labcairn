@@ -2419,7 +2419,7 @@ def _real_suggestion_backend(
     backend is actually being assembled: a workspace with no
     authorisation never pays for the import.
     """
-    from labcairn.db.repository import StoreError, list_access_grants
+    from labcairn.application.approvals import access_grants, register_access_grant
 
     transport = _suggestion_transport(settings, credential)
     if transport is None:
@@ -2427,22 +2427,14 @@ def _real_suggestion_backend(
 
     grant = _suggestion_grant(record)
     if grant is not None:
-        _write_suggestion_grant(context, grant)
-    try:
-        grants = [
-            candidate
-            for candidate in list_access_grants(context.store.session)
-            if candidate.permission == "external_transmit"
-            and candidate.purpose == "transmit"
-            and candidate.subject_ref == record["subject_ref"]
-        ]
-        # **Leave no transaction open on the service's own session.** The
-        # engine opens every transaction IMMEDIATE, so an uncommitted read
-        # holds the write lock; commit, so the service can write.
-        context.store.session.commit()
-    except StoreError:
-        context.store.session.rollback()
-        raise
+        register_access_grant(context, grant)
+    grants = [
+        candidate
+        for candidate in access_grants(context)
+        if candidate.permission == "external_transmit"
+        and candidate.purpose == "transmit"
+        and candidate.subject_ref == record["subject_ref"]
+    ]
 
     return ModelSuggestionBackend(
         provider=record["provider"],
@@ -2491,53 +2483,6 @@ def _suggestion_grant(record: Mapping[str, str]) -> Grant | None:
         withdrawn_by=None,
         withdrawal_reason=None,
     )
-
-
-def _write_suggestion_grant(context: ApplicationContext, grant: Grant) -> None:
-    """Put the record's grant in the store, so the check reads a real row.
-
-    **The product has no writer for grants yet** — the table landed with
-    LC-P2-06 and the rows the checks read are written the way the fixtures
-    write them. The authorisation record is the operator's act, and this
-    is where it becomes the row the consent layer reads; an existing row
-    with the same id is the same grant already recorded, and is left as it
-    stands rather than overwritten.
-    """
-    from sqlalchemy import select
-
-    from labcairn.db.models import AccessGrantRow
-
-    session = context.store.session
-    try:
-        existing = session.execute(
-            select(AccessGrantRow).where(AccessGrantRow.grant_id == grant.grant_id)
-        ).scalar_one_or_none()
-        if existing is not None:
-            # The row is there; the read still opened a transaction, so
-            # close it before the service starts on this session.
-            session.commit()
-            return
-        session.add(
-            AccessGrantRow(
-                grant_id=grant.grant_id,
-                subject_ref=grant.subject_ref,
-                permission=grant.permission,
-                purpose=grant.purpose,
-                scope=grant.scope,
-                destination=grant.destination,
-                granted_by=grant.granted_by,
-                granted_at=grant.granted_at,
-                expires_at=grant.expires_at,
-                state=grant.state,
-                withdrawn_at=None,
-                withdrawn_by=None,
-                withdrawal_reason=None,
-            )
-        )
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
 
 
 def _suggestion_transport(settings: Any, credential: Any) -> Any:
