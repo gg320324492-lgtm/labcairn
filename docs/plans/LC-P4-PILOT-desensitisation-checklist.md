@@ -2,6 +2,16 @@
 
 **Ticket:** LC-P4-PILOT (pilot preparation, prerequisite material)
 **Status:** `DRAFT — for owner confirmation before P4-PILOT opens`
+
+**How to confirm.** The advisor (as data owner) works the checklist
+top to bottom on the desensitised copy and ticks every item A-1…A-7,
+B-1…B-4, C-1…C-4, D-1…D-6 and the part-E acceptance checks; ticks are
+recorded in item D-6's checklist result (date, operator, per-item
+pass/fail, digest) and the part-E result is attached to the pilot
+ticket's material pointer record. **Until the owner has signed that
+result, the import step (plan §9.2 step 2) must not run and no copy
+enters the pilot.** The signature goes on the D-6 result; this document
+stays `DRAFT` until then.
 **Source plan:** [`PHASE_4-execution-plan.md`](PHASE_4-execution-plan.md) §9.1
 (pilot material) and §9.2 step 1–2 (import, digest check).
 **Boundary source:** [`LC-P4-G0-baseline-freeze.md`](LC-P4-G0-baseline-freeze.md)

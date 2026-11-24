@@ -200,7 +200,7 @@ export function Workbench(): JSX.Element {
       <RevisionsView artifacts={reads.artifacts} />
       <ReviewView artifacts={reads.artifacts.data ?? []} cycle={readCycle} />
       <TrajectoryView cycle={readCycle} />
-      <MultiSourceSearchView cycle={readCycle} />
+      <MultiSourceSearchView cycle={readCycle} onChanged={readAgain} />
       <GuidanceView cycle={readCycle} onChanged={readAgain} />
       <IssuesView cycle={readCycle} onChanged={readAgain} />
       <ProposalsView cycle={readCycle} onChanged={readAgain} />

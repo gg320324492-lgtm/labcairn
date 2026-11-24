@@ -3,6 +3,16 @@
 **Ticket:** LC-P4-PILOT (pilot preparation, prerequisite material)
 **Status:** `DRAFT — template for the pilot; the pilot ticket may extend
 fields but may not drop the mapping to the Issue record`
+
+**How to confirm.** The advisor (as the pilot's owner of the trial
+protocol) reviews the form against plan §9.4 and G0 §6, confirms the
+severity/type scales and the Part 2 → Issue mapping, and signs the
+confirmation with a date on the pilot ticket's preparation record. The
+pilot ticket may extend fields (its stated right) but the mapping to
+the Issue record must survive. **Until that signature exists, the form
+must not be handed to participants and step 12 (participants supply
+quality conclusions) must not run.** The signature goes on the pilot
+ticket's preparation record; this document stays `DRAFT` until then.
 **Source plan:** [`PHASE_4-execution-plan.md`](PHASE_4-execution-plan.md)
 §9.4 (problem recording: severity + type on every issue) and §9.2 step 12
 (participants supply quality conclusions).

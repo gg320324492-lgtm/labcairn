@@ -9,7 +9,11 @@ evidence slot is PENDING until the trial fills it`
 [`LC-P4-PILOT-desensitisation-checklist.md`](LC-P4-PILOT-desensitisation-checklist.md),
 [`LC-P4-PILOT-model-authorisation-draft.md`](LC-P4-PILOT-model-authorisation-draft.md),
 [`LC-P4-PILOT-feedback-form-template.md`](LC-P4-PILOT-feedback-form-template.md)
-— all three `DRAFT` at the time this runbook was written.
+— all three `DRAFT` at the time this runbook was written — plus the
+owner-decisions form
+([`LC-P4-PILOT-owner-decisions.md`](LC-P4-PILOT-owner-decisions.md))
+for plan §12's three decisions, and a release record under
+`docs/releases/` for the version the pilot runs on (plan §10; §0 below).
 **Format precedent:** the Phase 3 trial's protocol and record pair
 ([`../acceptance/LC-P3-08-trial-protocol-2026-11-14.md`](../acceptance/LC-P3-08-trial-protocol-2026-11-14.md),
 [`../acceptance/LC-P3-08-trial-record-2026-11-22.md`](../acceptance/LC-P3-08-trial-record-2026-11-22.md)).
@@ -24,7 +28,39 @@ the pilot's shape from plan §9.1 — **one project, 3–5 participants, one
 advisor and 2–4 students** — and the material boundary every step sits
 inside.
 
-## 0. Standing boundaries (read before any step)
+## 0. Before any step — the owner's decisions and the version record
+
+The pilot does not open on this runbook alone. Three decisions belong to
+the owner before the work orders are cut (plan §12: rule case-validation,
+material retention/withdrawal/sharing, first runnable version and trial
+date), and the owner-decisions form
+([`LC-P4-PILOT-owner-decisions.md`](LC-P4-PILOT-owner-decisions.md)) is
+where they are filled and signed. A decision still marked
+`TBD — owner to fill` keeps the flow it gates blocked; the form names
+which.
+
+**The first runnable version must carry a release record.** Plan §10
+requires every version to have one structured record under
+`docs/releases/` (the seven elements the
+[release-records README](../releases/README.md) specifies, written by
+[`scripts/release_record.py`](../../scripts/release_record.py)). The
+version the pilot runs on (G0 §3's frozen baseline, and decision D-3's
+first runnable version) is no exception: **if `docs/releases/` holds no
+record for it, the pilot does not open on it.** The version line in that
+record is also where skeleton decision D-3's answer lands.
+
+## 1. Standing boundaries (read before any step)
+
+**The owner-decision boundary (plan §12, via the owner-decisions form).**
+The three pre-opening decisions are the owner's, recorded and signed in
+[`LC-P4-PILOT-owner-decisions.md`](LC-P4-PILOT-owner-decisions.md); an
+unfilled decision keeps the flows it gates blocked, and a step that
+depends on one refuses rather than assume an answer.
+
+**The version-record boundary (plan §10).** The version the pilot runs
+on carries a structured release record under `docs/releases/` (written
+by [`scripts/release_record.py`](../../scripts/release_record.py)); no
+record, no pilot on that version.
 
 **The material boundary (G0 §4, the desensitisation checklist's frame).**
 Raw files live only in the authorised environment: `E:/trial-material/`
@@ -66,7 +102,7 @@ final quality conclusions. Students perform the loop's operating steps
 under the advisor's direction. Every participant records their own
 findings; nobody records on another's behalf.
 
-## 1. The twelve steps (plan §9.2, one subsection each)
+## 2. The twelve steps (plan §9.2, one subsection each)
 
 ### Step 1 — Import the paper, its comments and its revision marks
 
@@ -486,7 +522,7 @@ system record.
 **Evidence slot:** PENDING — forms collected, issue rows written,
 triage outcomes.
 
-## 2. After the twelve steps — the measures and the gates
+## 3. After the twelve steps — the measures and the gates
 
 **Trial measures (plan §9.3).** The record assembles: wall-clock time
 for the paper's full pass; count of manual out-of-band steps; the
@@ -509,7 +545,7 @@ lists the four gates' conditions, which ones this runbook's evidence
 slots feed, and which need the real trial's numbers. The runbook does
 not judge them; it produces the evidence the judgement reads.
 
-## 3. Session logistics
+## 4. Session logistics
 
 **Machine and service.** One Windows host per session, the installed
 package (the baseline version G0 §3 freezes), the service on loopback

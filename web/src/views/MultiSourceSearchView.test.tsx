@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { forgetSessionToken } from '../api/session'
@@ -187,5 +187,134 @@ describe('the refusals it keeps apart', () => {
       expect(fake.searchesRun).toHaveLength(3)
     })
     expect(await screen.findByText('Name the method before its result.')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The ingests, driven the way the operator drives them.
+ *
+ * **The three fields are the service's three names.** The body the panel
+ * builds is checked through the request the fake recorded — the project,
+ * the root and the resource key, spelled as the contract spells them — and
+ * the answer is the service's count, drawn as it was sent.
+ */
+describe('the ingests it offers', () => {
+  interface IngestFields {
+    readonly label: string
+    readonly button: string
+    readonly pending: string
+    readonly done: RegExp
+    readonly counter: () => number
+  }
+
+  const cases: readonly IngestFields[] = [
+    {
+      label: 'Ingest a slide deck',
+      button: 'Ingest the deck',
+      pending: 'Indexing the deck…',
+      done: /Indexed 14 objects \(2 title, 7 body, 3 notes, 1 table, 1 image\).*1 limitation/,
+      counter: () => fake.pptIngests,
+    },
+    {
+      label: 'Ingest a meeting text',
+      button: 'Ingest the meeting text',
+      pending: 'Indexing the meeting text…',
+      done: /Indexed 9 records \(6 entries, 3 paragraphs\).*1 limitation/,
+      counter: () => fake.meetingIngests,
+    },
+  ]
+
+  /** Fill one ingest form's three fields and press its button. */
+  async function ingestWith(formLabel: string, buttonName: string): Promise<void> {
+    const form = await screen.findByRole('region', { name: formLabel })
+    const project = within(form).getByLabelText('Project id')
+    const root = within(form).getByLabelText('Root id')
+    const resource = within(form).getByLabelText('Resource key')
+    fireEvent.change(project, { target: { value: 'project-core' } })
+    fireEvent.change(root, { target: { value: 'sources' } })
+    fireEvent.change(resource, { target: { value: 'material/deck.pptx' } })
+    fireEvent.click(within(form).getByRole('button', { name: buttonName }))
+  }
+
+  for (const fields of cases) {
+    it(`sends the three names to the service and draws the count it answered with — ${fields.label}`, async () => {
+      render(<MultiSourceSearchView cycle={0} onChanged={() => {}} />)
+
+      await ingestWith(fields.label, fields.button)
+
+      expect(await screen.findByText(fields.done)).toBeInTheDocument()
+      expect(fields.counter()).toBe(1)
+      // The body carried the three names, spelled as the contract spells
+      // them — the fields are the service's, so a renamed field fails the
+      // compile rather than arriving here as a surprise.
+      const ingestRequests = fake.requests.filter(
+        (request) =>
+          request.method === 'POST' &&
+          (request.url.replace(/^\/api/, '') === '/ppt/ingest' ||
+            request.url.replace(/^\/api/, '') === '/meeting/ingest'),
+      )
+      expect(ingestRequests).toHaveLength(1)
+      const body = JSON.parse(ingestRequests[0]?.body ?? '{}') as Record<string, unknown>
+      expect(body).toEqual({
+        project_id: 'project-core',
+        root_id: 'sources',
+        resource_key: 'material/deck.pptx',
+      })
+    })
+
+    it(`draws the refusal with the service's reason, and no success — ${fields.label}`, async () => {
+      if (fields.label === 'Ingest a slide deck') {
+        fake.refusePptIngest = true
+      } else {
+        fake.refuseMeetingIngest = true
+      }
+      render(<MultiSourceSearchView cycle={0} onChanged={() => {}} />)
+
+      await ingestWith(fields.label, fields.button)
+
+      expect(await screen.findByText(/The service refused this ingest:/)).toBeInTheDocument()
+      // The panel said refused, not done: a refusal drawn as a count would
+      // be a success nobody sent.
+      expect(screen.queryByText(fields.done)).toBeNull()
+      expect(fields.counter()).toBe(1)
+    })
+
+    it(`sends nothing while a field is empty — ${fields.label}`, async () => {
+      render(<MultiSourceSearchView cycle={0} onChanged={() => {}} />)
+
+      const form = await screen.findByRole('region', { name: fields.label })
+      const project = within(form).getByLabelText('Project id')
+      const root = within(form).getByLabelText('Root id')
+      // The resource key is left empty, and the button stands down.
+      fireEvent.change(project, { target: { value: 'project-core' } })
+      fireEvent.change(root, { target: { value: 'sources' } })
+      const button = within(form).getByRole('button', { name: fields.button })
+      expect(button).toBeDisabled()
+      fireEvent.click(button)
+
+      expect(fields.counter()).toBe(0)
+      expect(screen.getAllByText('Nothing has been indexed from this form yet.')).toHaveLength(2)
+    })
+  }
+
+  it('asks the workbench to read again after an ingest lands', async () => {
+    const onChanged = vi.fn()
+    render(<MultiSourceSearchView cycle={0} onChanged={onChanged} />)
+
+    await ingestWith('Ingest a slide deck', 'Ingest the deck')
+    await screen.findByText(/Indexed 14 objects/)
+
+    // The deck's index changed, so the searches are asked again — the same
+    // hand every other write in the workbench pulls.
+    expect(onChanged).toHaveBeenCalled()
+  })
+
+  it('starts each form idle, with no success drawn before a request', () => {
+    render(<MultiSourceSearchView cycle={0} />)
+
+    const idles = screen.getAllByText('Nothing has been indexed from this form yet.')
+    expect(idles).toHaveLength(2)
+    expect(screen.queryByText(/Indexed \d+ objects/)).toBeNull()
+    expect(screen.queryByText(/Indexed \d+ records/)).toBeNull()
   })
 })

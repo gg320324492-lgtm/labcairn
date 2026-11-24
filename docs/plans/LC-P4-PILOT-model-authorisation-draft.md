@@ -6,8 +6,6 @@ decision; nothing in this record is authorised until it is filled and
 signed`
 **Boundary source:** [`LC-P4-G0-baseline-freeze.md`](LC-P4-G0-baseline-freeze.md)
 §5 (real-model service boundary).
-**Loop requirements:** [`PHASE_4-execution-plan.md`](PHASE_4-execution-plan.md)
-§7.2 (real-model loop) and §9.2 step 3.
 **Precedent:** the LC-P3-06 bounded-run authorisation
 ([`../acceptance/LC-P3-06-real-half-2026-11-10.md`](../acceptance/LC-P3-06-real-half-2026-11-10.md)),
 which was gated on
@@ -15,6 +13,17 @@ which was gated on
 answers of 2026-11-09, ran on the owner's paid credential, counted
 5,136 / 50,000 authorised tokens, and recorded what was real and what was
 not before the first request went out.
+
+**How to confirm.** The owner fills every `TBD by owner` field in
+§1–§7, reviews §8's run-record fields, and signs §9 (name and date).
+The signed record is what P4-CAP's real-model step and the pilot's
+step 3 run against, per §9. **Until that signature exists, no real
+model request may be sent — the authorisation gate refuses an unfilled
+record, and only the substitute path (runbook step 3's fallback) may
+run.** The signature goes in §9; this document stays `DRAFT` until
+then. Until signed, P4-CAP's real-model step and the pilot's model step
+(step 3) must not start; the substitute fallback is the only model work
+an unfilled record permits.
 
 G0 §5 requires the owner to authorise the real model *before P4-CAP's
 real-model step runs*, in the style of the LC-P3-06 bounded-run
