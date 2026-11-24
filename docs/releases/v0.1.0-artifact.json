@@ -1,0 +1,87 @@
+{
+  "record_kind": "artifact-measurement",
+  "record_kind_meaning": "A companion measurement record for a packaged artifact. The release record itself is docs/releases/v0.1.0.json, and the seven-element check in scripts/release_record.py applies to that file, not to this one.",
+  "version": "v0.1.0",
+  "commit": "fc73386d8b25e4eb64f75c3b76534e4732ec480a",
+  "branch": "main",
+  "created_at": "2026-11-24T16:57:55.113143+00:00",
+  "artifact_sha256": "32bca39169e5c21b90c982edd7ad38a7c9be1a68b5961e8383e46ec14ec4a85c",
+  "artifact_bytes": 354229356,
+  "artifact_file_name": "LabCairn Setup 0.0.3.exe",
+  "artifact_kind": "windows-nsis-per-user-installer",
+  "artifact_signed": false,
+  "artifact_declared_version": "0.0.3",
+  "artifact_declared_version_source": "shell/package.json",
+  "block_map_file_name": "LabCairn Setup 0.0.3.exe.blockmap",
+  "block_map_bytes": 357332,
+  "block_map_sha256": "153c6143bab95719b77b55d9a6a0585ef32f6ec953d84ba14668995f1540acc3",
+  "frozen_backend": {
+    "entry_point": "labcairn.cli:main",
+    "exe_file_name": "labcairn.exe",
+    "exe_bytes": 44534312,
+    "exe_sha256": "f5d2786de2ab28a54ef5c97c37e8910ea6213f10de0819e03708c0539476bdbf",
+    "tree_files": 2845,
+    "tree_bytes": 225604696,
+    "tree_sha256": "1e565565bf32d54640ef927d2491e5fd38ac4257765cf75f9f319d359c5b461d",
+    "tree_sha256_procedure": "sha256 over a canonical listing of the tree: one line per file, sorted by POSIX relative path, each line \"<file sha256>  <file bytes>  <relative path>\\n\", the whole listing encoded as UTF-8.",
+    "tree_sha256_scope": "the freeze output tree only; it carries no __pycache__ (checked), so the digest describes the freeze and not the interpreter's cache of it.",
+    "packaged_tree_sha256": "1e565565bf32d54640ef927d2491e5fd38ac4257765cf75f9f319d359c5b461d",
+    "packaged_tree_sha256_meaning": "The freeze tree and the copy the installer carries at resources/backend/labcairn measured the same digest, so the installer carries this freeze byte for byte."
+  },
+  "web_bundle": {
+    "files": 4,
+    "bytes": 471849,
+    "tree_sha256": "bf757e534ec51cafaf4a0e506af9205b52abaec347ddef282c2d63cba90a6bd7",
+    "tree_sha256_procedure": "The frozen backend's tree_sha256_procedure, applied to the bundle tree.",
+    "packaged_tree_sha256": "bf757e534ec51cafaf4a0e506af9205b52abaec347ddef282c2d63cba90a6bd7",
+    "packaged_tree_sha256_meaning": "The bundle built from web/ and the copy the installer carries at resources/web-dist measured the same digest, so the installer carries the frontend of this commit byte for byte."
+  },
+  "build": {
+    "produced_at": "2026-11-24T16:56:58.066769+00:00",
+    "produced_at_meaning": "The installer's own last-write timestamp, read from the produced file.",
+    "host": "Windows 11 Pro 10.0.26300.0 x64",
+    "dist_dir": "E:\\labcairn-local\\dist\\v0.1.0",
+    "dist_dir_meaning": "Packaging products and logs live outside the tracked tree; the artifact itself is not committed, only its measurement.",
+    "config": "shell/electron-builder.yml",
+    "commands": [
+      "uv pip install --python .venv/Scripts/python.exe pyinstaller",
+      "cd web && pnpm install --frozen-lockfile",
+      "cd web && pnpm build",
+      "cd shell && pnpm install --frozen-lockfile",
+      "node shell/node_modules/electron/install.js",
+      "node shell/scripts/build-backend-freeze.mjs",
+      "cd shell && LABCAIRN_SHELL_DIST_DIR=E:\\labcairn-local\\dist\\v0.1.0 pnpm dist"
+    ],
+    "commands_note": "The last command is the package.json script \"dist\": \"electron-builder --win\"; the run invoked electron-builder's CLI directly with the same environment. \"node shell/node_modules/electron/install.js\" is explicit because electron 45.2.3 ships no postinstall script and the binary is otherwise not fetched. PyInstaller is a freeze-time tool and stays out of pyproject.toml by the project's own decision, so it is installed into the project virtualenv rather than declared.",
+    "toolchain": {
+      "python": "3.12.13",
+      "pyinstaller": "6.22.3",
+      "node": "24.16.0",
+      "pnpm": "9.15.9",
+      "electron": "45.2.3",
+      "electron-builder": "26.18.0"
+    },
+    "freeze_seconds": 283.6,
+    "notes": "The build ran from a git worktree whose tree is byte-identical to main at the recorded commit (git diff --stat main -- . is empty and git status --porcelain is empty), so the artifact carries the source of that commit. The packaging guard shell/scripts/require-package-inputs.mjs ran as the beforeBuild hook and did not refuse: the web bundle and the frozen backend were both present, the latter with its migrations tree."
+  },
+  "source_evidence": {
+    "worktree_tree_equals_main": "git diff --stat main -- . is empty and git status --porcelain is empty, so the built tree is main's tree at the recorded commit.",
+    "bundle_material_sha256": "5917d6959fa2cae1f1b6f3eedcf10b58768bce10f35476e5abb2b55cbafa1ffe",
+    "worktree_material_sha256": "5917d6959fa2cae1f1b6f3eedcf10b58768bce10f35476e5abb2b55cbafa1ffe",
+    "note": "The freeze carries this tree's product code: the bundle's carried material data (src/labcairn/material, added as data files by shell/scripts/build-backend-freeze.mjs) measured the same digest as this worktree's src/labcairn/material. The digests are measured over tracked source files; the main checkout's copy of the same directory also holds gitignored __pycache__ bytecode, which is not product source and is not part of any digest recorded here."
+  },
+  "measurement": {
+    "method": "sha256 over the installer's bytes, measured three independent ways on the produced file",
+    "tools": [
+      "node shell/scripts/installer-hash.mjs E:\\labcairn-local\\dist\\v0.1.0",
+      "python hashlib.sha256 over the file in 64 KiB blocks (the procedure scripts/release_record.py:sha256_file uses)",
+      "powershell Get-FileHash -Algorithm SHA256"
+    ],
+    "agreement": "All three returned 32bca39169e5c21b90c982edd7ad38a7c9be1a68b5961e8383e46ec14ec4a85c for 354229356 bytes."
+  },
+  "notes": [
+    "The installer is unsigned by design (W28); the build log records \"no code signing certificate configured, signing is skipped\" for every executable it produced.",
+    "The installer's own name and its declared product version carry the shell package's version line, 0.0.3, because shell/package.json was not bumped for the v0.1.0 workbench release. The workbench itself is version 0.1.0 (pyproject.toml, src/labcairn/__init__.py, API_VERSION in src/labcairn/api/app.py). This measurement window did not change shell/package.json; the version bump is the owner's call.",
+    "The artifact is not reproducible from this digest alone: an NSIS build embeds a timestamp, so a rebuild produces different bytes. The digest identifies the artifact measured here, and the frozen backend's digest is the reproducible part of the build."
+  ]
+}
