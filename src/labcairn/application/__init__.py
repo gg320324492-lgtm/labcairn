@@ -153,8 +153,6 @@ Operation  The permission that governs it
 ``record_response``                   ``source.inventory``, on the comment's material
 ``settle_reply``                      ``source.read``, only when it places the change
 ``record_assessment``                 ``source.inventory``, on the project's materials
-``ingest_paper_trajectory``           ``source.inventory``, per version's material
-``list_paper_projects``               the material's — asked where it is named
 ``read_guidance_rule``                the material's — asked where it is named
 ``read_guidance_rules``               the material's — asked where it is named
 ``read_guidance_rule_version``        the material's — asked where it is named
@@ -181,6 +179,14 @@ Operation  The permission that governs it
 ``the_role_run_question``             the contract's own allowed capabilities
 ``run_round_quality_checks``          ``fs.read`` — the round's own records
 ====================================  ========================================
+
+**The trajectory index answers to the material too, from its own module.**
+:func:`labcairn.application.trajectory.ingest_paper_trajectory` asks
+``source.inventory`` on each version's material it indexes, and
+:func:`labcairn.application.trajectory.list_paper_projects` reads only the
+material a caller has already named. They are not aggregated into this
+package's namespace because that import would close a cycle (see the note
+above); the capability is no different for being reached from the submodule.
 
 **And one of them is not the mentor's rows at all.** ``read_replies`` reads
 the exchanges a *response document* holds: a reviewer's objection and the
@@ -368,12 +374,16 @@ from labcairn.application.tasks import (
     list_tasks,
     read_task_state,
 )
-from labcairn.application.trajectory import (
-    PaperProjectListed,
-    TrajectoryIngested,
-    ingest_paper_trajectory,
-    list_paper_projects,
-)
+
+# **The trajectory index is deliberately not aggregated here.** Its module
+# imports the guidance memory's rules at the top, and the guidance memory's
+# modules import this package back -- so a module-level import here would
+# close a cycle that breaks when ``labcairn.guidance.rules`` is the first
+# import of a process. Surfaces import it from
+# :mod:`labcairn.application.trajectory` directly, the way the API's router
+# always has. The two operations are named in the prose below, not in the
+# table: the table lists what this package exports, and naming a row here
+# that a caller cannot import from here would make the table a false map.
 
 __all__ = [
     "DEFAULT_TEMPLATE_ID",
@@ -415,7 +425,6 @@ __all__ = [
     "MaterialAddress",
     "MaterialIngested",
     "ModelCallPlan",
-    "PaperProjectListed",
     "PlanStage",
     "ProjectGraph",
     "ProjectRequest",
@@ -442,7 +451,6 @@ __all__ = [
     "TaskPlan",
     "TaskState",
     "TaskStep",
-    "TrajectoryIngested",
     "TrajectoryJudgement",
     "VersionRequest",
     "VersionStored",
@@ -456,11 +464,9 @@ __all__ = [
     "extract_claim",
     "grant_approval",
     "ingest_material",
-    "ingest_paper_trajectory",
     "inspect_source",
     "list_artifacts",
     "list_edges",
-    "list_paper_projects",
     "list_rejections",
     "list_source_addresses",
     "list_sources",

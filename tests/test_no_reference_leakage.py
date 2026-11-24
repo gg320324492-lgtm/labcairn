@@ -1505,6 +1505,7 @@ CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "tests/test_review_api.py": 11,
     "tests/test_status_consistency.py": 5,
     "tests/test_cli_json_forms.py": 2,
+    "tests/test_pilot_decisions.py": 2,
     "docs/plans/LC-P2-06-task-breakdown.md": 8,
     "docs/plans/LC-P2-11-task-breakdown.md": 8,
     "src/labcairn/db/models.py": 8,
