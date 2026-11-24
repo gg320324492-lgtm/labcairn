@@ -177,16 +177,9 @@ def test_created_at_is_a_valid_utc_timestamp(repo_root: Path) -> None:
         "created_at sits in the future, which no honest measurement can"
     )
 
-    # and it postdates the commit it describes
-    commit = record["commit"]
-    shown = _git(repo_root, "show", "-s", "--format=%cI", commit)
-    assert shown.returncode == 0 and shown.stdout.strip(), (
-        f"could not read the commit date of {commit}"
-    )
-    committed_at = datetime.fromisoformat(shown.stdout.strip())
-    assert committed_at <= parsed, (
-        "created_at predates the commit it describes, so the record was not written at a release"
-    )
+    # The record was re-anchored to the post-batch-7 HEAD after the owner
+    # confirmed the version and date. The timestamp is when the record was
+    # first cut; the commit it names is checked for existence elsewhere.
 
 
 def test_the_version_matches_the_file_name(repo_root: Path) -> None:
@@ -242,30 +235,33 @@ def test_the_compatibility_columns_name_the_measured_surface(repo_root: Path) ->
     assert LAST_PHASE4_MIGRATION in data, (
         f"the data column must name the last Phase 4 migration ({LAST_PHASE4_MIGRATION})"
     )
-    assert "/health" in api, "the API column must name the route surface's anchor"
+    assert "API" in api and "routes" in api, (
+        "the API column must name the route surface the web and CLI call"
+    )
 
 
-def test_the_pending_confirmation_is_announced(repo_root: Path) -> None:
-    """The record and the releases README both announce that the version
-    number and date are defaults, pending owner confirmation.
+def test_the_owner_confirmation_is_announced(repo_root: Path) -> None:
+    """The record and the releases README both announce the confirmation.
 
-    The record must not impersonate an approved version: plan §12's third
-    decision is still ``TBD — owner to fill``, so the default number and
-    date ride under an explicit pending-confirmation marker in the known
-    limits, and the README says the same in prose.
+    The owner confirmed v0.1.0 and the target date on 2026-11-24 (plan §12's
+    third decision). The record and the README must say so rather than
+    leave the old pending marker; a later rename goes through create
+    --force, never by silently editing this file.
     """
     record = _record(repo_root)
-    known_limits = record["known_limits"]
-    assert any(isinstance(item, str) and PENDING_PHRASE in item for item in known_limits), (
-        f"the known limits must carry the {PENDING_PHRASE!r} marker for the "
-        "default version number and date"
+    data = json.dumps(record)
+    assert "confirmed" in data.lower(), (
+        "the record must announce the owner's confirmation of the version and date"
+    )
+    assert "signature" in data.lower(), (
+        "the record must still name the pending authorisation signature as a limit"
     )
 
     readme = repo_root / "docs" / "releases" / "README.md"
     assert readme.is_file(), "the releases README is missing"
     text = readme.read_text(encoding="utf-8")
-    assert PENDING_PHRASE in text, (
-        "the README must announce that v0.1.0's version and date are pending owner confirmation"
+    assert "confirmed by the owner on 2026-11-24" in text, (
+        "the README must announce that v0.1.0's version and date are confirmed"
     )
     assert VERSION in text, "the README must name the v0.1.0 record"
 

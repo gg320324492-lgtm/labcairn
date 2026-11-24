@@ -369,13 +369,13 @@ def test_the_skeleton_names_evidence_producers_and_pending_slots() -> None:
     )
 
 
-def test_the_skeleton_marks_the_three_plan_12_decisions_as_tbd() -> None:
-    """Plan §12's three decisions are present and explicitly undecided.
+def test_the_skeleton_carries_the_three_confirmed_plan_12_decisions() -> None:
+    """Plan §12's three decisions are present and carry the owner's answers.
 
-    The decisions are prerequisites, not gate conditions -- but a
-    skeleton that omitted them would let the trial open without them,
-    and one that marked them decided would be inventing an owner's
-    answer. They are carried as D-1..D-3, each TBD.
+    The decisions are prerequisites, not gate conditions: a skeleton that
+    omitted them would let the trial open without them, and one that still
+    marked them TBD after the owner answered would hide a decision that was
+    made. They are carried as D-1..D-3, each confirmed on 2026-11-24.
     """
     text = _skeleton()
     assert "The three pre-opening decisions (plan §12)" in text, (
@@ -384,12 +384,9 @@ def test_the_skeleton_marks_the_three_plan_12_decisions_as_tbd() -> None:
     for decision in SKELETON_DECISION_IDS:
         row = re.search(rf"^\| {decision} \| .+$", text, re.MULTILINE)
         assert row, f"decision {decision} must have its own row in the skeleton"
-        assert TBD in row.group(0), (
-            f"decision {decision} must be marked {TBD}: it is not decided yet"
+        assert "CONFIRMED 2026-11-24" in row.group(0), (
+            f"decision {decision} must carry the owner's 2026-11-24 confirmation"
         )
-    assert text.count(f"| {TBD} |") >= len(SKELETON_DECISION_IDS), (
-        "each §12 decision's status cell must read TBD"
-    )
 
 
 def test_the_skeleton_distinguishes_system_capability_from_trial_only() -> None:

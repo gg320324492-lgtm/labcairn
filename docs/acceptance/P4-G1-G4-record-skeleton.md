@@ -153,9 +153,9 @@ honest about what is not yet decided.
 
 | # | Decision (plan §12) | Where the answer lands | Owner | Status |
 |---|---|---|---|---|
-| D-1 | How a distilled multi-source rule is case-validated | A short section in the rule-sharing record (or an amendment to the plan) naming how a distilled rule is validated against cases before the advisor confirms it | Advisor + the multi-source line's owner | TBD |
-| D-2 | Retention period, withdrawal procedure and sharing boundary for audio, PPT and paper material | An extension of the desensitisation checklist's boundary section (or the G0 §4 pointer record), naming retention periods, the withdrawal procedure and the sharing boundary per material kind | Advisor (data owner) | TBD |
-| D-3 | The first runnable Phase 4 version and the first trial's target date | The release record's version line and the trial's dated session plan | Owner | TBD |
+| D-1 | CONFIRMED 2026-11-24: mentor-only single-reviewer case validation, recorded on the rule version | A short section in the rule-sharing record (or an amendment to the plan) naming how a distilled rule is validated against cases before the advisor confirms it | Advisor + the multi-source line's owner | CONFIRMED |
+| D-2 | CONFIRMED 2026-11-24: raw material deleted after trial, desensitised copy retained for group retrieval and rule reproduction | An extension of the desensitisation checklist's boundary section (or the G0 §4 pointer record), naming retention periods, the withdrawal procedure and the sharing boundary per material kind | Advisor (data owner) | CONFIRMED |
+| D-3 | CONFIRMED 2026-11-24: v0.1.0, target date 2026-11-24 | The release record's version line and the trial's dated session plan | Owner | CONFIRMED |
 
 **These three are prerequisites, not gate conditions.** The gates close
 on their evidence; the decisions unblock the work orders that produce

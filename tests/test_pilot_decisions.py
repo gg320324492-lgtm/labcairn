@@ -275,16 +275,15 @@ def test_the_form_carries_all_three_plan_12_decisions() -> None:
 
 
 @pytest.mark.parametrize("decision", DECISION_IDS)
-def test_each_decision_is_marked_tbd_owner_to_fill(decision: str) -> None:
-    """Every decision's answer field reads TBD — owner to fill.
+def test_each_decision_carries_the_owner_recorded_answer(decision: str) -> None:
+    """Every decision's answer field carries the answer the owner gave.
 
-    The form exists to collect the owner's answers, so its answer
-    fields must be unambiguous about being unfilled. An answer field
-    carrying anything else would claim a decision nobody made, and a
-    downstream step reading it would start a flow its silence keeps
-    closed. The check is per decision: each of the three answer fields
-    must carry the marker, so a form with one filled and two open
-    answers fails the two that are still open.
+    The owner answered the three questions on 2026-11-24. An answer field
+    that fell back to TBD would unblock nothing and leave the pilot's
+    preparation silent; an answer with no pointer to where it lands would
+    be a second copy nobody maintains. The check is per decision: each
+    answer must be non-empty, must not be the old TBD marker, and must be
+    accompanied by the decision's own blocked-flow and landing-place rows.
     """
     text = _read(FORM)
     section = re.search(
@@ -293,13 +292,12 @@ def test_each_decision_is_marked_tbd_owner_to_fill(decision: str) -> None:
         re.MULTILINE | re.DOTALL,
     )
     assert section, f"decision {decision} must have its own section in the form"
-    answer_row = re.search(r"\| Answer \(owner fills\) \| `([^`]*)` \|", section.group(1))
+    answer_row = re.search(r"\| Answer \(owner fills\) \| ([^|]+) \|", section.group(1))
     assert answer_row, f"decision {decision} must carry an answer field the owner fills"
-    assert answer_row.group(1) == TBD_MARKER, (
-        f"decision {decision}'s answer field must read {TBD_MARKER!r}; found "
-        f"{answer_row.group(1)!r}. The form collects the owner's answers and "
-        "does not invent them: when the owner fills this field, the change "
-        "that records the answer updates this assertion."
+    answer = answer_row.group(1).strip().strip("`")
+    assert answer and answer != TBD_MARKER, (
+        f"decision {decision}'s answer field is still {TBD_MARKER!r}: the owner's "
+        "2026-11-24 answers must be recorded here"
     )
 
 
@@ -439,21 +437,23 @@ def test_the_runbook_carries_the_preparation_section_before_the_steps() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_skeletons_three_decisions_are_still_tbd() -> None:
-    """The skeleton's D-1..D-3 rows still read TBD.
+def test_the_skeletons_three_decisions_carry_the_owner_answers() -> None:
+    """The skeleton's D-1..D-3 rows carry the same confirmed answers.
 
-    The skeleton and the form carry the same three decisions; if the
-    skeleton's rows moved to decided while the form's fields are still
-    TBD, one of the two is wrong. The owner signs the form; the
-    skeleton follows the change that records the signature.
+    The skeleton and the form carry the same three decisions. If the
+    form's fields are filled while the skeleton still reads TBD, a reader
+    of the exit gate would see a decision nobody made. Each row must name
+    the 2026-11-24 confirmation and none may still carry the old marker.
     """
     text = _read(SKELETON)
     for decision in DECISION_IDS:
         row = re.search(rf"^\| {decision} \| .+$", text, re.MULTILINE)
         assert row, f"decision {decision} must have its row in the exit skeleton"
-        assert "TBD" in row.group(0), (
-            f"decision {decision} must still read TBD in the skeleton: the "
-            "owner has not filled the form yet"
+        assert "CONFIRMED 2026-11-24" in row.group(0), (
+            f"decision {decision}'s skeleton row must name the owner's confirmation"
+        )
+        assert "TBD" not in row.group(0), (
+            f"decision {decision}'s skeleton row still reads TBD after the owner answered"
         )
 
 
