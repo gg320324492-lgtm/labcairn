@@ -3387,6 +3387,48 @@ def the_role_run_run_rendered(result: Any) -> RenderableType:
     return Panel(table, title="the loop's run", expand=False)
 
 
+def _refuse_an_unknown_field(
+    part: str,
+    payload: Mapping[str, Any],
+    *,
+    as_json: bool,
+) -> None:
+    """Refuse a judgement part that carries a field the role does not take.
+
+    **The field's vocabulary has one owner.** The layer's dataclass says
+    which fields a role takes, and
+    :func:`labcairn.application.judgement_fields.unknown_fields` reads that
+    answer, so this refusal and the API's own ``extra_forbidden`` come from
+    the same list rather than from two spellings of it.
+
+    **The refusal is about the command's own arguments.** A field the role
+    does not take is a misspelling or a field from another part, and the
+    operator who typed it is the one who can fix it -- so the message names
+    the part, the field, and the fields the part does take. Silently
+    dropping the field would hand the role a judgement that is missing
+    something the caller believed they had supplied.
+
+    **A part the vocabulary does not know is a different question** and is
+    not answered here: whether such a part exists at all is the reader's
+    own business, and refusing a payload for a reason that has nothing to
+    do with its fields would mislead.
+    """
+    from labcairn.application.judgement_fields import fields_taken, unknown_fields
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
+    unknown = unknown_fields(part, payload)
+    if not unknown:
+        return
+    taken = fields_taken(part)
+    _refuse(
+        CLI_REFUSAL_INVALID_ARGUMENTS,
+        f"the '{part}' judgement takes {', '.join(taken)}; "
+        f"{', '.join(unknown)} {'is' if len(unknown) == 1 else 'are'} not "
+        "one of them.",
+        as_json=as_json,
+    )
+
+
 def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, Any]:
     """The caller's own judgements, from one JSON object.
 
@@ -3433,6 +3475,7 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
                 "the 'trajectory' judgement is one JSON object.",
                 as_json=as_json,
             )
+        _refuse_an_unknown_field("trajectory", trajectory, as_json=as_json)
         judgements["trajectory"] = TrajectoryJudgement(
             issue_type=str(trajectory.get("issue_type", "")),
             alignment=str(trajectory.get("alignment", "")),
@@ -3448,6 +3491,7 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
                 "the 'guidance' judgement is one JSON object.",
                 as_json=as_json,
             )
+        _refuse_an_unknown_field("guidance", guidance, as_json=as_json)
         judgements["guidance"] = GuidanceJudgement(
             issue_type=str(guidance.get("issue_type", "")),
             severity=str(guidance.get("severity", "")),
@@ -3475,6 +3519,7 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
                 "the 'critique' judgement is one JSON object.",
                 as_json=as_json,
             )
+        _refuse_an_unknown_field("critique", critique, as_json=as_json)
         judgements["critique"] = CritiqueJudgement(
             verdict=str(critique.get("verdict", "")),
             repair_advice=str(critique.get("repair_advice", "")),
