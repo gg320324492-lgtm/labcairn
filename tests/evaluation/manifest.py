@@ -526,6 +526,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_provider_capabilities.py": ("unit", "typed-contracts"),
     "test_provider_credentials.py": ("unit", "typed-contracts"),
     "test_provider_redaction.py": ("unit", "provider-redaction"),
+    # The smoke script and the CI job that runs it must name the same
+    # environment variables. The credential's name always matched, so the
+    # other three could disagree without a red run -- and on CI the
+    # protocol fell back to its default and the model was empty, so the
+    # job failed pointing at a variable the operator never set.
+    "test_provider_smoke_names.py": ("unit", "typed-contracts"),
     # The protocol's fifth class. The file also carries the offline witnesses
     # for its own skip predicate, which is how a class that spends money is
     # kept honest on a run that does not: the rules that decide whether it runs

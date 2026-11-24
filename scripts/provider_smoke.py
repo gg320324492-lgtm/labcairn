@@ -9,10 +9,19 @@ a credential issued for the purpose.
 Set these before running::
 
     export LABCAIRN_PROVIDER_SMOKE_KEY='...'
-    export LABCAIRN_SMOKE_PROTOCOL='openai'      # openai | anthropic | openai_compatible
-    export LABCAIRN_SMOKE_MODEL='gpt-4.1-mini'
-    export LABCAIRN_SMOKE_BASE_URL='...'         # required for openai_compatible
-    export LABCAIRN_SMOKE_TIMEOUT='30'           # optional
+    export LABCAIRN_PROVIDER_SMOKE_PROTOCOL='openai'   # openai | anthropic | openai_compatible
+    export LABCAIRN_PROVIDER_SMOKE_MODEL='gpt-4.1-mini'
+    export LABCAIRN_PROVIDER_SMOKE_BASE_URL='...'      # required for openai_compatible
+    export LABCAIRN_PROVIDER_SMOKE_TIMEOUT='30'        # optional
+
+**These names are the ones the CI job sets.** The ``provider-smoke``
+workflow exports ``LABCAIRN_PROVIDER_SMOKE_*`` and
+``provider-smoke.yml``'s own missing-variable check reads those names, so
+a script that read a different spelling would find the credential (whose
+name always matched) and nothing else: the protocol would fall back to
+``openai`` and the model would be empty, and the job would fail on a
+model it had been told. The names are read from one place here and
+``tests/test_provider_smoke_names.py`` holds the two in step.
 
 Design choices that are not incidental:
 
@@ -43,10 +52,10 @@ import sys
 from typing import Final
 
 KEY_VAR: Final = "LABCAIRN_PROVIDER_SMOKE_KEY"
-PROTOCOL_VAR: Final = "LABCAIRN_SMOKE_PROTOCOL"
-MODEL_VAR: Final = "LABCAIRN_SMOKE_MODEL"
-BASE_URL_VAR: Final = "LABCAIRN_SMOKE_BASE_URL"
-TIMEOUT_VAR: Final = "LABCAIRN_SMOKE_TIMEOUT"
+PROTOCOL_VAR: Final = "LABCAIRN_PROVIDER_SMOKE_PROTOCOL"
+MODEL_VAR: Final = "LABCAIRN_PROVIDER_SMOKE_MODEL"
+BASE_URL_VAR: Final = "LABCAIRN_PROVIDER_SMOKE_BASE_URL"
+TIMEOUT_VAR: Final = "LABCAIRN_PROVIDER_SMOKE_TIMEOUT"
 
 EXIT_OK: Final = 0
 EXIT_NOT_CONFIGURED: Final = 2

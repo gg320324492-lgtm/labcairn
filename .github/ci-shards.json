@@ -229,7 +229,8 @@
         "tests/test_evidence_anchor_registry.py",
         "tests/test_docx_fixture_corpus.py",
         "tests/test_analysis_report_build.py",
-        "tests/test_cli_unknown_field_refusal.py"
+        "tests/test_cli_unknown_field_refusal.py",
+        "tests/test_provider_smoke_names.py"
       ]
     ],
     "windows-latest": [
@@ -380,7 +381,8 @@
         "tests/test_fake_provider_isolation.py",
         "tests/test_gold_set_corpus.py",
         "tests/test_review_dossier.py",
-        "tests/test_cli_unknown_field_refusal.py"
+        "tests/test_cli_unknown_field_refusal.py",
+        "tests/test_provider_smoke_names.py"
       ],
       [
         "tests/test_feedback_events.py",
@@ -617,6 +619,7 @@
       "test_provider_credentials.py": 1.08,
       "test_provider_deidentification.py": 0.58,
       "test_provider_redaction.py": 1.02,
+      "test_provider_smoke_names.py": 0.0,
       "test_public_fixtures.py": 0.09,
       "test_quality_checks.py": 6.18,
       "test_readme_accuracy.py": 72.35,
@@ -836,6 +839,7 @@
       "test_provider_credentials.py": 1.78,
       "test_provider_deidentification.py": 0.93,
       "test_provider_redaction.py": 1.65,
+      "test_provider_smoke_names.py": 0.0,
       "test_public_fixtures.py": 0.16,
       "test_quality_checks.py": 53.28,
       "test_readme_accuracy.py": 77.23,
