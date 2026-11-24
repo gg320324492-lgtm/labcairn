@@ -55,7 +55,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Final, NoReturn, cast
+from typing import TYPE_CHECKING, Annotated, Any, Final, NoReturn, Protocol, cast
 from urllib.parse import urlsplit
 
 import typer
@@ -86,6 +86,7 @@ if TYPE_CHECKING:
     from labcairn.core.ids import TaskId
     from labcairn.core.providers.protocol import ModelRequest, ModelResponse
     from labcairn.guidance.models import GuidanceCheck, GuidanceRule
+    from labcairn.providers.adapter import ExchangeRecord
     from labcairn.providers.capabilities import Capability, ProviderCapabilities
     from labcairn.providers.credentials import ProviderSettings
     from labcairn.security.paths import CanonicalPath
@@ -2541,7 +2542,56 @@ def _suggestion_grant(record: Mapping[str, str]) -> Grant | None:
     )
 
 
-def _suggestion_transport(settings: Any, credential: Any) -> Any:
+class _TransportSeam(Protocol):
+    """The seam the wiring reads a transport through.
+
+    **The transport's own members, named in one place.** Beyond the
+    answer it gives, the wiring needs three things from a transport: the
+    model it is for, the credential its exchanges were recorded under, and
+    the provider layer's own record of what it has sent. This protocol is
+    where those are declared, so the transport that builds one is checked
+    against it -- by mypy, at the build -- rather than at the arm that
+    reads it.
+
+    **There is no ``hasattr`` arm here, and that is the point.** A
+    private attribute reached through ``hasattr`` fails quietly: it
+    produces ``None``, and ``None`` means "this provider's schema was
+    never probed", which is a refusal of every real role run that leaves
+    no trace of the wiring that caused it. A transport that cannot
+    present the seam is not a transport this wiring can use, and saying so
+    by raising is the honest shape of that: the wiring is broken, and a
+    broken wiring is a crash, not a refusal.
+    """
+
+    model_id: str
+
+    def send(self, request: ModelRequest) -> str:
+        """One request out, one answer back."""
+        ...
+
+    @property
+    def credential_fingerprint(self) -> str:
+        """Which credential the exchanges were recorded under, and no value."""
+        ...
+
+    @property
+    def capabilities(self) -> ProviderCapabilities | None:
+        """The provider's probed capabilities, or ``None`` when none has run.
+
+        **The provider layer's own record, not a copy of it.** The role
+        loop refuses a schema request the probe does not license, so the
+        record that decides it has to be the one the provider layer
+        holds -- a second copy would be a claim about a provider that
+        nothing measured.
+        """
+        ...
+
+    def exchanges(self) -> tuple[ExchangeRecord, ...]:
+        """The provider layer's own record of the calls it has made."""
+        ...
+
+
+def _suggestion_transport(settings: Any, credential: Any) -> _TransportSeam | None:
     """The gated transport one provider's settings build, or ``None``.
 
     The adapter is built with the same five gates every other real call
@@ -2578,7 +2628,7 @@ def _suggestion_transport(settings: Any, credential: Any) -> Any:
             timeout_s=settings.timeout_s,
             clock=lambda: 0.0,
         )
-        return _SuggestionTransportAdapter(
+        return _ProviderTransport(
             adapter,
             model_id=settings.model,
             credential_fingerprint=str(credential.fingerprint),
@@ -2590,13 +2640,21 @@ def _suggestion_transport(settings: Any, credential: Any) -> Any:
         return None
 
 
-class _SuggestionTransportAdapter:
-    """The provider adapter, wearing the loop's transport seam.
+class _ProviderTransport:
+    """The provider adapter, wearing the transport seam both loops read.
 
     The seam asks for one attribute the adapter does not carry —
     ``model_id``, the name the run row and the approval derivation record —
-    and one method it does. Nothing else is added: the adapter's own five
-    gates run exactly as every other real call runs them.
+    and one method it does. The adapter's own five gates run exactly as
+    every other real call runs them; nothing here changes a call.
+
+    **The two members the role loop reads are the adapter's own, offered
+    under the seam's names.** The probe record and the exchange records
+    live on the provider adapter; this class does not copy them, it
+    presents them. That is what lets the wiring read them without
+    reaching into a private attribute -- and what makes the wiring fail
+    loudly, rather than quietly deciding that a provider was never
+    probed, when the transport it was handed cannot present them.
     """
 
     def __init__(self, adapter: Any, *, model_id: str, credential_fingerprint: str) -> None:
@@ -2606,7 +2664,7 @@ class _SuggestionTransportAdapter:
 
     def send(self, request: ModelRequest) -> str:
         """One request through the adapter's gates, one answer text out."""
-        answer = cast(ModelResponse, self._adapter.send(request))
+        answer = cast("ModelResponse", self._adapter.send(request))
         return answer.text
 
     @property
@@ -2619,6 +2677,26 @@ class _SuggestionTransportAdapter:
         the value itself.
         """
         return self._credential_fingerprint
+
+    @property
+    def capabilities(self) -> ProviderCapabilities | None:
+        """The provider's probe record, or ``None`` when no probe has run.
+
+        **The adapter's own record, read through the seam.** ``None``
+        here is an honest answer -- no probe has run against this
+        provider -- and the role loop refuses a schema request on it
+        rather than sending the material on the chance.
+        """
+        return cast("ProviderCapabilities | None", self._adapter.capabilities)
+
+    def exchanges(self) -> tuple[ExchangeRecord, ...]:
+        """The provider layer's own record of the calls it has made.
+
+        Digests and counts, never text -- the same records the provider
+        layer persists, offered under the seam's name so the wiring does
+        not have to know how the adapter holds them.
+        """
+        return cast("tuple[ExchangeRecord, ...]", tuple(self._adapter.exchanges()))
 
 
 def credential_redactor(credential: Any) -> Any:
@@ -3135,7 +3213,19 @@ def role_run_backend(context: ApplicationContext) -> RoleRunBackend | None:
     this build cannot construct. A service or a command with no backend
     still runs; the loop's own refusal says what a run that needs the
     model may not do.
+
+    **The probe record is read off the transport's seam, and the seam is
+    explicit.** The provider's capabilities are what license a schema
+    request, so they are read the same way the answer is read: through a
+    named member of :class:`_TransportSeam`, never through a private
+    attribute reached behind ``hasattr``. A transport that cannot present
+    the record is not a transport this wiring can use, and the wiring says
+    so by raising rather than by quietly deciding that the provider was
+    never probed -- a quiet ``None`` here would refuse every real role
+    run, and the refusal would name the provider rather than the wiring
+    that caused it.
     """
+    from labcairn.application.roles_run import RoleRunBackend
     from labcairn.providers.credentials import load_credential, load_providers_config
 
     path = context.workspace.selected_root / PROVIDERS_FILE_NAME
@@ -3176,13 +3266,13 @@ def role_run_backend(context: ApplicationContext) -> RoleRunBackend | None:
         provider=record["provider"],
         model=settings.model,
         send=lambda prompt: _the_loop_invocation(transport, prompt),
-        capabilities=transport._adapter.capabilities if hasattr(transport, "_adapter") else None,
+        capabilities=transport.capabilities,
         grants=grants,
         destination=record["destination"],
     )
 
 
-def _the_loop_invocation(transport: Any, prompt: str) -> ModelInvocation:
+def _the_loop_invocation(transport: _TransportSeam, prompt: str) -> ModelInvocation:
     """One call through the wired transport, recorded in the layer's wire form.
 
     **The record is the adapter's own.** The transport is the provider
@@ -3192,13 +3282,20 @@ def _the_loop_invocation(transport: Any, prompt: str) -> ModelInvocation:
     as the call's. The adapter names itself ``provider:model``, and the
     fingerprint it records is the credential's own -- the same shape every
     exchange record in the log carries.
+
+    **The exchange records are read through the seam, not around it.**
+    The records are the provider layer's own, and the seam is where the
+    transport offers them; a wiring that reached past the seam for them
+    would be reading an attribute that the seam does not promise, and
+    would read it as "no exchanges" when it was absent.
     """
     from labcairn.application.model_request import ModelInvocation
+    from labcairn.core.providers.protocol import ModelRequest
 
     request = ModelRequest(prompt=prompt)
-    before = transport._adapter.exchanges() if hasattr(transport, "_adapter") else ()
+    before = transport.exchanges()
     answer = transport.send(request)
-    after = transport._adapter.exchanges() if hasattr(transport, "_adapter") else ()
+    after = transport.exchanges()
     fresh = after[len(before) :] if len(after) >= len(before) else after
     model_id = transport.model_id
     return ModelInvocation(
@@ -3207,7 +3304,33 @@ def _the_loop_invocation(transport: Any, prompt: str) -> ModelInvocation:
         model=model_id,
         exchanges=tuple(exchange.to_wire() for exchange in fresh),
         credential_fingerprint=transport.credential_fingerprint,
+        structured=_the_document(answer),
     )
+
+
+def _the_document(answer: str) -> Mapping[str, object] | None:
+    """The provider's answer, when it came back as a document.
+
+    **A JSON object, or nothing.** The role loop asks the model for one
+    part per role, and a model that answers in the shape it was asked for
+    answers with a document. This wiring does not ask for that -- the
+    prompt owns the question -- it *recognises* the document when the
+    provider returned one, and hands it to the layer, which judges it
+    against the schema it asked for.
+
+    **An answer that is not a document is not one.** Nothing here
+    guesses: text that does not parse, or that parses to something which
+    is not an object, leaves the document absent, and the layer refuses
+    with its own reason rather than this path inventing a judgement about
+    what the model said.
+    """
+    try:
+        parsed = json.loads(answer)
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return cast("Mapping[str, object]", parsed)
 
 
 def the_role_run_ticket_rendered(ticket: Any) -> RenderableType:

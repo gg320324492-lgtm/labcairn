@@ -61,7 +61,7 @@ import os
 import subprocess
 import sys
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -75,10 +75,25 @@ from store_support import env as _shared_env
 from labcairn.api import create_app
 from labcairn.api.events import UnwiredEventSource
 from labcairn.application.model_request import ModelInvocation
-from labcairn.application.roles_run import ModelCallPlan, RoleRunBackend
+from labcairn.application.roles_run import (
+    ModelCallPlan,
+    RoleRunBackend,
+    RoleRunRequest,
+    request_role_run,
+    run_role_run_service,
+)
+from labcairn.cli import commands
+from labcairn.cli.commands import (
+    MODEL_SUGGESTIONS_KEY,
+    PROVIDERS_FILE_NAME,
+    role_run_backend,
+)
+from labcairn.core.providers.protocol import ModelRequest
+from labcairn.core.providers.usage import Known
 from labcairn.db.models import EditActionRow
 from labcairn.guidance.rules import confirm_rule, propose_rule, record_counterexample
 from labcairn.papers.feedback import record_feedback, set_issue_key
+from labcairn.providers.adapter import ExchangeRecord, OutboundDisclosure, prompt_digest
 from labcairn.providers.capabilities import (
     ALL_CAPABILITIES,
     Capability,
@@ -1003,3 +1018,247 @@ def test_the_cli_refuses_the_critique_judgement_that_is_not_an_object(loop: Chai
     )
     output = completed.stdout + completed.stderr
     assert "the 'critique' judgement is one JSON object." in output
+
+
+# --------------------------------------------------------------------------- #
+# the wiring a real-model role run depends on
+# --------------------------------------------------------------------------- #
+
+#: The provider the authorisation record names, and the name the ``providers``
+#: object configures. The record authorises *this* provider and no other.
+PROVIDER = "pilot-provider"
+
+#: The credential variable the provider entry names. The record never carries
+#: the credential itself -- it names where the credential is read from.
+CREDENTIAL_ENV = "LABCAIRN_TEST_ONLY_KEY"
+
+#: A synthetic key. The repository forbids real credentials in tests; this one
+#: is obviously fake and lives only in the process environment.
+FAKE_KEY = "sk-pilot-not-a-real-key-0123456789"
+
+
+def _authorisation(**overrides: object) -> dict[str, object]:
+    """The owner's signed answer, as the authorisation record carries it.
+
+    **Every field filled** -- this is the record after the owner signed it,
+    not the draft. The scope covers the material the loop sends, because a
+    grant that covered nothing would refuse every run before the model was
+    asked.
+    """
+    record: dict[str, object] = {
+        "provider": PROVIDER,
+        "destination": DESTINATION,
+        "subject_ref": "proj-1",
+        "scope": "materials/**",
+        "granted_by": "Prof. Lin",
+        "granted_at": MOMENT.isoformat(),
+    }
+    record.update(overrides)
+    return record
+
+
+def _write_providers(workspace: Path, record: Mapping[str, object]) -> None:
+    """The workspace's ``providers.json``: one provider, and the record."""
+    document: dict[str, object] = {
+        "providers": {
+            PROVIDER: {
+                "protocol": "openai_compatible",
+                "model": "pilot-model",
+                "base_url": "http://127.0.0.1:9/v1",
+                "credential_env": CREDENTIAL_ENV,
+            }
+        },
+        MODEL_SUGGESTIONS_KEY: record,
+    }
+    workspace.joinpath(PROVIDERS_FILE_NAME).write_text(json.dumps(document), encoding="utf-8")
+
+
+class ProbedTransport:
+    """The transport the role loop's wiring reads, presenting the seam only.
+
+    **There is no ``_adapter`` here, and that is the point.** The seam the
+    wiring reads is the one this class presents: the model, the credential's
+    fingerprint, the probe record and the exchange records. A wiring that
+    reached past the seam for a private attribute would find nothing on a
+    transport shaped like this one, and would decide -- quietly -- that the
+    provider had never been probed.
+
+    **The answer is the document the role loop asked for**, so a run
+    through this transport is judged the way a real run is judged: the
+    wiring's part is what is under test, and the model's part is scripted.
+    """
+
+    model_id = "pilot-model"
+
+    def __init__(self, capabilities: ProviderCapabilities | None) -> None:
+        self._capabilities = capabilities
+        self._exchanges: list[ExchangeRecord] = []
+        self.prompts: list[str] = []
+
+    def send(self, request: ModelRequest) -> str:
+        """One answer, in the shape the role loop asked for."""
+        self.prompts.append(request.prompt)
+        self._exchanges.append(
+            ExchangeRecord(
+                provider=PROVIDER,
+                model=self.model_id,
+                transcript_step="the-judgements",
+                prompt_digest=prompt_digest(request.prompt),
+                tool_names=(),
+                outbound=OutboundDisclosure(),
+                provider_attempts=1,
+                observed_at=MOMENT,
+                usage_input=Known(0),
+                usage_output=Known(0),
+            )
+        )
+        return json.dumps({"trajectory": _trajectory_answer()})
+
+    @property
+    def credential_fingerprint(self) -> str:
+        """The credential's fingerprint, and no value."""
+        return "fp-" + "c" * 16
+
+    @property
+    def capabilities(self) -> ProviderCapabilities | None:
+        """The probe record this transport carries."""
+        return self._capabilities
+
+    def exchanges(self) -> tuple[ExchangeRecord, ...]:
+        """The calls this transport has made."""
+        return tuple(self._exchanges)
+
+
+@pytest.fixture()
+def wired(monkeypatch: pytest.MonkeyPatch, loop: ChainEnv) -> ProbedTransport:
+    """A workspace whose authorisation wires a transport that presents the seam.
+
+    **The wiring is the production one.** Only the provider is replaced: the
+    record, the settings, the credential and the transport assembly are the
+    CLI's own, so what the witnesses below measure is the assembly and not a
+    hand-built backend.
+    """
+    transport = ProbedTransport(_probed(Capability.STRUCTURED_OUTPUT_NATIVE))
+
+    def _stub(settings: Any, credential: Any) -> ProbedTransport:
+        """The transport one provider's settings would build."""
+        return transport
+
+    monkeypatch.setenv(CREDENTIAL_ENV, FAKE_KEY)
+    monkeypatch.setattr(commands, "_suggestion_transport", _stub)
+    _write_providers(loop.context.workspace.selected_root, _authorisation())
+    return transport
+
+
+def _the_request() -> RoleRunRequest:
+    """One role-loop request, as the CLI's command builds it.
+
+    **The rule is the fixture's own.** A request that named no rule would ask
+    a question without the rule's text, and the excerpts a run sends would be
+    the comment alone.
+    """
+    return RoleRunRequest(
+        roles=("trajectory",),
+        project_id="proj-1",
+        issue_key=KEY,
+        version_ids=("ver-1", "ver-2"),
+        rule_id=_LAST_RULE_ID[0],
+    )
+
+
+def test_the_role_run_wiring_carries_the_probed_capabilities(
+    loop: ChainEnv, wired: ProbedTransport
+) -> None:
+    """The backend the CLI's real-model role run is given carries the probe record.
+
+    **The record reaches the backend unchanged.** The provider's probe
+    licenses a schema request, so the wiring reads it off the transport and
+    hands the very record it was given -- not a copy, and not ``None``.
+
+    **The grants and the destination travel with it.** A backend that
+    carried a probe record but no grant would ask the model a question the
+    transmit gate then refuses, which is a refusal the operator cannot act
+    on.
+    """
+    backend = role_run_backend(loop.context)
+
+    assert backend is not None, "the authorisation wires a backend"
+    assert backend.capabilities is wired.capabilities, (
+        "the probe record reaches the backend as it was measured"
+    )
+    assert backend.provider == PROVIDER
+    assert backend.model == "pilot-model"
+    assert backend.destination == DESTINATION
+    covering = [grant for grant in backend.grants if grant.destination == DESTINATION]
+    assert covering, "the record's grant reaches the backend"
+
+
+def test_a_role_run_through_the_wiring_reaches_the_model(
+    loop: ChainEnv, wired: ProbedTransport
+) -> None:
+    """A run the wiring is given asks the model, and the roles judge its answer.
+
+    **The probe gate is passed, and the wire is reached.** A backend wired
+    without the probe record would be refused ``model_schema_unprobed``
+    before a single byte was sent; this one reaches the transport, and the
+    roles judge the document it answered with.
+
+    **The exchange records travel with the answer.** The provider layer's own
+    records are what the call is recorded by, and the wiring carries them
+    through the seam rather than around it.
+    """
+    from labcairn.application import grant_approval
+
+    backend = role_run_backend(loop.context)
+    assert backend is not None, "the authorisation wires a backend"
+
+    ticket = request_role_run(loop.context, _the_request(), plan=_plan(), expires_at=EXPIRES)
+    assert ticket.approval_id is not None, "a judgement is missing, so an approval was asked"
+    grant_approval(loop.context, ticket.approval_id, now=MOMENT)
+    loop.context.store.session.commit()
+
+    result = run_role_run_service(loop.context, ticket, backend=backend, at=MOMENT)
+
+    assert wired.prompts, "the run reached the model: the probe gate was passed"
+    candidate = result.candidate
+    assert candidate is not None, "the roles judged the model's judgement"
+    assert candidate.issue_key == KEY
+    assert candidate.alignment == "partial"
+    assert result.exchange_event_id is not None, "the call was recorded"
+
+
+def test_a_transport_that_cannot_present_the_seam_fails_loudly(
+    loop: ChainEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transport without the seam is a broken wiring, and says so.
+
+    **Loudly, and not as a refusal.** The silent shape of this failure is
+    the one the seam replaced: a private attribute read behind ``hasattr``
+    produces ``None``, ``None`` means "this provider was never probed", and
+    every real role run is refused for a reason that names the provider
+    rather than the wiring. A wiring that cannot read what it needs is a
+    crash, and this is the crash.
+    """
+
+    class _NoSeam:
+        """A transport that answers, and presents nothing else."""
+
+        model_id = "pilot-model"
+
+        def send(self, request: ModelRequest) -> str:
+            """One answer, and no seam."""
+            return json.dumps({"trajectory": _trajectory_answer()})
+
+    def _stub(settings: Any, credential: Any) -> _NoSeam:
+        """The transport one provider's settings would build."""
+        return _NoSeam()
+
+    monkeypatch.setenv(CREDENTIAL_ENV, FAKE_KEY)
+    monkeypatch.setattr(commands, "_suggestion_transport", _stub)
+    _write_providers(loop.context.workspace.selected_root, _authorisation())
+
+    with pytest.raises(AttributeError) as failure:
+        role_run_backend(loop.context)
+    assert failure.value.name in {"capabilities", "exchanges", "credential_fingerprint"}, (
+        "the wiring failed on a member of the seam it needed, and not on something else"
+    )
