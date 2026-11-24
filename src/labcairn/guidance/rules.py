@@ -361,6 +361,67 @@ def withdraw_rule(
     )
 
 
+def publish_rule_to_group(
+    context: ApplicationContext,
+    *,
+    rule_id: str,
+    published_by: str,
+    now: datetime,
+) -> GuidanceRule:
+    """Publish a confirmed rule to the group — as a **second reader**.
+
+    **The proposer cannot be the publisher.** The same second-reader rule
+    the confirmation carries: one person reading twice is one person
+    reading once with extra steps, and a rule the whole group may cite is
+    a rule somebody other than its proposer stood behind (Phase 4 §8.5 /
+    P4-G3).
+
+    **Only a confirmed rule is published.** The state machine is the
+    layer's: a candidate is unreviewed experience, and a disputed or
+    withdrawn rule is not standing. Publishing shares a rule that stands;
+    it does not make one stand.
+
+    **The moment is the caller's.** The person's act happens when the
+    caller says it did, the way the confirmation's does.
+
+    :raises ApplicationRefusedError: the rule is not there; the publisher
+        is the proposer; the rule is not confirmed; the rule is already
+        shared with the group.
+    """
+    rule = guidance_layer.read_guidance_rule(context, rule_id=rule_id)
+    if published_by == rule.proposed_by:
+        raise guidance_refused(
+            GuidanceRefusal.PUBLISHER_IS_PROPOSER,
+            f"the rule was proposed by {rule.proposed_by!r}, and its proposer"
+            " cannot be the one who publishes it to the group",
+        )
+    return guidance_layer.write_guidance_rule_publication(
+        context,
+        rule_id=rule_id,
+        published_by=published_by,
+        published_at=now,
+    )
+
+
+def retract_rule_from_group(
+    context: ApplicationContext,
+    *,
+    rule_id: str,
+) -> GuidanceRule:
+    """Retract a rule from the group's reach, leaving the rule standing.
+
+    **Retracting a sharing is not withdrawing a rule.** The rule's own
+    state is untouched: the state machine's ``withdrawn`` is the word for
+    *this stopped being true*, and a retraction of the sharing says only
+    *this stopped being shared*. A rule the group may no longer see is
+    still the rule its own project cites.
+
+    :raises ApplicationRefusedError: the rule is not there; the rule is
+        not shared with the group.
+    """
+    return guidance_layer.write_guidance_rule_retraction(context, rule_id=rule_id)
+
+
 def supersede_rule(
     context: ApplicationContext,
     *,
@@ -479,8 +540,10 @@ __all__: Final = [
     "confirm_rule",
     "dispute_rule",
     "propose_rule",
+    "publish_rule_to_group",
     "read_rule",
     "record_counterexample",
+    "retract_rule_from_group",
     "supersede_rule",
     "withdraw_rule",
 ]

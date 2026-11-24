@@ -1231,6 +1231,12 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         # Both are the layer's own operations behind the same guard.
         "POST /issues",
         "PATCH /issues/{issue_id}/status",
+        # The group sharing of a confirmed rule (Phase 4, P4-G3 §8.5): a
+        # mentor publishes a confirmed rule to the group and retracts the
+        # sharing again. Both are the layer's own operations behind the
+        # same guard, and the second-reader rule is the layer's.
+        "POST /guidance/rules/{rule_id}/publish",
+        "POST /guidance/rules/{rule_id}/retract",
     }
 
 

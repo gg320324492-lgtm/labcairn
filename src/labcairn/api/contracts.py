@@ -267,6 +267,19 @@ class GuidanceRuleVerdictBody(Result):
     reason: str = ""
 
 
+class GuidanceRulePublishBody(Result):
+    """A mentor's publication of a rule to the group, as the API accepts it.
+
+    **Only a confirmed rule may be published, and only by a second
+    reader.** The body names the mentor whose word the publication is —
+    the proposer cannot be that person, which the application layer
+    refuses by the same second-reader rule the confirmation carries
+    (Phase 4 §8.5 / P4-G3).
+    """
+
+    user_id: str = Field(min_length=1)
+
+
 class SessionInfo(Result):
     """The session the caller is in, and the token that proves it.
 
@@ -415,14 +428,18 @@ class MeetingIngestBody(Result):
 class UsableGuidanceQuery(Result):
     """Which rules a card may cite, as the API accepts it.
 
-    **A scope, optionally.** Without it the listing serves every standing
-    confirmed rule; with it, the rules whose scope mentions the text. The
+    **A scope, and a project, optionally.** Without the scope the listing
+    serves every standing confirmed rule; with it, the rules whose scope
+    mentions the text. Without the project the listing serves every rule;
+    with it, the rules the project may be served — its own, plus the ones
+    a mentor has published to the group (Phase 4 §8.5 / P4-G3). The
     response is the application layer's
     :class:`~labcairn.application.trajectory.UsableRule` records — and a
     candidate is never among them (§8.5).
     """
 
     scope: str | None = None
+    project_id: str | None = None
     limit: int = Field(default=20, ge=1, le=200)
 
 
@@ -657,6 +674,7 @@ __all__ = [
     "CommentResponses",
     "DeliverableFileWire",
     "DeliverablesExportWire",
+    "GuidanceRulePublishBody",
     "GuidanceRuleVerdictBody",
     "Health",
     "IssueKeys",

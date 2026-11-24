@@ -106,6 +106,16 @@ class GuidanceRule:
     #: never optional** — a rule that names no check says so, and a rule
     #: whose checks were released by its withdrawal says that too.
     checks: tuple[GuidanceCheck, ...]
+    #: The sharing scope: ``private`` to the project the rule was learned
+    #: in, or ``group`` once a mentor published it (Phase 4 §8.5 / P4-G3).
+    #: A rule carried by an older read that predates sharing is private —
+    #: the default is the fact, not a guess.
+    shared_scope: str = "private"
+    #: The mentor who published the rule to the group, and when. Null
+    #: while the rule is private; cleared again when the sharing is
+    #: retracted.
+    published_by: str | None = None
+    published_at: datetime | None = None
 
 
 __all__ = ["GuidanceCheck", "GuidanceRule", "RuleCounterexample"]
