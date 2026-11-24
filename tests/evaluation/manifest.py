@@ -541,6 +541,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # clause's shape at the round's surface; the interrupted-publication
     # replay is restart recovery; the export resume is artifact hashes.
     "test_apply_cancel_recover.py": ("integration", "restart-recovery"),
+    # Phase 4 §7.3 (window N): the operator's cancellation at the two
+    # surfaces the CLI is not — the service's apply route carries the
+    # binding's CancelCheck, and the cancel route plants the flag it reads.
+    # Integration, because the witnesses are the service's own routes over
+    # the binding's real sample; api-auth, because the cancel is a served
+    # write behind the same guard.
+    "test_cancel_entry.py": ("integration", "api-auth"),
     # Phase 4 (window G): the recovery and quality doors at the surface.
     # The interrupted publication is findable, probed and replayed over the
     # service's own routes, and a closed round's quality report is read —

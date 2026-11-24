@@ -83,6 +83,8 @@ export const API_PATHS = {
   meetingIngest: '/meeting/ingest',
   /** The six quality checks over one closed round's dossier manifest. */
   reviewQuality: '/review/quality',
+  /** Ask the running apply round to stop at its next publication checkpoint. */
+  reviewApplyCancel: '/review/apply/cancel',
   /** The rules a card may cite: mentor-confirmed, still standing, in scope. */
   guidanceUsable: '/guidance/usable',
   /** The pilot's issue record: what the trial met, as it was seen. */

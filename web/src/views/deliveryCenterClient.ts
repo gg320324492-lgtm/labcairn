@@ -22,6 +22,7 @@ import type {
   ApplyReviewBody,
   DeliverablesExportWire,
   DeliverableFileWire,
+  ReviewApplyCancelled,
   ReviewApplyResult,
   ReviewPreview,
   RoundQualityReport,
@@ -87,6 +88,26 @@ export async function readPreview(round: ApplyRound): Promise<ReviewData<ReviewP
  */
 export function applyReview(round: ApplyRound): Promise<ReviewApplyResult> {
   return api.post<ReviewApplyResult>(API_PATHS.reviewApply, applyBody(round))
+}
+
+/**
+ * Ask the running apply round for this project to stop.
+ *
+ * **The answer is about the request, not the round's end.** The service
+ * plants a flag the running round reads at its next publication checkpoint;
+ * the round's own outcome is what `applyReview` returns, as an
+ * `apply_cancelled` refusal when the flag was honoured. A refusal here —
+ * including "no apply round is running" — is the service's own refusal, and
+ * the caller renders it.
+ */
+export function cancelApplyReview(
+  projectId: string,
+  reason: string,
+): Promise<ReviewApplyCancelled> {
+  return api.post<ReviewApplyCancelled>(API_PATHS.reviewApplyCancel, {
+    project_id: projectId,
+    reason,
+  })
 }
 
 /**

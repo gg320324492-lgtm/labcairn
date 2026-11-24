@@ -36,6 +36,7 @@ import type {
 import { describeError } from '../api/client'
 import {
   applyReview,
+  cancelApplyReview,
   DELIVERABLE_KINDS,
   DELIVERABLE_LABELS,
   downloadDeliverable,
@@ -81,9 +82,9 @@ function QualityCheckRow({
     >
       <span className="delivery__quality-check-name">{check.check}</span>
       <span className="delivery__quality-check-verdict">{check.passed ? 'passed' : 'FAILED'}</span>
-      {check.facts.length > 0 ? (
+      {(check.facts ?? []).length > 0 ? (
         <ul className="delivery__quality-facts">
-          {check.facts.map((fact, index) => (
+          {(check.facts ?? []).map((fact, index) => (
             <li className="delivery__quality-fact" key={`${fact.check}-${index}`}>
               <span className="delivery__quality-fact-detail">{fact.detail}</span>
               <span className="delivery__quality-fact-meta">
@@ -280,6 +281,10 @@ export function DeliveryCenterView(): JSX.Element {
   const [exportFromService, setExportFromService] = useState<boolean | null>(null)
   const [previewLoading, setPreviewLoading] = useState(true)
   const [applying, setApplying] = useState(false)
+  const [cancelPending, setCancelPending] = useState(false)
+  const [cancelAsked, setCancelAsked] = useState(false)
+  const [cancelledRound, setCancelledRound] = useState(false)
+  const [cancelNotice, setCancelNotice] = useState<string | null>(null)
   const [downloadingKind, setDownloadingKind] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<ApplyOutcome | null>(null)
@@ -357,6 +362,9 @@ export function DeliveryCenterView(): JSX.Element {
   const onApply = useCallback((): void => {
     setApplying(true)
     setRefusal(null)
+    setCancelledRound(false)
+    setCancelAsked(false)
+    setCancelNotice(null)
     void applyReview(DELIVERY_ROUND)
       .then((result) => {
         const next: ApplyOutcome = {
@@ -369,12 +377,60 @@ export function DeliveryCenterView(): JSX.Element {
         readRound(next.dossierArtifactId)
       })
       .catch((error: unknown) => {
-        setRefusal(error instanceof Error ? error.message : String(error))
+        // **A cancelled round is a state, not a failure.** The service's
+        // `apply_cancelled` refusal is the round stopping where the operator
+        // asked it to — nothing further published, unspent approvals still
+        // granted — so the centre says that in its own voice instead of
+        // filing it under "the service refused that".
+        const described = describeError(error)
+        if (described.reason === 'apply_cancelled') {
+          setCancelledRound(true)
+          setRefusal(null)
+        } else {
+          setRefusal(described.message)
+        }
       })
       .finally(() => {
         setApplying(false)
+        setCancelPending(false)
+        // The round is over — applied, cancelled or refused — so the notice
+        // about a stop that is on its way is stale, and the outcome the
+        // round answered with is what the centre shows instead.
+        setCancelNotice(null)
       })
   }, [readRound])
+
+  /** Ask the running round to stop at its next publication checkpoint. */
+  const onCancelApply = useCallback((): void => {
+    setCancelPending(true)
+    void cancelApplyReview(DELIVERY_ROUND.projectId, 'cancelled from the delivery centre')
+      .then((answer) => {
+        // The service has planted the flag where the round reads it; the
+        // round stops at its next checkpoint, which the apply call's own
+        // answer reports. Saying so is the difference between "the button
+        // did nothing" and "the stop is on its way". The asked state stays:
+        // one cancellation per round is what the operator means, and a
+        // second press would be asking the same round twice.
+        setCancelAsked(true)
+        setCancelNotice(
+          `Cancel accepted — it takes effect at the round's next checkpoint${
+            answer.accepted ? '' : ' (not accepted)'
+          }.`,
+        )
+      })
+      .catch((error: unknown) => {
+        // The service refused the cancellation — no apply round is running,
+        // or the project is not there. The refusal is the answer, and the
+        // round's own state is unchanged; the operator may ask again.
+        const described = describeError(error)
+        setCancelNotice(null)
+        setCancelAsked(false)
+        setRefusal(described.message)
+      })
+      .finally(() => {
+        setCancelPending(false)
+      })
+  }, [])
 
   const onDownload = useCallback((deliverable: DeliverableFileWire): void => {
     setDownloadingKind(deliverable.kind)
@@ -406,6 +462,13 @@ export function DeliveryCenterView(): JSX.Element {
           The service refused that: {refusal}
         </p>
       ) : null}
+      {cancelledRound ? (
+        <p className="delivery__cancelled" role="status" data-cancelled="true">
+          Round cancelled — the apply stopped at its publication checkpoint. Nothing further was
+          published, and the approvals it had not spent are still granted. Apply again to rerun the
+          round from the start.
+        </p>
+      ) : null}
 
       <div className="delivery__commit">
         <h3 className="delivery__section-title">Apply the approved set</h3>
@@ -416,14 +479,31 @@ export function DeliveryCenterView(): JSX.Element {
         ) : (
           <PreviewBlock preview={preview} />
         )}
-        <button
-          type="button"
-          className="button delivery__apply"
-          disabled={previewLoading || applying}
-          onClick={onApply}
-        >
-          {applying ? 'Applying…' : outcome === null ? 'Apply the approved set' : 'Apply again'}
-        </button>
+        <div className="delivery__apply-row">
+          <button
+            type="button"
+            className="button delivery__apply"
+            disabled={previewLoading || applying}
+            onClick={onApply}
+          >
+            {applying ? 'Applying…' : outcome === null ? 'Apply the approved set' : 'Apply again'}
+          </button>
+          {applying ? (
+            <button
+              type="button"
+              className="button delivery__cancel"
+              disabled={cancelPending || cancelAsked}
+              onClick={onCancelApply}
+            >
+              {cancelPending ? 'Cancelling…' : 'Cancel'}
+            </button>
+          ) : null}
+        </div>
+        {cancelNotice !== null ? (
+          <p className="delivery__cancel-notice" role="status">
+            {cancelNotice}
+          </p>
+        ) : null}
         {outcome !== null ? (
           <p className="delivery__outcome" role="status" data-applied-count={outcome.appliedCount}>
             Applied {outcome.appliedCount} suggestion{outcome.appliedCount === 1 ? '' : 's'} —

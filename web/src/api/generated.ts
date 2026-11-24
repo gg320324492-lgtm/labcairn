@@ -653,6 +653,17 @@ export type ReproducibilityManifest = {
   environment: RenderEnvironment
 }
 
+export type ReviewApplyCancelBody = {
+  project_id: string
+  reason: string
+}
+
+export type ReviewApplyCancelled = {
+  project_id: string
+  reason: string
+  accepted: boolean
+}
+
 export type ReviewApplyResult = {
   project_id: string
   input_version_id: string

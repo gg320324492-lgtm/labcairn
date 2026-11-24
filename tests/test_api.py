@@ -1249,6 +1249,11 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         # The find is a GET and the quality report is a GET — they read.
         "POST /revision/interrupted/{receipt_id}/resolve",
         "POST /revision/interrupted/{receipt_id}/replay",
+        # The operator's cancellation of a running apply round (Phase 4,
+        # §7.3): the page asks the round it is watching to stop, and the
+        # binding answers at its next publication checkpoint. Same guard as
+        # the apply it cancels.
+        "POST /review/apply/cancel",
     }
 
 

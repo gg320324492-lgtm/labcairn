@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import threading
 import time
 import uuid
 from collections.abc import Iterator
@@ -66,6 +67,8 @@ from labcairn.api.contracts import (
     PptIngestBody,
     ProposalAcceptanceBody,
     ReportBody,
+    ReviewApplyCancelBody,
+    ReviewApplyCancelled,
     ReviewDecisionBody,
     ReviewSuggestBody,
     ReviewSuggestionBody,
@@ -163,6 +166,7 @@ from labcairn.application.review import (
     ReviewOpinions,
     ReviewPreview,
     ReviewSuggestionData,
+    _require_project,
     apply_review,
     export_deliverables,
     preview_review_apply,
@@ -1311,18 +1315,30 @@ def post_review_apply(
     which is what makes the applied set auditable after the fact. The
     binding's own duplicate, staleness and consent guards are the guards —
     this route adds none.
+
+    **The round answers to the operator's cancel flag.** A
+    ``POST /review/apply/cancel`` for the same project — asked while this
+    apply runs, or before it starts — sets a flag the route hands the
+    binding as its :class:`CancelCheck`; the binding asks it before each
+    publication, and an answered check stops the round with
+    ``apply_cancelled`` — nothing further published, unspent approvals
+    still granted. The cancellation takes effect at the next checkpoint, not
+    mid-publication, and the flag is retired when the round ends either way,
+    so it is a request about one round and not a standing order.
     """
-    return apply_review(
-        context,
-        ApplyReviewRequest(
-            project_id=body.project_id,
-            input_version_id=body.input_version_id,
-            source_root_id=body.source_root_id,
-            source_key=body.source_key,
-            output_label=body.output_label,
-            window_end=body.window_end,
-        ),
-    )
+    with _ApplyCancelGuard(body.project_id) as cancelled:
+        return apply_review(
+            context,
+            ApplyReviewRequest(
+                project_id=body.project_id,
+                input_version_id=body.input_version_id,
+                source_root_id=body.source_root_id,
+                source_key=body.source_key,
+                output_label=body.output_label,
+                window_end=body.window_end,
+            ),
+            cancel_check=lambda point: cancelled.reason if cancelled.set else None,
+        )
 
 
 @router.post("/review/preview", response_model=ReviewPreview, tags=["review"])
@@ -1870,3 +1886,149 @@ def post_trajectory_ingest(
         project_id=body.project_id,
         ingested_at=body.ingested_at,
     )
+
+
+# --------------------------------------------------------------------------- #
+# the operator's cancellation of a running apply round (§7.3)
+# --------------------------------------------------------------------------- #
+
+
+class _ApplyCancelFlag:
+    """One project's cancellation flag, as an apply round reads it.
+
+    **A flag, not a channel.** The cancel route sets ``reason``; the running
+    apply reads it at the binding's own checkpoints. Nothing here interrupts
+    a publication once it has begun — that is the binding's rule, and this
+    flag exists to answer the binding's question, not to reach past it. The
+    lock guards the one word a route writes and a request reads, so the flag
+    is safe under FastAPI's threadpool without pretending to be more.
+    """
+
+    __slots__ = ("_lock", "_reason")
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._reason: str | None = None
+
+    @property
+    def set(self) -> bool:
+        """Whether a cancellation has been asked for this round."""
+        with self._lock:
+            return self._reason is not None
+
+    @property
+    def reason(self) -> str:
+        """The reason the operator gave, or an empty string while unset."""
+        with self._lock:
+            return self._reason or ""
+
+    def request(self, reason: str) -> bool:
+        """Ask the running round to stop; ``False`` when no round is reading.
+
+        The reason is kept verbatim: the refusal the round raises carries
+        the operator's own words, so the record says why the round stopped.
+        """
+        with self._lock:
+            self._reason = reason
+        return True
+
+    def clear(self) -> None:
+        """Retire the flag. The round is over; a later cancel starts fresh."""
+        with self._lock:
+            self._reason = None
+
+
+#: The in-process cancellation flags, keyed by the project whose apply round
+#: they would stop. **Process-local, and meant to be**: the apply runs inside
+#: this service, so the cancellation is answered inside this service; a flag
+#: that outlived the process would answer a round nobody is running. One flag
+#: per project, so a cancel names the round it means and cannot stop another
+#: project's work by accident.
+_apply_cancel_flags: dict[str, _ApplyCancelFlag] = {}
+_apply_cancel_flags_lock = threading.Lock()
+
+
+class _ApplyCancelGuard:
+    """Adopt the project's flag for one round, and retire it when the round ends.
+
+    **The flag lives exactly as long as the round that honours it.** A flag
+    standing when the round registers was planted by a cancel — asked for
+    before the round started or while one ran — and this round adopts it, so
+    the cancellation is answered at the round's first checkpoint. When the
+    round ends — applied, cancelled or refused — the flag is retired, so a
+    cancellation is never a standing order past the round that honoured it.
+    """
+
+    __slots__ = ("_flag", "_project_id", "_registered")
+
+    def __init__(self, project_id: str) -> None:
+        self._project_id = project_id
+        self._flag = _ApplyCancelFlag()
+        self._registered = False
+
+    def __enter__(self) -> _ApplyCancelFlag:
+        with _apply_cancel_flags_lock:
+            # One round at a time per project is the binding's own duplicate
+            # guard's business, so a flag already standing here belongs to a
+            # round this one cannot run beside. This round adopts it rather
+            # than replacing it, so a cancellation asked for while a round is
+            # registered names the round that reads it — and a flag is never
+            # silently swapped under a cancel that has just been accepted.
+            existing = _apply_cancel_flags.get(self._project_id)
+            if existing is not None:
+                self._flag = existing
+            else:
+                _apply_cancel_flags[self._project_id] = self._flag
+            self._registered = True
+        return self._flag
+
+    def __exit__(self, *exc_info: object) -> None:
+        if self._registered:
+            with _apply_cancel_flags_lock:
+                if _apply_cancel_flags.get(self._project_id) is self._flag:
+                    del _apply_cancel_flags[self._project_id]
+            self._flag.clear()
+
+
+@router.post("/review/apply/cancel", response_model=ReviewApplyCancelled, tags=["review"])
+def post_review_apply_cancel(
+    body: ReviewApplyCancelBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewApplyCancelled:
+    """Ask the running apply round for this project to stop.
+
+    **The cancellation is a question the round answers at its next
+    checkpoint.** The binding asks its :class:`CancelCheck` before each
+    publication, so an apply that is between publications stops there; an
+    apply that is inside a publication finishes that unit and stops before
+    the next. Nothing is interrupted mid-write, and the round's unspent
+    approvals stay granted — the same shape a CLI cancellation has, reached
+    from the page.
+
+    **The answer is about the request, not the round's end.** ``accepted``
+    says the flag was planted where the round reads it; the round's own
+    outcome is what ``POST /review/apply`` returns, as ``apply_cancelled``
+    when the flag was honoured. A cancel that arrives while no round is in
+    flight is still accepted — the flag stands for the project until the
+    next apply reaches its first checkpoint, which it stops at — because a
+    page that asks to cancel *means* the next round it is watching to stop,
+    and a flag that vanished before that round started would be a cancel
+    that silently did nothing.
+
+    **In-process by design.** The flag lives in this service's memory and
+    dies with the round that honours it or with the process. A cancelled
+    round is applied again from the start, as the binding's own refusal
+    says — and applying again is a fresh round that no longer sees the old
+    flag, because the round that honoured it retired it.
+    """
+    # The project is the layer's to authenticate: the cancel names a round
+    # the caller can see, and a project that is not there is refused before
+    # any flag is planted.
+    _require_project(context, body.project_id)
+    with _apply_cancel_flags_lock:
+        flag = _apply_cancel_flags.get(body.project_id)
+        if flag is None:
+            flag = _ApplyCancelFlag()
+            _apply_cancel_flags[body.project_id] = flag
+    flag.request(body.reason)
+    return ReviewApplyCancelled(project_id=body.project_id, reason=body.reason, accepted=True)

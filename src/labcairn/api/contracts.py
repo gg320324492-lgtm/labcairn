@@ -640,6 +640,47 @@ class ApplyReviewBody(Result):
     window_end: str = Field(min_length=1)
 
 
+class ReviewApplyCancelBody(Result):
+    """What a cancellation request names, as the API accepts it.
+
+    The round is addressed by the project it belongs to, the same name the
+    apply body carries. **A cancellation is asked for, not asserted**: the
+    body carries the project and the reason the operator gave, and the
+    service sets an in-process flag that the running apply round reads at
+    its next :class:`~labcairn.papers.binding.CancelCheck` point.
+
+    **The flag is in-process and deliberate.** A flag that crossed a process
+    or a restart would be a flag nobody set: the apply runs in this service,
+    and the cancellation is answered by this service, before the next
+    publication. When no apply round is running for the project, the cancel
+    route refuses with ``apply_cancelled``'s sibling -- there is nothing to
+    cancel -- rather than planting a flag for a round that will never start.
+    """
+
+    project_id: str = Field(min_length=1)
+    #: The operator's own words, carried verbatim into the round's refusal --
+    #: the record says where the round stopped and why the operator stopped it.
+    reason: str = Field(min_length=1)
+
+
+class ReviewApplyCancelled(Result):
+    """What a cancellation request did, as the API answers it.
+
+    The answer is the flag's own account: the project whose apply was asked
+    to stop, and the reason the operator gave. **It does not say the round
+    has stopped** -- the round stops at its next publication checkpoint,
+    which may be a moment away -- and the message says so, so a reader of
+    the answer is not told a round is over before the binding has said so.
+    """
+
+    project_id: str
+    reason: str
+    #: Whether a round was running and read the flag. ``False`` means the
+    #: service had no apply round in flight for this project, and the route
+    #: refused rather than planting a flag for a round that will never ask.
+    accepted: bool
+
+
 class InterruptedResolveBody(Result):
     """The prediction a probe resolves an interrupted publication against.
 
@@ -748,6 +789,8 @@ __all__ = [
     "PptIngestBody",
     "RefusalBody",
     "ReportBody",
+    "ReviewApplyCancelBody",
+    "ReviewApplyCancelled",
     "ReviewDecisionBody",
     "ReviewManuscriptQuery",
     "ReviewOpinionsQuery",

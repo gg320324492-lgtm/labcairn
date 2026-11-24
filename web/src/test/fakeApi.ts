@@ -957,6 +957,9 @@ export class FakeApi {
   /** How many review applies the service has been asked to commit. */
   reviewApplies = 0
 
+  /** How many apply cancellations the service has been asked for. */
+  reviewApplyCancels = 0
+
   /**
    * Whether the service refuses the review apply.
    *
@@ -966,6 +969,16 @@ export class FakeApi {
    * refusal is what the centre is asked to show.
    */
   refuseReview = false
+
+  /**
+   * Whether an apply round is in flight for the fake to cancel.
+   *
+   * **The cancel answers like the service's own route**: an in-flight round
+   * accepts the cancellation, and the *next* apply refuses with the service's
+   * `apply_cancelled`; no round in flight is refused — a cancellation is a
+   * request about a round that is running, not a standing order.
+   */
+  applyInFlight = false
 
   /** The review preview the fake answers with. */
   reviewPreview: unknown = fixturePreview
@@ -1443,6 +1456,21 @@ export class FakeApi {
           message: 'no review decision stands for this round.',
         })
       }
+      // **A cancellation asked for while the round ran is the round's own
+      // outcome.** The next apply after a cancel answers with the service's
+      // `apply_cancelled`, and the flag is spent: the round after that runs
+      // clean, the way the real service's per-round flag does.
+      if (this.applyInFlight) {
+        this.applyInFlight = false
+        return jsonResponse(403, {
+          reason: 'apply_cancelled',
+          message:
+            "the apply round was cancelled at 'before_marked_publication': " +
+            'cancelled from the delivery centre. Nothing further was published; ' +
+            'the round may be applied again from the start, and the approvals it ' +
+            'had not spent remain granted.',
+        })
+      }
       return jsonResponse(200, {
         project_id: 'proj-lc-p4-cap',
         input_version_id: 'ver-baseline-04',
@@ -1456,6 +1484,24 @@ export class FakeApi {
         applied: ['fb-0193f0a1-0000-7000-8000-00000000c101'],
         handovers: [],
         unresolved: [],
+      })
+    }
+
+    if (method === 'POST' && path === '/review/apply/cancel') {
+      this.reviewApplyCancels += 1
+      if (!this.applyInFlight) {
+        return jsonResponse(403, {
+          reason: 'arguments_invalid',
+          message:
+            'no apply round for this project is running, so there is nothing ' +
+            'to cancel. A cancellation is a request about a round in flight, ' +
+            'not a standing order for the next one.',
+        })
+      }
+      return jsonResponse(200, {
+        project_id: 'proj-lc-p4-cap',
+        reason: 'cancelled from the delivery centre',
+        accepted: true,
       })
     }
 

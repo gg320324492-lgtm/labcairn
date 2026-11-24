@@ -24,12 +24,61 @@ let qualityAnswer: unknown = QUALITY_REPORT_FIXTURE
 let previewStatus = 200
 let applyStatus = 200
 let qualityStatus = 200
+let cancelStatus = 200
+let cancelAnswer: unknown = {
+  project_id: 'proj-lc-p4-cap',
+  reason: 'cancelled from the delivery centre',
+  accepted: true,
+}
+/**
+ * Hold the apply answer until the test releases it.
+ *
+ * **The cancel window is the point.** The Cancel button exists only while
+ * the apply is running, and a fetch that resolves in a microtask closes
+ * that window before the test can look at it. Holding the apply open is how
+ * the test stands inside the window — the state the button is for — instead
+ * of beside it.
+ */
+let holdApply = false
+let releaseApply: (() => void) | null = null
+/** The refusal body a non-200 apply answers with; unset means the plain one. */
+let applyRefusalBody: { reason: string; message: string } | null = null
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+function applyResultBody(): unknown {
+  // **A refused apply answers in the refusal's own shape.** The service's
+  // 403 carries the two fields every refusal carries; the cancellation test
+  // names the `apply_cancelled` reason the centre branches on, and the plain
+  // refusal test keeps the no-decisions refusal the round really answers
+  // with when nothing was reviewed.
+  if (applyStatus !== 200) {
+    return (
+      applyRefusalBody ?? {
+        reason: 'arguments_invalid',
+        message: 'no review decision stands for this round.',
+      }
+    )
+  }
+  return {
+    project_id: 'proj-lc-p4-cap',
+    input_version_id: 'ver-baseline-04',
+    output_version_id: 'ver-applied-05',
+    edge_id: 'edge-1',
+    marked_receipt_id: 'receipt-marked',
+    marked_sha256: 'a'.repeat(64),
+    clean_receipt_id: 'receipt-clean',
+    clean_sha256: 'b'.repeat(64),
+    dossier_artifact_id: 'dossier-1',
+    applied: ['fb-1'],
+    handovers: [],
+    unresolved: [],
+  }
 }
 
 beforeEach(() => {
@@ -39,6 +88,15 @@ beforeEach(() => {
   previewStatus = 200
   applyStatus = 200
   qualityStatus = 200
+  cancelStatus = 200
+  cancelAnswer = {
+    project_id: 'proj-lc-p4-cap',
+    reason: 'cancelled from the delivery centre',
+    accepted: true,
+  }
+  holdApply = false
+  releaseApply = null
+  applyRefusalBody = null
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -55,21 +113,16 @@ beforeEach(() => {
       if (url.startsWith('/review/quality')) {
         return jsonResponse(qualityStatus, qualityAnswer)
       }
+      if (url === '/review/apply/cancel') {
+        return jsonResponse(cancelStatus, cancelAnswer)
+      }
       if (url.startsWith('/review/apply')) {
-        return jsonResponse(applyStatus, {
-          project_id: 'proj-lc-p4-cap',
-          input_version_id: 'ver-baseline-04',
-          output_version_id: 'ver-applied-05',
-          edge_id: 'edge-1',
-          marked_receipt_id: 'receipt-marked',
-          marked_sha256: 'a'.repeat(64),
-          clean_receipt_id: 'receipt-clean',
-          clean_sha256: 'b'.repeat(64),
-          dossier_artifact_id: 'dossier-1',
-          applied: ['fb-1'],
-          handovers: [],
-          unresolved: [],
-        })
+        if (holdApply) {
+          return new Promise<Response>((resolve) => {
+            releaseApply = () => resolve(jsonResponse(applyStatus, applyResultBody()))
+          })
+        }
+        return jsonResponse(applyStatus, applyResultBody())
       }
       // The session read the POST boundary asks for before a change.
       if (url === '/session') {
@@ -143,6 +196,95 @@ describe('the delivery centre', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/The service refused that/)
     expect(screen.queryByText(/bound by dossier/)).toBeNull()
+  })
+
+  it('shows the cancel button only while the apply is running, and it asks the route', async () => {
+    holdApply = true
+    render(<DeliveryCenterView />)
+
+    // Before the round runs, there is nothing to cancel: the button is not
+    // on the page at all, and its absence is the honest answer.
+    await screen.findByRole('region', { name: 'Apply preview' })
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+
+    // While the apply runs, the operator can ask it to stop — the click is
+    // the cancellation request, and it names the apply's own route.
+    const apply = screen.getByRole('button', { name: 'Apply the approved set' })
+    fireEvent.click(apply)
+    const cancel = await screen.findByRole('button', { name: 'Cancel' })
+    expect(cancel).toBeEnabled()
+    fireEvent.click(cancel)
+
+    // The answer is about the request: the stop takes effect at the round's
+    // next checkpoint, and the centre says so rather than staying quiet.
+    expect(
+      await screen.findByText(/takes effect at the round's next checkpoint/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+
+    // The round's own answer still lands, and the window closes with it.
+    releaseApply?.()
+    await screen.findByText(/bound by dossier/)
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+    expect(screen.queryByText(/takes effect at the round's next checkpoint/)).toBeNull()
+  })
+
+  it('shows a cancelled round as cancelled, not failed', async () => {
+    // The service's own answer: the round stopped at its checkpoint, with
+    // the operator's reason carried in the refusal's message.
+    applyStatus = 403
+    applyRefusalBody = {
+      reason: 'apply_cancelled',
+      message:
+        "the apply round was cancelled at 'before_marked_publication': " +
+        'cancelled from the delivery centre. Nothing further was published; ' +
+        'the round may be applied again from the start, and the approvals it ' +
+        'had not spent remain granted.',
+    }
+    holdApply = true
+    render(<DeliveryCenterView />)
+
+    await screen.findByRole('region', { name: 'Apply preview' })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply the approved set' }))
+
+    // The cancellation rides along with the apply's own refusal — a page
+    // asks for the stop while the round is out, and the round answers that
+    // it stopped, in the service's own `apply_cancelled`.
+    const cancel = await screen.findByRole('button', { name: 'Cancel' })
+    fireEvent.click(cancel)
+    await screen.findByText(/takes effect at the round's next checkpoint/)
+    releaseApply?.()
+    await screen.findByText(/Round cancelled/)
+
+    // The apply's answer lands as the cancellation state — its own voice,
+    // not the "the service refused that" failure line.
+    expect(screen.getByText(/stopped at its publication checkpoint/)).toBeInTheDocument()
+    expect(screen.getByText(/approvals it had not spent are still granted/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText(/bound by dossier/)).toBeNull()
+  })
+
+  it('shows the service refusal of a cancel with nothing to cancel', async () => {
+    cancelStatus = 403
+    cancelAnswer = {
+      reason: 'arguments_invalid',
+      message:
+        'no apply round for this project is running, so there is nothing to ' +
+        'cancel. A cancellation is a request about a round in flight, not a ' +
+        'standing order for the next one.',
+    }
+    holdApply = true
+    render(<DeliveryCenterView />)
+
+    await screen.findByRole('region', { name: 'Apply preview' })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply the approved set' }))
+    const cancel = await screen.findByRole('button', { name: 'Cancel' })
+    fireEvent.click(cancel)
+
+    // The refusal is the answer, and the round's own state is unchanged.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no apply round/)
+    expect(screen.queryByText(/takes effect at the round's next checkpoint/)).toBeNull()
+    releaseApply?.()
   })
 
   it('says when the data is a fixture, and says what that costs', async () => {
