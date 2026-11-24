@@ -766,6 +766,107 @@ class DeliverablesExportWire(Result):
     deliverables: tuple[DeliverableFileWire, ...]
 
 
+class RoleRunBody(Result):
+    """One role-loop request, as the API accepts it.
+
+    The application layer's :class:`~labcairn.application.roles_run.RoleRunRequest`
+    is the model for the work part of this body, and its
+    :class:`~labcairn.application.roles_run.ModelCallPlan` is the model for
+    the plan part: the loop is the layer's own operation, and this body
+    exists only because the request body is the API's own. The fields are
+    the same fields, validated the same way, so the wire and the CLI's
+    options do not drift.
+
+    **The plan is stated, and the loop checks it.** The material the run
+    would send is read from the chain and compared against
+    ``root_id``/``resource_key``/``material_ref``; a declaration that does
+    not match is refused by name rather than replaced. The plan is required
+    whenever a judgement is missing, because a missing judgement is a model
+    call and a model call needs to know who to ask and where the material
+    is; a request whose judgements are all supplied needs no plan at all.
+
+    **A supplied judgement is the caller's own, and it travels as the shape
+    the role takes** -- the same fields
+    :class:`~labcairn.application.roles_run.TrajectoryJudgement` and its
+    siblings take. A caller that has every judgement spends nothing and
+    reaches no wire; the loop still refuses an alignment outside the role's
+    vocabulary, because the roles' own checks are the architecture's.
+    """
+
+    roles: tuple[str, ...] = Field(min_length=1)
+    project_id: str = Field(min_length=1)
+    issue_key: str = Field(min_length=1)
+    version_ids: tuple[str, ...] = ()
+    rule_id: str | None = None
+    evidence_refs: tuple[str, ...] | None = None
+    #: The judgements the caller supplies outright. A role named without one
+    #: is answered by the model -- which is the part of the run that spends
+    #: consent -- and one supplied for a role nobody named is simply unused.
+    trajectory: RoleTrajectoryJudgement | None = None
+    guidance: RoleGuidanceJudgement | None = None
+    critique: RoleCritiqueJudgement | None = None
+    #: Who to ask, and where the material is. Required exactly when a
+    #: judgement is missing, because that is when the run asks the model.
+    provider: str | None = Field(default=None, min_length=1)
+    model: str | None = Field(default=None, min_length=1)
+    root_id: str | None = Field(default=None, min_length=1)
+    resource_key: str | None = Field(default=None, min_length=1)
+    material_ref: str | None = Field(default=None, min_length=1)
+    purpose: str | None = Field(default=None, min_length=1)
+    destination: str | None = Field(default=None, min_length=1)
+    subject_ref: str | None = Field(default=None, min_length=1)
+    #: When the consent the run will spend lapses. A run that needs a model
+    #: judgement asks for its approval with this expiry; a run that needs
+    #: none never reads it.
+    expires_at: datetime | None = None
+    #: The granted approval the run spends, on the run route. The ask mints
+    #: it pending; a person grants it over the approval door; the run
+    #: presents it here. A run whose judgements are all supplied needs none,
+    #: and never reads it.
+    approval_id: str | None = Field(default=None, min_length=1)
+
+
+class RoleTrajectoryJudgement(Result):
+    """Role A's judgement, as the API accepts it. The role checks the values."""
+
+    issue_type: str
+    alignment: str
+    advisor_quote: str
+    note: str
+    edit_action_id: str | None = None
+
+
+class RoleGuidanceJudgement(Result):
+    """Role B's judgement, as the API accepts it. The role checks the values."""
+
+    issue_type: str
+    severity: str
+    reason: str
+    suggested_next_action: str
+    uncertainty_kind: str
+    what_is_uncertain: str
+    claims: tuple[RoleClaimJudgement, ...] = ()
+    style_notes: tuple[str, ...] = ()
+
+
+class RoleClaimJudgement(Result):
+    """One claim inside role B's judgement, as the API accepts it."""
+
+    text: str
+    kind: str
+    evidence_ref: str | None = None
+    issue_key: str | None = None
+    advisor_quote: str | None = None
+
+
+class RoleCritiqueJudgement(Result):
+    """Role C's judgement, as the API accepts it. The role checks the values."""
+
+    verdict: str
+    repair_advice: str
+    handover_reason: str | None = None
+
+
 __all__ = [
     "AnalysisBody",
     "ApplyReviewBody",
@@ -797,6 +898,11 @@ __all__ = [
     "ReviewSuggestBody",
     "ReviewSuggestRun",
     "ReviewSuggestionBody",
+    "RoleClaimJudgement",
+    "RoleCritiqueJudgement",
+    "RoleGuidanceJudgement",
+    "RoleRunBody",
+    "RoleTrajectoryJudgement",
     "SessionInfo",
     "StageBody",
     "Trajectory",

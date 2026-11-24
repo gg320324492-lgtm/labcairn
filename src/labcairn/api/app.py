@@ -154,6 +154,7 @@ from labcairn.api.session import (
 from labcairn.application import ApplicationContext, ClaimExtractionBackend
 from labcairn.application.model_suggestions import ModelSuggestionBackend
 from labcairn.application.refusal import ApplicationRefusedError
+from labcairn.application.roles_run import RoleRunBackend
 from labcairn.application.stages import StageWork
 
 #: The logger the service records its requests in.
@@ -250,6 +251,7 @@ def create_app(
     select_task: TaskSelector | None = None,
     claim_extraction: ClaimExtractionBackend | None = None,
     model_suggestions: ModelSuggestionBackend | None = None,
+    role_runs: RoleRunBackend | None = None,
     stage_work: StageWork | None = None,
     static_dir: Path | None = None,
 ) -> FastAPI:
@@ -280,6 +282,11 @@ def create_app(
         ``real`` mode refuses with ``model_suggestion_no_provider`` and
         writes nothing; ``substitute`` mode runs regardless, because the
         substitute sends nothing out of the machine.
+    :param role_runs: the real-model transport and grants a role-loop run
+        may spend. Without one ``POST /roles/run`` refuses with
+        ``role_run_no_provider`` when it needs a model judgement and writes
+        nothing; a run whose judgements are all supplied runs regardless,
+        because it reaches no wire.
     :param stage_work: the effect a stage run performs.
     :param static_dir: the built web app to serve, so that the browser and the
         API share one origin.
@@ -308,6 +315,7 @@ def create_app(
     app.state.select_task = select_task if select_task is not None else UnwiredTaskSelector()
     app.state.claim_extraction = claim_extraction
     app.state.model_suggestions = model_suggestions
+    app.state.role_runs = role_runs
     app.state.stage_work = stage_work
     app.include_router(router)
     _install_guards(app)

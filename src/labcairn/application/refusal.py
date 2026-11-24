@@ -503,6 +503,11 @@ class ApplicationRefusal(StrEnum):
     #: The run needs a judgement and there is no provider invocation to ask
     #: the model with, so there is nothing to ask it.
     ROLE_RUN_NO_PROVIDER_INVOCATION = "role_run_no_provider_invocation"
+    #: The service has no real-model transport wired for the role loop, so a
+    #: run that needs a model judgement is refused rather than simulated.
+    #: **The refusal, not a failure, is the honest state of a service the
+    #: owner has not authorised.**
+    ROLE_RUN_NO_PROVIDER = "role_run_no_provider"
     #: A role the request named received no judgement -- the answer did not
     #: carry one, or the run had none to give it. **A role the caller asked
     #: for is not run without one.**

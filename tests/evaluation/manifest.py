@@ -553,6 +553,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # service's own routes, and a closed round's quality report is read —
     # the layer's restart-recovery and api-auth clauses, on one real sample.
     "test_recovery_quality_api.py": ("integration", "restart-recovery"),
+    # Phase 4 §8.2 (window M): the role loop's two doors at the surface.
+    # The ask writes the question down and spends nothing; the run spends a
+    # granted approval and answers with the roles' own outputs. Both are
+    # the layer's operation behind the same guard, and the CLI's command
+    # reaches the same operation -- one serialization, two surfaces.
+    "test_role_run_entry.py": ("integration", "api-auth"),
     # LC-P3-03: the loop binds the pieces; its refusals are negative.
     "test_revision_loop.py": ("integration", "approvals"),
     "test_revision_loop_refusals.py": ("negative", "path-traversal"),

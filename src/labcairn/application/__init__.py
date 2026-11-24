@@ -176,6 +176,7 @@ Operation  The permission that governs it
 ``write_role_spec``                   the contract's own allowed capabilities
 ``request_role_run``                  the contract's own allowed capabilities
 ``run_role_run``                      the contract's own allowed capabilities
+``run_role_run_service``              the contract's own allowed capabilities
 ``the_role_run_question``             the contract's own allowed capabilities
 ``run_round_quality_checks``          ``fs.read`` — the round's own records
 ====================================  ========================================
@@ -345,6 +346,7 @@ from labcairn.application.roles_run import (
     GuidanceJudgement,
     MaterialAddress,
     ModelCallPlan,
+    RoleRunBackend,
     RoleRunQuestion,
     RoleRunRequest,
     RoleRunResult,
@@ -352,6 +354,7 @@ from labcairn.application.roles_run import (
     TrajectoryJudgement,
     request_role_run,
     run_role_run,
+    run_role_run_service,
     the_role_run_question,
 )
 from labcairn.application.sources import SourceView, inspect_source, list_sources
@@ -434,6 +437,7 @@ __all__ = [
     "ReportRendered",
     "ReportRequest",
     "Result",
+    "RoleRunBackend",
     "RoleRunQuestion",
     "RoleRunRequest",
     "RoleRunResult",
@@ -518,6 +522,7 @@ __all__ = [
     "resolve_abandoned",
     "run_figure",
     "run_role_run",
+    "run_role_run_service",
     "run_round_quality_checks",
     "run_stage",
     "settle_reply",

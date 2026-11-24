@@ -816,6 +816,142 @@ export type RevisionPublished = {
   approval: Approval
 }
 
+export type RoleClaimJudgement = {
+  text: string
+  kind: string
+  evidence_ref?: string | null
+  issue_key?: string | null
+  advisor_quote?: string | null
+}
+
+export type RoleCritiqueJudgement = {
+  verdict: string
+  repair_advice: string
+  handover_reason?: string | null
+}
+
+export type RoleGuidanceJudgement = {
+  issue_type: string
+  severity: string
+  reason: string
+  suggested_next_action: string
+  uncertainty_kind: string
+  what_is_uncertain: string
+  claims?: RoleClaimJudgement[]
+  style_notes?: string[]
+}
+
+export type RoleRunBody = {
+  roles: string[]
+  project_id: string
+  issue_key: string
+  version_ids?: string[]
+  rule_id?: string | null
+  evidence_refs?: string[] | null
+  trajectory?: RoleTrajectoryJudgement | null
+  guidance?: RoleGuidanceJudgement | null
+  critique?: RoleCritiqueJudgement | null
+  provider?: string | null
+  model?: string | null
+  root_id?: string | null
+  resource_key?: string | null
+  material_ref?: string | null
+  purpose?: string | null
+  destination?: string | null
+  subject_ref?: string | null
+  expires_at?: string | null
+  approval_id?: string | null
+}
+
+export type RoleRunCandidate = {
+  role_id: string
+  role_version: number
+  issue_key: string
+  issue_type: string
+  edit_action_id: string | null
+  alignment: string
+  advisor_quote: string
+  note: string
+}
+
+export type RoleRunCard = {
+  role_id: string
+  role_version: number
+  target_locator: string
+  issue_type: string
+  severity: string
+  reason: string
+  evidence_refs: string[]
+  suggested_next_action: string
+  uncertainty: RoleRunUncertainty
+  claims?: RoleRunCardClaim[]
+  style_notes?: string[]
+  rule_refs?: RoleRunRuleCitation[]
+  historical_case_refs?: string[]
+  counterexamples_or_limits?: string[]
+}
+
+export type RoleRunCardClaim = {
+  text: string
+  kind: string
+  evidence_ref?: string | null
+  issue_key?: string | null
+  advisor_quote?: string | null
+}
+
+export type RoleRunRuleCitation = {
+  rule_id: string
+  version: number
+  statement: string
+  counterexamples?: string[]
+}
+
+export type RoleRunRun = {
+  roles: string[]
+  answer: string | null
+  exchange_event_id: string | null
+  candidate?: RoleRunCandidate | null
+  card?: RoleRunCard | null
+  verdict?: RoleRunVerdict | null
+}
+
+export type RoleRunTicketWire = {
+  roles: string[]
+  contracts: Record<string, unknown>[]
+  prompt: string
+  excerpts: string[]
+  material: Record<string, string>
+  plan: Record<string, string>
+  approval_id: string | null
+  asked_at: string
+}
+
+export type RoleRunUncertainty = {
+  kind: string
+  what_is_uncertain: string
+  missing?: string[]
+}
+
+export type RoleRunVerdict = {
+  role_id: string
+  role_version: number
+  reviewed_locator: string
+  reviewed_issue_type: string
+  verdict: string
+  grade: string
+  counter_evidence?: RoleRunRuleCitation[]
+  repair_advice: string
+  handover_reason: string | null
+}
+
+export type RoleTrajectoryJudgement = {
+  issue_type: string
+  alignment: string
+  advisor_quote: string
+  note: string
+  edit_action_id?: string | null
+}
+
 export type RoundQualityReport = {
   project_id: string
   input_version_id: string

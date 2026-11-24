@@ -38,7 +38,7 @@ import time
 import uuid
 from collections.abc import Iterator
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -73,6 +73,7 @@ from labcairn.api.contracts import (
     ReviewSuggestBody,
     ReviewSuggestionBody,
     ReviewSuggestRun,
+    RoleRunBody,
     SessionInfo,
     StageBody,
     TaskSelectBody,
@@ -182,6 +183,19 @@ from labcairn.application.revision_loop import (
     replay_interrupted_publication,
     resolve_interrupted_publication,
 )
+from labcairn.application.roles_run import (
+    CritiqueJudgement,
+    GuidanceJudgement,
+    ModelCallPlan,
+    RoleRunBackend,
+    RoleRunRequest,
+    RoleRunRun,
+    RoleRunTicketWire,
+    TrajectoryJudgement,
+    request_role_run,
+    run_role_run_service,
+    the_role_run_ticket,
+)
 from labcairn.application.stages import StageRequest, StageWork
 from labcairn.application.trajectory import (
     TrajectoryHit,
@@ -200,6 +214,7 @@ from labcairn.guidance.rules import (
     publish_rule_to_group,
     retract_rule_from_group,
 )
+from labcairn.roles.guidance import CardClaim
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest
 from labcairn.runtime.lifecycle import Task
 
@@ -2032,3 +2047,173 @@ def post_review_apply_cancel(
             _apply_cancel_flags[body.project_id] = flag
     flag.request(body.reason)
     return ReviewApplyCancelled(project_id=body.project_id, reason=body.reason, accepted=True)
+# the role loop, on demand (Phase 4, §8.2)
+# --------------------------------------------------------------------------- #
+
+
+def _the_role_run_request(body: RoleRunBody) -> RoleRunRequest:
+    """The layer's request, from the body's work fields.
+
+    **The judgements are converted here, once.** The role dataclasses are
+    the roles' own types, and a body that carried them as plain mappings
+    would make every route re-derive them; the conversion is the API's own
+    work, and the roles still check every value.
+    """
+    trajectory = (
+        None
+        if body.trajectory is None
+        else TrajectoryJudgement(
+            issue_type=body.trajectory.issue_type,
+            alignment=body.trajectory.alignment,
+            advisor_quote=body.trajectory.advisor_quote,
+            note=body.trajectory.note,
+            edit_action_id=body.trajectory.edit_action_id,
+        )
+    )
+    guidance = (
+        None
+        if body.guidance is None
+        else GuidanceJudgement(
+            issue_type=body.guidance.issue_type,
+            severity=body.guidance.severity,
+            reason=body.guidance.reason,
+            suggested_next_action=body.guidance.suggested_next_action,
+            uncertainty_kind=body.guidance.uncertainty_kind,
+            what_is_uncertain=body.guidance.what_is_uncertain,
+            claims=tuple(
+                CardClaim(
+                    text=claim.text,
+                    kind=claim.kind,
+                    evidence_ref=claim.evidence_ref,
+                    issue_key=claim.issue_key,
+                    advisor_quote=claim.advisor_quote,
+                )
+                for claim in body.guidance.claims
+            ),
+            style_notes=body.guidance.style_notes,
+        )
+    )
+    critique = (
+        None
+        if body.critique is None
+        else CritiqueJudgement(
+            verdict=body.critique.verdict,
+            repair_advice=body.critique.repair_advice,
+            handover_reason=body.critique.handover_reason,
+        )
+    )
+    return RoleRunRequest(
+        roles=body.roles,
+        project_id=body.project_id,
+        issue_key=body.issue_key,
+        version_ids=body.version_ids,
+        rule_id=body.rule_id,
+        evidence_refs=body.evidence_refs,
+        trajectory=trajectory,
+        guidance=guidance,
+        critique=critique,
+    )
+
+
+def _the_role_run_plan(body: RoleRunBody) -> ModelCallPlan:
+    """The layer's plan, from the body's plan fields.
+
+    **A plan is built only from filled fields.** A body that names no plan
+    fields gets one that is empty of them, and the loop refuses it by name
+    when a run needs one -- the refusal is the layer's own
+    ``role_run_material_mismatch``, naming what the declaration did not
+    say, rather than a 500 from a half-built plan.
+    """
+    return ModelCallPlan(
+        provider=body.provider or "",
+        model=body.model or "",
+        root_id=body.root_id or "",
+        resource_key=body.resource_key or "",
+        material_ref=body.material_ref or "",
+        purpose=body.purpose or "",
+        destination=body.destination or "",
+        subject_ref=body.subject_ref or "",
+    )
+
+
+@router.post(
+    "/roles/run-questions",
+    response_model=RoleRunTicketWire,
+    status_code=201,
+    tags=["mentor"],
+)
+def post_role_run_question(
+    body: RoleRunBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> RoleRunTicketWire:
+    """Write the loop's question down, and spend nothing.
+
+    **This is the ask, and the ask is not the spend.** The loop rebuilds
+    the question from the request -- the roles, the material, the
+    contracts, the prompt and the excerpts a run would send -- and, only
+    when a judgement is missing, mints the *pending* approval the run will
+    spend. No approval is granted here, no wire is touched, and no role
+    runs; the response carries the prompt so a caller can read exactly
+    what a run would send before anybody consents to it.
+
+    **The consent is a person's act, on the approval door.** A run needs
+    the approval this response names to be granted first
+    (``POST /approvals/{id}/grant``), and the run refuses to spend it
+    otherwise. A request whose judgements are all supplied names no
+    approval, because it reaches no wire.
+    """
+    ticket = request_role_run(
+        context,
+        _the_role_run_request(body),
+        plan=_the_role_run_plan(body),
+        expires_at=body.expires_at or datetime.now(UTC) + timedelta(days=1),
+    )
+    return the_role_run_ticket(ticket)
+
+
+@router.post("/roles/run", response_model=RoleRunRun, status_code=201, tags=["mentor"])
+def post_role_run(
+    body: RoleRunBody,
+    request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> RoleRunRun:
+    """Run the roles the request names, and only those.
+
+    **One operation, two steps, and the consent between them.** The loop's
+    ask is :func:`request_role_run` and its spend is
+    :func:`run_role_run`; this route performs both against one body, so a
+    caller that holds a granted approval id can ask and run in one round
+    trip. The approval is **named in the body** and is the one the ask
+    minted -- a run that needed one and is not carrying it is refused, and
+    a run whose judgements are all supplied needs none.
+
+    **The response is what the roles produced, and the account of the
+    call.** Each role's output carries the contract it was made under; the
+    model's words and the exchange record are carried beside them, and a
+    run that reached no wire carries neither.
+    """
+    backend = cast(RoleRunBackend | None, request.app.state.role_runs)
+    ticket = request_role_run(
+        context,
+        _the_role_run_request(body),
+        plan=_the_role_run_plan(body),
+        expires_at=body.expires_at or datetime.now(UTC) + timedelta(days=1),
+    )
+    if ticket.approval_id is not None and body.approval_id is None:
+        # **The ask minted a pending approval, and the run cannot spend a
+        # consent nobody granted.** The caller presents the granted id; the
+        # digest check at the spend refuses a ticket that changed since.
+        raise ApplicationRefusedError(
+            ApplicationRefusal.APPROVAL_MISSING,
+            "the run needs a model judgement, and it carries no granted"
+            " approval id. Ask with `POST /roles/run-questions` first, grant"
+            " the approval it names, and present that id here.",
+        )
+    if body.approval_id is not None:
+        ticket = replace(ticket, approval_id=_parsed_approval_id(body.approval_id))
+    return run_role_run_service(
+        context,
+        ticket,
+        backend=backend,
+        at=datetime.now(UTC),
+    )
