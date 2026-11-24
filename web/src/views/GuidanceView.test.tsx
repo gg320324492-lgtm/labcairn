@@ -98,6 +98,7 @@ describe('the rules it draws', () => {
       'example The core was X-rayed before it was sectioned.',
       'proposed by alice at 2026-10-20T09:00:00+00:00',
       'confirmed by nobody at never',
+      'shared private',
       'sources issue-method',
     ])
   })
@@ -391,5 +392,126 @@ describe('the usable rules it draws', () => {
     // The rules list is the memory's answer, and it stands beside the
     // retrieval's failure.
     expect(screen.getByText('Name the method before its result.')).toBeInTheDocument()
+  })
+})
+
+describe('the sharing it draws', () => {
+  it('draws each rule with its sharing scope, and the publisher when it is shared', async () => {
+    render(<Harness />)
+
+    // The unshared candidate says it is private; the withdrawn rule keeps
+    // the record of the sharing it once had.
+    const candidate = await ruleBlock('Name the method before its result.')
+    expect(drawn(candidate)).toContain('shared private')
+
+    const shared = await ruleBlock('Cite the anchor the claim rests on.')
+    expect(drawn(shared)).toContain('shared group by dave at 2026-10-19T12:00:00+00:00')
+  })
+
+  it('offers Publish on a confirmed, unshared rule, and on no other', async () => {
+    render(<Harness />)
+
+    // The confirmed rule is the only one a mentor may publish: a candidate
+    // is unreviewed experience, and a withdrawn rule is not standing.
+    const confirmed = await ruleBlock('Give the unit with the number.')
+    expect(within(confirmed).getByRole('button', { name: 'Publish' })).toBeInTheDocument()
+
+    const candidate = await ruleBlock('Name the method before its result.')
+    expect(within(candidate).queryByRole('button', { name: 'Publish' })).toBeNull()
+
+    const withdrawn = await ruleBlock('Cite the anchor the claim rests on.')
+    expect(within(withdrawn).queryByRole('button', { name: 'Publish' })).toBeNull()
+    // The withdrawn rule is shared, so the retraction is offered instead.
+    expect(within(withdrawn).getByRole('button', { name: 'Retract' })).toBeInTheDocument()
+  })
+
+  it('sends the publication to the rule’s own publish path, with the signed mentor', async () => {
+    render(<Harness />)
+    const block = await ruleBlock('Give the unit with the number.')
+    await signAs('dave')
+
+    fireEvent.click(within(block).getByRole('button', { name: 'Publish' }))
+
+    await waitFor(() => {
+      expect(fake.rulePublications).toBe(1)
+    })
+    const post = fake.requests.find(
+      (request) => request.method === 'POST' && request.url.includes('/publish'),
+    )
+    expect(post?.url).toContain(`/guidance/rules/rule-units/publish`)
+    expect(JSON.parse(post?.body ?? '{}')).toEqual({ user_id: 'dave' })
+  })
+
+  it('reads the rules again after a publication, because the list is the answer', async () => {
+    render(<Harness />)
+    const block = await ruleBlock('Give the unit with the number.')
+    await signAs('dave')
+    const readsBefore = fake.requestsTo('/guidance/rules').length
+
+    fireEvent.click(within(block).getByRole('button', { name: 'Publish' }))
+
+    await waitFor(() => {
+      expect(fake.requestsTo('/guidance/rules').length).toBeGreaterThan(readsBefore)
+    })
+    // The rule the service shared is the rule the panel draws, with the
+    // publication's own two facts beside it.
+    const shared = await ruleBlock('Give the unit with the number.')
+    expect(drawn(shared)).toContain('shared group by dave at 2026-11-24T09:00:00+00:00')
+  })
+
+  it('refuses a publication nobody signs, and sends nothing', async () => {
+    render(<Harness />)
+    const block = await ruleBlock('Give the unit with the number.')
+
+    fireEvent.click(within(block).getByRole('button', { name: 'Publish' }))
+
+    expect(await screen.findByText(/This panel did not send that/)).toBeInTheDocument()
+    expect(screen.getByText(/name the mentor whose word the publication is/)).toBeInTheDocument()
+    expect(fake.rulePublications).toBe(0)
+    expect(screen.queryByText(/The service refused that/)).toBeNull()
+  })
+
+  it('shows the service’s publication refusal, as the service wrote it', async () => {
+    fake.refuseRulePublish = true
+    render(<Harness />)
+    const block = await ruleBlock('Give the unit with the number.')
+    await signAs('dave')
+
+    fireEvent.click(within(block).getByRole('button', { name: 'Publish' }))
+
+    expect(await screen.findByText(/The service refused that/)).toBeInTheDocument()
+    expect(screen.getByText(/guidance_publish_not_confirmed/)).toBeInTheDocument()
+    expect(screen.getByText(/only a confirmed rule is published/)).toBeInTheDocument()
+    expect(screen.queryByText(/This panel did not send that/)).toBeNull()
+  })
+
+  it('sends the retraction, and reads the list again with the scope it answered', async () => {
+    render(<Harness />)
+    const block = await ruleBlock('Cite the anchor the claim rests on.')
+
+    fireEvent.click(within(block).getByRole('button', { name: 'Retract' }))
+
+    await waitFor(() => {
+      expect(fake.ruleRetractions).toBe(1)
+    })
+    const post = fake.requests.find(
+      (request) => request.method === 'POST' && request.url.includes('/retract'),
+    )
+    expect(post?.url).toContain(`/guidance/rules/rule-anchors/retract`)
+
+    const retracted = await ruleBlock('Cite the anchor the claim rests on.')
+    expect(drawn(retracted)).toContain('shared private')
+  })
+
+  it('shows the service’s retraction refusal, as the service wrote it', async () => {
+    fake.refuseRuleRetract = true
+    render(<Harness />)
+    const block = await ruleBlock('Cite the anchor the claim rests on.')
+
+    fireEvent.click(within(block).getByRole('button', { name: 'Retract' }))
+
+    expect(await screen.findByText(/The service refused that/)).toBeInTheDocument()
+    expect(screen.getByText(/guidance_transition_not_possible/)).toBeInTheDocument()
+    expect(screen.getByText(/no sharing to retract/)).toBeInTheDocument()
   })
 })

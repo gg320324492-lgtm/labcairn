@@ -37,14 +37,35 @@
  * with `confirmed_by` and `confirmed_at` whatever the verdict was, so a
  * dispute records its disputer in the same field, and a panel that renamed
  * them would be a second spelling of the rule.
+ *
+ * **The sharing is a mentor's second act, and it has its own door.** A
+ * confirmed rule is private to the project it was learned in until a second
+ * reader publishes it to the group, and the same reader may retract the
+ * sharing — leaving the rule standing. The panel draws what the service
+ * answers: `shared_scope`, `published_by` and `published_at` when the record
+ * carries them, the buttons for exactly the moves the service allows, and
+ * the service's refusal when a move is refused. The buttons carry the same
+ * name the listing's sign field holds, because the publication is that
+ * person's word too.
  */
 
 import { useId, useState } from 'react'
 import type { JSX } from 'react'
 
 import { ApiFailure, ApiRefusal, api } from '../api/client'
-import type { GuidanceRule, GuidanceRuleVerdictBody, UsableRule } from '../api/generated'
-import { API_PATHS, guidanceRuleConfirmPath, guidanceUsablePath } from '../api/paths'
+import type {
+  GuidanceRule,
+  GuidanceRulePublishBody,
+  GuidanceRuleVerdictBody,
+  UsableRule,
+} from '../api/generated'
+import {
+  API_PATHS,
+  guidanceRuleConfirmPath,
+  guidanceRulePublishPath,
+  guidanceRuleRetractPath,
+  guidanceUsablePath,
+} from '../api/paths'
 import { Panel, RecordList } from './Panel'
 import type { PanelRead } from './usePanelRead'
 import { asApiRead, usePanelRead } from './usePanelRead'
@@ -313,6 +334,43 @@ export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Eleme
     )
   }
 
+  /** Publish a confirmed rule to the group, as the signed second reader. */
+  const publish = (rule: GuidanceRule): void => {
+    const who = userId.trim()
+    if (who === '') {
+      setAction({
+        busy: null,
+        outcome: { kind: 'panel', message: 'name the mentor whose word the publication is.' },
+      })
+      return
+    }
+    const body: GuidanceRulePublishBody = { user_id: who }
+    setAction({ busy: rule.rule_id, outcome: null })
+    void api.post<GuidanceRule>(guidanceRulePublishPath(rule.rule_id), body).then(
+      () => {
+        setAction(IDLE)
+        onChanged()
+      },
+      (error: unknown) => {
+        setAction({ busy: null, outcome: classify(error) })
+      },
+    )
+  }
+
+  /** Retract a rule's sharing, leaving the rule itself standing. */
+  const retract = (rule: GuidanceRule): void => {
+    setAction({ busy: rule.rule_id, outcome: null })
+    void api.post<GuidanceRule>(guidanceRuleRetractPath(rule.rule_id)).then(
+      () => {
+        setAction(IDLE)
+        onChanged()
+      },
+      (error: unknown) => {
+        setAction({ busy: null, outcome: classify(error) })
+      },
+    )
+  }
+
   return (
     <Panel title="Guidance" read={asApiRead(rules)}>
       {(data) => (
@@ -376,6 +434,12 @@ export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Eleme
                     <span className="record__detail">reason {rule.resolution_reason}</span>
                   ) : null}
                   <span className="record__detail">
+                    shared {rule.shared_scope ?? 'private'}
+                    {rule.shared_scope === 'group' && rule.published_by !== null
+                      ? ` by ${rule.published_by} at ${rule.published_at ?? 'an unrecorded moment'}`
+                      : ''}
+                  </span>
+                  <span className="record__detail">
                     sources {rule.sources.length === 0 ? 'none' : rule.sources.join(', ')}
                   </span>
                   {rule.counterexamples.length === 0 ? (
@@ -416,6 +480,36 @@ export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Eleme
                     >
                       Dispute
                     </button>
+                    {rule.state === 'confirmed' && rule.shared_scope !== 'group' ? (
+                      <>
+                        {' '}
+                        <button
+                          className="button"
+                          type="button"
+                          disabled={action.busy !== null}
+                          onClick={() => {
+                            publish(rule)
+                          }}
+                        >
+                          Publish
+                        </button>
+                      </>
+                    ) : null}
+                    {rule.shared_scope === 'group' ? (
+                      <>
+                        {' '}
+                        <button
+                          className="button"
+                          type="button"
+                          disabled={action.busy !== null}
+                          onClick={() => {
+                            retract(rule)
+                          }}
+                        >
+                          Retract
+                        </button>
+                      </>
+                    ) : null}
                   </p>
                 </li>
               ))}

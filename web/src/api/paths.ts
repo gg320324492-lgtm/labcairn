@@ -79,6 +79,14 @@ export const API_PATHS = {
   meetingSearch: '/meeting/search',
   /** The rules a card may cite: mentor-confirmed, still standing, in scope. */
   guidanceUsable: '/guidance/usable',
+  /** The pilot's issue record: what the trial met, as it was seen. */
+  issues: '/issues',
+  /** The four states one issue walks, from its record to its close. */
+  issueStatus: '/issues/{issue_id}/status',
+  /** One mentor's publication of a confirmed rule to the group. */
+  guidanceRulePublish: '/guidance/rules/{rule_id}/publish',
+  /** The retraction of one rule's sharing, leaving the rule standing. */
+  guidanceRuleRetract: '/guidance/rules/{rule_id}/retract',
 } as const
 
 /** One review round's opinions, addressed by the round's two names. */
@@ -443,4 +451,45 @@ export function analysisBody(
     ...analysisArguments(inputs),
     approval_id: inputs.approvalId,
   }
+}
+
+/**
+ * The pilot's issues, narrowed by what is asked for.
+ *
+ * **The project is required, the service refuses a list without one** — an
+ * issue is recorded about a project, so a listing without a project would be
+ * a listing of nothing. The two filters are optional, and a filter narrows
+ * rather than refuses: the service answers an empty list, not a 404.
+ */
+export function issuesPath(projectId: string, status?: string, severity?: string): string {
+  const params = new URLSearchParams({ project_id: projectId })
+  if (status !== undefined && status !== '') {
+    params.set('status', status)
+  }
+  if (severity !== undefined && severity !== '') {
+    params.set('severity', severity)
+  }
+  return `${API_PATHS.issues}?${params.toString()}`
+}
+
+/**
+ * One issue's walk along its four states.
+ *
+ * **The id is encoded, because a path is not a place for a raw id.** The body
+ * is the service's (`IssueStatusBody`, from the generated types), and the
+ * project travels in it — the route refuses an issue that belongs to another
+ * project rather than answering the move.
+ */
+export function issueStatusPath(issueId: string): string {
+  return API_PATHS.issueStatus.replace('{issue_id}', encodeURIComponent(issueId))
+}
+
+/** One rule's publication to the group, at the path the service declares. */
+export function guidanceRulePublishPath(ruleId: string): string {
+  return API_PATHS.guidanceRulePublish.replace('{rule_id}', encodeURIComponent(ruleId))
+}
+
+/** The retraction of one rule's sharing, leaving the rule itself standing. */
+export function guidanceRuleRetractPath(ruleId: string): string {
+  return API_PATHS.guidanceRuleRetract.replace('{rule_id}', encodeURIComponent(ruleId))
 }

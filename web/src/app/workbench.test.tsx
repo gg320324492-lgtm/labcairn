@@ -48,6 +48,8 @@ describe('the views', () => {
       'Version graph',
       'Multi-source search',
       'Guidance',
+      'Issue record',
+      'Record an issue',
       'Proposals',
     ]) {
       // A heading may be drawn more than once — the search panel names its
