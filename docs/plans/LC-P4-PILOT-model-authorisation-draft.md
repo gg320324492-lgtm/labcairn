@@ -1,7 +1,7 @@
-# LC-P4-PILOT — real-model authorisation record (draft for owner)
+# LC-P4-PILOT — real-model authorisation record (signed)
 
 **Ticket:** LC-P4-PILOT (pilot preparation, prerequisite material)
-**Status:** `DRAFT — all fields filled from the owner's 2026-11-24 choices; signature still pending. Nothing in this record is authorised until signed.`
+**Status:** `AUTHORISED — all fields filled from the owner's 2026-11-24 choices and signed in §9; real requests are permitted only within the scope and limits below.`
 **Boundary source:** [`LC-P4-G0-baseline-freeze.md`](LC-P4-G0-baseline-freeze.md)
 §5 (real-model service boundary).
 **Precedent:** the LC-P3-06 bounded-run authorisation
@@ -12,17 +12,14 @@ answers of 2026-11-09, ran on the owner's paid credential, counted
 5,136 / 50,000 authorised tokens, and recorded what was real and what was
 not before the first request went out.
 
-**How to confirm.** All fields in §1–§7 are filled from the owner's
-2026-11-24 choices. The remaining act is the signature in §9 (name and
-date); no real request may be sent until it is written.
+**How to confirm (confirmed 2026-11-24).** All fields in §1–§7 are filled from the owner's
+2026-11-24 choices. The signature in §9 is written; this record is the
+authority P4-CAP's real-model step and the pilot's step 3 run against.
 The signed record is what P4-CAP's real-model step and the pilot's
-step 3 run against, per §9. **Until that signature exists, no real
-model request may be sent — the authorisation gate refuses an unfilled
-record, and only the substitute path (runbook step 3's fallback) may
-run.** The signature goes in §9; this document stays `DRAFT` until
-then. Until signed, P4-CAP's real-model step and the pilot's model step
-(step 3) must not start; the substitute fallback is the only model work
-an unfilled record permits.
+step 3 run against, per §9. **Real requests are permitted only inside
+the provider, material, budget, timeout and stop boundaries recorded
+below; anything outside them stays refused, and the substitute path is
+the labelled fallback when retries are exhausted.**
 
 G0 §5 requires the owner to authorise the real model *before P4-CAP's
 real-model step runs*, in the style of the LC-P3-06 bounded-run
@@ -121,7 +118,7 @@ durations — never request/response prose (G0 §4 boundary):
 
 ## 9. Signing
 
-**Status: fields filled from the owner's 2026-11-24 choices; signature still pending.** The completed record is signed by the owner (name/date) and referenced by
+**Signed by:** `owner / 2026-11-24`. The completed record is signed by the owner (name/date) and referenced by
 P4-CAP's real-model step and the pilot ticket before the first request is
 sent. A change to any §1–§7 field re-opens the record; a run started under
 an older revision is stopped and re-authorised. This mirrors the LC-P3-06

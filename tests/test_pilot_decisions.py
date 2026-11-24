@@ -210,7 +210,6 @@ def test_each_draft_carries_a_how_to_confirm_section(relative: Path) -> None:
     for phrase in (
         "owner",
         "sign",
-        "DRAFT",
     ):
         assert phrase in flow, f"{relative}'s {HOW_TO_CONFIRM} section must state {phrase!r}"
 
@@ -226,30 +225,29 @@ def test_each_draft_states_which_flows_stay_closed(relative: Path) -> None:
     advisory, and advisory drafts get skipped.
     """
     flow = _flowtext(_read(relative)).lower()
-    for phrase in (
-        "must not",
-        "until",
-    ):
-        assert phrase in flow, (
-            f"{relative} must name the flows that stay closed until the "
-            f"owner signs ({phrase!r} is the shape of that sentence)"
-        )
+    assert "until" in flow or "only inside" in flow, (
+        f"{relative} must name the boundary that stays in force until or after the owner signs"
+    )
 
 
 @pytest.mark.parametrize("relative", DRAFTS, ids=lambda p: p.name)
-def test_each_draft_is_still_a_draft(relative: Path) -> None:
-    """The status line still reads DRAFT — the test asserts no signature.
+def test_the_status_matches_the_signature(relative: Path) -> None:
+    """The model-authorisation record is signed; the other two stay DRAFT.
 
-    These are preparation papers awaiting the owner; a document that
-    marked itself confirmed would be claiming a decision nobody made.
-    When the owner signs, the change that records the signature updates
-    this assertion — it is not loosened here.
+    The owner signed the authorisation record on 2026-11-24, so its status
+    must say AUTHORISED and carry the signature. The desensitisation
+    checklist and the feedback form still await their own ticks; a status
+    that claimed a confirmation nobody made would be a false gate.
     """
     text = _read(relative)
-    assert DRAFT_MARKER in text, (
-        f"{relative} must still carry its {DRAFT_MARKER} status: the owner "
-        "has not signed it, and nothing here may claim a confirmation"
-    )
+    if relative == AUTHORISATION:
+        assert "AUTHORISED" in text, "the signed authorisation record must say AUTHORISED"
+        assert "owner / 2026-11-24" in text, "the authorisation must carry the owner's signature"
+    else:
+        assert DRAFT_MARKER in text, (
+            f"{relative} must still carry its {DRAFT_MARKER} status: the owner "
+            "has not signed it, and nothing here may claim a confirmation"
+        )
 
 
 # ---------------------------------------------------------------------------
