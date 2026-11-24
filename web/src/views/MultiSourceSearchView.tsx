@@ -33,8 +33,22 @@
 import { useId, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { MeetingHit, PptHit, TrajectoryHit } from '../api/generated'
-import { meetingSearchPath, pptSearchPath, trajectorySearchPath } from '../api/paths'
+import type {
+  MeetingHit,
+  MeetingTextIngested,
+  PptDeckIngested,
+  PptHit,
+  TrajectoryHit,
+} from '../api/generated'
+import { api, describeError } from '../api/client'
+import {
+  API_PATHS,
+  meetingIngestBody,
+  meetingSearchPath,
+  pptIngestBody,
+  pptSearchPath,
+  trajectorySearchPath,
+} from '../api/paths'
 import { Panel, RecordList } from './Panel'
 import type { PanelRead } from './usePanelRead'
 import { usePanelRead } from './usePanelRead'
@@ -254,6 +268,135 @@ function sourceAnswer<T>(
   }
 }
 
+/**
+ * What one ingest is doing, in the panel's own words.
+ *
+ * **The idle state is the panel's.** A source that has not been asked to
+ * index anything has neither failed nor landed, and the panel says so rather
+ * than drawing a success nobody earned. The other three are the write's: a
+ * request in flight, the service's count of what it indexed, and a refusal
+ * or failure carrying the service's own words.
+ */
+type IngestState =
+  | { readonly kind: 'idle' }
+  | { readonly kind: 'pending' }
+  | { readonly kind: 'done'; readonly summary: string }
+  | { readonly kind: 'failed'; readonly message: string }
+
+/** The fields one ingest asks for, in the form's own words. */
+interface IngestInputs {
+  /** The paper project the material is bound to. */
+  readonly projectId: string
+  /** The workspace root the material stands in. */
+  readonly rootId: string
+  /** The material's key inside its root. */
+  readonly resourceKey: string
+}
+
+/**
+ * The ingest form's three fields, shared by both sources.
+ *
+ * **The form is one set of fields, not two.** Both ingests take the same
+ * three names — project, root, resource key — and the button the operator
+ * clicks decides which route reads them. A shared form is the honest
+ * drawing of that: the names are the material's, and the source is the
+ * operator's choice.
+ */
+function IngestForm({
+  onIngest,
+  state,
+  label,
+  buttonLabel,
+  busyLabel,
+  fieldId,
+}: {
+  readonly onIngest: (inputs: IngestInputs) => void
+  readonly state: IngestState
+  readonly label: string
+  readonly buttonLabel: string
+  readonly busyLabel: string
+  readonly fieldId: (name: string) => string
+}): JSX.Element {
+  const [projectId, setProjectId] = useState('')
+  const [rootId, setRootId] = useState('')
+  const [resourceKey, setResourceKey] = useState('')
+  const [submitted, setSubmitted] = useState<IngestInputs | null>(null)
+
+  const ready = projectId.trim() !== '' && rootId.trim() !== '' && resourceKey.trim() !== ''
+
+  const submit = (): void => {
+    if (!ready) {
+      return
+    }
+    const inputs: IngestInputs = {
+      projectId: projectId.trim(),
+      rootId: rootId.trim(),
+      resourceKey: resourceKey.trim(),
+    }
+    setSubmitted(inputs)
+    onIngest(inputs)
+  }
+
+  return (
+    <section aria-label={label} className="figure-form">
+      <label htmlFor={fieldId('project')}>
+        Project id
+        <input
+          id={fieldId('project')}
+          value={projectId}
+          onChange={(event) => {
+            setProjectId(event.target.value)
+          }}
+        />
+      </label>
+      <label htmlFor={fieldId('root')}>
+        Root id
+        <input
+          id={fieldId('root')}
+          value={rootId}
+          onChange={(event) => {
+            setRootId(event.target.value)
+          }}
+        />
+      </label>
+      <label htmlFor={fieldId('resource')}>
+        Resource key
+        <input
+          id={fieldId('resource')}
+          value={resourceKey}
+          onChange={(event) => {
+            setResourceKey(event.target.value)
+          }}
+        />
+      </label>
+      <p className="panel__actions">
+        <button className="button" type="button" disabled={!ready} onClick={submit}>
+          {buttonLabel}
+        </button>
+      </p>
+      {state.kind === 'idle' ? (
+        <p className="panel__status">
+          {submitted === null
+            ? 'Nothing has been indexed from this form yet.'
+            : 'The request has been sent.'}
+        </p>
+      ) : state.kind === 'pending' ? (
+        <p className="panel__pending" role="status">
+          {busyLabel}
+        </p>
+      ) : state.kind === 'failed' ? (
+        <p className="panel__error" role="alert">
+          The service refused this ingest: {state.message}
+        </p>
+      ) : (
+        <p className="panel__status" role="status">
+          {state.summary}
+        </p>
+      )}
+    </section>
+  )
+}
+
 interface MultiSourceSearchViewProps {
   /**
    * The workbench's cycle.
@@ -263,11 +406,26 @@ interface MultiSourceSearchViewProps {
    * only after a reload.
    */
   readonly cycle: number
+  /**
+   * Ask the workbench to read again.
+   *
+   * **An ingest changes what the searches can find**, so the panel asks the
+   * workbench to re-read after one lands — the same hand the panel's own
+   * writes elsewhere use. Without it, the searches would answer from the
+   * cycle the ingest began in, and a hit the deck now holds would wait for
+   * some other panel's write before it appeared.
+   */
+  readonly onChanged?: () => void
 }
 
-export function MultiSourceSearchView({ cycle }: MultiSourceSearchViewProps): JSX.Element {
+export function MultiSourceSearchView({
+  cycle,
+  onChanged,
+}: MultiSourceSearchViewProps): JSX.Element {
   const [query, setQuery] = useState('')
   const [asked, setAsked] = useState<string | null>(null)
+  const [pptIngest, setPptIngest] = useState<IngestState>({ kind: 'idle' })
+  const [meetingIngest, setMeetingIngest] = useState<IngestState>({ kind: 'idle' })
   const headingId = useId()
   const field = (name: string): string => `${headingId}-${name}`
 
@@ -288,6 +446,62 @@ export function MultiSourceSearchView({ cycle }: MultiSourceSearchViewProps): JS
 
   const ask = (): void => {
     setAsked(query)
+  }
+
+  /**
+   * Index one deck, and say what the service indexed.
+   *
+   * **The count is the service's, and so are its limits.** The answer
+   * carries how many objects were indexed and how many limitations were
+   * recorded — a chart the reader does not parse is a disclosure, not a
+   * silence — so the summary draws both. A refusal is drawn with the
+   * service's reason, and nothing is invented to look like success.
+   */
+  const ingestDeck = (inputs: IngestInputs): void => {
+    setPptIngest({ kind: 'pending' })
+    void api
+      .post<PptDeckIngested>(API_PATHS.pptIngest, pptIngestBody(inputs))
+      .then((answer) => {
+        setPptIngest({
+          kind: 'done',
+          summary:
+            `Indexed ${answer.objects_indexed} objects (${answer.title_objects} title, ` +
+            `${answer.body_objects} body, ${answer.notes_objects} notes, ` +
+            `${answer.table_objects} table, ${answer.image_objects} image) from the deck; ` +
+            `${answer.limitations_recorded} limitation(s) recorded.`,
+        })
+        onChanged?.()
+      })
+      .catch((error: unknown) => {
+        setPptIngest({ kind: 'failed', message: describeError(error).message })
+      })
+  }
+
+  /**
+   * Index one meeting container, and say what the service indexed.
+   *
+   * **The record's shape is part of the count.** The answer separates the
+   * timestamped entries from the organised paragraphs, because the two are
+   * addressed differently, and the limitations are the cues the reader
+   * could not time — disclosed, never smoothed over.
+   */
+  const ingestMeeting = (inputs: IngestInputs): void => {
+    setMeetingIngest({ kind: 'pending' })
+    void api
+      .post<MeetingTextIngested>(API_PATHS.meetingIngest, meetingIngestBody(inputs))
+      .then((answer) => {
+        setMeetingIngest({
+          kind: 'done',
+          summary:
+            `Indexed ${answer.records_indexed} records (${answer.entry_records} entries, ` +
+            `${answer.paragraph_records} paragraphs) from the container; ` +
+            `${answer.limitations_recorded} limitation(s) recorded.`,
+        })
+        onChanged?.()
+      })
+      .catch((error: unknown) => {
+        setMeetingIngest({ kind: 'failed', message: describeError(error).message })
+      })
   }
 
   return (
@@ -339,6 +553,28 @@ export function MultiSourceSearchView({ cycle }: MultiSourceSearchViewProps): JS
             title="Meeting texts"
             note="What a transcript entry or an organised paragraph says, at its record in the container."
             answer={sourceAnswer(meeting, meetingText, meetingLocator)}
+          />
+          <h3 className="panel__subtitle">Index new material</h3>
+          <p className="panel__note">
+            Ask the service to read a deck or a meeting container from the workspace and write its
+            objects into the search index. The body names where to read; the bytes come from the
+            workspace, through the same gate every reader uses.
+          </p>
+          <IngestForm
+            label="Ingest a slide deck"
+            buttonLabel="Ingest the deck"
+            busyLabel="Indexing the deck…"
+            state={pptIngest}
+            onIngest={ingestDeck}
+            fieldId={(name) => field(`ppt-ingest-${name}`)}
+          />
+          <IngestForm
+            label="Ingest a meeting text"
+            buttonLabel="Ingest the meeting text"
+            busyLabel="Indexing the meeting text…"
+            state={meetingIngest}
+            onIngest={ingestMeeting}
+            fieldId={(name) => field(`meeting-ingest-${name}`)}
           />
         </>
       )}

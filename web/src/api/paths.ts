@@ -21,7 +21,7 @@
  * how it got there.
  */
 
-import type { ApplyReviewBody } from './generated'
+import type { ApplyReviewBody, MeetingIngestBody, PptIngestBody } from './generated'
 
 /** The paths the workbench reads, keyed by what they are for. */
 export const API_PATHS = {
@@ -75,8 +75,14 @@ export const API_PATHS = {
   trajectorySearch: '/trajectory/search',
   /** The slide deck index's full-text search, answered with its provenance. */
   pptSearch: '/ppt/search',
+  /** Index one deck's objects, read through the same gate every reader uses. */
+  pptIngest: '/ppt/ingest',
   /** The meeting-text index's full-text search, answered with its provenance. */
   meetingSearch: '/meeting/search',
+  /** Index one meeting container's records, read through the same gate. */
+  meetingIngest: '/meeting/ingest',
+  /** The six quality checks over one closed round's dossier manifest. */
+  reviewQuality: '/review/quality',
   /** The rules a card may cite: mentor-confirmed, still standing, in scope. */
   guidanceUsable: '/guidance/usable',
   /** The pilot's issue record: what the trial met, as it was seen. */
@@ -322,6 +328,58 @@ export function pptSearchPath(query: SearchQuery): string {
 /** The meeting-text index's search: what a record of a meeting says, and where. */
 export function meetingSearchPath(query: SearchQuery): string {
   return searchPath(API_PATHS.meetingSearch, query)
+}
+
+/**
+ * Where one ingest asks the service to read from.
+ *
+ * **The body names where to read; the bytes come from the workspace.** The
+ * routes take no bytes — the deck or the meeting container is read through
+ * the `source.read` gate from the root and resource key the caller names —
+ * so the request is the three names and nothing more. The fields are the
+ * service's own (`PptIngestBody` / `MeetingIngestBody`, from the generated
+ * types), so a field renamed on one side fails the compile, not the ingest.
+ */
+export interface IngestRequest {
+  /** The paper project the material is bound to. */
+  readonly projectId: string
+  /** The workspace root the material stands in. */
+  readonly rootId: string
+  /** The material's key inside its root. */
+  readonly resourceKey: string
+}
+
+/** The slide-deck ingest's body, in the service's own field names. */
+export function pptIngestBody(request: IngestRequest): PptIngestBody {
+  return {
+    project_id: request.projectId,
+    root_id: request.rootId,
+    resource_key: request.resourceKey,
+  }
+}
+
+/** The meeting-text ingest's body, in the service's own field names. */
+export function meetingIngestBody(request: IngestRequest): MeetingIngestBody {
+  return {
+    project_id: request.projectId,
+    root_id: request.rootId,
+    resource_key: request.resourceKey,
+  }
+}
+
+/**
+ * One closed round's six quality checks, addressed by its dossier.
+ *
+ * **The round is named by the dossier the apply answered with**, the same
+ * name the deliverables are asked by — so the six checks measure the
+ * manifest *that round* bound, and not whichever dossier is latest.
+ */
+export function reviewQualityPath(projectId: string, dossierArtifactId: string): string {
+  const query = new URLSearchParams({
+    project_id: projectId,
+    dossier_artifact_id: dossierArtifactId,
+  })
+  return `${API_PATHS.reviewQuality}?${query.toString()}`
 }
 
 /**

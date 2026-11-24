@@ -17,13 +17,14 @@
  */
 
 import { api } from '../api/client'
-import { API_PATHS, reviewApplyBody, reviewDeliverablesPath } from '../api/paths'
+import { API_PATHS, reviewApplyBody, reviewDeliverablesPath, reviewQualityPath } from '../api/paths'
 import type {
   ApplyReviewBody,
   DeliverablesExportWire,
   DeliverableFileWire,
   ReviewApplyResult,
   ReviewPreview,
+  RoundQualityReport,
 } from '../api/generated'
 import type { ReviewData } from './reviewClient'
 import {
@@ -107,6 +108,24 @@ export async function readDeliverables(
   } catch {
     return { data: fixtureDeliverablesExport, fromService: false }
   }
+}
+
+/**
+ * Run the six quality checks over one closed round's manifest.
+ *
+ * **The report is the service's own measure, and it is not faked.** A
+ * refusal — a project nobody holds, an artefact that is not a manifest —
+ * or a failure travels back as the error it is, and the panel draws it as
+ * a failed read: the deliverables a binding produced are one answer, and
+ * the checks' verdicts over the manifest that binds them are another. A
+ * fallback here would draw six green checks the service never ran, and a
+ * green report that nobody ran is a lie with a signature.
+ */
+export function readQuality(
+  projectId: string,
+  dossierArtifactId: string,
+): Promise<RoundQualityReport> {
+  return api.get<RoundQualityReport>(reviewQualityPath(projectId, dossierArtifactId))
 }
 
 /** The four kinds the contract binds, in the order the centre shows them. */

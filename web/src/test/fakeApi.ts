@@ -37,11 +37,14 @@ import type {
   IssueRecordBody,
   IssueStatusBody,
   MeetingHit,
+  MeetingTextIngested,
+  PptDeckIngested,
   PptHit,
   ProjectGraph,
   ProposalAcceptanceBody,
   ProposalSettled,
   ReviewSuggestRun,
+  RoundQualityReport,
   Selection,
   SessionInfo,
   Source,
@@ -180,6 +183,82 @@ const SEARCH_SHA = 'c'.repeat(64)
 
 /** An instant every search fixture is stamped with. */
 const SEARCH_TIME = '2026-11-20T08:00:00+00:00'
+
+/**
+ * The slide-deck ingest's answer, as the route serves it.
+ *
+ * **The counts are the disclosure.** `limitations_recorded` counts the
+ * objects the reader honestly could not index — a chart, a missing part —
+ * so a panel that draws it draws the deck's limits beside its contents.
+ */
+export const PPT_INGEST_FIXTURE: PptDeckIngested = {
+  project_id: PROJECT_ID,
+  source_sha256: SEARCH_SHA,
+  objects_indexed: 14,
+  title_objects: 2,
+  body_objects: 7,
+  notes_objects: 3,
+  table_objects: 1,
+  image_objects: 1,
+  limitations_recorded: 1,
+  ingested_at: SEARCH_TIME,
+}
+
+/**
+ * The meeting-text ingest's answer, as the route serves it.
+ *
+ * **The two shapes are counted apart.** The timestamped entries and the
+ * organised paragraphs are indexed by the same route and addressed
+ * differently, so the answer names both counts rather than one total.
+ */
+export const MEETING_INGEST_FIXTURE: MeetingTextIngested = {
+  project_id: PROJECT_ID,
+  source_sha256: SEARCH_SHA,
+  records_indexed: 9,
+  entry_records: 6,
+  paragraph_records: 3,
+  limitations_recorded: 1,
+  ingested_at: SEARCH_TIME,
+}
+
+/**
+ * The six quality checks' verdicts, as the route serves them.
+ *
+ * **Five stand, one fails, and the failure names its facts.** A report
+ * where every check passed would teach nothing about how a failing check
+ * is drawn; the failing one here carries the fact's own fields — the
+ * opinion it is about, the paragraph, and the two sides of the mismatch —
+ * the way the service's checks write them.
+ */
+export const QUALITY_REPORT_FIXTURE: RoundQualityReport = {
+  project_id: PROJECT_ID,
+  input_version_id: 'ver-baseline-04',
+  output_version_id: 'ver-applied-05',
+  dossier_artifact_id: '0193f0a1-0000-7000-8000-00000000d001',
+  checks: [
+    { check: 'opinion_coverage', passed: true, facts: [] },
+    { check: 'suggestion_correspondence', passed: true, facts: [] },
+    {
+      check: 'edit_scope',
+      passed: false,
+      facts: [
+        {
+          check: 'edit_scope',
+          detail:
+            'An edit landed outside the paragraphs the round anchored: the anchor names ¶4, ' +
+            'the edit sits at ¶9.',
+          feedback_id: 'fb-method',
+          paragraph: 9,
+          expected: '4',
+          actual: '9',
+        },
+      ],
+    },
+    { check: 'evidence_complete', passed: true, facts: [] },
+    { check: 'response_table_consistency', passed: true, facts: [] },
+    { check: 'report_binding', passed: true, facts: [] },
+  ],
+}
 
 /**
  * The trajectory index's hits, as the search route serves them.
@@ -937,6 +1016,54 @@ export class FakeApi {
   searchesRun: string[] = []
 
   /**
+   * Whether the service refuses the slide-deck ingest.
+   *
+   * **The ingest's own refusal**: `source_unreadable`, for a resource the
+   * workspace does not hold at the size the gate reads. The flag exists so
+   * a test can watch the panel draw the service's reason rather than a
+   * success the service never sent.
+   */
+  refusePptIngest = false
+
+  /**
+   * Whether the service refuses the meeting-text ingest.
+   *
+   * **The gate's own refusal**: `permission_denied`, for a read the policy
+   * does not cover. A refusal and a zero-count success are different facts,
+   * and the fake keeps them apart the way the service does.
+   */
+  refuseMeetingIngest = false
+
+  /** How many deck ingests the service has been asked for. */
+  pptIngests = 0
+
+  /** How many meeting-text ingests the service has been asked for. */
+  meetingIngests = 0
+
+  /** How many quality reports the service has been asked to run. */
+  qualityReads = 0
+
+  /**
+   * Whether the service refuses the quality report.
+   *
+   * **The report's own refusals**, by name: `chain_project_not_found` for a
+   * project nobody holds, `artifact_not_found` for a dossier that is not
+   * there, and `arguments_invalid` for an artefact that is not a manifest.
+   * The value is the reason the fake answers with.
+   */
+  refuseQualityWith: null | 'chain_project_not_found' | 'artifact_not_found' | 'arguments_invalid' =
+    null
+
+  /**
+   * What the quality report answers with.
+   *
+   * **The answer is replaceable, as every answer here is.** A test that
+   * changes the report and reads the panel again is how "the panel holds no
+   * state" is checked rather than assumed; the default is the fixture.
+   */
+  qualityReport: unknown = QUALITY_REPORT_FIXTURE
+
+  /**
    * Whether the service refuses the figure run.
    *
    * A run is refused before anything is written — a consent that does not
@@ -1373,8 +1500,20 @@ export class FakeApi {
       return this.answerTheSearch(path, 'ppt')
     }
 
+    if (method === 'POST' && path === '/ppt/ingest') {
+      return this.ingestTheDeck()
+    }
+
     if (method === 'GET' && path.startsWith('/meeting/search')) {
       return this.answerTheSearch(path, 'meeting')
+    }
+
+    if (method === 'POST' && path === '/meeting/ingest') {
+      return this.ingestTheMeeting()
+    }
+
+    if (method === 'GET' && path.startsWith('/review/quality')) {
+      return this.answerTheQuality(path)
     }
 
     if (method === 'GET' && path.startsWith('/guidance/usable')) {
@@ -1883,6 +2022,87 @@ export class FakeApi {
           ? this.state.pptHits
           : this.state.meetingHits
     return jsonResponse(200, hits)
+  }
+
+  /**
+   * One deck ingest, and the count it honestly answers with.
+   *
+   * **The body names where to read; the fake does not read anything.** The
+   * answer is the fixture, counted the way the service counts: objects by
+   * kind, and the limitations the reader recorded. A refusal is the gate's
+   * own — `source_unreadable` — and it is a refusal, never a zero-count
+   * success dressed up as one.
+   */
+  private ingestTheDeck(): Response {
+    this.pptIngests += 1
+    if (this.refusePptIngest) {
+      return jsonResponse(403, {
+        reason: 'source_unreadable',
+        message:
+          'the deck at the named resource key could not be read as a PowerPoint container. ' +
+          'Nothing was indexed.',
+      })
+    }
+    return jsonResponse(201, PPT_INGEST_FIXTURE)
+  }
+
+  /**
+   * One meeting-text ingest, and the records it honestly answers with.
+   *
+   * **The refusal is the policy's, not the reader's.** `permission_denied`
+   * is what a read the policy does not cover answers with, and the fake
+   * keeps that distinct from an empty container — a container with no
+   * records is a count, a denied read is a refusal.
+   */
+  private ingestTheMeeting(): Response {
+    this.meetingIngests += 1
+    if (this.refuseMeetingIngest) {
+      return jsonResponse(403, {
+        reason: 'permission_denied',
+        message: 'the policy denied reading the meeting container at the named resource key.',
+      })
+    }
+    return jsonResponse(201, MEETING_INGEST_FIXTURE)
+  }
+
+  /**
+   * The six quality checks over one closed round's manifest.
+   *
+   * **The refusals are the route's own, in its own vocabulary.** A project
+   * nobody holds is `chain_project_not_found`; a dossier that is not there
+   * is `artifact_not_found`; an artefact that is not a manifest is
+   * `arguments_invalid`. A fake that answered every question with the same
+   * green report would let a panel that asked about the wrong round look
+   * right.
+   */
+  private answerTheQuality(path: string): Response {
+    this.qualityReads += 1
+    const query = queryOf(path)
+    const projectId = query.get('project_id')
+    const dossierId = query.get('dossier_artifact_id')
+    if (projectId === null || projectId === '') {
+      return jsonResponse(422, {
+        detail: [{ loc: ['query', 'project_id'], msg: 'String should have at least 1 character' }],
+      })
+    }
+    if (dossierId === null || dossierId === '') {
+      return jsonResponse(422, {
+        detail: [
+          { loc: ['query', 'dossier_artifact_id'], msg: 'String should have at least 1 character' },
+        ],
+      })
+    }
+    if (this.refuseQualityWith !== null) {
+      const reason = this.refuseQualityWith
+      const message =
+        reason === 'chain_project_not_found'
+          ? `the store holds no paper project with the id ${projectId}.`
+          : reason === 'artifact_not_found'
+            ? `no artefact carries the id ${dossierId}.`
+            : `the artefact ${dossierId} is not a dossier manifest.`
+      return jsonResponse(403, { reason, message })
+    }
+    return jsonResponse(200, this.qualityReport)
   }
 
   /**

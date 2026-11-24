@@ -27,7 +27,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { DeliverableFileWire, DeliverablesExportWire, ReviewPreview } from '../api/generated'
+import type {
+  DeliverableFileWire,
+  DeliverablesExportWire,
+  ReviewPreview,
+  RoundQualityReport,
+} from '../api/generated'
+import { describeError } from '../api/client'
 import {
   applyReview,
   DELIVERABLE_KINDS,
@@ -35,6 +41,7 @@ import {
   downloadDeliverable,
   readDeliverables,
   readPreview,
+  readQuality,
 } from './deliveryCenterClient'
 import { fixtureDeliverablesExport, fixturePreview } from './deliveryFixture'
 import { DELIVERY_ROUND } from './deliveryRound'
@@ -47,6 +54,108 @@ interface ApplyOutcome {
   readonly dossierArtifactId: string
   /** How many suggestions the apply carried. */
   readonly appliedCount: number
+}
+
+/**
+ * What one check's verdict is, as the panel draws it.
+ *
+ * **The structured state is the service's, and the sentence is its own.**
+ * A failing check is drawn with both: the `passed` flag is the machine's
+ * verdict, and the facts' details are the sentences a person reads. A
+ * panel that drew only one channel would be answering half the question.
+ */
+function QualityCheckRow({
+  check,
+}: {
+  readonly check: RoundQualityReport['checks'][number]
+}): JSX.Element {
+  return (
+    <li
+      className={
+        check.passed
+          ? 'delivery__quality-check'
+          : 'delivery__quality-check delivery__quality-check--failed'
+      }
+      data-check={check.check}
+      data-passed={check.passed}
+    >
+      <span className="delivery__quality-check-name">{check.check}</span>
+      <span className="delivery__quality-check-verdict">{check.passed ? 'passed' : 'FAILED'}</span>
+      {check.facts.length > 0 ? (
+        <ul className="delivery__quality-facts">
+          {check.facts.map((fact, index) => (
+            <li className="delivery__quality-fact" key={`${fact.check}-${index}`}>
+              <span className="delivery__quality-fact-detail">{fact.detail}</span>
+              <span className="delivery__quality-fact-meta">
+                {fact.feedback_id !== null && fact.feedback_id !== undefined
+                  ? `opinion ${fact.feedback_id}`
+                  : null}
+                {fact.paragraph !== null && fact.paragraph !== undefined
+                  ? ` · paragraph ${fact.paragraph}`
+                  : null}
+                {fact.expected !== null && fact.expected !== undefined
+                  ? ` · expected ${fact.expected}`
+                  : null}
+                {fact.actual !== null && fact.actual !== undefined
+                  ? ` · actual ${fact.actual}`
+                  : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  )
+}
+
+/**
+ * The round's six quality checks, drawn as the manifest names them.
+ *
+ * **The panel draws the report; it does not grade it.** The verdicts are
+ * the service's own, and a failed check is highlighted — a failing check
+ * drawn in the same grey as a passing one would be a report nobody read.
+ * A report that never landed says so, in its own words, rather than
+ * drawing a silence as if it were six green checks.
+ */
+function QualityPanel({
+  state,
+}: {
+  readonly state:
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'pending' }
+    | { readonly kind: 'done'; readonly report: RoundQualityReport }
+    | { readonly kind: 'failed'; readonly message: string }
+}): JSX.Element {
+  return (
+    <div className="delivery__quality" role="region" aria-label="Quality report">
+      <h3 className="delivery__section-title">Quality report</h3>
+      {state.kind === 'idle' ? (
+        <p className="panel__status">
+          The round has not been committed yet, so there is no manifest to measure.
+        </p>
+      ) : state.kind === 'pending' ? (
+        <p className="panel__pending" role="status">
+          Running the six checks…
+        </p>
+      ) : state.kind === 'failed' ? (
+        <p className="panel__error" role="alert">
+          The service did not answer the quality report: {state.message}
+        </p>
+      ) : (
+        <>
+          <p className="panel__note">
+            The six §7.4 checks over this round&rsquo;s dossier manifest — the manifest the four
+            deliverables bind. A failed check names the facts that made it fail.
+          </p>
+          <ul className="delivery__quality-checks">
+            {state.report.checks.map((check) => (
+              <QualityCheckRow key={check.check} check={check} />
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
 }
 
 /** The deliverable kinds the export carries but the contract's four are not. */
@@ -174,6 +283,12 @@ export function DeliveryCenterView(): JSX.Element {
   const [downloadingKind, setDownloadingKind] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<ApplyOutcome | null>(null)
+  const [quality, setQuality] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'pending' }
+    | { readonly kind: 'done'; readonly report: RoundQualityReport }
+    | { readonly kind: 'failed'; readonly message: string }
+  >({ kind: 'idle' })
 
   // The preview is read once, before anything can be committed: the apply
   // button stands down until this measure has landed. A committed round is
@@ -202,6 +317,29 @@ export function DeliveryCenterView(): JSX.Element {
         })
         .catch((error: unknown) => {
           setRefusal(error instanceof Error ? error.message : String(error))
+        })
+      // The round's manifest is the authority the six checks read. The
+      // quality report is asked by the same dossier the deliverables are —
+      // the apply's own answer names it — so the checks measure the round
+      // that was committed, and not whichever dossier is latest. Its states
+      // are its own: a report that fails to land does not unwrite the four
+      // deliverables drawn beside it.
+      setQuality({ kind: 'pending' })
+      void readQuality(DELIVERY_ROUND.projectId, dossierArtifactId)
+        .then((report) => {
+          setQuality({ kind: 'done', report })
+        })
+        .catch((error: unknown) => {
+          // The refusal's code is drawn beside its message: a panel that
+          // said only "refused" would be saying less than the service said.
+          const described = describeError(error)
+          setQuality({
+            kind: 'failed',
+            message:
+              described.reason === null
+                ? described.message
+                : `${described.reason} — ${described.message}`,
+          })
         })
     }
   }, [])
@@ -331,6 +469,8 @@ export function DeliveryCenterView(): JSX.Element {
           one on this page yet.
         </p>
       )}
+
+      <QualityPanel state={quality} />
     </section>
   )
 }
