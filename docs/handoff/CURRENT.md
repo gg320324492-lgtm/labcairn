@@ -2940,3 +2940,66 @@ Expanding data access scope, write permission to original material, unapproved o
   [`LC-P4-G0-baseline-freeze.md`](../plans/LC-P4-G0-baseline-freeze.md) §3
   records them — the code baseline, the 0.0.3 installer lineage and the
   reference hosts.
+
+## 2026-11-25 - the review of PR #223 finds six live gaps, and nine windows close them
+
+- **The review ran against the standing checklist.** The seven Phase 4
+  batches were reviewed against
+  [`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md)
+  (R1–R6, the list the 2026-11-14 rounds produced). Six gaps were found, and
+  all six were real — the checklist's own rule that a review is the gate was
+  not decoration.
+- **Three were guards with no witness.** The CLI's role-run wiring had **no**
+  witness at all, and the one arm that could supply the probed capabilities
+  sat behind a `hasattr` guard on an attribute the only test double did not
+  carry — so that arm never executed on CI. A misspelled attribute name
+  would have made every real role run refuse with `model_schema_unprobed`
+  while the tree stayed green. Three runtime `NameError`s were waiting in
+  that unreachable branch (`RoleRunBackend` and `ModelRequest` imported only
+  under `TYPE_CHECKING`, and `typing.cast` evaluates its first argument at
+  runtime): the tree was green because the branch could not run, not because
+  it was correct. The suggestion loop's `REVIEW_MODEL_TIMEOUT` refusal was
+  **declared and never raised** by anything in `src/`, and its only witness
+  raised it by hand. The pilot-issue category guard was unreachable through
+  the public surface, because the request layer rejected the same input with
+  a 422 first.
+- **Two were records that were not measurements.** The release record's API
+  column claimed "60 endpoints"; the tree has 58, and the number had been
+  hand-edited from 55 when the anchor was moved. The shard table's costs
+  were measured before the Phase 4 batches and carried **61 of 216 test files
+  at 0.0 seconds** — a cost of zero is not a measurement, and the balance
+  check adds it to its shard's load. Re-measuring from PR #223's own CI run
+  exposed a defect in the tool: pytest prints two shapes of summary line,
+  and the parser anchored on the word "warnings", so a shard that raised
+  none was not read — and the remainder it would have carried is what the
+  fast files share, so 44 of them were left at zero. The parser now reads
+  the seconds from the line's trailing banner, every file carries a measured
+  cost, and the three documents that print the figures carry the new anchor.
+- **One was external wording pasted into the tree.** Six tracked files
+  quoted the Chinese execution plan verbatim, which the checklist's R4
+  forbids in absolute terms — and the same diff re-pinned the CJK ceiling
+  registry so the new Chinese would pass, two of the pins arriving in a
+  later commit than the text they authorised. Every quotation now carries an
+  English paraphrase with the section it lives in and the date it was read.
+  The checklist gained a seventh item for the class the review found: **a
+  witness that constructs the thing it watches cannot notice its absence**.
+- **What the windows delivered.** Nine parallel windows: the release record
+  and the notes, the pilot papers' signatures, the workbench's own entry
+  point for reducing motion, a real Windows installer built and measured
+  from the merged tree (354,229,356 B, sha256 `32bca391…`, unsigned, with
+  the frozen backend and the copy the installer carries measuring the same
+  tree digest), the role-run wiring's witness, the timeout's real
+  classification, the issue vocabulary's witness at the layer, the plan's
+  wording carried as paraphrase, and one owner for a judgement's field
+  vocabulary with the CLI's unknown-field refusal implemented against it.
+- **What is still open, and who owns it.** The installer's own file name and
+  product version line still read **0.0.3**, because the shell's package
+  manifest was not bumped for this release; the bytes carry this tree's
+  product code and the name does not yet say so, and that version line is
+  the owner's call. The shard table's newest test file
+  (`tests/test_cli_unknown_field_refusal.py`) carries a 0.0 cost until a
+  runner measures it, so **the costs must be re-measured from the batch's
+  own CI run before the batch ships**. The four Phase 4 exit gates are still
+  open: their evidence slots are filled by the real trial, and the
+  desensitisation checklist and the feedback-form template are still
+  unsigned, so what they gate stays shut.

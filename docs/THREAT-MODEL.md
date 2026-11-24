@@ -1021,9 +1021,9 @@ its evidence on the row.
 **That is a property of the schema and not a promise this document
 makes.** A response that is not `pending` cannot be reached without a
 decider and a non-empty evidence list
-(`src/labcairn/db/models.py:2505` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
+(`src/labcairn/db/models.py:2506` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
 assessment may rest on **has no member meaning "the change was accepted"**
-(`src/labcairn/db/models.py:2601` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
+(`src/labcairn/db/models.py:2602` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
 process and not about the science, and a product that recorded the
 advisor's correctness as a consequence of the student's change being kept
 would be claiming something it cannot know.
