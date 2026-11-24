@@ -153,6 +153,8 @@ Operation  The permission that governs it
 ``record_response``                   ``source.inventory``, on the comment's material
 ``settle_reply``                      ``source.read``, only when it places the change
 ``record_assessment``                 ``source.inventory``, on the project's materials
+``ingest_paper_trajectory``           ``source.inventory``, per version's material
+``list_paper_projects``               the material's — asked where it is named
 ``read_guidance_rule``                the material's — asked where it is named
 ``read_guidance_rules``               the material's — asked where it is named
 ``read_guidance_rule_version``        the material's — asked where it is named
@@ -366,6 +368,14 @@ from labcairn.application.tasks import (
     list_tasks,
     read_task_state,
 )
+
+# **The trajectory index is deliberately not aggregated here.** Its module
+# imports the guidance memory's rules at the top, and the guidance memory's
+# modules import this package back -- so a module-level import here would
+# close a cycle that breaks when ``labcairn.guidance.rules`` is the first
+# import of a process. Surfaces import it from
+# :mod:`labcairn.application.trajectory` directly, the way the API's router
+# always has; the capability rows below are the layer's account of itself.
 
 __all__ = [
     "DEFAULT_TEMPLATE_ID",

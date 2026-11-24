@@ -36,6 +36,7 @@ does not claim to hold.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Final
 
@@ -54,6 +55,7 @@ from labcairn.application.refusal import (
 from labcairn.db.models import (
     EditActionRow,
     FeedbackEventRow,
+    PaperProjectRow,
     PaperVersionRow,
     ResponseLinkRow,
     RevisionEventRow,
@@ -133,6 +135,22 @@ class TrajectoryIngested(Result):
     edit_entries: int
     skipped_versions: int
     ingested_at: str
+
+
+class PaperProjectListed(Result):
+    """One paper project, as a caller that would index its trajectory sees it.
+
+    The subject's pseudonym is the row's own — never a name (the same rule
+    :class:`~labcairn.db.models.PaperProjectRow` states). ``consent_ref``
+    names the grant that governs the material; it grants nothing by being
+    present, and the ingest still asks the policy per version.
+    """
+
+    project_id: str
+    workspace_id: str
+    subject_pseudonym: str
+    consent_ref: str | None
+    created_at: datetime
 
 
 class TrajectoryHit(Result):
@@ -263,6 +281,34 @@ def ingest_paper_trajectory(
         edit_entries=edit_count,
         skipped_versions=len(project_version_rows(session, project_id)) - len(versions),
         ingested_at=moment.isoformat(),
+    )
+
+
+def list_paper_projects(context: ApplicationContext) -> tuple[PaperProjectListed, ...]:
+    """The paper projects the store holds, oldest first.
+
+    **A listing of what ingesting can be asked about.** The CLI's
+    ``sources ingest`` reads a whole workspace's material and then offers
+    to index each paper project's revision trajectory; this is the read
+    that says which projects those are. The rows name no resource of their
+    own — the material is named per version, and the ingest asks the
+    permission there — so this listing is not a capability question.
+
+    :raises ApplicationRefusedError: the task's own store session is not
+        usable.
+    """
+    rows: Sequence[PaperProjectRow] = context.store.session.scalars(
+        select(PaperProjectRow).order_by(PaperProjectRow.created_at, PaperProjectRow.project_id)
+    ).all()
+    return tuple(
+        PaperProjectListed(
+            project_id=row.project_id,
+            workspace_id=row.workspace_id,
+            subject_pseudonym=row.subject_pseudonym,
+            consent_ref=row.consent_ref,
+            created_at=row.created_at,
+        )
+        for row in rows
     )
 
 

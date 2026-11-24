@@ -1225,6 +1225,12 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         # searchable store. It reads the file through the workspace's own
         # source gate, and the bytes never travel in the request.
         "POST /meeting/ingest",
+        # The trajectory index's write (Phase 4, P4-MS first source): index
+        # one paper project's revision trajectory into the searchable store.
+        # The comments and tracked changes are read through the workspace's
+        # own source gate (``source.inventory``, per version), and the
+        # request carries only the project's id.
+        "POST /trajectory/ingest",
         # The pilot's in-system issue record (Phase 4, P4-PILOT §9.4): an
         # issue is recorded against a trial round, and its status is moved
         # along the four states -- the walk the record's own history is.

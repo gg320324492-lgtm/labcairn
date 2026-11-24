@@ -78,6 +78,7 @@ if TYPE_CHECKING:
         ProviderFinding,
         ServiceStarting,
         SourceRootFinding,
+        SourcesIngested,
     )
     from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
     from labcairn.core.ids import TaskId
@@ -1894,11 +1895,25 @@ def sources_ingest(
     Running it again over the same material writes nothing new, and running it
     again over an edited file refreshes what the ledger records about it.
 
-    A file that could not be read is **reported, not swallowed**: the report
-    names it and says why, and the rest of the material is still ingested.
+    **Each paper project the workspace holds has its revision trajectory
+    indexed after the material is ingested.** A paper project's chain rows
+    point into the ledger the ingestion just refreshed, so the index is
+    built from what this run read. One project whose index is refused is
+    **reported, not swallowed** — the same rule a file that could not be
+    read follows — and the report says which projects indexed and which
+    were refused, rather than letting the whole command pass as if
+    everything had.
     """
-    from labcairn.application import ingest_material
-    from labcairn.cli.models import emit_model
+    from labcairn.application import ApplicationRefusedError, ingest_material
+    from labcairn.application.trajectory import (
+        ingest_paper_trajectory,
+        list_paper_projects,
+    )
+    from labcairn.cli.models import (
+        SourcesIngested,
+        TrajectoryIngestOutcome,
+        emit_model,
+    )
     from labcairn.cli.workspace import application_context, locate
 
     options = _options(ctx)
@@ -1907,20 +1922,35 @@ def sources_ingest(
         config = _require_workspace(location, as_json=as_json)
         task_id = _select_task(config, task, as_json=as_json)
         with application_context(location, config, task_id) as context:
-            model: MaterialIngested = ingest_material(context)
+            ingested = ingest_material(context)
+            outcomes: list[TrajectoryIngestOutcome] = []
+            for project in list_paper_projects(context):
+                try:
+                    outcomes.append(
+                        TrajectoryIngestOutcome.indexed(
+                            ingest_paper_trajectory(context, project_id=project.project_id)
+                        )
+                    )
+                except ApplicationRefusedError as error:
+                    outcomes.append(TrajectoryIngestOutcome.refused(project.project_id, error))
+        report = SourcesIngested(
+            **ingested.model_dump(),
+            trajectory_projects=tuple(outcomes),
+        )
     if as_json:
-        emit_model(model)
+        emit_model(report)
     else:
-        _console().print(_render_ingestion(model))
+        _console().print(_render_ingestion(report))
 
 
-def _render_ingestion(model: MaterialIngested) -> RenderableType:
+def _render_ingestion(model: SourcesIngested) -> RenderableType:
     """What the ingestion produced, drawn from the model.
 
     The picture is generated from the same value the ``--json`` form
     serialises, so the two cannot disagree. The failures are on their own
     lines: a file that could not be read is a fact the reader has to act on,
-    and a count alone would not say which one.
+    and a count alone would not say which one. A paper project whose
+    trajectory index was refused is on its own line for the same reason.
     """
     from rich.panel import Panel
     from rich.table import Table
@@ -1937,6 +1967,24 @@ def _render_ingestion(model: MaterialIngested) -> RenderableType:
     table.add_row("bound", ", ".join(model.bound_source_ids) or "(nothing)")
     for failure in model.failures:
         table.add_row("failed", f"{failure.relative_path}: {failure.reason}")
+    for outcome in model.trajectory_projects:
+        if outcome.ingested is not None:
+            ingested = outcome.ingested
+            table.add_row(
+                "trajectory",
+                f"{outcome.project_id}: {ingested.entries_indexed} entr"
+                f"{'y' if ingested.entries_indexed == 1 else 'ies'} indexed"
+                + (
+                    f", {ingested.skipped_versions} version(s) skipped by policy"
+                    if ingested.skipped_versions
+                    else ""
+                ),
+            )
+        else:
+            refusal = outcome.refusal
+            reason = refusal.reason if refusal is not None else "refused"
+            message = refusal.message if refusal is not None else "the index was not written"
+            table.add_row("trajectory", f"{outcome.project_id}: refused ({reason}): {message}")
     return Panel(table, title="ingested", expand=False)
 
 

@@ -425,6 +425,20 @@ class MeetingIngestBody(Result):
     resource_key: str = Field(min_length=1)
 
 
+class TrajectoryIngestBody(Result):
+    """Which paper project's revision trajectory to index, as the API accepts it.
+
+    **The body names the project and nothing else.** A trajectory is a
+    project's revision history, and the chain's own rows are where it is
+    read from -- the request carries no material and no version list. The
+    optional ``ingested_at`` stamps the entries; the ingest supplies the
+    current moment when it is absent, the way every other ingest does.
+    """
+
+    project_id: str = Field(min_length=1)
+    ingested_at: datetime | None = None
+
+
 class UsableGuidanceQuery(Result):
     """Which rules a card may cite, as the API accepts it.
 
