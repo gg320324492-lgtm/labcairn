@@ -61,10 +61,12 @@ import os
 import subprocess
 import sys
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from feedback_chain_fixtures import MOMENT, ChainEnv, a_comment, build_chain
 from store_support import StoreEnv
@@ -426,7 +428,7 @@ def _backend(structured: dict[str, Any] | None = None, *, probed: bool = True) -
 
 
 @pytest.fixture()
-def client(loop: ChainEnv) -> TestClient:
+def client(loop: ChainEnv) -> Iterator[TestClient]:
     """A client for the service over the chain's own task."""
     app = create_app(loop.context, event_source=UnwiredEventSource())
     with TestClient(app) as wired:
@@ -596,7 +598,7 @@ def test_the_run_spends_a_granted_approval_and_returns_the_roles_outputs(
     grant_approval(loop.context, ApprovalId(uuid.UUID(approval_id)), now=MOMENT)
     loop.context.store.session.commit()
 
-    client.app.state.role_runs = _backend({"trajectory": _trajectory_answer()})
+    cast(FastAPI, client.app).state.role_runs = _backend({"trajectory": _trajectory_answer()})
 
     response = client.post("/roles/run", json=_body(approval_id=approval_id), headers=_auth(token))
     assert response.status_code == 201, response.text
@@ -624,7 +626,7 @@ def test_the_run_refuses_an_ungranted_approval(
     to spend, and the refusal says so.
     """
     approval_id = _ask(client, token)
-    client.app.state.role_runs = _backend({"trajectory": _trajectory_answer()})
+    cast(FastAPI, client.app).state.role_runs = _backend({"trajectory": _trajectory_answer()})
     response = client.post("/roles/run", json=_body(approval_id=approval_id), headers=_auth(token))
     assert response.status_code == 403
     assert response.json()["reason"] == "approval_refused"
@@ -645,7 +647,7 @@ def test_the_run_refuses_a_run_without_a_wired_backend(
 
     grant_approval(loop.context, ApprovalId(uuid.UUID(approval_id)), now=MOMENT)
     loop.context.store.session.commit()
-    client.app.state.role_runs = None
+    cast(FastAPI, client.app).state.role_runs = None
 
     response = client.post("/roles/run", json=_body(approval_id=approval_id), headers=_auth(token))
     assert response.status_code == 403
@@ -661,7 +663,7 @@ def test_the_run_without_a_backend_runs_supplied_judgements(
     a run that needs the model; this one reaches no wire, and it runs on a
     service the owner has not authorised, because nothing leaves.
     """
-    client.app.state.role_runs = None
+    cast(FastAPI, client.app).state.role_runs = None
     response = client.post(
         "/roles/run",
         json=_body(trajectory=_trajectory_judgement()),
@@ -684,7 +686,7 @@ def test_the_run_needing_a_model_refuses_without_an_approval_id(
     approval; the run route refuses before the layer is reached, because a
     run without a granted consent is not a run this service may make.
     """
-    client.app.state.role_runs = _backend({"trajectory": _trajectory_answer()})
+    cast(FastAPI, client.app).state.role_runs = _backend({"trajectory": _trajectory_answer()})
     response = client.post("/roles/run", json=_body(), headers=_auth(token))
     assert response.status_code == 403
     assert response.json()["reason"] == "approval_missing"
@@ -737,7 +739,9 @@ def test_the_run_refuses_an_unprobed_provider(
 
     grant_approval(loop.context, ApprovalId(uuid.UUID(approval_id)), now=MOMENT)
     loop.context.store.session.commit()
-    client.app.state.role_runs = _backend({"trajectory": _trajectory_answer()}, probed=False)
+    cast(FastAPI, client.app).state.role_runs = _backend(
+        {"trajectory": _trajectory_answer()}, probed=False
+    )
 
     response = client.post("/roles/run", json=_body(approval_id=approval_id), headers=_auth(token))
     assert response.status_code == 403
@@ -878,3 +882,124 @@ def test_the_cli_refuses_an_unknown_role(loop: ChainEnv) -> None:
     )
     refusal = json.loads(completed.stdout)
     assert refusal["reason"] == "role_run_unknown_role"
+
+
+# --------------------------------------------------------------------------- #
+# the CLI's own refusals: a bad date and a bad --judgements payload
+# --------------------------------------------------------------------------- #
+
+
+def test_the_cli_refuses_an_expiry_that_is_not_a_moment(loop: ChainEnv) -> None:
+    """``--expires`` must be an ISO-8601 moment, and a bad one spends nothing."""
+    completed = _run_roles_cli(
+        loop.context.workspace.selected_root,
+        "--json",
+        "--role",
+        "trajectory",
+        "--expires",
+        "yesterday",
+        "--project",
+        "proj-1",
+        "--issue-key",
+        KEY,
+        expect_refusal=True,
+    )
+    assert "is not an ISO-8601 moment" in completed.stdout + completed.stderr
+
+
+def test_the_cli_refuses_a_judgements_payload_that_is_not_json(loop: ChainEnv) -> None:
+    """A malformed --judgements payload is refused on the CLI's own words."""
+    completed = _run_roles_cli(
+        loop.context.workspace.selected_root,
+        "--json",
+        "--role",
+        "trajectory",
+        "--judgements",
+        "{not json",
+        "--project",
+        "proj-1",
+        "--issue-key",
+        KEY,
+        expect_refusal=True,
+    )
+    output = completed.stdout + completed.stderr
+    assert "--judgements is not JSON" in output
+
+
+def test_the_cli_refuses_a_judgements_payload_that_is_not_an_object(loop: ChainEnv) -> None:
+    """The whole --judgements value must be one object, not a list."""
+    completed = _run_roles_cli(
+        loop.context.workspace.selected_root,
+        "--json",
+        "--role",
+        "trajectory",
+        "--judgements",
+        '["not an object"]',
+        "--project",
+        "proj-1",
+        "--issue-key",
+        KEY,
+        expect_refusal=True,
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        "--judgements is one JSON object with optional 'trajectory', "
+        "'guidance' and 'critique' parts."
+    ) in output
+
+
+def test_the_cli_refuses_the_trajectory_judgement_that_is_not_an_object(loop: ChainEnv) -> None:
+    """The trajectory part of --judgements is an object in its own right."""
+    completed = _run_roles_cli(
+        loop.context.workspace.selected_root,
+        "--json",
+        "--role",
+        "trajectory",
+        "--judgements",
+        json.dumps({"trajectory": ["not an object"]}),
+        "--project",
+        "proj-1",
+        "--issue-key",
+        KEY,
+        expect_refusal=True,
+    )
+    output = completed.stdout + completed.stderr
+    assert "the 'trajectory' judgement is one JSON object." in output
+
+
+def test_the_cli_refuses_the_guidance_judgement_that_is_not_an_object(loop: ChainEnv) -> None:
+    """The guidance part of --judgements is an object in its own right."""
+    completed = _run_roles_cli(
+        loop.context.workspace.selected_root,
+        "--json",
+        "--role",
+        "trajectory",
+        "--judgements",
+        json.dumps({"guidance": ["not an object"]}),
+        "--project",
+        "proj-1",
+        "--issue-key",
+        KEY,
+        expect_refusal=True,
+    )
+    output = completed.stdout + completed.stderr
+    assert "the 'guidance' judgement is one JSON object." in output
+
+
+def test_the_cli_refuses_the_critique_judgement_that_is_not_an_object(loop: ChainEnv) -> None:
+    """The critique part of --judgements is an object in its own right."""
+    completed = _run_roles_cli(
+        loop.context.workspace.selected_root,
+        "--json",
+        "--role",
+        "trajectory",
+        "--judgements",
+        json.dumps({"critique": ["not an object"]}),
+        "--project",
+        "proj-1",
+        "--issue-key",
+        KEY,
+        expect_refusal=True,
+    )
+    output = completed.stdout + completed.stderr
+    assert "the 'critique' judgement is one JSON object." in output

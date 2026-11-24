@@ -280,17 +280,22 @@ def test_a_locked_source_refuses_the_round_before_any_consent_is_spent(
     # (``msvcrt.locking`` on Windows, ``fcntl.flock`` elsewhere) is the lock
     # a word processor holds, and it makes the check's own read fail for
     # real: the refusal is witnessed against a genuinely unreadable file.
-    handle = os.open(source_path, os.O_RDWR)
+    # POSIX: ``flock`` is advisory and does not stop a plain ``open`` for
+    # reading, which is exactly what the binding's hash check does. Deny the
+    # file's read bit instead -- the same "no one may read this" the drill
+    # matrix uses -- because the runner is unprivileged and its own chmod
+    # binds. Windows: hold a real byte-range lock.
+    posix = os.name != "nt"
+    if posix:
+        source_path.chmod(source_path.stat().st_mode & ~0o444)
+        handle = -1
+    else:
+        handle = os.open(source_path, os.O_RDWR)
+        import msvcrt
+
+        os.lseek(handle, 0, os.SEEK_SET)
+        msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
     try:
-        if os.name == "nt":
-            import msvcrt
-
-            os.lseek(handle, 0, os.SEEK_SET)
-            msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined]
         with pytest.raises(ApplicationRefusedError) as refused:
             apply_approved_edits(
                 fixture.context,
@@ -306,16 +311,14 @@ def test_a_locked_source_refuses_the_round_before_any_consent_is_spent(
             )
         assert refused.value.reason is ApplicationRefusal.SOURCE_LOCKED
     finally:
-        if os.name == "nt":
+        if posix:
+            source_path.chmod(source_path.stat().st_mode | 0o444)
+        else:
             import msvcrt
 
             os.lseek(handle, 0, os.SEEK_SET)
             msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(handle, fcntl.LOCK_UN)  # type: ignore[attr-defined]
-        os.close(handle)
+            os.close(handle)
 
     after = _grant_counts(fixture.context)
     assert after == before, "a refused round spends no consent"

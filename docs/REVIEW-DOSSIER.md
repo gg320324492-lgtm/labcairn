@@ -17,7 +17,7 @@
 > on 2026-11-02 (`bff64e1`), whose claim is about that tree and not about `dd08573`. The
 > dossier has also since named two things that are not in the tree at `dd08573`: its own
 > witness `tests/test_review_dossier.py` (added the same day, `76d5e1c`), and
-> `tests/test_source_contracts.py::test_locator_kinds_are_closed_at_six_members` (added
+> `tests/test_source_contracts.py::test_locator_kinds_are_closed_at_eight_members` (added
 > 2026-10-29, `56595a1`). The sentence is left as written because it records what the
 > dossier was measured against; the two items named above are the exceptions.
 
@@ -260,7 +260,7 @@ Recorded in `docs/adr/ADR-0004-scientific-provenance-and-evidence-model.md`.
 | A deterministic abstention when the retrieved context is empty | Requirement A6: an explicit *no evidence found* result; the flow does not call the model with empty evidence and does not produce an answer | `src/labcairn/evidence/retrieval.py` | `tests/test_evidence_retrieval.py::test_a_query_that_misses_reports_no_hit_and_not_a_failure`, `::test_a_search_that_breaks_reports_a_provider_failure_not_a_no_hit` |
 | A ledger whose validation checks graph integrity only and never reads a source file | A ledger in application-owned SQLite whose records carry anchors, content hashes and an append-only verification log | `src/labcairn/evidence/record.py`, `store.py`, `gate.py` | `tests/test_evidence_gate.py::test_a_fabricated_source_fails_the_gate`, `::test_a_record_with_no_anchor_at_all_fails`; `tests/test_evidence_contracts.py::test_verification_states_are_exactly_the_six_architecture_declares` |
 | Scientific interpretation demoted to a warning while link existence is promoted to a failure | That asymmetry promoted from a convention into a typed contract: the C4 check **exists**, has a signature, and always returns `not_checked` — never absent, never green | `src/labcairn/evidence/cite_support/__init__.py` | `tests/test_evidence_contracts.py::test_c4_always_returns_not_checked`, `::test_no_state_means_scientifically_established`, `::test_c4_cannot_enter_the_verification_log_as_a_pass` |
-| A locator expressed as a human-readable display string | Typed, structured locators: page-and-character-range for PDF, line-and-section for text, row-and-column for CSV, sheet-and-cell for XLSX, part-and-element-path for DOCX | `src/labcairn/sources/locators.py`, `src/labcairn/sources/primitives.py` | `tests/test_source_contracts.py::test_locator_kinds_are_closed_at_six_members`, `::test_every_locator_kind_locates_and_round_trips`, `::test_csv_locator_requires_row_and_column` |
+| A locator expressed as a human-readable display string | Typed, structured locators: page-and-character-range for PDF, line-and-section for text, row-and-column for CSV, sheet-and-cell for XLSX, part-and-element-path for DOCX | `src/labcairn/sources/locators.py`, `src/labcairn/sources/primitives.py` | `tests/test_source_contracts.py::test_locator_kinds_are_closed_at_eight_members`, `::test_every_locator_kind_locates_and_round_trips`, `::test_csv_locator_requires_row_and_column` |
 | "Found nothing" and "could not look" kept apart | The same split, reimplemented, as distinct retrieval outcomes that cannot be confused | `src/labcairn/evidence/retrieval.py` | `tests/test_evidence_retrieval.py::test_the_two_negatives_cannot_be_the_same_value` |
 
 **The licence constraint applied here is a real constraint, not a formality.**

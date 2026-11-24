@@ -61,7 +61,6 @@ from urllib.parse import urlsplit
 import typer
 
 from labcairn.api.bind import DEFAULT_BIND_HOST, DEFAULT_BIND_PORT
-from labcairn.application.model_suggestions import ModelSuggestionBackend
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -70,6 +69,7 @@ if TYPE_CHECKING:
     from labcairn.api.selection import TaskSelector
     from labcairn.application import ApplicationContext, MaterialIngested, SourceAddress
     from labcairn.application.model_request import ModelInvocation
+    from labcairn.application.model_suggestions import ModelSuggestionBackend
     from labcairn.application.roles_run import RoleRunBackend
     from labcairn.application.sources import SourceView
     from labcairn.application.stages import StageOutcome, TaskPlan
