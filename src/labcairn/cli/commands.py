@@ -2475,6 +2475,7 @@ def _real_suggestion_backend(
     authorisation never pays for the import.
     """
     from labcairn.application.approvals import access_grants, register_access_grant
+    from labcairn.application.model_suggestions import ModelSuggestionBackend
 
     transport = _suggestion_transport(settings, credential)
     if transport is None:

@@ -291,8 +291,9 @@ def test_a_locked_source_refuses_the_round_before_any_consent_is_spent(
         handle = -1
     else:
         handle = os.open(source_path, os.O_RDWR)
-        import msvcrt
+        from typing import Any, cast
 
+        msvcrt = cast(Any, __import__("msvcrt"))
         os.lseek(handle, 0, os.SEEK_SET)
         msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
     try:
@@ -314,8 +315,9 @@ def test_a_locked_source_refuses_the_round_before_any_consent_is_spent(
         if posix:
             source_path.chmod(source_path.stat().st_mode | 0o444)
         else:
-            import msvcrt
+            from typing import Any, cast
 
+            msvcrt = cast(Any, __import__("msvcrt"))
             os.lseek(handle, 0, os.SEEK_SET)
             msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
             os.close(handle)
