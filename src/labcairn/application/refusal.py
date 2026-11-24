@@ -393,6 +393,10 @@ class ApplicationRefusal(StrEnum):
     #: a proposal, and a rule that leans on a proposal leans on nothing
     #: that has been decided.
     GUIDANCE_CHECK_NOT_CONFIRMED = "guidance_check_not_confirmed"
+    #: Only a mentor-confirmed rule may be published to the group.
+    GUIDANCE_PUBLISH_NOT_CONFIRMED = "guidance_publish_not_confirmed"
+    #: The proposer cannot be the one who publishes the rule to the group.
+    GUIDANCE_PUBLISHER_IS_PROPOSER = "guidance_publisher_is_proposer"
     # -- the reasons the role contract says no ------------------------------ #
     #
     # **Why these are the contract's own.** The boundary exists to refuse a
@@ -693,6 +697,8 @@ GUIDANCE_REFUSALS: Mapping[GuidanceRefusal, ApplicationRefusal] = {
     GuidanceRefusal.CHECK_FIELD_EMPTY: (ApplicationRefusal.GUIDANCE_CHECK_FIELD_EMPTY),
     GuidanceRefusal.CHECK_NOT_FOUND: (ApplicationRefusal.GUIDANCE_CHECK_NOT_FOUND),
     GuidanceRefusal.CHECK_NOT_CONFIRMED: (ApplicationRefusal.GUIDANCE_CHECK_NOT_CONFIRMED),
+    GuidanceRefusal.PUBLISH_NOT_CONFIRMED: (ApplicationRefusal.GUIDANCE_PUBLISH_NOT_CONFIRMED),
+    GuidanceRefusal.PUBLISHER_IS_PROPOSER: (ApplicationRefusal.GUIDANCE_PUBLISHER_IS_PROPOSER),
 }
 
 ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {

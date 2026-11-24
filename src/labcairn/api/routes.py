@@ -52,6 +52,7 @@ from labcairn.api.contracts import (
     CommentResponses,
     DeliverableFileWire,
     DeliverablesExportWire,
+    GuidanceRulePublishBody,
     GuidanceRuleVerdictBody,
     Health,
     IssueKeys,
@@ -174,7 +175,12 @@ from labcairn.application.trajectory import (
 from labcairn.core.ids import ApprovalId, TaskId, is_uuid7, new_id
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.guidance.models import GuidanceRule
-from labcairn.guidance.rules import confirm_rule, dispute_rule
+from labcairn.guidance.rules import (
+    confirm_rule,
+    dispute_rule,
+    publish_rule_to_group,
+    retract_rule_from_group,
+)
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest
 from labcairn.runtime.lifecycle import Task
 
@@ -1462,6 +1468,7 @@ def patch_issue_status(
 def get_usable_guidance(
     context: Annotated[ApplicationContext, Depends(_context)],
     scope: Annotated[str | None, Query()] = None,
+    project_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 20,
 ) -> list[UsableRule]:
     """The rules a card may cite: mentor-confirmed, still standing, in scope.
@@ -1472,8 +1479,16 @@ def get_usable_guidance(
     candidate, not a code of conduct*. A withdrawn rule is not here either;
     the retrieval resolves each rule's sources against the chain at query
     time, so what comes back is what stands for this reader, now.
+
+    **A project narrows the answer without widening it.** With
+    ``project_id``, the listing serves the rules learned from that
+    project's chain material plus the rules a mentor has published to the
+    group (Phase 4 §8.5 / P4-G3); a private rule learned in another
+    project is not served. A shared rule's sources still go through the
+    permission layer, so a source this reader may not reach is dropped,
+    never widened.
     """
-    return list(usable_guidance(context, scope=scope, limit=limit))
+    return list(usable_guidance(context, scope=scope, project_id=project_id, limit=limit))
 
 
 @router.get("/trajectory/search", response_model=list[TrajectoryHit], tags=["review"])
@@ -1589,3 +1604,62 @@ def post_meeting_ingest(
         root_id=body.root_id,
         resource_key=body.resource_key,
     )
+
+
+# --------------------------------------------------------------------------- #
+# the group sharing of a confirmed rule (Phase 4 §8.5 / P4-G3)
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/guidance/rules/{rule_id}/publish", response_model=GuidanceRule, tags=["mentor"])
+def post_guidance_rule_publication(
+    rule_id: str,
+    body: GuidanceRulePublishBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> GuidanceRule:
+    """A mentor publishes a confirmed rule to the whole group.
+
+    **Only a rule that stands is shared.** A candidate is unreviewed
+    experience and a disputed or withdrawn rule is not standing — the
+    layer refuses each by name, because a rule the group may cite is a
+    rule a second reader has stood behind (Phase 4 §8.5 / P4-G3).
+
+    **And the publisher is a second reader.** Whoever proposed the rule
+    cannot be the one who publishes it — the same rule the confirmation
+    carries, asked here rather than restated.
+
+    **Nothing is written when the door is refused.** The write happens
+    inside the store's own unit of work, so a refusal rolls the
+    transaction back and the rule keeps the scope it had.
+    """
+    if not body.user_id.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            "a publication nobody signs is not a publication. Name the mentor whose word it is.",
+        )
+    moment = datetime.now(UTC)
+    with context.store.unit(context.task_id):
+        return publish_rule_to_group(
+            context, rule_id=rule_id, published_by=body.user_id, now=moment
+        )
+
+
+@router.post("/guidance/rules/{rule_id}/retract", response_model=GuidanceRule, tags=["mentor"])
+def post_guidance_rule_retraction(
+    rule_id: str,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> GuidanceRule:
+    """Retract a rule from the group's reach, leaving the rule itself standing.
+
+    **A retraction of the sharing is not a withdrawal of the rule.** The
+    rule's own state is untouched: the group stops seeing a rule its own
+    project may still cite. The state machine's ``withdrawn`` keeps its
+    meaning — *this stopped being true* — and this door says only *this
+    stopped being shared*.
+
+    **Nothing is written when the door is refused.** The write happens
+    inside the store's own unit of work, so a refusal rolls the
+    transaction back and the rule keeps the scope it had.
+    """
+    with context.store.unit(context.task_id):
+        return retract_rule_from_group(context, rule_id=rule_id)

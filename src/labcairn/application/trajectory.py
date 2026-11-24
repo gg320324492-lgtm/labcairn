@@ -662,6 +662,7 @@ def usable_guidance(
     context: ApplicationContext,
     *,
     scope: str | None = None,
+    project_id: str | None = None,
     limit: int = DEFAULT_LIMIT,
 ) -> tuple[UsableRule, ...]:
     """The rules a card may cite: mentor-confirmed, still standing, in scope.
@@ -681,6 +682,13 @@ def usable_guidance(
 
     :param scope: narrow the answer to rules whose scope mentions this
         text, case-insensitively. ``None`` or empty serves every scope.
+    :param project_id: narrow the answer to the rules this project may be
+        served — the ones learned from its chain material, plus the ones
+        a mentor has published to the group (Phase 4 §8.5 / P4-G3).
+        ``None`` serves every standing rule, which is the workbench's own
+        view. A shared rule's sources are still resolved through the
+        permission layer, so a source this reader may not reach is
+        dropped, never widened.
     """
     from labcairn.guidance.retrieval import search_rules
 
@@ -688,7 +696,7 @@ def usable_guidance(
         return ()
     needle = scope.strip().lower() if scope else ""
     usable: list[UsableRule] = []
-    for hit in search_rules(context, include_candidates=False):
+    for hit in search_rules(context, include_candidates=False, project_id=project_id):
         if needle and needle not in hit.rule.scope.lower():
             continue
         usable.append(

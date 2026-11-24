@@ -72,11 +72,14 @@ from sqlalchemy import select
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import guidance_refused
 from labcairn.db.models import (
+    FeedbackEventRow,
     GuidanceCheckRow,
     GuidanceRuleCheckRow,
     GuidanceRuleCounterexampleRow,
     GuidanceRuleRow,
     GuidanceRuleSourceRow,
+    PaperVersionRow,
+    RevisionEventRow,
 )
 from labcairn.guidance.models import GuidanceCheck, GuidanceRule, RuleCounterexample
 from labcairn.guidance.refusals import GuidanceRefusal
@@ -335,6 +338,126 @@ def write_guidance_rule_withdrawal(
     _release_rule_bindings(context, rule_id=row.rule_id, version=row.version)
     context.store.session.flush()
     return _the_rule(context, row)
+
+
+# -- the sharing of a rule with the group (Phase 4 §8.5 / P4-G3) ------------- #
+
+
+def write_guidance_rule_publication(
+    context: ApplicationContext, *, rule_id: str, published_by: str, published_at: datetime
+) -> GuidanceRule:
+    """Publish the rule at its highest version to the whole group.
+
+    **Only a confirmed rule is published.** A candidate is unreviewed
+    experience and a disputed or withdrawn rule is not standing — none of
+    them is a rule the group's other projects may cite. The state machine
+    is untouched: publishing shares a rule that stands; it does not make
+    one stand.
+
+    **The publication is the sharing.** The row's ``shared_scope`` moves
+    to ``group`` and names the mentor who published it and the moment —
+    the facts the retrieval asks at serve time when it decides who may
+    see the rule.
+
+    **And a publication is not twice.** A rule already shared with the
+    group is not published again: republishing would overwrite the
+    first mentor's name with the second's, and a decision made twice is
+    a decision nobody can date.
+
+    :raises ApplicationRefusedError: no rule carries that id; the rule is
+        not confirmed; the rule is already shared with the group.
+    """
+    row = _latest(context, rule_id)
+    if row.state != "confirmed":
+        raise guidance_refused(
+            GuidanceRefusal.PUBLISH_NOT_CONFIRMED,
+            f"the rule is {row.state!r}, and only a confirmed rule is published "
+            "to the group. A candidate is unreviewed experience, and a disputed "
+            "or withdrawn rule is not standing.",
+        )
+    if row.shared_scope == "group":
+        raise guidance_refused(
+            GuidanceRefusal.TRANSITION_NOT_POSSIBLE,
+            f"the rule is already shared with the group, by "
+            f"{row.published_by!r} at {row.published_at!r}",
+        )
+    row.shared_scope = "group"
+    row.published_by = published_by
+    row.published_at = published_at
+    context.store.session.flush()
+    return _the_rule(context, row)
+
+
+def write_guidance_rule_retraction(context: ApplicationContext, *, rule_id: str) -> GuidanceRule:
+    """Retract the rule at its highest version from the group's reach.
+
+    **Retracting a sharing is not withdrawing a rule.** The row's
+    ``shared_scope`` goes back to ``private`` and the publication's name
+    and moment are cleared; the rule's own state is untouched, so a rule
+    the group may no longer see is still the rule its own project cites.
+    The state machine's ``withdrawn`` stays what it was — the word for
+    *this stopped being true* — and a retraction of the sharing says
+    only *this stopped being shared*.
+
+    :raises ApplicationRefusedError: no rule carries that id, or the rule
+        is not shared with the group.
+    """
+    row = _latest(context, rule_id)
+    if row.shared_scope != "group":
+        raise guidance_refused(
+            GuidanceRefusal.TRANSITION_NOT_POSSIBLE,
+            "the rule is not shared with the group, so there is no sharing to retract",
+        )
+    row.shared_scope = "private"
+    row.published_by = None
+    row.published_at = None
+    context.store.session.flush()
+    return _the_rule(context, row)
+
+
+def read_guidance_rule_project_ids(
+    context: ApplicationContext, *, rule: GuidanceRule
+) -> frozenset[str]:
+    """The projects whose chain material the rule was learned from.
+
+    **The rule's own rows carry no project**, because a rule is the
+    memory's and the memory serves the whole workspace; what roots a rule
+    in a project is the chain material its sources name. Each source key
+    is resolved the way the chain resolves it — a revision source is the
+    change a version carries, and a comment's key is the feedback event
+    it was given to — and the versions and events name their projects.
+    **A key the chain holds nothing under contributes nothing**: a rule
+    whose sources all resolve nowhere belongs to no project, and the
+    retrieval answers for it.
+    """
+    if not rule.sources:
+        return frozenset()
+    session = context.store.session
+    projects: set[str] = set()
+    keys = tuple(dict.fromkeys(rule.sources))
+    revision_ids = tuple(key for key in keys if key)
+    for event_id in revision_ids:
+        version_id = session.scalar(
+            select(RevisionEventRow.version_id)
+            .where(RevisionEventRow.revision_event_id == event_id)
+            .limit(1)
+        )
+        if version_id is None:
+            continue
+        project_id = session.scalar(
+            select(PaperVersionRow.project_id)
+            .where(PaperVersionRow.version_id == version_id)
+            .limit(1)
+        )
+        if project_id is not None:
+            projects.add(project_id)
+    comment_keys = tuple(key for key in keys if key)
+    if comment_keys:
+        for project_id in session.scalars(
+            select(FeedbackEventRow.project_id).where(FeedbackEventRow.issue_key.in_(comment_keys))
+        ):
+            projects.add(project_id)
+    return frozenset(projects)
 
 
 def write_guidance_counterexample(
@@ -682,6 +805,9 @@ def _the_rule(context: ApplicationContext, row: GuidanceRuleRow) -> GuidanceRule
         sources=source_keys,
         counterexamples=cases,
         checks=_the_checks(context, rule_id=row.rule_id, version=row.version),
+        shared_scope=row.shared_scope,
+        published_by=row.published_by,
+        published_at=row.published_at,
     )
 
 
@@ -784,6 +910,7 @@ __all__ = [
     "read_guidance_checks",
     "read_guidance_rule",
     "read_guidance_rule_checks",
+    "read_guidance_rule_project_ids",
     "read_guidance_rule_version",
     "read_guidance_rules",
     "write_guidance_check",
@@ -792,7 +919,9 @@ __all__ = [
     "write_guidance_counterexample",
     "write_guidance_rule_check",
     "write_guidance_rule_confirmation",
+    "write_guidance_rule_publication",
     "write_guidance_rule_resolution",
+    "write_guidance_rule_retraction",
     "write_guidance_rule_version",
     "write_guidance_rule_withdrawal",
 ]

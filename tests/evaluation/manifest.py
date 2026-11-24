@@ -198,6 +198,15 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # that accounts for every call. Integration, because the witnesses are
     # the service's own routes and the store's own rows over real bytes.
     "test_model_suggestions.py": ("integration", "api-auth"),
+    # Phase 4 (P4-CAP §7.2). The service's real-model wiring: the workspace's
+    # own authorisation record, read from providers.json, resolved against
+    # the provider it names, and carried onto the service as the backend a
+    # real run spends — and every unauthorised state (a draft record, a
+    # missing field, an unknown provider, a credential that is not there, a
+    # file that is not JSON) resolving to no backend with the service up and
+    # the route's own refusal unchanged. Integration, because the witnesses
+    # are the CLI's own assembly over real files and the service's routes.
+    "test_service_model_wiring.py": ("integration", "api-auth"),
     # Phase 4 (LC-P4-CAP). The review desk's live seam: the service's
     # /review JSON read as the workbench's own contract types, field by
     # field, and the desk's round — one verdict, one re-read, one apply —
@@ -440,6 +449,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # conditions. Its clause is the dataset locators, because the property
     # is that a returned rule addresses the material it names.
     "test_guidance_retrieval.py": ("integration", "dataset-locators"),
+    # Phase 4 §8.5 / P4-G3: the group sharing of a confirmed rule. The
+    # publication and its retraction, the second reader who may not be the
+    # proposer, the project that sees its rules and the group's, and the
+    # serve-time permission that the sharing never widens. Its clause is
+    # the state transitions, because the sharing is a scope a door moves
+    # and the state machine it travels beside is closed.
+    "test_rule_sharing.py": ("integration", "state-transitions"),
     # The memory's own demonstration: the rule with its source and its
     # counterexample, the conflict beside it, the source withdrawn from
     # under a rule, and the candidate nobody has confirmed. Its clause is

@@ -3078,6 +3078,21 @@ class GuidanceRuleRow(Base):
     #: Why the rule was disputed or withdrawn. **A retraction without a
     #: reason is a shrug, and the schema refuses a shrug.**
     resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The sharing scope: ``private`` to the project the rule was learned
+    #: in, or ``group`` once a mentor has published it to the whole
+    #: research group (Phase 4 §8.5 / P4-G3). **The default is the fact**:
+    #: every rule that predates sharing served its own project only.
+    shared_scope: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="private", server_default="private"
+    )
+    #: The mentor who published the rule to the group. **A second reader
+    #: again**: the proposer cannot be the publisher, which the
+    #: application layer refuses and this column is what that refusal
+    #: protects. Null while the rule is private.
+    published_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: When the rule was published to the group. Null while it is private,
+    #: and cleared again on a retraction of the sharing.
+    published_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
     __table_args__ = (
         # **The problem comes from the closed vocabulary.** The thirteen
@@ -3130,6 +3145,22 @@ class GuidanceRuleRow(Base):
         CheckConstraint(
             "state IN ('disputed','withdrawn') OR resolution_reason IS NULL",
             name="guidance_rules_a_live_rule_carries_no_resolution",
+        ),
+        # **The sharing scope is closed: private to the project, or the
+        # group.** (Phase 4 §8.5 / P4-G3.) A scope outside the vocabulary
+        # is a word nobody can filter by.
+        CheckConstraint(
+            "shared_scope IN ('private', 'group')",
+            name="guidance_rules_sharing_vocabulary",
+        ),
+        # **A publication carries its publisher and its moment.** A rule
+        # shared with the group names the mentor who published it and when
+        # — and a rule that is private carries neither: the publication is
+        # the sharing, not a diary kept beside it.
+        CheckConstraint(
+            "(shared_scope = 'group') = (published_by IS NOT NULL"
+            " AND length(trim(published_by)) > 0 AND published_at IS NOT NULL)",
+            name="guidance_rules_a_publication_carries_its_publisher_and_moment",
         ),
     )
 

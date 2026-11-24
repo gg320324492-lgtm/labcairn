@@ -165,10 +165,13 @@ Operation  The permission that governs it
 ``read_guidance_checks``              the material's — asked where it is named
 ``read_guidance_rule_checks``         the material's — asked where it is named
 ``read_guidance_check_rules``         the material's — asked where it is named
+``read_guidance_rule_project_ids``    the material's — asked where it is named
 ``write_guidance_check``              the material's — asked where it is named
 ``write_guidance_check_confirmation`` the material's — asked where it is named
 ``write_guidance_check_withdrawal``   the material's — asked where it is named
 ``write_guidance_rule_check``         the material's — asked where it is named
+``write_guidance_rule_publication``   the material's — asked where it is named
+``write_guidance_rule_retraction``    the material's — asked where it is named
 ``read_role_spec``                    the contract's own allowed capabilities
 ``write_role_spec``                   the contract's own allowed capabilities
 ``request_role_run``                  the contract's own allowed capabilities
@@ -259,6 +262,7 @@ from labcairn.application.guidance import (
     read_guidance_checks,
     read_guidance_rule,
     read_guidance_rule_checks,
+    read_guidance_rule_project_ids,
     read_guidance_rule_version,
     read_guidance_rules,
     write_guidance_check,
@@ -267,7 +271,9 @@ from labcairn.application.guidance import (
     write_guidance_counterexample,
     write_guidance_rule_check,
     write_guidance_rule_confirmation,
+    write_guidance_rule_publication,
     write_guidance_rule_resolution,
+    write_guidance_rule_retraction,
     write_guidance_rule_version,
     write_guidance_rule_withdrawal,
 )
@@ -460,6 +466,7 @@ __all__ = [
     "read_guidance_checks",
     "read_guidance_rule",
     "read_guidance_rule_checks",
+    "read_guidance_rule_project_ids",
     "read_guidance_rule_version",
     "read_guidance_rules",
     "read_issue_keys",
@@ -503,7 +510,9 @@ __all__ = [
     "write_guidance_counterexample",
     "write_guidance_rule_check",
     "write_guidance_rule_confirmation",
+    "write_guidance_rule_publication",
     "write_guidance_rule_resolution",
+    "write_guidance_rule_retraction",
     "write_guidance_rule_version",
     "write_guidance_rule_withdrawal",
     "write_role_spec",
