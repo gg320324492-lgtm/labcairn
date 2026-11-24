@@ -2116,11 +2116,12 @@ _PROBE_HEADER = (
 )
 
 #: A pointer, and words that really are on the line the pointer cites -- so a probe that reads
-#: **one** anchor is reading the format and not an accident. (The route moved to line 329 when
-#: the review workbench's, preview, multi-source, meeting-text and issue routes
+#: **one** anchor is reading the format and not an accident. (The route moved to line 347 when
+#: the review workbench's, preview, multi-source, meeting-text, issue, rule-sharing
+#: and recovery/quality routes joined the file; the probe follows it.
 #: joined the file, and on to line 335 when the rule-sharing routes joined; the probe
 #: follows it.)
-_PROBE_POINTER = "`src/labcairn/api/routes.py:335`"
+_PROBE_POINTER = "`src/labcairn/api/routes.py:347`"
 _PROBE_WORDS = '@router.post("/task/select"'
 
 
@@ -2176,14 +2177,14 @@ def test_the_anchored_pointer_shape_reads_what_the_format_says_it_reads() -> Non
     # **The machinery is live, not just the shape.** The same probe, with its pointer moved to
     # a line the cited file does not print, has to produce a report. A probe that reads its
     # shape correctly while its checking half was switched off would pass every case above.
-    # Line 999 of routes.py exists and does not carry the words; the words live on line 335
+    # Line 999 of routes.py exists and does not carry the words; the words live on line 347
     # (they moved as the review workbench's, preview, multi-source, meeting-text,
-    # issue and rule-sharing routes joined the file). The report has to say 335, because
+    # issue, rule-sharing and recovery routes joined the file). The report has to say 347, because
     # naming the destination is the whole point of carrying the words.
     drifted = _PROBE_HEADER + "`src/labcairn/api/routes.py:999`" + f" — `{_PROBE_WORDS}`\n"
     problems = _anchor_problems(REPO / "docs" / "README.md", drifted, {})
     assert problems, "a probe carrying a pointer at a line the file does not print reported nothing"
-    assert any("335" in problem for problem in problems), (
+    assert any("347" in problem for problem in problems), (
         f"the probe's report did not name the line the words are really on: {problems}"
     )
     assert _declarations(_PROBE_HEADER), "the probe's own declaration is not being read"
@@ -2288,7 +2289,7 @@ def _derive_live_candidates() -> dict[Path, tuple[int, int]]:
 #:   13 pointers that already sit in anchored form by accident** live; a window that declares
 #:   one of them without reading those rows goes red, which is the intended outcome, not a trap.
 #: - ``docs/handoff/CURRENT.md`` -- a dated log. Its pointers sit inside dated entries: line
-#:   1771 (`src/labcairn/api/routes.py:335`) is inside *"Three limits were known and recorded --
+#:   1771 (`src/labcairn/api/routes.py:347`) is inside *"Three limits were known and recorded --
 #:   all three are closed as of 2026-11-02"*, and the span at line 1989
 #:   (`src/labcairn/security/approval.py:215-222`) is inside *"## Carried limitations, none
 #:   blocking"*. The owner's answer for these three (1679, 1771, 1989) is **leave them**, and

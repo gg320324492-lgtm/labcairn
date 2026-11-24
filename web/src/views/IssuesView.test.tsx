@@ -384,7 +384,10 @@ describe('the walk it offers', () => {
       regression_note: null,
     })
 
-    const fixed = issueBlock('The depth was reported without its unit.')
+    // The move is answered and the listing read again; wait for the row the
+    // service now serves instead of reading the node the last read drew.
+    const fixedText = await screen.findByText('The depth was reported without its unit.')
+    const fixed = fixedText.closest('li') as HTMLElement
     expect(within(fixed).getByText('fixed')).toBeInTheDocument()
     expect(within(fixed).getByText('fixed in v3')).toBeInTheDocument()
   })
