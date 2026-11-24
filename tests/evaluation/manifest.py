@@ -639,6 +639,14 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),
     "test_blind_evaluation_machinery.py": ("integration", "approvals"),
     "test_review_dossier.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 §10's structured release records: the tool that writes and
+    # checks the seven-element JSON record under docs/releases/, and the
+    # witnesses that a complete record passes, an incomplete one names every
+    # missing element, the commit is measured in git rather than taken from
+    # the notes, and a duplicate version is refused without --force. Its
+    # clause is insufficient evidence, because the property it watches is
+    # that a release is not recorded on fields that were never measured.
+    "test_release_record.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_release_workflow.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_threat_model.py": (REPOSITORY_CLASS, "repository-gate"),
 }

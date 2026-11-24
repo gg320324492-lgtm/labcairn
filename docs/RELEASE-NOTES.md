@@ -29,6 +29,14 @@ third-party notices and the remaining owner-side credential. If you are here
 to decide whether LabCairn is worth using, **read §2 first**: it is the
 larger half of this document.
 
+**Structured release records.** Every version is also recorded as one
+structured JSON file under
+[`docs/releases/`](releases/README.md) — the seven elements of Phase 4
+§10 (version and commit, artifact sha256, data and API compatibility,
+added, fixed, known limits, rollback) — written and checked by
+[`scripts/release_record.py`](../scripts/release_record.py).  The prose
+here explains; the records state, and the tool verifies them.
+
 ---
 
 ## 1. What this release is
