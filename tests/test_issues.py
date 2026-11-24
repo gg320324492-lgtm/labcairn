@@ -24,6 +24,9 @@ from store_support import env as _shared_env
 
 from labcairn.api.app import create_app
 from labcairn.application.context import ApplicationContext
+from labcairn.application.issues import record_issue
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.db.models import PilotIssueRow
 
 pytestmark = pytest.mark.integration
 
@@ -360,6 +363,100 @@ def test_the_listing_of_an_unknown_project_is_refused(
     response = _list(client, fixture, project_id="proj-nowhere")
     assert response.status_code == 403, response.text
     assert response.json()["reason"] == "chain_project_not_found"
+
+
+# --------------------------------------------------------------------------- #
+# the two closed vocabularies at the layer
+# --------------------------------------------------------------------------- #
+
+
+def _record_directly(fixture: BindingFixture, **overrides: Any) -> None:
+    """One well-formed issue, recorded through the layer rather than the wire.
+
+    **The application layer is a public door.** The tool that walks the
+    pilot's feedback form into the record
+    (``scripts/pilot_feedback_ingest.py``) calls
+    :func:`labcairn.application.issues.record_issue` directly, so the
+    request body's ``Literal`` never stands between it and the store. The
+    witnesses below reach the layer the same way that tool does.
+    """
+    arguments: dict[str, Any] = {
+        "issue_id": "issue-direct",
+        "project_id": fixture.project_id,
+        "version_id": fixture.version_id,
+        "step": "apply",
+        "error_text": "the apply step stalled for two minutes and then refused",
+        "severity": "serious",
+        "category": "function",
+        "reported_by": "student-a",
+    }
+    arguments.update(overrides)
+    record_issue(fixture.context, **arguments)
+
+
+def test_a_type_outside_the_closed_five_is_refused_by_the_layer(
+    fixture: BindingFixture,
+) -> None:
+    """§9.4's type is a closed five, and the layer refuses a sixth by name.
+
+    **The wire's 422 is the friendly error; this refusal is the
+    invariant.** The request body carries the five words as a
+    ``Literal``, so a browser is told which words the service accepts --
+    but a caller that reached past the wire gets no such help, and the
+    layer is the last line before a row is written. So the layer refuses
+    the same word, by the same reason, and names the word that was wrong
+    rather than letting the store's CHECK constraint fail in the middle
+    of the transaction.
+    """
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_directly(fixture, issue_id="issue-bad-type", category="network")
+
+    assert caught.value.reason is ApplicationRefusal.PILOT_ISSUE_CATEGORY_UNKNOWN
+    assert caught.value.reason.value == "pilot_issue_category_unknown"
+    assert "network" in caught.value.detail
+    # The refusal came before the store was asked: no row was written.
+    assert fixture.context.store.session.get(PilotIssueRow, "issue-bad-type") is None
+
+
+def test_a_severity_outside_the_closed_four_is_refused_by_the_layer(
+    fixture: BindingFixture,
+) -> None:
+    """§9.4's severity is a closed four, and the layer refuses a fifth by name.
+
+    **The write's own guard, watched where it fires.** The filtering path
+    has its own severity check, and the witness for that one reaches it
+    through a listing; this guard is the one inside the write, and it is
+    reached by the same door the ingest tool uses. Without it the store's
+    CHECK constraint would refuse the row -- late, in the middle of the
+    transaction, and with a reason nobody can branch on.
+    """
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_directly(fixture, issue_id="issue-bad-severity", severity="catastrophic")
+
+    assert caught.value.reason is ApplicationRefusal.PILOT_ISSUE_SEVERITY_UNKNOWN
+    assert caught.value.reason.value == "pilot_issue_severity_unknown"
+    assert "catastrophic" in caught.value.detail
+    # The refusal came before the store was asked: no row was written.
+    assert fixture.context.store.session.get(PilotIssueRow, "issue-bad-severity") is None
+
+
+def test_a_well_formed_issue_is_written_by_the_same_door(
+    fixture: BindingFixture,
+) -> None:
+    """The layer's own door writes a row when the tags are inside the lists.
+
+    **The refusal above is the tags' check and not a closed door.** A
+    witness that only ever saw refusals would not know whether the layer
+    can record at all; this one records through the same door and reads
+    the row back out of the store.
+    """
+    _record_directly(fixture, issue_id="issue-direct")
+
+    row = fixture.context.store.session.get(PilotIssueRow, "issue-direct")
+    assert row is not None
+    assert row.category == "function"
+    assert row.severity == "serious"
+    assert row.status == "open"
 
 
 # --------------------------------------------------------------------------- #
