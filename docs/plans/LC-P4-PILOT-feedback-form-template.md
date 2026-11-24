@@ -112,3 +112,68 @@ fix-version plan; only Part 2 items become Issue records.
   un-redacted pages into the form's free-text fields; reference them by
   locator (P-11). The form travels; the material stays in the authorised
   environment.
+
+## How to ingest
+
+A completed form is ingested into the system's Issue record with
+`scripts/pilot_feedback_ingest.py`. The input is one JSON file holding one
+or more completed forms: each form carries the Part 1 context
+(`project_id`, `task_id`, `submission_id`, `submitter_role`,
+`session_date`, `stages_used`) and an `issues` list with one object per
+Part 2 item. Every item becomes exactly one Issue record — the same
+one-item-one-record rule the template states above.
+
+The form's severity and type words are the submitter's words, and the
+record's two closed vocabularies (G0 §6) are the system's. The tool maps
+between them, once, in the template's own correspondence:
+
+| Form word (P-6) | Issue severity |
+|---|---|
+| `blocking` | `blocker` |
+| `severe` | `serious` |
+| `normal` | `minor` |
+| `suggestion` | `suggestion` |
+
+| Form word (P-7) | Issue type |
+|---|---|
+| `function` | `function` |
+| `ui` | `interface` |
+| `performance` | `performance` |
+| `model` | `model` |
+| `documentation` | `documentation` |
+
+A word outside the form's vocabulary is reported as an error in that item;
+nothing outside the record's vocabulary is ever written, because the write
+goes through the application layer's `record_issue`, which refuses it.
+
+The item's free-text fields (P-2 what happened, P-3 steps, P-4
+expectations, P-8/P-9 pointers, P-11 evidence, P-13 workaround, P-14
+frequency) are composed into the record's `error_text` in the template's
+own order, so the record reads as the form did instead of losing every
+field but the first. The form's `submission_id` opens that text: the
+record's `feedback_id` column names an opinion comment the chain holds,
+which a submission id is not, so the batch stays traceable in the text
+rather than through a link the chain does not hold.
+
+Two modes:
+
+- **`--dry-run`** (the default) parses the file, validates every item
+  against the closed vocabularies and the required fields, and prints the
+  Issue records that would be created. Nothing is written. Every bad item
+  is reported with all of its problems, so a stack of forms can be
+  corrected in one pass.
+- **`--apply`** records the items through the application layer — the same
+  `record_issue` the API's `POST /issues` calls — against the workspace
+  named by `--workspace`, reporting each item as created, skipped (its
+  issue id is already recorded), or failed with the reason. Ingesting the
+  same file twice does not duplicate rows: the issue id is the record's
+  primary key, so re-ingestion is idempotent by the record's own identity.
+
+```console
+$ python scripts/pilot_feedback_ingest.py forms.json --dry-run
+$ python scripts/pilot_feedback_ingest.py forms.json --workspace . --apply
+```
+
+Exit status is 0 when every item was created or skipped (or, on a dry run,
+when nothing failed validation), 1 when at least one item failed, and 2
+when the input could not be read or parsed at all.

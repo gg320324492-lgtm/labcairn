@@ -633,6 +633,14 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # affiliation or project number. Its clause is the repository gates,
     # because it watches the repository's own documents.
     "test_pilot_decisions.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §9.4). The completed feedback form's walk into the
+    # system's issue record: the dry run previews what would be written,
+    # the form's two closed vocabularies map onto the record's, and
+    # re-ingesting a file does not duplicate rows. Its clause is the
+    # repository gates, because the walk itself is the repository's tool
+    # and its witnesses run against a temporary database, not the
+    # repository's own.
+    "test_pilot_feedback_ingest.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------
