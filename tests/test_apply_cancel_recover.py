@@ -284,10 +284,34 @@ def test_a_locked_source_refuses_the_round_before_any_consent_is_spent(
     # reading, which is exactly what the binding's hash check does. Deny the
     # file's read bit instead -- the same "no one may read this" the drill
     # matrix uses -- because the runner is unprivileged and its own chmod
-    # binds. Windows: hold a real byte-range lock.
+    # binds. The premise is verified rather than assumed: a privileged
+    # process reads the file regardless of the mode, and the witness says so
+    # by skipping instead of failing for a reason the product is not
+    # responsible for. Windows: hold a real byte-range lock.
     posix = os.name != "nt"
     if posix:
+        # **The premise is checked, not assumed.** Denying the read bit only
+        # binds an unprivileged process: root holds ``CAP_DAC_OVERRIDE`` and
+        # reads the file anyway, so the round would publish and the witness
+        # would fail for a reason that has nothing to do with the property
+        # under test. Reading the file here and skipping when it still opens
+        # turns "the environment cannot express this case" into a stated
+        # fact rather than a failure that reads as a product defect.
         source_path.chmod(source_path.stat().st_mode & ~0o444)
+        still_readable = False
+        try:
+            with source_path.open("rb") as probe:
+                probe.read(1)
+            still_readable = True
+        except OSError:
+            still_readable = False
+        if still_readable:
+            source_path.chmod(source_path.stat().st_mode | 0o444)
+            pytest.skip(
+                "this process can read a file whose read bit was denied "
+                "(a privileged user); the unreadable-source case cannot be "
+                "expressed here"
+            )
         handle = -1
     else:
         handle = os.open(source_path, os.O_RDWR)
