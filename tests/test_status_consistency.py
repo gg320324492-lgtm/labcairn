@@ -2118,9 +2118,7 @@ _PROBE_HEADER = (
 #: A pointer, and words that really are on the line the pointer cites -- so a probe that reads
 #: **one** anchor is reading the format and not an accident. (The route moved to line 369 when
 #: the review workbench's, preview, multi-source, meeting-text, issue, rule-sharing
-#: and recovery/quality/trajectory/cancel/role routes joined the file; the probe follows it.
-#: joined the file, and on to line 335 when the rule-sharing routes joined; the probe
-#: follows it.)
+#: and recovery/quality/trajectory/cancel/role routes joined the file; the probe follows it.)
 _PROBE_POINTER = "`src/labcairn/api/routes.py:369`"
 _PROBE_WORDS = '@router.post("/task/select"'
 
@@ -2180,7 +2178,7 @@ def test_the_anchored_pointer_shape_reads_what_the_format_says_it_reads() -> Non
     # Line 999 of routes.py exists and does not carry the words; the words live on line 369
     # (they moved as the review workbench's, preview, multi-source, meeting-text,
     # issue, rule-sharing, recovery and trajectory routes joined the file).
-    # The report has to say 350, because naming the destination is the whole point
+    # The report has to say 369, because naming the destination is the whole point
     # of carrying the words.
     drifted = _PROBE_HEADER + "`src/labcairn/api/routes.py:999`" + f" — `{_PROBE_WORDS}`\n"
     problems = _anchor_problems(REPO / "docs" / "README.md", drifted, {})

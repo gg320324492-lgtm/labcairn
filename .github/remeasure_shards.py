@@ -57,8 +57,26 @@ PLATFORMS = ("ubuntu-latest", "windows-latest")
 
 #: A duration line: "12.34s call     tests/test_x.py::test_y".
 _DURATION = re.compile(r"([0-9.]+)s\s+(call|setup|teardown)\s+(tests/\S+)")
-#: A shard's own summary: "..., 1116 warnings in 134.12s (0:02:14)".
-_SUMMARY = re.compile(r"warnings in ([\d.]+)s")
+#: A shard's own summary, in either of the two shapes pytest prints:
+#: "..., 1116 warnings in 134.12s (0:02:14)" and "..., 4 passed in 1205.32s
+#: (0:20:05)". **Both shapes are the same line**, and the seconds are the
+#: same field; only the middle differs, so the pattern reads the seconds
+#: from the end of the line rather than from the word "warnings".
+#:
+#: **Why the middle cannot be the anchor.** A shard that raised no warning
+#: prints no "warnings" word at all, and a pattern that requires that word
+#: silently drops such a shard's time. The remainder -- the time the shard
+#: reported but the durations section did not attribute to a file -- is what
+#: the fast files share, so a dropped shard does not just lose its own
+#: seconds: it also takes the fast files' share down with it, and the
+#: measured partition is built on a table whose fast files are all zero.
+#:
+#: **Why the trailing banner is the anchor.** The seconds are read from a
+#: line that pytest closes with its ``====`` banner, so the pattern cannot
+#: latch onto a duration line or a plugin's own "in 1.23s" prose. The
+#: ``(0:MM:SS)`` form pytest also prints is optional, because the synthetic
+#: logs a witness builds need not carry it.
+_SUMMARY = re.compile(r"in ([\d.]+)s(?: \(0:\d{2}:\d{2}\))?(?=[^\n]*=+\s*$)", re.M)
 
 
 def _test_files() -> list[str]:

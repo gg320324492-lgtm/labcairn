@@ -2664,6 +2664,84 @@ def test_the_remeasurement_reads_the_numbers_out_of_the_logs(
         )
 
 
+def test_the_remeasurement_reads_a_shard_summary_that_carries_no_warning(
+    repo_root: Path, tmp_path: Path
+) -> None:
+    """A shard that raised no warning is still read.
+
+    **The bug this watches.** pytest prints two shapes of summary line:
+    ``4 passed, 1116 warnings in 134.12s (0:02:14)`` and ``4 passed in
+    1205.32s (0:20:05)``. **A parser that anchors on the word "warnings"
+    reads the first and silently drops the second** — and the drop is not
+    local. The remainder (the shard's reported time minus the visible
+    files' time) is what the files absent from the durations section share,
+    so a shard whose summary is not read takes the fast files' share with
+    it: every fast file lands on 0.0 seconds, and the partition is then
+    balanced against a table that measures nothing for them.
+
+    **What went red.** The real measurement of 2026-11-25 read 1701s of
+    reported time from six Ubuntu shards whose durations section accounted
+    for 3471s — the reported total was *smaller* than the measured one,
+    which is impossible for a subset, and the 44 files in no durations
+    section were given 0 seconds each. Four of the six shards had printed
+    no "warnings" word at all.
+
+    **How this watches it.** The same tool is run twice over the same
+    mini-checkout: once with a log whose summary carries a warning, and
+    once with a log whose summary carries none. Both runs must produce the
+    same costs. A parser that reads only the warning-bearing form fails the
+    second run — the residual becomes negative, is clamped to zero, and the
+    file absent from the log lands on 0.0 instead of its share.
+    """
+    warning_free = UBUNTU_JOB_LOG.replace(
+        "9 passed, 1116 warnings in 13.00s", "9 passed in 13.00s"
+    )
+    assert warning_free != UBUNTU_JOB_LOG, (
+        "the fixture must differ from the warning-bearing log in the very "
+        "thing this witnesses: the word 'warnings' in the summary line"
+    )
+
+    costs: list[dict[str, dict[str, float]]] = []
+    for name, body in (
+        ("with-warning", UBUNTU_JOB_LOG),
+        ("without-warning", warning_free),
+    ):
+        checkout = _write_mini_checkout(repo_root, tmp_path / name)
+        logs = _write_job_logs(
+            tmp_path / f"logs-{name}",
+            {
+                "python-quality-ubuntu-latest-0": body,
+                "python-quality-windows-latest-0": WINDOWS_JOB_LOG,
+            },
+        )
+        proc = _run_remeasure(checkout, logs, MEASURED_AT)
+        assert proc.returncode == 0, f"the tool failed on the {name} log: {proc.stderr}"
+        table = checkout / ".github" / "ci-shards.json"
+        document: dict[str, Any] = json.loads(table.read_text(encoding="utf-8"))
+        costs.append(document["costs"])
+
+    assert costs[0] == costs[1], (
+        "a shard summary that carries no 'warnings' word was read differently "
+        f"from one that does: {costs[0]} against {costs[1]}. The summary line's "
+        "shape is not a property of the measurement."
+    )
+
+    # The specific number: the two files absent from the log share the
+    # residual (13.00 - 5.00 = 8.00), weighted by their ``def test_`` counts
+    # -- gamma 1 and delta 3 -- so gamma lands on 8.00 * 1/4 = 2.00.
+    ubuntu = costs[1]["ubuntu-latest"]
+    assert ubuntu["test_gamma.py"] == pytest.approx(2.00), (
+        "the file absent from the log was given "
+        f"{ubuntu['test_gamma.py']} seconds instead of its share of the "
+        "residual; a summary line that was not read takes the fast files' "
+        "share with it"
+    )
+    assert ubuntu["test_gamma.py"] > 0.0, (
+        "the file absent from the log landed on zero seconds, which is what "
+        "a dropped summary line looks like"
+    )
+
+
 def test_the_remeasurement_refuses_to_write_a_table_it_could_not_measure(
     repo_root: Path, tmp_path: Path
 ) -> None:
