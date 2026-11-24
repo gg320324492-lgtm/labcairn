@@ -1,8 +1,8 @@
 # LabCairn — Release notes
 **Anchors:** 1 — every converted pointer below carries the words it cites.  
 **Version:** 0.1.0 (`pyproject.toml`) · **Status:** unreleased — no tag has
-been cut · **The tree this describes:** `main` at
-`e13b967`, 2026-11-02
+been cut · **The tree this describes:** the commit `fc73386` on `main`,
+2026-11-25
 
 **Items below dated 2026-11-03 are measured on the branch that has not
 landed** (`docs/debt-closures` at `bb8f8f6`, pull request #146 open). Their
@@ -38,6 +38,53 @@ added, fixed, known limits, rollback) — written and checked by
 here explains; the records state, and the tool verifies them.
 
 ---
+
+## v0.1.0 — the first runnable Phase 4 version
+
+**What this version is.** v0.1.0 is the first version of LabCairn that the
+pilot can run. It is the Phase 4 tree as merged: a local-first research
+workspace in which one paper goes from ingestion through claims extraction,
+staged analysis, report and figure generation to revision and restart
+recovery, with the multi-source index (the paper revision trajectory, PPT
+decks and meeting text), the pilot's issue record, the rule-sharing door
+and the real-model service wiring in place. **It is a source tree, not a
+distributed artifact** — no installer has been cut for v0.1.0, and the
+structured record says so with an explicit `null` and the reason
+([`docs/releases/v0.1.0.json`](releases/v0.1.0.json), written and checked
+by [`scripts/release_record.py`](../scripts/release_record.py)).
+
+**The tree it is cut from.** `main` at `fc73386` — the merge of pull request
+#223, whose seventeen required checks were all green when it landed (the
+required set read from GitHub on 2026-11-18 at
+`ac362d2cb5536d05372cf02b49a499036efd2952`). Every number this section
+quotes was measured at that commit: the 58 API endpoints counted in
+`src/labcairn/api/routes.py`, the migration chain the store reads, and the
+commit that rolls the release back.
+
+**The baseline it inherits.** Phase 4's baseline is frozen in
+[`LC-P4-G0-baseline-freeze.md`](plans/LC-P4-G0-baseline-freeze.md) §3, and
+v0.1.0 cites those identities as that document records them:
+
+- **Code baseline:** the Phase 3 exit commit lineage — `main` at the merge
+  of PR #221 (`a8a822f…`), which carries the exit decision `15c7a18…`, the
+  strip fix `ce1f2f0…` and the final sweep `cf26a4e…`.
+- **Baseline installer lineage:** 0.0.3
+  (`681607c7de0a2963016ff461e8999cef4fda369fa27b896475b70f6466874588`,
+  354,088,228 B, built from `ce1f2f0…`; install / HKCU registration /
+  `shell-env` materialisation / uninstall smoke passed 2026-11-22).
+- **Reference hosts:** WPS Office 12.1.0.29690 and Microsoft Office 2019
+  (16.0.17932.21140) on Windows 11 Pro (10.0.26300), machine
+  `DESKTOP-BJJHSDF` — the dual-host pair every deliverable reopen is
+  measured against.
+- **Web/Python suite baseline:** 142 web workbench tests and the Phase 4
+  Python target tests green at the baseline commit (per the Phase 4 plan's §2
+  baseline statement, re-measured on this tree before each work package
+  lands).
+
+**What v0.1.0 does not establish.** The pilot's exit gate is still open: no
+real trial has run, every verdict in the P4-G1..G4 exit skeleton is still
+`PENDING`, and no participant has used the product. v0.1.0 is releasable;
+it is not yet proven in front of a participant.
 
 ## 1. What this release is
 

@@ -2896,3 +2896,47 @@ Expanding data access scope, write permission to original material, unapproved o
   `PENDING`, and the three §12 decisions are `TBD`. The pilot's real trial
   fills them; nothing here claims a gate result. Witnessed by
   `tests/test_pilot_runbook.py`.
+
+## 2026-11-25 - the seven Phase 4 batches land as PR #223, and the v0.1.0 record is re-anchored
+
+- **The seven batches are on `main`.** Phase 4 arrived as seven parallel
+  batches — the workbench UI, the CAP line (the application and release
+  loop, the real-model service, cancel/retry/recovery, the quality and
+  evidence round checks), the MS line (the paper revision trajectory, PPT
+  decks, meeting text), the rule-sharing door, the pilot's issue record and
+  the pilot-preparation papers — and pull request #223 merged them into
+  `main` as `fc73386` (2026-11-24T16:37:38Z). The seventeen required checks
+  were green on that merge (the required set read from GitHub on 2026-11-18
+  at `ac362d2cb5536d05372cf02b49a499036efd2952`).
+- **Plan §12's three decisions are filled, and the authorisation is
+  signed.** The three items the plan left open before the work orders could
+  be cut — how a distilled multi-source rule is case-validated, the
+  retention, withdrawal and sharing boundary for audio, PPT and paper
+  material, and the target date for Phase 4's first runnable version and the
+  first trial — were decided by the owner on 2026-11-24 and recorded as D-1,
+  D-2 and D-3 in
+  [`LC-P4-PILOT-owner-decisions.md`](../plans/LC-P4-PILOT-owner-decisions.md).
+  The real-model authorisation record they gate was signed the same day
+  (`owner / 2026-11-24`, §9 of
+  [`LC-P4-PILOT-model-authorisation-draft.md`](../plans/LC-P4-PILOT-model-authorisation-draft.md)),
+  so its status is `AUTHORISED` and a real request runs only inside the
+  provider, material, budget, timeout and stop boundaries that record
+  states; the desensitisation checklist and the feedback-form template stay
+  `DRAFT`.
+- **The v0.1.0 release record is re-anchored.**
+  [`docs/releases/v0.1.0.json`](../releases/v0.1.0.json) now names
+  `fc73386` on `main` where it named the seventh batch's branch head, and
+  its API column carries the count measured at that commit — 58 route
+  decorators in `src/labcairn/api/routes.py`, the same number the app's
+  OpenAPI document carries as operations over 57 paths — where the record
+  had said 60. The record's other stale claims were corrected against the
+  tree: the authorisation record is signed rather than a draft, and the
+  rollback names `16df3db` as the commit `main` carried before the batch
+  merge.
+- **The release notes describe this tree.**
+  [`docs/RELEASE-NOTES.md`](../RELEASE-NOTES.md) names the commit it
+  describes, and carries a v0.1.0 section that cites the Phase 4 baseline's
+  identities as
+  [`LC-P4-G0-baseline-freeze.md`](../plans/LC-P4-G0-baseline-freeze.md) §3
+  records them — the code baseline, the 0.0.3 installer lineage and the
+  reference hosts.
