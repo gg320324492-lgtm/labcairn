@@ -358,6 +358,13 @@ export type GuidanceRule = {
   sources: string[]
   counterexamples: RuleCounterexample[]
   checks: GuidanceCheck[]
+  shared_scope?: string
+  published_by?: string | null
+  published_at?: string | null
+}
+
+export type GuidanceRulePublishBody = {
+  user_id: string
 }
 
 export type GuidanceRuleVerdictBody = {

@@ -5,7 +5,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { forgetSessionToken } from '../api/session'
-import { FakeApi, RULE_ID } from '../test/fakeApi'
+import { FakeApi, RULE_ID, urlOf } from '../test/fakeApi'
 import { GuidanceView } from './GuidanceView'
 
 /**
@@ -45,9 +45,15 @@ function drawn(node: HTMLElement): string[] {
 
 /** The rule's own block: the row the rule is drawn in. */
 async function ruleBlock(statement: string): Promise<HTMLElement> {
-  const statement_ = await screen.findByText(statement)
-  const block = statement_.closest('li')
-  expect(block).not.toBeNull()
+  // The statement may appear twice — the memory's list and the retrieval's
+  // are two lists, and a rule can stand in both — so the row is the one in
+  // the memory's list, where the verdict is offered: the artefact row.
+  const statements = await screen.findAllByText(statement)
+  expect(statements.length).toBeGreaterThan(0)
+  const block = statements
+    .map((found) => found.closest('li'))
+    .find((row) => row !== null && row.classList.contains('record--artefact'))
+  expect(block).not.toBeUndefined()
   return block as HTMLElement
 }
 
@@ -295,5 +301,95 @@ describe('the three refusals, kept apart', () => {
     // A schema answer carries no reason, and the panel invents none.
     expect(screen.queryByText(/arguments_invalid/)).toBeNull()
     expect(screen.queryByText(/The service refused that/)).toBeNull()
+  })
+})
+
+describe('the usable rules it draws', () => {
+  it('asks the retrieval for the usable rules, once, without a scope', async () => {
+    render(<Harness />)
+
+    await screen.findByLabelText('Usable rules')
+
+    const usableReads = fake.requestsTo('/guidance/usable')
+    expect(usableReads).toHaveLength(1)
+    // The path is the service's own, and the read carries no scope: the
+    // panel asks for everything the retrieval holds.
+    expect(usableReads[0]?.url).toBe('/api/guidance/usable')
+  })
+
+  it('draws each usable rule with its name, its summary, its scope and its sources', async () => {
+    render(<Harness />)
+
+    // The retrieval's answer is its own list, and the block is the rule's
+    // own: the name, what the rule says, the scope it answers for, and the
+    // sources the chain resolved it to.
+    const block = await screen.findByLabelText('Usable rules')
+    expect(within(block).getByText('Give the unit with the number.')).toBeInTheDocument()
+    expect(
+      within(block).getByText('A number without a unit is not a quantity.'),
+    ).toBeInTheDocument()
+    expect(within(block).getByText('scope Every numeric claim.')).toBeInTheDocument()
+    expect(within(block).getByText('rule rule-units version 2')).toBeInTheDocument()
+    expect(within(block).getByText('sources issue-units')).toBeInTheDocument()
+
+    expect(within(block).getByText('Cite the anchor the claim rests on.')).toBeInTheDocument()
+    expect(within(block).getByText('sources issue-anchors, issue-method')).toBeInTheDocument()
+  })
+
+  it('draws the retrieval’s answer, not the memory’s: the withdrawn rule is not here', async () => {
+    render(<Harness />)
+
+    const block = await screen.findByLabelText('Usable rules')
+    // The memory holds rule-method as a candidate, and the retrieval answers
+    // with confirmed rules only: the two lists are not the same list.
+    expect(within(block).queryByText('Name the method before its result.')).toBeNull()
+    expect(within(block).getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('says when no rule may be cited, and that the memory still holds rules', async () => {
+    fake.state.guidanceUsable = []
+    render(<Harness />)
+
+    const block = await screen.findByLabelText('Usable rules')
+    expect(
+      within(block).getByText(
+        'No rule may be cited yet: the memory holds rules, but none is confirmed and standing.',
+      ),
+    ).toBeInTheDocument()
+    // The empty answer is the retrieval's, not the memory's: the rules
+    // panel above still draws what the memory holds.
+    expect(await screen.findByText('Name the method before its result.')).toBeInTheDocument()
+  })
+
+  it('shows the retrieval’s failure without taking the rules list down', async () => {
+    // The read fails on the second question: the first answer landed, and
+    // the failure is the retrieval's own, on the cycle that follows.
+    const realFetch = fake.fetch
+    let usableReads = 0
+    vi.stubGlobal(
+      'fetch',
+      async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = urlOf(input)
+        if (url.includes('/guidance/usable')) {
+          usableReads += 1
+          if (usableReads > 1) {
+            return new Response(
+              JSON.stringify({ reason: 'usable_unavailable', message: 'the index is closed.' }),
+              { status: 503, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
+        }
+        return realFetch(input, init)
+      },
+    )
+    const view = render(<GuidanceView cycle={0} onChanged={() => {}} />)
+    await screen.findByText('Name the method before its result.')
+
+    view.rerender(<GuidanceView cycle={1} onChanged={() => {}} />)
+
+    expect(await screen.findByText(/the index is closed/)).toBeInTheDocument()
+    // The rules list is the memory's answer, and it stands beside the
+    // retrieval's failure.
+    expect(screen.getByText('Name the method before its result.')).toBeInTheDocument()
   })
 })

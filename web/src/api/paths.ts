@@ -71,6 +71,14 @@ export const API_PATHS = {
   reviewPreview: '/review/preview',
   /** The four deliverables of one closed binding, in one export. */
   reviewDeliverables: '/review/deliverables',
+  /** The advisor trajectory's full-text search, answered with its provenance. */
+  trajectorySearch: '/trajectory/search',
+  /** The slide deck index's full-text search, answered with its provenance. */
+  pptSearch: '/ppt/search',
+  /** The meeting-text index's full-text search, answered with its provenance. */
+  meetingSearch: '/meeting/search',
+  /** The rules a card may cite: mentor-confirmed, still standing, in scope. */
+  guidanceUsable: '/guidance/usable',
 } as const
 
 /** One review round's opinions, addressed by the round's two names. */
@@ -261,6 +269,71 @@ export function trajectoryGraphPath(projectId: string, versionIds: readonly stri
  */
 export function issueKeysPath(projectId: string): string {
   return `${API_PATHS.issueKeys}?project_id=${encodeURIComponent(projectId)}`
+}
+
+/**
+ * The query the three search routes share.
+ *
+ * **The question carries its own limit**, because a search over three
+ * sources is three searches and the panel asks for a page's worth of each
+ * rather than the whole index. The fields are the service's own query
+ * parameters — `q`, `project_id`, `limit` — so the client's spelling and the
+ * service's cannot drift without the route answering nothing.
+ */
+export interface SearchQuery {
+  /** The words to look for. The route requires at least one character. */
+  readonly q: string
+  /** The paper project to search within, when the search is scoped. */
+  readonly projectId?: string | undefined
+  /** How many hits to ask for. The service caps this at 200. */
+  readonly limit?: number | undefined
+}
+
+/** One search route's question, as the query string it is served with. */
+function searchPath(path: string, query: SearchQuery): string {
+  const params = new URLSearchParams({ q: query.q })
+  if (query.projectId !== undefined && query.projectId !== '') {
+    params.set('project_id', query.projectId)
+  }
+  if (query.limit !== undefined) {
+    params.set('limit', String(query.limit))
+  }
+  return `${path}?${params.toString()}`
+}
+
+/** The advisor trajectory's search: what was said and changed, and where. */
+export function trajectorySearchPath(query: SearchQuery): string {
+  return searchPath(API_PATHS.trajectorySearch, query)
+}
+
+/** The slide deck index's search: what a slide or its notes say, and where. */
+export function pptSearchPath(query: SearchQuery): string {
+  return searchPath(API_PATHS.pptSearch, query)
+}
+
+/** The meeting-text index's search: what a record of a meeting says, and where. */
+export function meetingSearchPath(query: SearchQuery): string {
+  return searchPath(API_PATHS.meetingSearch, query)
+}
+
+/**
+ * The rules a card may cite.
+ *
+ * **The route serves confirmed rules only** — a candidate reaching a card
+ * would be a proposal dressed as a record — and the scope is the caller's to
+ * name, because the card that asks knows the narrowest scope it can live
+ * with. The limit is the page size, and the service caps it at 200.
+ */
+export function guidanceUsablePath(scope?: string, limit?: number): string {
+  const params = new URLSearchParams()
+  if (scope !== undefined && scope !== '') {
+    params.set('scope', scope)
+  }
+  if (limit !== undefined) {
+    params.set('limit', String(limit))
+  }
+  const query = params.toString()
+  return query === '' ? API_PATHS.guidanceUsable : `${API_PATHS.guidanceUsable}?${query}`
 }
 
 /**

@@ -46,9 +46,14 @@ describe('the views', () => {
       'Revisions',
       'Trajectory',
       'Version graph',
+      'Multi-source search',
       'Guidance',
       'Proposals',
     ]) {
+      // A heading may be drawn more than once — the search panel names its
+      // sources in subsections beside the panels that own the names — so
+      // the assertion is that the panel is there, not that the word is
+      // alone on the page.
       expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
     }
   })

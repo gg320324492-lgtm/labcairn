@@ -52,6 +52,7 @@ import { EventsView } from '../views/EventsView'
 import { EvidenceView } from '../views/EvidenceView'
 import { FigureView } from '../views/FigureView'
 import { GuidanceView } from '../views/GuidanceView'
+import { MultiSourceSearchView } from '../views/MultiSourceSearchView'
 import { PlanView } from '../views/PlanView'
 import { ProposalsView } from '../views/ProposalsView'
 import { ProjectsView } from '../views/ProjectsView'
@@ -198,6 +199,7 @@ export function Workbench(): JSX.Element {
       <RevisionsView artifacts={reads.artifacts} />
       <ReviewView artifacts={reads.artifacts.data ?? []} cycle={readCycle} />
       <TrajectoryView cycle={readCycle} />
+      <MultiSourceSearchView cycle={readCycle} />
       <GuidanceView cycle={readCycle} onChanged={readAgain} />
       <ProposalsView cycle={readCycle} onChanged={readAgain} />
 
