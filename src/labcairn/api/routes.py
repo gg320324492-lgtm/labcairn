@@ -74,6 +74,7 @@ from labcairn.api.contracts import (
     StageBody,
     TaskSelectBody,
     Trajectory,
+    TrajectoryIngestBody,
 )
 from labcairn.api.events import EventSource, UnwiredEventSource, sse_frame, unwired_refusal
 from labcairn.api.guards import OriginPolicy
@@ -180,7 +181,9 @@ from labcairn.application.revision_loop import (
 from labcairn.application.stages import StageRequest, StageWork
 from labcairn.application.trajectory import (
     TrajectoryHit,
+    TrajectoryIngested,
     UsableRule,
+    ingest_paper_trajectory,
     search_trajectory,
     usable_guidance,
 )
@@ -1842,4 +1845,28 @@ def get_review_quality(
         context,
         project_id=project_id,
         dossier_artifact_id=dossier_artifact_id,
+    )
+
+
+@router.post(
+    "/trajectory/ingest", response_model=TrajectoryIngested, status_code=201, tags=["review"]
+)
+def post_trajectory_ingest(
+    body: TrajectoryIngestBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> TrajectoryIngested:
+    """Index one paper project's revision trajectory, and report the count.
+
+    **The body names the project; the facts come from the chain.** The
+    comments and tracked changes are read through the ``source.inventory``
+    gate the same way every other bulk reader of supplied material reads
+    (ADR-0003 C5), and the ingest reports both what it indexed and what it
+    honestly skipped: ``skipped_versions`` counts the versions whose
+    material the policy denied, because a bulk write that refused whole
+    would disclose that the version exists.
+    """
+    return ingest_paper_trajectory(
+        context,
+        project_id=body.project_id,
+        ingested_at=body.ingested_at,
     )

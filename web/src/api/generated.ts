@@ -1013,6 +1013,20 @@ export type TrajectoryHit = {
   ingested_at: string
 }
 
+export type TrajectoryIngestBody = {
+  project_id: string
+  ingested_at?: string | null
+}
+
+export type TrajectoryIngested = {
+  project_id: string
+  entries_indexed: number
+  comment_entries: number
+  edit_entries: number
+  skipped_versions: number
+  ingested_at: string
+}
+
 export type UsableRule = {
   rule_id: string
   version: number

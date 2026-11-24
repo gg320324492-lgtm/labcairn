@@ -229,6 +229,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # because the witnesses are the chain's real rows read through the
     # index, the memory and the retrieval.
     "test_trajectory_index.py": ("integration", "api-auth"),
+    # Phase 4 (P4-MS). The trajectory index's two surfaces: the API route
+    # that indexes one paper project's revision trajectory and answers a
+    # search over it, and the CLI's ``sources ingest``, which indexes every
+    # paper project the ingested material carries and reports, per project,
+    # what indexed and what was refused. Integration, because the witnesses
+    # are a real chain read through the index over both surfaces.
+    "test_trajectory_api.py": ("integration", "api-auth"),
     # Phase 4 (P4-MS). The multi-source index's second slice: a deck's
     # titles, body text, speaker notes, tables and images searchable with
     # their provenance -- slide, object position, kind and fingerprint --

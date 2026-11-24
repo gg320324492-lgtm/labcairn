@@ -37,7 +37,11 @@ import typer
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
 
+from labcairn.api.contracts import RefusalBody
+from labcairn.application.material_ingestion import MaterialIngested
 from labcairn.application.models import Result
+from labcairn.application.refusal import ApplicationRefusedError
+from labcairn.application.trajectory import TrajectoryIngested
 
 #: The JSON style every machine-readable form uses.
 #:
@@ -167,6 +171,69 @@ class WorkspaceInitialised(Result):
     source_dirs: tuple[str, ...]
     created: tuple[str, ...]
     policy_digest: str
+
+
+class TrajectoryIngestOutcome(Result):
+    """What indexing one paper project's trajectory produced — or why not.
+
+    **An outcome, not a refusal.** The workspace's material is ingested as
+    one act, and each paper project it can carry is indexed as one act of
+    its own; a project whose ingest was refused is a fact about that
+    project, and the rest of the report stays a result. ``ingested`` is
+    what the layer returned; ``refusal`` is the two fields a refusal
+    carries, present exactly when the index was not written.
+
+    ``project_id`` is the only field a caller can rely on in every
+    outcome. ``skipped_versions`` counts the versions whose material the
+    policy denied — the ingest's own honest skip, which is not an error.
+    """
+
+    project_id: str
+    ingested: TrajectoryIngested | None = None
+    skipped_versions: int | None = None
+    refusal: RefusalBody | None = None
+
+    @classmethod
+    def indexed(cls, ingested: TrajectoryIngested) -> TrajectoryIngestOutcome:
+        """The outcome of an index that was written."""
+        return cls(
+            project_id=ingested.project_id,
+            ingested=ingested,
+            skipped_versions=ingested.skipped_versions,
+        )
+
+    @classmethod
+    def refused(cls, project_id: str, error: ApplicationRefusedError) -> TrajectoryIngestOutcome:
+        """The outcome of an index the layer refused.
+
+        The refusal is carried as **the layer's own two fields**, so a
+        script reads one refusal shape whichever surface produced it.
+        """
+        payload = error.to_payload()
+        return cls(
+            project_id=project_id,
+            refusal=RefusalBody.model_validate(payload),
+        )
+
+
+class SourcesIngested(MaterialIngested):
+    """What ``sources ingest`` did — the ledger's report, **and** the indexes.
+
+    **The ledger's report is the base, not a member.** The fields a script
+    already reads — ``source_ids``, ``files``, ``failures``, ``readable`` and
+    the rest of :class:`~labcairn.application.MaterialIngested` — are this
+    model's own fields, byte for byte what the layer returned, so the JSON
+    the command printed before the trajectory existed is still the JSON it
+    prints now.
+
+    ``trajectory_projects`` is what this run added: one outcome per paper
+    project the store holds, indexed after the material was ingested. An
+    empty workspace holds no projects, and its report carries an empty list
+    — the field is always present, because a caller that has to test for it
+    is a caller the schema has failed.
+    """
+
+    trajectory_projects: tuple[TrajectoryIngestOutcome, ...] = ()
 
 
 class SourceRootFinding(Result):
