@@ -76,7 +76,7 @@ uv run python -m labcairn.api.typescript web/src/api/generated.ts
 
 `tests/test_api.py` compares the checked-in file with the models, so a model
 that changes without the file being regenerated is a failing test rather than
-a stale type (`tests/test_api.py:1480` — `def test_the_checked_in_typescript_is_what_the_python_models_produce(`).
+a stale type (`tests/test_api.py:1477` — `def test_the_checked_in_typescript_is_what_the_python_models_produce(`).
 This package imports that file and does not write a second spelling of the
 API's shape.
 
