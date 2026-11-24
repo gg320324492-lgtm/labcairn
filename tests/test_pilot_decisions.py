@@ -15,8 +15,10 @@ documents and fails when they stop saying what the pilot needs:
   reads ``DRAFT`` (a signed confirmation would move it, and nothing
   here asserts PASS);
 * the owner-decisions form carries plan §12's three decisions, each
-  with its answer field still ``TBD — owner to fill``, the flow that
-  stays blocked while it is, and what already stands behind it;
+  with the answer the owner gave on 2026-11-24 in its answer field, the
+  flow that stays blocked while it is unfilled, and what already stands
+  behind it, and each decided decision carries the owner's signature and
+  a date in the form's signing table;
 * the runbook's preparation section points at the owner-decisions form
   and requires a release record under ``docs/releases/`` for the
   version the pilot runs on, per plan §10;
@@ -26,14 +28,22 @@ documents and fails when they stop saying what the pilot needs:
   as CJK-run and identifier-pattern checks in the spirit of
   ``tests/test_no_reference_leakage.py``.
 
-**Why the decisions stay TBD.** The form exists to collect the owner's
-answers, not to invent them. A test that asserted a filled answer would
-itself be forging one, so the assertions here are the opposite: the
-fields must be present, must be unambiguous about being unfilled
-(``TBD — owner to fill``), and must name what stays blocked. When the
-owner fills the form, the assertions on the marker are updated by the
-change that records the answers — the test cannot pass on a form that
-silently swapped its marker for an invented answer.
+**Why the answers are recorded, not invented.** The form exists to
+collect the owner's answers, not to invent them, and no witness can tell
+a real answer from a plausible one. So the assertions here are the
+*shape* of the form and of the signature, not the content of the answer:
+the answer fields must be present and must carry what the owner gave —
+``TBD — owner to fill`` is the shape of an unanswered field, and a field
+that still reads it has no answer — and each decision must name what
+stays blocked while it is unfilled. **A decided decision also carries a
+signature and a date**, and the signing table is watched for the same
+reason: a form whose answers are filled and whose signature table is
+empty says the owner never signed.
+
+**What is not asserted.** The authorisation record is the one preparation
+paper the owner signed; the desensitisation checklist and the
+feedback-form template are still unsigned, and the witnesses hold them
+at ``DRAFT`` so a signature nobody gave cannot appear on them.
 
 **This file carries no Chinese by design.** The documents it reads are
 English (CLAUDE.md keeps the repository in English), and the plan's
@@ -251,7 +261,8 @@ def test_the_status_matches_the_signature(relative: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# The owner-decisions form carries plan §12's three decisions, each TBD.
+# The owner-decisions form carries plan §12's three decisions, each with
+# the answer the owner gave.
 # ---------------------------------------------------------------------------
 
 
@@ -296,6 +307,52 @@ def test_each_decision_carries_the_owner_recorded_answer(decision: str) -> None:
     assert answer and answer != TBD_MARKER, (
         f"decision {decision}'s answer field is still {TBD_MARKER!r}: the owner's "
         "2026-11-24 answers must be recorded here"
+    )
+
+
+@pytest.mark.parametrize("decision", DECISION_IDS)
+def test_every_decided_decision_carries_a_signature_and_a_date(decision: str) -> None:
+    """A decided decision carries who filled it, and a signature with a date.
+
+    The form says a decision is decided when its answer, the pointer to
+    where that answer landed and a signature with a date are all present.
+    The answers are recorded, so the signing table is the leg that can
+    still be missing — and a table whose cells are empty says the owner
+    never signed, whatever the answers say. The date in the signature
+    must be the date the form records the decisions as filled on, so the
+    two cannot drift apart.
+    """
+    text = _read(FORM)
+    signing = re.search(r"^## Signing$(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL)
+    assert signing, "the owner-decisions form must carry a signing section"
+    row = re.search(
+        rf"^\| {decision} — [^|]*\|([^|]*)\|([^|]*)\|",
+        signing.group(1),
+        re.MULTILINE,
+    )
+    assert row, f"decision {decision} must have a row in the signing table"
+    filled_by, signature = row.group(1).strip(), row.group(2).strip()
+    assert filled_by, (
+        f"decision {decision}'s signing row must name who filled it: a decided "
+        "decision carries its filler"
+    )
+    assert "owner" in filled_by.lower(), (
+        f"decision {decision}'s signing row must name the owner as the filler ({filled_by!r})"
+    )
+    assert signature, (
+        f"decision {decision}'s signing row must carry a signature and a date: the "
+        "answers are recorded, and the signature is what says the owner signed"
+    )
+    assert re.search(r"\d{4}-\d{2}-\d{2}", signature), (
+        f"decision {decision}'s signature must carry a date ({signature!r})"
+    )
+    filled_on = re.search(
+        r"filled each decision field below on (\d{4}-\d{2}-\d{2})", _flowtext(text)
+    )
+    assert filled_on, "the form must record the date the decisions were filled"
+    assert filled_on.group(1) in signature, (
+        f"decision {decision}'s signature date must be the date the form records the "
+        f"decisions as filled ({filled_on.group(1)})"
     )
 
 
@@ -431,7 +488,7 @@ def test_the_runbook_carries_the_preparation_section_before_the_steps() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The skeleton's decision rows still say TBD.
+# The skeleton's decision rows carry the owner's answers.
 # ---------------------------------------------------------------------------
 
 
