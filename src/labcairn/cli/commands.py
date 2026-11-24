@@ -3041,7 +3041,6 @@ def roles_run(
         RoleRunRequest,
         request_role_run,
         run_role_run_service,
-        the_role_run_run,
         the_role_run_ticket,
     )
     from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model

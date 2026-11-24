@@ -2047,6 +2047,8 @@ def post_review_apply_cancel(
             _apply_cancel_flags[body.project_id] = flag
     flag.request(body.reason)
     return ReviewApplyCancelled(project_id=body.project_id, reason=body.reason, accepted=True)
+
+
 # the role loop, on demand (Phase 4, §8.2)
 # --------------------------------------------------------------------------- #
 

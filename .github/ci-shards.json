@@ -146,7 +146,6 @@
         "tests/test_pilot_feedback_ingest.py",
         "tests/test_first_release_record.py",
         "tests/test_cancel_entry.py",
-        "tests/test_first_release_record.py",
         "tests/test_role_run_entry.py"
       ],
       [
@@ -356,7 +355,6 @@
         "tests/test_pilot_feedback_ingest.py",
         "tests/test_first_release_record.py",
         "tests/test_cancel_entry.py",
-        "tests/test_first_release_record.py",
         "tests/test_role_run_entry.py"
       ],
       [
@@ -681,7 +679,6 @@
       "test_pilot_feedback_ingest.py": 0.0,
       "test_first_release_record.py": 0.0,
       "test_cancel_entry.py": 0.0,
-      "test_first_release_record.py": 0.0,
       "test_role_run_entry.py": 0.0
     },
     "windows-latest": {
@@ -900,7 +897,6 @@
       "test_pilot_feedback_ingest.py": 0.0,
       "test_first_release_record.py": 0.0,
       "test_cancel_entry.py": 0.0,
-      "test_first_release_record.py": 0.0,
       "test_role_run_entry.py": 0.0
     }
   }

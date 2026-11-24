@@ -351,8 +351,8 @@ platform's idea of loopback rather than this file's opinion of it. `127.0.0.1`
 and `::1` are loopback; `0.0.0.0` is not.
 
 **The check is made twice**, and the second one is at the point where the
-socket is about to be opened: `create_app` calls it (`src/labcairn/api/app.py:288` — `ensure_loopback(host)`) and
-`serve` calls it again (`src/labcairn/api/app.py:346` — `ensure_loopback(host)`), so a service assembled by hand and
+socket is about to be opened: `create_app` calls it (`src/labcairn/api/app.py:295` — `ensure_loopback(host)`) and
+`serve` calls it again (`src/labcairn/api/app.py:354` — `ensure_loopback(host)`), so a service assembled by hand and
 handed to `serve` cannot skip the check the factory made.
 
 ### 3.2 The three request guards
@@ -414,7 +414,7 @@ OpenAPI document at `/openapi.json` — is generated locally and is served.
 | Path | Destination | Evidence |
 |---|---|---|
 | Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:120` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:190` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
-| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2735` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
+| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2758` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
 
 **There is no telemetry, no update check, no CDN fetch, no analytics, no
 font download.** `src/labcairn/sources/`, `src/labcairn/material/`,
