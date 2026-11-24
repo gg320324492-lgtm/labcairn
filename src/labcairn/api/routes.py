@@ -32,6 +32,7 @@ refusal as well.
 from __future__ import annotations
 
 import base64
+import binascii
 import time
 import uuid
 from collections.abc import Iterator
@@ -55,6 +56,9 @@ from labcairn.api.contracts import (
     GuidanceRulePublishBody,
     GuidanceRuleVerdictBody,
     Health,
+    InterruptedReplayBody,
+    InterruptedResolutionWire,
+    InterruptedResolveBody,
     IssueKeys,
     IssueRecordBody,
     IssueStatusBody,
@@ -147,6 +151,7 @@ from labcairn.application.model_suggestions import (
     suggest_for_version,
 )
 from labcairn.application.ppt_deck import PptDeckIngested, PptHit, ingest_ppt_deck, search_ppt_deck
+from labcairn.application.quality_checks import RoundQualityReport, run_round_quality_checks
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.review import (
     ApplyReviewRequest,
@@ -164,6 +169,13 @@ from labcairn.application.review import (
     read_review_opinions,
     record_review_decision,
     record_review_suggestion,
+)
+from labcairn.application.revision_loop import (
+    InterruptedPublication,
+    RevisionPublished,
+    find_interrupted_publication,
+    replay_interrupted_publication,
+    resolve_interrupted_publication,
 )
 from labcairn.application.stages import StageRequest, StageWork
 from labcairn.application.trajectory import (
@@ -1663,3 +1675,171 @@ def post_guidance_rule_retraction(
     """
     with context.store.unit(context.task_id):
         return retract_rule_from_group(context, rule_id=rule_id)
+
+
+# --------------------------------------------------------------------------- #
+# restart recovery and round quality, at the surface (Phase 4, window G)
+# --------------------------------------------------------------------------- #
+
+
+def _interrupted_or_refuse(context: ApplicationContext, receipt_id: str) -> InterruptedPublication:
+    """The loop's interrupted publication, or the refusal for one that is not there.
+
+    ``find_interrupted_publication`` answers ``None`` for a loop the record
+    holds no publication attempt for, and the docstring calls that the
+    caller's mistake — so the route turns it into the refusal a mistake
+    deserves, in the same two fields every other refusal uses, rather than
+    a bare ``null`` that a client would have to guess at.
+    """
+    found = find_interrupted_publication(context, receipt_id=receipt_id)
+    if found is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.IDENTIFIER_NOT_FOUND,
+            f"the record holds no interrupted publication for the loop receipt "
+            f"{receipt_id!r}. A loop that is not interrupted, or was never "
+            "opened, names nothing to resolve or replay.",
+        )
+    return found
+
+
+@router.get("/revision/interrupted", response_model=InterruptedPublication, tags=["review"])
+def get_interrupted_publication(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    receipt_id: Annotated[str, Query(min_length=1)],
+) -> InterruptedPublication:
+    """What a crash left undone, for one revision loop.
+
+    **The read is the recovery pass's own question, at the surface.** The
+    loop is reassembled from its durable pieces — the import receipt on
+    disk, the operation rows in the store — and an answer carries everything
+    a replay needs, because the replay happens in a process that did not
+    witness the interruption. ``edited_sha256`` is the prediction the
+    interrupted attempt was reaching for; a probe resolves against it, and
+    the replay is checked against it.
+
+    **A loop with nothing in flight is a refusal, not a null.** An empty
+    answer would say "nothing to do" about a receipt that may not exist at
+    all, and the two facts are different — one is a quiet loop, the other is
+    a mistyped id.
+    """
+    return _interrupted_or_refuse(context, receipt_id)
+
+
+@router.post(
+    "/revision/interrupted/{receipt_id}/resolve",
+    response_model=InterruptedResolutionWire,
+    tags=["review"],
+)
+def post_interrupted_resolution(
+    receipt_id: str,
+    body: InterruptedResolveBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> InterruptedResolutionWire:
+    """Resolve one interrupted publication with a probe, and nothing more.
+
+    **The caller states the prediction; the probe answers.** The store keeps
+    only the digest of the operation's arguments, so the bytes' hash is not
+    recoverable from the record — the body carries it, from the round's own
+    record, and a probe compares it with what is on disk. A match resolves
+    the operation and unblocks the stage; a miss reports that a replay is
+    safe; different bytes are a conflict the layer refuses, because
+    overwriting a file this operation did not write is a second writer.
+
+    **The resolution is what makes a replay legal**, and this route is the
+    answer only — the replay is the next door, and it refuses an operation
+    this route has not resolved.
+    """
+    interrupted = _interrupted_or_refuse(context, receipt_id)
+    outcome = resolve_interrupted_publication(
+        context,
+        interrupted,
+        expected_sha256=body.expected_sha256,
+    )
+    return InterruptedResolutionWire(
+        operation_id=str(outcome.operation_id),
+        resolution=outcome.resolution.value,
+        resulting_state=outcome.resulting_state.value,
+        replay_permitted=outcome.replay_permitted,
+        expected_sha256=outcome.verdict.expected_sha256,
+        observed_sha256=outcome.verdict.observed_sha256,
+        resource_key=outcome.verdict.resource_key,
+        detail=outcome.verdict.detail,
+    )
+
+
+@router.post(
+    "/revision/interrupted/{receipt_id}/replay",
+    response_model=RevisionPublished,
+    tags=["review"],
+)
+def post_interrupted_replay(
+    receipt_id: str,
+    body: InterruptedReplayBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> RevisionPublished:
+    """Replay an interrupted publication, under a fresh approval, once resolved.
+
+    **The replay is the loop's own publication, on the loop's own
+    addresses.** The interrupted attempt's operation stays on the record;
+    the replay plans its own operation for the same publication id, and the
+    idempotent upsert lands one artifact row. The bytes travel
+    base64-encoded, the way every byte-carrying body here travels, and they
+    are checked against the prediction the resolve step recorded — a replay
+    of bytes the record did not predict is refused, because "the same
+    publication" is a claim about bytes and not about intent.
+
+    **A fresh approval is required, not reused.** The interrupted attempt's
+    consent was bound to its own operation's digest; a replay is a new
+    attempt, and one consent, one effect stands. The approval is named in
+    the body — asked for and granted over ``/approvals`` beforehand — and
+    this route spends what it is given.
+    """
+    interrupted = _interrupted_or_refuse(context, receipt_id)
+    try:
+        edited_bytes = base64.b64decode(body.edited_base64, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"edited_base64 is not valid base64: {error}. The replay publishes "
+            "the bytes the record predicted, and bytes that do not decode "
+            "predict nothing.",
+        ) from error
+    try:
+        approval_id = ApprovalId(uuid.UUID(body.approval_id))
+    except ValueError as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"approval_id {body.approval_id!r} is not a UUID. Approvals are "
+            "minted by POST /approvals, and their ids are the store's own.",
+        ) from error
+    return replay_interrupted_publication(
+        context,
+        interrupted,
+        edited_bytes=edited_bytes,
+        approval_id=approval_id,
+    )
+
+
+@router.get("/review/quality", response_model=RoundQualityReport, tags=["review"])
+def get_review_quality(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    dossier_artifact_id: Annotated[str, Query(min_length=1)],
+) -> RoundQualityReport:
+    """The six §7.4 checks over one closed round's dossier manifest.
+
+    **The manifest is the authority, and it is read through the layer's own
+    door.** Every check reads the binding's own record — that every opinion
+    is accounted for, that every suggestion answers a real opinion, that the
+    edits stayed inside the anchored paragraphs, that a needs-evidence
+    verdict left an explicit task behind, that the response table says what
+    actually landed, and that the quality report binds the same manifest the
+    four deliverables bind. A project that is not there, an artefact that is
+    not a dossier manifest, or a manifest that binds another project is
+    refused rather than measured.
+    """
+    return run_round_quality_checks(
+        context,
+        project_id=project_id,
+        dossier_artifact_id=dossier_artifact_id,
+    )

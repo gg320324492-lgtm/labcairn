@@ -534,6 +534,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # clause's shape at the round's surface; the interrupted-publication
     # replay is restart recovery; the export resume is artifact hashes.
     "test_apply_cancel_recover.py": ("integration", "restart-recovery"),
+    # Phase 4 (window G): the recovery and quality doors at the surface.
+    # The interrupted publication is findable, probed and replayed over the
+    # service's own routes, and a closed round's quality report is read —
+    # the layer's restart-recovery and api-auth clauses, on one real sample.
+    "test_recovery_quality_api.py": ("integration", "restart-recovery"),
     # LC-P3-03: the loop binds the pieces; its refusals are negative.
     "test_revision_loop.py": ("integration", "approvals"),
     "test_revision_loop_refusals.py": ("negative", "path-traversal"),
@@ -612,6 +617,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_repo_root_guard.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_scaffolding.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_status_consistency.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_pilot_runbook.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------

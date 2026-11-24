@@ -32,7 +32,10 @@ import type {
   GuidanceRule,
   GuidanceRuleVerdictBody,
   Health,
+  IssueData,
   IssueKeys,
+  IssueRecordBody,
+  IssueStatusBody,
   MeetingHit,
   PptHit,
   ProjectGraph,
@@ -114,6 +117,8 @@ export interface FakeApiState {
   meetingHits: MeetingHit[]
   /** The ledger's records for this task. */
   records: EvidenceRecord[]
+  /** The pilot's issues, as the listing route serves them. */
+  issues: IssueData[]
 }
 
 /** The task the fake service is bound to. */
@@ -501,6 +506,11 @@ export function guidanceRulesFixture(): GuidanceRule[] {
           recorded_at: '2026-10-23T10:00:00+00:00',
         },
       ],
+      // The confirmed rule stands unshared: it is the one a mentor may
+      // publish, and the publication is the second reader's act.
+      shared_scope: 'private',
+      published_by: null,
+      published_at: null,
     },
     {
       rule_id: 'rule-anchors',
@@ -519,6 +529,11 @@ export function guidanceRulesFixture(): GuidanceRule[] {
       sources: ['issue-anchors'],
       checks: [],
       counterexamples: [],
+      // The withdrawn rule was once shared, and the sharing's record is
+      // kept: a retraction clears it, and a withdrawn rule keeps its own.
+      shared_scope: 'group',
+      published_by: 'dave',
+      published_at: '2026-10-19T12:00:00+00:00',
     },
   ]
 }
@@ -609,6 +624,81 @@ export function recordsFixture(): EvidenceRecord[] {
       source_content_hash: 'c'.repeat(64),
       created_at: '2026-10-24T08:00:00+00:00',
       superseded_by: null,
+    },
+  ]
+}
+
+/** The issue the fake serves as open, with the two numbers recorded. */
+export const OPEN_ISSUE_ID = 'issue-pilot-method'
+
+/** The issue the fake serves as confirmed, with neither number recorded. */
+export const CONFIRMED_ISSUE_ID = 'issue-pilot-units'
+
+/**
+ * The pilot's issues, as the listing route serves them.
+ *
+ * **One of each of the walk's middle states.** An open issue and a confirmed
+ * one are the two a reader can move; a closed one is here so the panel's
+ * "closed" line is drawn against a real answer rather than assumed. The
+ * first carries both numbers, the second neither — the contract makes the
+ * two nullable, and a panel that drew a zero for an absent number would be
+ * drawing a measurement nobody made.
+ */
+export function issuesFixture(): IssueData[] {
+  return [
+    {
+      issue_id: OPEN_ISSUE_ID,
+      project_id: PROJECT_ID,
+      task_id: TASK_ID,
+      version_id: 'v1',
+      feedback_id: FEEDBACK_ID,
+      step: 'draft',
+      error_text: 'The method was named after the result it produced.',
+      duration_seconds: 12.5,
+      retry_count: 1,
+      severity: 'serious',
+      category: 'function',
+      reported_by: 'alice',
+      reported_at: '2026-11-20T09:00:00+00:00',
+      status: 'open',
+      fix_version: null,
+      regression_note: null,
+    },
+    {
+      issue_id: CONFIRMED_ISSUE_ID,
+      project_id: PROJECT_ID,
+      task_id: null,
+      version_id: 'v2',
+      feedback_id: null,
+      step: 'review',
+      error_text: 'The depth was reported without its unit.',
+      duration_seconds: null,
+      retry_count: null,
+      severity: 'blocker',
+      category: 'documentation',
+      reported_by: 'bob',
+      reported_at: '2026-11-21T10:00:00+00:00',
+      status: 'confirmed',
+      fix_version: null,
+      regression_note: null,
+    },
+    {
+      issue_id: 'issue-pilot-anchors',
+      project_id: PROJECT_ID,
+      task_id: null,
+      version_id: 'v1',
+      feedback_id: null,
+      step: 'render',
+      error_text: 'The figure carried no anchor for its own caption.',
+      duration_seconds: 3,
+      retry_count: 0,
+      severity: 'minor',
+      category: 'interface',
+      reported_by: 'carol',
+      reported_at: '2026-11-22T11:00:00+00:00',
+      status: 'wontfix',
+      fix_version: null,
+      regression_note: null,
     },
   ]
 }
@@ -705,6 +795,7 @@ export function initialState(): FakeApiState {
     pptHits: pptHitsFixture(),
     meetingHits: meetingHitsFixture(),
     records: recordsFixture(),
+    issues: issuesFixture(),
   }
 }
 
@@ -884,6 +975,58 @@ export class FakeApi {
    * schema's own lines about which part of the body it would not accept.
    */
   refuseWithSchema = false
+
+  /**
+   * Whether the service refuses the issue record.
+   *
+   * **The layer's own refusal**, by name: a severity or a type outside the
+   * closed vocabulary is refused where the mistake is made, and a project
+   * nobody holds is refused before the store is asked. The flag exists so a
+   * test can watch the panel draw the service's reason rather than its own.
+   */
+  refuseIssueRecord = false
+
+  /**
+   * Whether the service refuses an issue's status move.
+   *
+   * **The walk's own refusal**: `pilot_issue_status_move_refused`, for a move
+   * that skips a state or closes a closed issue. The panel draws the moves
+   * the state machine allows, so a refused move is the service answering
+   * something the panel should not have offered — and a test that wants to
+   * see that answer sets this flag and makes the move anyway.
+   */
+  refuseIssueMove = false
+
+  /**
+   * Whether the service refuses the guidance rule's publication.
+   *
+   * **The publication's own refusal**: `guidance_publish_not_confirmed`, for
+   * a rule that does not stand. The panel offers the button only for a
+   * confirmed, unshared rule, so a refused publication is the service
+   * answering a rule that moved under the reader — and the answer is the
+   * reader sees the service's reason.
+   */
+  refuseRulePublish = false
+
+  /**
+   * Whether the service refuses the guidance rule's retraction.
+   *
+   * **The retraction's own refusal**: `guidance_transition_not_possible`,
+   * because a rule that is not shared has no sharing to retract.
+   */
+  refuseRuleRetract = false
+
+  /** How many issues the service has been asked to record. */
+  issueRecords = 0
+
+  /** How many status moves the service has been asked for. */
+  issueMoves = 0
+
+  /** How many publications the service has been asked for. */
+  rulePublications = 0
+
+  /** How many retractions the service has been asked for. */
+  ruleRetractions = 0
 
   /**
    * Whether the trajectory's answer carries a change that answers no
@@ -1128,6 +1271,26 @@ export class FakeApi {
 
     if (method === 'POST' && path.startsWith('/guidance/rules/') && path.endsWith('/confirm')) {
       return this.settleTheRule(path, init)
+    }
+
+    if (method === 'GET' && path.startsWith('/issues')) {
+      return this.answerTheIssues(path)
+    }
+
+    if (method === 'POST' && path === '/issues') {
+      return this.recordTheIssue(init)
+    }
+
+    if (method === 'POST' && path.startsWith('/issues/') && path.endsWith('/status')) {
+      return this.moveTheIssue(path, init)
+    }
+
+    if (method === 'POST' && path.startsWith('/guidance/rules/') && path.endsWith('/publish')) {
+      return this.publishTheRule(path, init)
+    }
+
+    if (method === 'POST' && path.startsWith('/guidance/rules/') && path.endsWith('/retract')) {
+      return this.retractTheRule(path)
     }
 
     // The review round's preview, apply and deliverables — the delivery
@@ -1422,6 +1585,269 @@ export class FakeApi {
     if (body.verdict === 'disputed') {
       rule.resolution_reason = body.reason ?? null
     }
+    return jsonResponse(200, rule)
+  }
+
+  /**
+   * The pilot's issues, narrowed by what the panel asked for.
+   *
+   * **The project is required, the service refuses a listing without one** —
+   * an issue is recorded about a project — and the two filters narrow the
+   * answer rather than refusing it: an empty answer is a fact about the
+   * project, not a failure. A filter outside the closed vocabulary is
+   * refused by name, the way the layer refuses it.
+   */
+  private answerTheIssues(path: string): Response {
+    const query = queryOf(path)
+    const projectId = query.get('project_id')
+    if (projectId === null || projectId.trim() === '') {
+      return jsonResponse(422, {
+        detail: [{ loc: ['query', 'project_id'], msg: 'String should have at least 1 character' }],
+      })
+    }
+    const status = query.get('status')
+    const SEVERITIES = ['blocker', 'serious', 'minor', 'suggestion']
+    const STATUSES = ['open', 'confirmed', 'fixed', 'wontfix']
+    if (status !== null && status !== '' && !STATUSES.includes(status)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_status_move_refused',
+        message: `${JSON.stringify(status)} is not one of the four statuses.`,
+      })
+    }
+    const severity = query.get('severity')
+    if (severity !== null && severity !== '' && !SEVERITIES.includes(severity)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_severity_unknown',
+        message: `${JSON.stringify(severity)} is not one of the four severities.`,
+      })
+    }
+    const issues = this.state.issues.filter(
+      (issue) =>
+        issue.project_id === projectId &&
+        (status === null || status === '' || issue.status === status) &&
+        (severity === null || severity === '' || issue.severity === severity),
+    )
+    return jsonResponse(200, issues)
+  }
+
+  /**
+   * The record of one problem the trial met.
+   *
+   * **The record is about something, and the vocabularies are closed.** The
+   * project, the step, the error text and the reporter are required; the
+   * severity and the type are checked against the service's closed
+   * vocabularies, in the service's own order — the vocabulary before the
+   * store — and the answer is the record as it stands: `open`, and dated.
+   */
+  private recordTheIssue(init?: RequestInit): Response {
+    this.issueRecords += 1
+    const body = JSON.parse(init?.body as string) as IssueRecordBody
+    if (this.refuseIssueRecord) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_severity_unknown',
+        message:
+          'application refused (pilot_issue_severity_unknown): the severity is outside the ' +
+          'closed vocabulary, and the record refuses it where the mistake was made.',
+      })
+    }
+    if (body.project_id.trim() === '') {
+      return jsonResponse(422, {
+        detail: [{ loc: ['body', 'project_id'], msg: 'String should have at least 1 character' }],
+      })
+    }
+    const SEVERITIES = ['blocker', 'serious', 'minor', 'suggestion']
+    const CATEGORIES = ['function', 'interface', 'performance', 'model', 'documentation']
+    if (!SEVERITIES.includes(body.severity)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_severity_unknown',
+        message: `${JSON.stringify(body.severity)} is not one of the four severities.`,
+      })
+    }
+    if (!CATEGORIES.includes(body.category)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_category_unknown',
+        message: `${JSON.stringify(body.category)} is not one of the five categories.`,
+      })
+    }
+    const issue: IssueData = {
+      issue_id: body.issue_id,
+      project_id: body.project_id,
+      task_id: body.task_id ?? null,
+      version_id: body.version_id ?? null,
+      feedback_id: body.feedback_id ?? null,
+      step: body.step,
+      error_text: body.error_text,
+      duration_seconds: body.duration_seconds ?? null,
+      retry_count: body.retry_count ?? null,
+      severity: body.severity,
+      category: body.category,
+      reported_by: body.reported_by,
+      reported_at: '2026-11-24T09:00:00+00:00',
+      status: 'open',
+      fix_version: null,
+      regression_note: null,
+    }
+    this.state.issues = [issue, ...this.state.issues]
+    return jsonResponse(201, issue)
+  }
+
+  /**
+   * One issue's walk along its four states.
+   *
+   * **The states are walked, not set.** `open` is confirmed; `confirmed` is
+   * fixed — naming the version that fixed it — or wontfix; a closed issue
+   * moves nowhere. The refusals are the layer's, in the layer's own order:
+   * the issue, the project it belongs to, the vocabulary, the walk, and the
+   * fix version a `fixed` move must name.
+   */
+  private moveTheIssue(path: string, init?: RequestInit): Response {
+    this.issueMoves += 1
+    const issueId = decodeURIComponent(path.slice('/issues/'.length, -'/status'.length))
+    const body = JSON.parse(init?.body as string) as IssueStatusBody
+    if (this.refuseIssueMove) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_status_move_refused',
+        message:
+          'an issue in state open moves to one of (confirmed), not to confirmed. ' +
+          'The states are walked, not set.',
+      })
+    }
+    const issue = this.state.issues.find((row) => row.issue_id === issueId)
+    if (issue === undefined || issue.project_id !== body.project_id) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_not_found',
+        message: `the store holds no pilot issue with the id ${JSON.stringify(issueId)}.`,
+      })
+    }
+    const MOVES: Record<string, string[]> = {
+      open: ['confirmed'],
+      confirmed: ['fixed', 'wontfix'],
+      fixed: [],
+      wontfix: [],
+    }
+    const allowed = MOVES[issue.status] ?? []
+    if (!allowed.includes(body.status)) {
+      return jsonResponse(403, {
+        reason: 'pilot_issue_status_move_refused',
+        message:
+          `an issue in state ${JSON.stringify(issue.status)} moves to one of ` +
+          `(${allowed.length === 0 ? 'nothing — the state is closed' : allowed.join(', ')}), ` +
+          `not to ${JSON.stringify(body.status)}. The states are walked, not set.`,
+      })
+    }
+    if (body.status === 'fixed' && (body.fix_version ?? '').trim() === '') {
+      return jsonResponse(403, {
+        reason: 'arguments_invalid',
+        message:
+          'a fixed issue names the version that fixed it; the fix version was empty. ' +
+          'A fix without a version is a claim the next regression cannot check.',
+      })
+    }
+    issue.status = body.status
+    if (body.status === 'fixed') {
+      issue.fix_version = body.fix_version ?? null
+      issue.regression_note = body.regression_note ?? null
+    }
+    return jsonResponse(200, { issue })
+  }
+
+  /**
+   * The publication of a confirmed rule to the group.
+   *
+   * **The refusals are the service's own, in the service's own order.** The
+   * route checks its body first, so an empty `user_id` is
+   * `arguments_invalid`; the memory's own reasons come after — the
+   * second reader, the state the rule stands in, and the sharing that has
+   * already happened. The answer is the rule as it now stands: shared with
+   * the group, and dated.
+   */
+  private publishTheRule(path: string, init?: RequestInit): Response {
+    this.rulePublications += 1
+    const ruleId = decodeURIComponent(path.slice('/guidance/rules/'.length, -'/publish'.length))
+    const body = JSON.parse(init?.body as string) as { user_id?: string }
+    if ((body.user_id ?? '').trim() === '') {
+      return jsonResponse(403, {
+        reason: 'arguments_invalid',
+        message:
+          'a publication nobody signs is not a publication. Name the mentor whose word it is.',
+      })
+    }
+    if (this.refuseRulePublish) {
+      return jsonResponse(403, {
+        reason: 'guidance_publish_not_confirmed',
+        message:
+          'the rule is not confirmed, and only a confirmed rule is published to the group. ' +
+          'A candidate is unreviewed experience, and a disputed or withdrawn rule is not standing.',
+      })
+    }
+    const rule = this.state.guidanceRules.find((row) => row.rule_id === ruleId)
+    if (rule === undefined) {
+      return jsonResponse(403, {
+        reason: 'guidance_rule_not_found',
+        message: `the memory holds no rule with the id ${JSON.stringify(ruleId)}.`,
+      })
+    }
+    if (rule.proposed_by === body.user_id) {
+      return jsonResponse(403, {
+        reason: 'guidance_publisher_is_proposer',
+        message:
+          `the rule was proposed by ${rule.proposed_by}, and its proposer` +
+          ' cannot be the one who publishes it to the group',
+      })
+    }
+    if (rule.state !== 'confirmed') {
+      return jsonResponse(403, {
+        reason: 'guidance_publish_not_confirmed',
+        message:
+          `the rule is ${JSON.stringify(rule.state)}, and only a confirmed rule is published ` +
+          'to the group.',
+      })
+    }
+    if (rule.shared_scope === 'group') {
+      return jsonResponse(403, {
+        reason: 'guidance_transition_not_possible',
+        message: 'the rule is already shared with the group, and a publication is not twice.',
+      })
+    }
+    rule.shared_scope = 'group'
+    rule.published_by = body.user_id ?? null
+    rule.published_at = '2026-11-24T09:00:00+00:00'
+    return jsonResponse(200, rule)
+  }
+
+  /**
+   * The retraction of a rule's sharing, leaving the rule standing.
+   *
+   * **Retracting a sharing is not withdrawing a rule.** The scope goes back
+   * to `private` and the publication's name and moment are cleared; the
+   * rule's own state is untouched. A rule that is not shared has no sharing
+   * to retract, and the service refuses that by name.
+   */
+  private retractTheRule(path: string): Response {
+    this.ruleRetractions += 1
+    const ruleId = decodeURIComponent(path.slice('/guidance/rules/'.length, -'/retract'.length))
+    if (this.refuseRuleRetract) {
+      return jsonResponse(403, {
+        reason: 'guidance_transition_not_possible',
+        message: 'the rule is not shared with the group, so there is no sharing to retract',
+      })
+    }
+    const rule = this.state.guidanceRules.find((row) => row.rule_id === ruleId)
+    if (rule === undefined) {
+      return jsonResponse(403, {
+        reason: 'guidance_rule_not_found',
+        message: `the memory holds no rule with the id ${JSON.stringify(ruleId)}.`,
+      })
+    }
+    if (rule.shared_scope !== 'group') {
+      return jsonResponse(403, {
+        reason: 'guidance_transition_not_possible',
+        message: 'the rule is not shared with the group, so there is no sharing to retract',
+      })
+    }
+    rule.shared_scope = 'private'
+    rule.published_by = null
+    rule.published_at = null
     return jsonResponse(200, rule)
   }
 

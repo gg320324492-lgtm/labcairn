@@ -96,7 +96,7 @@ from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedE
 from labcairn.application.stages import StageOutcome, StageRequest, StageRun, run_stage
 from labcairn.core.ids import ApprovalId, OperationId, RunId, SourceId, new_id
 from labcairn.db.materials import put_source
-from labcairn.db.repository import list_approvals, list_artifacts, list_stages, load_task
+from labcairn.db.repository import list_approvals, list_artifacts, load_task
 from labcairn.material import ingest_bytes
 from labcairn.material.walk import _stable_source_id
 from labcairn.recovery.contracts import ReconciliationOutcome
@@ -790,7 +790,7 @@ def find_interrupted_publication(
     dossier's binding). A replay whose prediction is wrong is refused by the
     probe, which is the point of the prediction.
     """
-    from labcairn.recovery.persistence import find_operations_in_state
+    from labcairn.recovery.persistence import find_operations_for_resource, find_stage
 
     manifest_key = f"{LOOP_DIR_NAME}/{receipt_id}/import-receipt.json"
     manifest_path = context.workspace.path_in(
@@ -800,34 +800,33 @@ def find_interrupted_publication(
         return None
     receipt = ImportReceipt.model_validate_json(manifest_path.read_bytes().decode("utf-8"))
 
+    # **The attempts are read by their address, not by their state.** A
+    # publication that was resolved out of ``UNCERTAIN`` — confirmed,
+    # replay-authorised, even failed — has left its ``ATTEMPTING`` state
+    # behind, and a finder that matched on state would stop finding the
+    # attempt exactly when a replay needs to name it. The publication key is
+    # the durable address; every attempt on this loop's publication names it.
     with store_refusals():
-        attempting = find_operations_in_state(
-            context.store.session, context.task_id, OperationState.ATTEMPTING
+        attempts = find_operations_for_resource(
+            context.store.session,
+            context.task_id,
+            f"{LOOP_DIR_NAME}/{receipt_id}/published.bin",
         )
-        uncertain = find_operations_in_state(
-            context.store.session, context.task_id, OperationState.UNCERTAIN
-        )
-        stages = list_stages(context.store.session, context.task_id)
-    stage_ids = {stage.stage_id: stage for stage in stages if stage.name == PUBLICATION_STAGE_NAME}
-    candidates = [
-        operation
-        for operation in (*attempting, *uncertain)
-        if operation.stage_id in stage_ids
-        and operation.resource_key == f"{LOOP_DIR_NAME}/{receipt_id}/published.bin"
-    ]
-    if not candidates:
+    if not attempts:
         return None
     # The newest attempt is the one whose outcome is live: an earlier one was
     # refused on its own record (the store holds its FAILED row), and the
     # id order is the order the attempts were planned in.
-    operation = max(candidates, key=lambda item: str(item.operation_id))
+    operation = max(attempts, key=lambda item: str(item.operation_id))
     # The stage's own output record is the prediction when it has one; the
     # caller's round record is the authority when it does not. Both are the
     # edited bytes' hash, and the probe refuses a replay whose prediction is
     # wrong — so carrying the stage's hash here is carrying a fact, not a
     # guess.
-    stage = stage_ids[operation.stage_id]
-    predicted = stage.output_hashes[0] if stage.output_hashes else ""
+    stage = find_stage(context.store.session, operation.stage_id)
+    predicted = ""
+    if stage is not None and stage.name == PUBLICATION_STAGE_NAME and stage.output_hashes:
+        predicted = stage.output_hashes[0]
     return InterruptedPublication(
         operation_id=str(operation.operation_id),
         import_receipt=receipt,

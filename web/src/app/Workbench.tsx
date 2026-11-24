@@ -52,6 +52,7 @@ import { EventsView } from '../views/EventsView'
 import { EvidenceView } from '../views/EvidenceView'
 import { FigureView } from '../views/FigureView'
 import { GuidanceView } from '../views/GuidanceView'
+import { IssuesView } from '../views/IssuesView'
 import { MultiSourceSearchView } from '../views/MultiSourceSearchView'
 import { PlanView } from '../views/PlanView'
 import { ProposalsView } from '../views/ProposalsView'
@@ -201,6 +202,7 @@ export function Workbench(): JSX.Element {
       <TrajectoryView cycle={readCycle} />
       <MultiSourceSearchView cycle={readCycle} />
       <GuidanceView cycle={readCycle} onChanged={readAgain} />
+      <IssuesView cycle={readCycle} onChanged={readAgain} />
       <ProposalsView cycle={readCycle} onChanged={readAgain} />
 
       <footer className="workbench__footer">

@@ -139,7 +139,8 @@
         "tests/test_meeting_text.py",
         "tests/test_issues.py",
         "tests/test_rule_sharing.py",
-        "tests/test_service_model_wiring.py"
+        "tests/test_service_model_wiring.py",
+        "tests/test_pilot_runbook.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -220,7 +221,8 @@
         "tests/test_intake_guards.py",
         "tests/test_capability_namespaces.py",
         "tests/test_docx_fixture_corpus.py",
-        "tests/test_review_dossier.py"
+        "tests/test_review_dossier.py",
+        "tests/test_recovery_quality_api.py"
       ]
     ],
     "windows-latest": [
@@ -340,7 +342,8 @@
         "tests/test_ppt_deck.py",
         "tests/test_meeting_text.py",
         "tests/test_issues.py",
-        "tests/test_service_model_wiring.py"
+        "tests/test_service_model_wiring.py",
+        "tests/test_pilot_runbook.py"
       ],
       [
         "tests/test_analysis_service.py",
@@ -442,7 +445,8 @@
         "tests/test_docx_edit_samples.py",
         "tests/test_material_adapters.py",
         "tests/test_review_dossier.py",
-        "tests/test_workbench_real_browser.py"
+        "tests/test_workbench_real_browser.py",
+        "tests/test_recovery_quality_api.py"
       ]
     ]
   },
@@ -655,7 +659,9 @@
       "test_meeting_text.py": 0.0,
       "test_issues.py": 0.0,
       "test_rule_sharing.py": 0.0,
-      "test_service_model_wiring.py": 0.0
+      "test_service_model_wiring.py": 0.0,
+      "test_pilot_runbook.py": 0.0,
+      "test_recovery_quality_api.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 2.89,
@@ -865,7 +871,9 @@
       "test_meeting_text.py": 0.0,
       "test_issues.py": 0.0,
       "test_rule_sharing.py": 0.0,
-      "test_service_model_wiring.py": 0.0
+      "test_service_model_wiring.py": 0.0,
+      "test_pilot_runbook.py": 0.0,
+      "test_recovery_quality_api.py": 0.0
     }
   }
 }

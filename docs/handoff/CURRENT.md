@@ -2867,3 +2867,32 @@ The implementing agent merges its own PRs after both the parent and a non-implem
 ## Escalate to the project lead
 
 Expanding data access scope, write permission to original material, unapproved outbound transmission, any model-generated code execution, and major architecture change. The PyMuPDF licence obligation is now **resolved** (ADR-0008) and no longer needs escalating; **copyright ownership was resolved on 2026-11-06** and no longer needs escalating.
+
+## 2026-11-24 - P4-PILOT execution runbook and P4-G1..G4 exit skeleton drafted
+
+- **[LC-P4-PILOT-runbook.md](../plans/LC-P4-PILOT-runbook.md)** turns plan
+  §9.2's twelve trial steps into executable operations — each step with its
+  CLI command or service route (verified against this tree), the evidence it
+  records, and its failure path. It fixes the pilot's shape from plan §9.1
+  (one project, 3–5 participants, one advisor + 2–4 students), the
+  no-material boundary (raw files only under `E:/trial-material/` and
+  `E:/labcairn-local/`; the repository carries ids/digests/counts/paths), the
+  authorisation gate (no real-model request before the authorisation record
+  is filled and signed), and the closed issue vocabularies as
+  `src/labcairn/application/issues.py` spells them (severity
+  `blocker|serious|minor|suggestion`, type
+  `function|interface|performance|model|documentation`), with the feedback
+  form's submitter-facing words mapped onto them at triage.
+- **[P4-G1-G4-record-skeleton.md](../acceptance/P4-G1-G4-record-skeleton.md)**
+  fixes, before the trial runs, what evidence each Phase 4 exit gate reads:
+  plan §11's conditions verbatim, an evidence slot per condition (with its
+  producing runbook step and whether the condition is already covered by
+  system capability — the apply/publish binding, the real-model
+  authorisation gate, recovery, the rule-publication boundary — or only
+  decidable by the real trial), every verdict and slot `PENDING`, and plan
+  §12's three pre-opening decisions recorded as `TBD` with their owners.
+  No verdict is written in advance.
+- Both records are skeletons: every evidence slot and gate verdict is
+  `PENDING`, and the three §12 decisions are `TBD`. The pilot's real trial
+  fills them; nothing here claims a gate result. Witnessed by
+  `tests/test_pilot_runbook.py`.

@@ -385,6 +385,49 @@ export type Health = {
   task_id: string
 }
 
+export type ImportReceipt = {
+  receipt_id: string
+  task_id: string
+  source_id: string
+  source_root_id: string
+  source_key: string
+  relative_path: string
+  original_sha256: string
+  size_bytes: number
+  imported_at: string
+}
+
+export type InterruptedPublication = {
+  operation_id: string
+  import_receipt: ImportReceipt
+  copy_key: string
+  publication_key: string
+  manifest_key: string
+  publication_artifact_id: string
+  import_artifact_id: string
+  edited_sha256: string
+}
+
+export type InterruptedReplayBody = {
+  edited_base64: string
+  approval_id: string
+}
+
+export type InterruptedResolutionWire = {
+  operation_id: string
+  resolution: string
+  resulting_state: string
+  replay_permitted: boolean
+  expected_sha256: string
+  observed_sha256: string | null
+  resource_key: string
+  detail: string
+}
+
+export type InterruptedResolveBody = {
+  expected_sha256: string
+}
+
 export type IssueData = {
   issue_id: string
   project_id: string
@@ -751,6 +794,15 @@ export type ReviewUnresolved = {
   feedback_id: string
   reason: string
   detail: string
+}
+
+export type RevisionPublished = {
+  publication: ArtifactReceipt
+  publication_key: string
+  publication_sha256: string
+  operation: Operation
+  stage: Stage
+  approval: Approval
 }
 
 export type RoundQualityReport = {
