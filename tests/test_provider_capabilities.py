@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from provider_fakes import FakeEndpoint, Reply, sync_runner
+from provider_fakes import FakeEndpoint, PermissiveConsent, Reply, sync_runner
 from sqlalchemy.orm import Session
 
 from labcairn.application.probe_records import SqliteProbeCache
@@ -85,6 +85,7 @@ def _run(
 ) -> ProbeRecord:
     probe = PydanticAiProbe(
         model=endpoint,
+        consent=PermissiveConsent(),
         usage_capture=endpoint.capture,
         clock=lambda: datetime(2026, 1, 1, tzinfo=UTC),
         runner=sync_runner,
@@ -368,6 +369,7 @@ def test_probe_cache_returns_the_record_without_a_second_round_of_requests() -> 
     probe = CachedCapabilityProbe(
         PydanticAiProbe(
             model=endpoint,
+            consent=PermissiveConsent(),
             usage_capture=endpoint.capture,
             clock=lambda: datetime(2026, 1, 1, tzinfo=UTC),
             runner=sync_runner,
@@ -397,6 +399,7 @@ def test_a_partial_cache_hit_probes_only_the_gap() -> None:
     probe = CachedCapabilityProbe(
         PydanticAiProbe(
             model=endpoint,
+            consent=PermissiveConsent(),
             usage_capture=endpoint.capture,
             clock=lambda: datetime(2026, 1, 1, tzinfo=UTC),
             runner=sync_runner,
@@ -600,6 +603,7 @@ def test_one_session_is_one_runner_call() -> None:
     )
     probe = PydanticAiProbe(
         model=endpoint,
+        consent=PermissiveConsent(),
         usage_capture=endpoint.capture,
         clock=lambda: datetime(2026, 1, 1, tzinfo=UTC),
         runner=counting_runner,

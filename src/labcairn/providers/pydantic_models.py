@@ -55,6 +55,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from labcairn.providers.consent import OutboundConsent
 from labcairn.providers.credentials import (
     Credential,
     Protocol,
@@ -181,11 +182,18 @@ def probe_record(
     *,
     environ: Mapping[str, str] | None = None,
     credential: Credential | None = None,
+    consent: OutboundConsent,
 ) -> ProbeRecord:
     """One live capability probe against a real endpoint. **Costs money.**
 
     Not called by any test in this repository, and not to be called without the
     project owner's authorisation and a credential they supplied for the purpose.
+
+    **``consent`` is required, and it is the same port a run's request is
+    asked through.** ADR-0006 statement 3: a probe sends requests, so a probe
+    requires consent too, in the same way and for the same reason as any other
+    outbound request. A probe with no decision behind it never reaches the
+    endpoint.
 
     **This is the record form, and it is what the store keeps.** ADR-0002
     wants probe results cached per ``(endpoint, model, protocol)``, so the
@@ -216,7 +224,12 @@ def probe_record(
         environ=environ,
         http_client=build_http_client(settings, sniffer=sniffer),
     )
-    probe = PydanticAiProbe(model=model, usage_capture=sniffer, clock=lambda: datetime.now(tz=UTC))
+    probe = PydanticAiProbe(
+        model=model,
+        consent=consent,
+        usage_capture=sniffer,
+        clock=lambda: datetime.now(tz=UTC),
+    )
     return probe.probe(
         capabilities=frozenset(ALL_CAPABILITIES),
         endpoint_fingerprint=endpoint_fingerprint(
@@ -233,6 +246,7 @@ def smoke_test(
     *,
     environ: Mapping[str, str] | None = None,
     credential: Credential | None = None,
+    consent: OutboundConsent,
 ) -> Mapping[str, object]:
     """One live capability probe against a real endpoint. **Costs money.**
 
@@ -240,6 +254,13 @@ def smoke_test(
     project owner's authorisation and a credential they supplied for the purpose.
     It exists so the work order's *"real smoke on at least one provider"* has a
     defined, repeatable procedure rather than a shell history.
+
+    **``consent`` is required here for the same reason it is required on
+    :func:`probe_record`.** The smoke procedure is a probe, and a probe sends
+    requests, so it is asked the same question before every request it makes.
+    The procedure is outside the workspace's approval ledger — the owner's
+    credential and their running of the command are the decision — but the
+    question asked of the port is the one every outbound request is asked.
 
     The result is deliberately a plain mapping rather than a
     :class:`~labcairn.providers.probe.ProbeRecord`: a smoke result gets pasted
@@ -257,4 +278,4 @@ def smoke_test(
     table, so the honest output is ``usage_reporting: ok`` and no money — and a
     ``max_cost_usd`` ceiling would fail closed against it.
     """
-    return probe_record(settings, environ=environ, credential=credential).to_wire()
+    return probe_record(settings, environ=environ, credential=credential, consent=consent).to_wire()

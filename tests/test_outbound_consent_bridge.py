@@ -53,13 +53,24 @@ from labcairn.application.approvals import (
     grant_approval,
     request_approval,
 )
-from labcairn.application.outbound import OutboundApproval
+from labcairn.application.outbound import OutboundApproval, ProbeConsent, probe_consent, probe_use
 from labcairn.core.ids import ApprovalId, new_id
 from labcairn.core.providers.protocol import ModelRequest
+from labcairn.db.repository import list_approvals
 from labcairn.providers.adapter import PydanticAiModelProvider
 from labcairn.providers.budget import RunBudget
+from labcairn.providers.capabilities import ALL_CAPABILITIES, Capability, CapabilityOutcome
 from labcairn.providers.consent import OutboundConsent
 from labcairn.providers.errors import BudgetExceededError, OutboundRefusedError
+from labcairn.providers.probe import (
+    PROBE_INSTRUCTION,
+    PROBE_STRUCTURED_PROMPT,
+    PROBE_TOOL_NAME,
+    ProbeRecord,
+    ProbeRequest,
+    PydanticAiProbe,
+    probe_requests,
+)
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.runtime.operation import ApprovalState
 from labcairn.security.approval import ApprovalLedger
@@ -370,3 +381,270 @@ def test_the_provider_cannot_be_built_without_a_consent_port() -> None:
 
     with pytest.raises(TypeError):
         PydanticAiModelProvider(model=endpoint, runner=sync_runner)  # type: ignore[call-arg]
+
+
+# --- 5. the probe goes through the same gate (ADR-0006 statement 3) --------
+
+
+def _the_probe_requests() -> tuple[ProbeRequest, ...]:
+    """The requests a probe of every capability makes."""
+    return probe_requests(frozenset(ALL_CAPABILITIES))
+
+
+def _the_probe_use(context: ApplicationContext, request: ProbeRequest) -> ApprovalUse:
+    """What a probe's approval is spent on."""
+    return probe_use(context, provider="fake", model="scripted", request=request)
+
+
+def _granted_probe_approvals(context: ApplicationContext) -> tuple[ApprovalGranted, ...]:
+    """One granted approval per request a probe makes.
+
+    **One per request, and that is the ledger's doing.** The approval a
+    request names is spent on it, so one approval cannot cover a session: a
+    probe of three capabilities needs three grants. Two of them are for the
+    same words — the two structured-output probes send the same instruction in
+    different channels — and they are still two requests, so they are two
+    grants.
+    """
+    granted: list[ApprovalGranted] = []
+    for request in _the_probe_requests():
+        asked = request_approval(
+            context,
+            ApprovalRequest(
+                use=_the_probe_use(context, request),
+                expires_at=MOMENT + timedelta(hours=1),
+            ),
+            now=MOMENT,
+        )
+        granted.append(grant_approval(context, asked.approval.approval_id, now=MOMENT))
+    return tuple(granted)
+
+
+def _probe(endpoint: FakeEndpoint, consent: OutboundConsent) -> PydanticAiProbe:
+    """A probe with the one thing this file varies: its consent port."""
+    return PydanticAiProbe(
+        model=endpoint,
+        consent=consent,
+        usage_capture=endpoint.capture,
+        clock=lambda: MOMENT,
+        runner=sync_runner,
+    )
+
+
+def _probe_endpoint() -> FakeEndpoint:
+    """An endpoint that answers every request a probe makes."""
+    return FakeEndpoint(
+        replies=(
+            Reply(name="tool-call", tool_calls=((PROBE_TOOL_NAME, {"verdict": "ok"}),)),
+            Reply(name="native-json", text='{"verdict": "ok"}'),
+            Reply(name="prompted-json", text='{"verdict": "ok"}'),
+        )
+    )
+
+
+def _probe_all(endpoint: FakeEndpoint, consent: OutboundConsent) -> ProbeRecord:
+    """Run one probe of every capability against ``endpoint``."""
+    return _probe(endpoint, consent).probe(
+        capabilities=frozenset(ALL_CAPABILITIES),
+        endpoint_fingerprint="fingerprint",
+        protocol="openai_compatible",
+    )
+
+
+def test_a_probe_without_a_consent_decision_never_reaches_the_network(
+    context: ApplicationContext,
+) -> None:
+    """A probe nobody agreed to sends nothing at all.
+
+    ADR-0006 statement 3: *"A capability probe is not consent. Probing a model
+    sends requests. A probe therefore requires consent too — in the same way,
+    and for the same reason, as any other outbound request."*
+
+    The port refuses the first request, and the recording upstream is the
+    proof: **the count is zero**, not a raised exception and a hope.
+    """
+    endpoint = _probe_endpoint()
+    consent = probe_consent(
+        context,
+        provider="fake",
+        model="scripted",
+        requests=_the_probe_requests(),
+        now=MOMENT,
+    )
+
+    with pytest.raises(OutboundRefusedError) as raised:
+        _probe_all(endpoint, consent)
+
+    assert endpoint.calls == []
+    assert "tool_calls" in raised.value.reason
+    assert PROBE_INSTRUCTION not in raised.value.reason
+
+
+def test_a_probe_with_a_consent_decision_reaches_the_network(
+    context: ApplicationContext,
+) -> None:
+    """The same probe, with a decision behind each request, sends them.
+
+    **The count is the claim.** Three capabilities are asked about, three
+    requests go out, and every one of them was agreed to: the ledger holds
+    each approval ``CONSUMED`` afterwards, one per request.
+    """
+    endpoint = _probe_endpoint()
+    _granted_probe_approvals(context)
+    consent = probe_consent(
+        context,
+        provider="fake",
+        model="scripted",
+        requests=_the_probe_requests(),
+        now=MOMENT,
+    )
+
+    record = _probe_all(endpoint, consent)
+
+    assert endpoint.call_count == 3
+    assert record.outcomes[Capability.TOOL_CALLS] is CapabilityOutcome.OK
+    spent = list_approvals(context.store.session, context.task_id)
+    assert [approval.state for approval in spent] == [ApprovalState.CONSUMED] * 3
+
+
+def test_one_approval_cannot_cover_a_probe_session(context: ApplicationContext) -> None:
+    """One grant, one request: the ledger's single use, seen from the probe.
+
+    The session asks about three capabilities and holds one approval. The
+    first request is spent on it; the second has nothing left to spend, so it
+    is refused — and the upstream count is one, not three.
+    """
+    endpoint = _probe_endpoint()
+    request = _the_probe_requests()[0]
+    asked = request_approval(
+        context,
+        ApprovalRequest(
+            use=_the_probe_use(context, request),
+            expires_at=MOMENT + timedelta(hours=1),
+        ),
+        now=MOMENT,
+    )
+    granted = grant_approval(context, asked.approval.approval_id, now=MOMENT)
+    use = _the_probe_use(context, request)
+    consent = ProbeConsent(
+        [
+            (
+                request.capability,
+                use,
+                OutboundApproval(
+                    context=context,
+                    approval_id=granted.approval.approval_id,
+                    use=use,
+                    at=MOMENT,
+                ),
+            )
+        ]
+    )
+
+    with pytest.raises(OutboundRefusedError) as raised:
+        _probe_all(endpoint, consent)
+
+    assert endpoint.call_count == 1
+    assert "no approval covers" in raised.value.reason
+
+
+def test_a_spent_approval_is_refused_by_the_probe(context: ApplicationContext) -> None:
+    """A second probe through an approval that was already spent is refused.
+
+    The same port is reused deliberately: an approval is one operation, not a
+    licence for a session. The upstream count stays where the first probe left
+    it, and the refusal names the approval rather than the words it would have
+    carried.
+    """
+    endpoint = _probe_endpoint()
+    request = _the_probe_requests()[0]
+    asked = request_approval(
+        context,
+        ApprovalRequest(
+            use=_the_probe_use(context, request),
+            expires_at=MOMENT + timedelta(hours=1),
+        ),
+        now=MOMENT,
+    )
+    granted = grant_approval(context, asked.approval.approval_id, now=MOMENT)
+    use = _the_probe_use(context, request)
+    approval = OutboundApproval(
+        context=context,
+        approval_id=granted.approval.approval_id,
+        use=use,
+        at=MOMENT,
+    )
+    consent = ProbeConsent([(request.capability, use, approval)])
+
+    _probe(endpoint, consent).probe(
+        capabilities=frozenset({Capability.TOOL_CALLS}),
+        endpoint_fingerprint="fingerprint",
+        protocol="openai_compatible",
+    )
+    assert endpoint.call_count == 1
+
+    with pytest.raises(OutboundRefusedError) as raised:
+        _probe(endpoint, consent).probe(
+            capabilities=frozenset({Capability.TOOL_CALLS}),
+            endpoint_fingerprint="fingerprint",
+            protocol="openai_compatible",
+        )
+
+    assert endpoint.call_count == 1
+    assert "consumed" in raised.value.reason
+    assert PROBE_INSTRUCTION not in raised.value.reason
+
+
+def test_the_refusal_names_the_approval_and_not_the_prompt(
+    context: ApplicationContext,
+) -> None:
+    """A refusal says which decision was missing, and never echoes the words.
+
+    The port names an approval the store does not hold. The refusal carries
+    the approval's id — the operator has to know *which* one to grant — and the
+    probe's own instruction is not in it.
+    """
+    endpoint = _probe_endpoint()
+    request = _the_probe_requests()[0]
+    missing = ApprovalId(new_id())
+    use = _the_probe_use(context, request)
+    consent = ProbeConsent(
+        [
+            (
+                request.capability,
+                use,
+                OutboundApproval(
+                    context=context,
+                    approval_id=missing,
+                    use=use,
+                    at=MOMENT,
+                ),
+            )
+        ]
+    )
+
+    with pytest.raises(OutboundRefusedError) as raised:
+        _probe_all(endpoint, consent)
+
+    reason = raised.value.reason
+    assert str(missing) in reason
+    assert PROBE_INSTRUCTION not in reason
+    assert PROBE_STRUCTURED_PROMPT not in reason
+    assert endpoint.calls == []
+
+
+def test_the_probe_cannot_be_built_without_a_consent_port() -> None:
+    """A defaulted port would be a defaulted permission.
+
+    The structural half of "cannot send without having been handed the
+    result", for the probe: there is no construction path that omits the
+    hand-off, so a probe cannot exist that nobody agreed to.
+    """
+    endpoint = _probe_endpoint()
+
+    with pytest.raises(TypeError):
+        PydanticAiProbe(  # type: ignore[call-arg]
+            model=endpoint,
+            clock=lambda: MOMENT,
+            runner=sync_runner,
+        )

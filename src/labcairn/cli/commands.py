@@ -68,6 +68,7 @@ if TYPE_CHECKING:
 
     from labcairn.api.selection import TaskSelector
     from labcairn.application import ApplicationContext, MaterialIngested, SourceAddress
+    from labcairn.application.approvals import ApprovalUse
     from labcairn.application.model_request import ModelInvocation
     from labcairn.application.model_suggestions import ModelSuggestionBackend
     from labcairn.application.roles_run import RoleRunBackend
@@ -87,7 +88,8 @@ if TYPE_CHECKING:
     from labcairn.core.providers.protocol import ModelRequest, ModelResponse
     from labcairn.guidance.models import GuidanceCheck, GuidanceRule
     from labcairn.providers.adapter import ExchangeRecord
-    from labcairn.providers.capabilities import ProviderCapabilities
+    from labcairn.providers.capabilities import Capability, ProviderCapabilities
+    from labcairn.providers.consent import OutboundConsent
     from labcairn.providers.credentials import ProviderSettings
     from labcairn.providers.probe import ProbeCache, ProbeKey, ProbeRecord
     from labcairn.security.paths import CanonicalPath
@@ -494,7 +496,9 @@ def doctor(
             help=(
                 "Ask the configured model providers what they can do, by making real "
                 "requests. Costs money; without it the capabilities are reported as "
-                "declared but unverified."
+                "declared but unverified. A probe is consented to like any other "
+                "outbound request, so it needs a task and one granted approval per "
+                "request it makes; the report says which ones to ask for."
             ),
         ),
     ] = False,
@@ -508,6 +512,7 @@ def doctor(
             ),
         ),
     ] = None,
+    task: TaskOption = None,
     show_token: Annotated[
         bool,
         typer.Option(
@@ -532,6 +537,15 @@ def doctor(
     fine when no command can use it. The command still reports: a
     diagnostic that refuses to run on the thing that is broken is not a
     diagnostic.
+
+    **A probe is consented to, like any other outbound request.** ADR-0006
+    statement 3: a probe sends requests, so it needs a decision before it
+    sends one. The approvals it spends are granted against a task, so
+    ``--probe`` needs one — the workspace's current task, or ``--task`` — and
+    one granted approval per request the probe makes. Without them the probe
+    is not made, and the finding says so, with the commands that ask for the
+    approvals it is missing. The diagnostic reports rather than refuses: the
+    rest of the report is still worth having.
     """
     from labcairn.cli import render
     from labcairn.cli.models import emit_model
@@ -546,6 +560,7 @@ def doctor(
             config,
             probe=probe,
             assume_capability=tuple(assume_capability or ()),
+            task_id=_the_task(config, task, as_json=as_json),
             show_token=show_token,
         )
     if as_json:
@@ -560,6 +575,7 @@ def _doctor_report(
     *,
     probe: bool,
     assume_capability: tuple[str, ...],
+    task_id: TaskId | None,
     show_token: bool,
 ) -> DoctorReport:
     """Everything doctor found, assembled from the workspace's own files."""
@@ -614,6 +630,8 @@ def _doctor_report(
             probe=probe,
             assume_capability=assume_capability,
             database_path=database_path if present else None,
+            config=config,
+            task_id=task_id,
         ),
         api_session=session,
     )
@@ -687,6 +705,8 @@ def _provider_findings(
     probe: bool,
     assume_capability: tuple[str, ...],
     database_path: Path | None = None,
+    config: WorkspaceConfig | None = None,
+    task_id: TaskId | None = None,
 ) -> tuple[ProviderFinding, ...]:
     """What the workspace's model providers can do.
 
@@ -710,6 +730,13 @@ def _provider_findings(
     reading they do not trust. The override suppresses both the stored
     reading and the probe, so no money is spent on a reading the workspace
     has been told to ignore.
+
+    **A probe is consented to, like any other outbound request.** ADR-0006
+    statement 3: a probe sends requests, so it goes through the same gate,
+    and the approvals it spends are granted against a task. The probe is
+    handed a consent port built from the task's granted approvals, and a
+    provider nobody has agreed to is not asked: the finding says so instead,
+    and no request leaves.
     """
     from labcairn.cli.models import ProviderFinding
     from labcairn.cli.workspace import WorkspaceSetupError
@@ -729,34 +756,183 @@ def _provider_findings(
         )
 
     findings: list[ProviderFinding] = []
-    for name, settings in settings_by_name.items():
-        key = probe_key(
-            base_url=settings.sanitised_base_url(),
-            model=settings.model,
-            protocol=settings.protocol_label,
-        )
-        record, source, error = _probe_finding(
-            settings, key, probe=probe, database_path=database_path
-        )
-        capabilities = record.to_provider_capabilities() if record is not None else None
-        findings.append(
-            ProviderFinding(
-                name=name,
-                protocol=settings.protocol_label,
+    with _probe_context(location, config, task_id) as context:
+        for name, settings in settings_by_name.items():
+            key = probe_key(
+                base_url=settings.sanitised_base_url(),
                 model=settings.model,
-                endpoint_fingerprint=key.endpoint_fingerprint,
-                probed=record is not None,
-                probe_source=source,
-                observed_at=record.observed_at.isoformat() if record is not None else None,
-                probe_error=error,
-                probed_override=not settings.probed,
-                capabilities=_capability_findings(
-                    capabilities,
-                    assume_capability=assume_capability,
-                ),
+                protocol=settings.protocol_label,
             )
-        )
+            consent, missing = _the_probe_consent(context, name=name, settings=settings)
+            record, source, error = _probe_finding(
+                settings,
+                key,
+                probe=probe,
+                database_path=database_path,
+                consent=consent,
+                missing=missing,
+            )
+            capabilities = record.to_provider_capabilities() if record is not None else None
+            findings.append(
+                ProviderFinding(
+                    name=name,
+                    protocol=settings.protocol_label,
+                    model=settings.model,
+                    endpoint_fingerprint=key.endpoint_fingerprint,
+                    probed=record is not None,
+                    probe_source=source,
+                    observed_at=record.observed_at.isoformat() if record is not None else None,
+                    probe_error=error,
+                    probed_override=not settings.probed,
+                    capabilities=_capability_findings(
+                        capabilities,
+                        assume_capability=assume_capability,
+                    ),
+                )
+            )
     return tuple(findings)
+
+
+@contextmanager
+def _probe_context(
+    location: WorkspaceLocation,
+    config: WorkspaceConfig | None,
+    task_id: TaskId | None,
+) -> Iterator[ApplicationContext | None]:
+    """The context a probe's approvals are spent in, or nothing at all.
+
+    **``None`` when there is no task to consent against.** A probe's approval
+    is granted against a task — the ledger refuses an approval spent for
+    another — so a workspace with no task has nothing to spend one from. The
+    doctor reports that as a finding rather than refusing: a diagnostic that
+    refuses to run on the thing that is broken is not a diagnostic, and the
+    rest of the report is still worth having.
+
+    The store is opened **for writing**, because spending an approval writes:
+    the ledger moves the row to ``CONSUMED``, and that is the whole of what a
+    single-use guarantee is.
+    """
+    if config is None or task_id is None:
+        yield None
+        return
+    from labcairn.cli.workspace import application_context
+
+    with application_context(location, config, task_id) as context:
+        yield context
+
+
+def _the_task(
+    config: WorkspaceConfig | None,
+    requested: str | None,
+    *,
+    as_json: bool,
+) -> TaskId | None:
+    """Which task a probe's approvals would be spent against.
+
+    **A task that was named and is not one is refused**, the way every other
+    command refuses it: that is a usage error rather than a state, and it is
+    the same refusal, so it has the same witness.
+
+    **A workspace with no task is not refused.** A probe's consent is granted
+    against a task, and a workspace with no task has nothing to spend an
+    approval from — but the doctor still reports everything else it found, so
+    the answer is ``None`` rather than a refusal. A diagnostic that refuses to
+    run on the thing that is broken is not a diagnostic.
+    """
+    from labcairn.core.ids import TaskId, is_uuid7
+
+    if config is None:
+        return None
+    if requested is not None:
+        return _select_task(config, requested, as_json=as_json)
+    chosen = config.current_task
+    if chosen is None or not is_uuid7(chosen):
+        return None
+    return TaskId(uuid.UUID(chosen))
+
+
+def _the_probe_consent(
+    context: ApplicationContext | None,
+    *,
+    name: str,
+    settings: ProviderSettings,
+) -> tuple[OutboundConsent, tuple[tuple[Capability, ApprovalUse], ...]]:
+    """The consent port one provider's probe is handed, and what it is missing.
+
+    **A port that refuses is still a port.** A workspace with no task has no
+    approvals to spend, so the probe is handed a port that refuses every
+    request: the probe then does not reach the endpoint, and the finding says
+    why. That is the same shape as the provider layer's other refusals — a
+    decision that was not granted — and not a second mechanism.
+
+    The second value is the requests no approval covers, so the caller can
+    say what to ask for rather than only that something is missing.
+    """
+    from labcairn.application.outbound import probe_consent
+    from labcairn.application.refusal import ApplicationRefusedError
+    from labcairn.providers.capabilities import ALL_CAPABILITIES
+    from labcairn.providers.consent import RefusingConsent
+    from labcairn.providers.probe import probe_requests
+
+    if context is None:
+        return (
+            RefusingConsent(
+                "no approval covers this probe: a probe's consent is granted against a "
+                "task, and this workspace has no task to grant it against. The remedy "
+                "is a task, and an approval for each request the probe makes."
+            ),
+            (),
+        )
+    try:
+        consent = probe_consent(
+            context,
+            provider=name,
+            model=settings.model,
+            requests=probe_requests(frozenset(ALL_CAPABILITIES)),
+            now=datetime.now(UTC),
+        )
+    except ApplicationRefusedError as error:
+        return RefusingConsent(str(error)), ()
+    return consent, consent.missing()
+
+
+def _the_approval_commands(missing: Sequence[tuple[Capability, ApprovalUse]]) -> str:
+    """The commands that ask for the approvals a probe is missing.
+
+    **The consent is bound to a digest of the arguments as the run states
+    them**, so an operator who spells the request differently gets an
+    approval the probe cannot spend. The command is therefore exact: the
+    arguments are the ones the probe's own use carries, and the path is left
+    out because the layer sets it from the resource.
+
+    **One command per request, not per distinct text.** The ledger's grants
+    are single-use, so the two requests that carry the same words need two
+    approvals — and the command is the same for both.
+    """
+    if not missing:
+        return ""
+    commands = [
+        "  labcairn task approval-request --capability "
+        f"{use.capability.value} --root {use.root_id} --resource-key "
+        f"{use.resource_key} --arguments-json '{json.dumps(_the_arguments(use), sort_keys=True)}'"
+        f"  # {capability.value}"
+        for capability, use in missing
+    ]
+    return (
+        " Ask for each of them with:\n"
+        + "\n".join(commands)
+        + "\nthen grant each with `labcairn task approval-grant <approval-id>`."
+    )
+
+
+def _the_arguments(use: ApprovalUse) -> dict[str, object]:
+    """The arguments an approval for this use is asked with.
+
+    **The path is not among them**: the layer sets it from the resource the
+    operation addresses, so an operator who spelled it differently would be
+    asking for a different thing than the one that runs.
+    """
+    return {key: value for key, value in use.arguments.items() if key != "path"}
 
 
 def _probe_finding(
@@ -765,6 +941,8 @@ def _probe_finding(
     *,
     probe: bool,
     database_path: Path | None,
+    consent: OutboundConsent,
+    missing: Sequence[tuple[Capability, ApprovalUse]] = (),
 ) -> tuple[ProbeRecord | None, str, str | None]:
     """One provider's reading: where it came from, and what could be kept.
 
@@ -786,11 +964,21 @@ def _probe_finding(
     capabilities are not established here, so the stored record is not read
     and the probe is not made. Probing it would spend money on a reading the
     workspace was told to ignore.
+
+    **A refusal is reported as the reason the reading is missing.** The probe
+    was not made because nobody agreed to it, and that is not the same as a
+    probe that was made and failed — so the finding carries the refusal's
+    own words.
     """
+    from labcairn.providers.errors import OutboundRefusedError
+
     if not settings.probed:
         return None, "none", None
     if probe:
-        record = _probe_record(settings)
+        try:
+            record = _probe_record(settings, consent)
+        except OutboundRefusedError as refusal:
+            return None, "none", refusal.reason + _the_approval_commands(missing)
         if record is None:
             return None, "none", None
         error = _keep_probe_record(database_path, record)
@@ -801,17 +989,25 @@ def _probe_finding(
     return record, "stored", None
 
 
-def _probe_record(settings: ProviderSettings) -> ProbeRecord | None:
+def _probe_record(settings: ProviderSettings, consent: OutboundConsent) -> ProbeRecord | None:
     """Ask one endpoint what it can do, and return what it answered.
 
     A probe that fails is reported as a capability that could not be observed
     rather than as a crash: ``doctor`` is a diagnostic, and a diagnostic that
     dies on the first thing it cannot read is not a diagnostic.
+
+    **A refusal is not a failed probe.** It is a decision, and the operator
+    has to be told which one was missing, so it is raised rather than folded
+    into the ``None`` above.
     """
+    from labcairn.providers.errors import OutboundRefusedError
+
     try:
         from labcairn.providers.pydantic_models import probe_record as run_probe
 
-        return run_probe(settings)
+        return run_probe(settings, consent=consent)
+    except OutboundRefusedError:
+        raise
     except Exception:
         return None
 
