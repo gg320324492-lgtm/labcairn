@@ -3003,3 +3003,24 @@ Expanding data access scope, write permission to original material, unapproved o
   open: their evidence slots are filled by the real trial, and the
   desensitisation checklist and the feedback-form template are still
   unsigned, so what they gate stays shut.
+- **The workbench is bound to a fixture round, and the service cannot yet
+  tell it which round that is.** The review desk reads its project and
+  version from the fixture (`web/src/views/ReviewDeskView.tsx:62-63`) and
+  the delivery centre from its own (`web/src/views/deliveryRound.ts:14-17`),
+  and the service has **no route that names the workspace's current paper
+  round**: `list_paper_projects` exists in the application layer
+  (`src/labcairn/application/trajectory.py:287`) and no route exposes it.
+  Plan §6.4's first, second, third, sixth and seventh conditions are
+  therefore implemented against a sample round and do not yet hold on the
+  pilot paper. **This is the next piece of work after this batch**: a route
+  that lists the workspace's rounds, and the workbench reading it rather
+  than the fixture. The `deliveryRound.ts` comment says the single place to
+  change is "one place" -- there is one, and it holds a fixture today.
+- **Two further gaps the same review found, neither a regression.** The
+  suggestion's *evidence* has no field to live in: `ReviewSuggestionData`
+  and `ReviewOpinion` (`src/labcairn/application/review.py:106-163`) carry
+  no citation, and plan §6.2's "the advice and the evidence it rests on"
+  has nowhere to be shown. And the runbook's step 3 needs `approval_ids`
+  with no step that produces them -- `POST /approvals/{approval_id}/grant`
+  and the CLI's `task approval-request` / `task approval-grant` exist, but
+  the runbook never names them.
