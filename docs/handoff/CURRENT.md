@@ -3056,3 +3056,18 @@ Expanding data access scope, write permission to original material, unapproved o
   gate's collector has to record the slot as `UNKNOWN` with that reason.
   This is the same shape as the missing paper-round route above: the
   product writes the fact and the service cannot say it back.
+- **The v0.1.0 installer was drilled on this machine.**
+  [`LC-P3-05-v010-install-drill-2026-11-25.md`](../acceptance/LC-P3-05-v010-install-drill-2026-11-25.md)
+  records the run: seventeen evidence runs, three installers (the v0.1.0
+  build and two earlier lineages), a machine-wide listing before and
+  after with **no difference** between them, and the userData tree
+  restored **byte for byte** (141 files, none missing, none extra, none
+  different). The record does not close a gate: the tick-sheet's
+  HUMAN-CHECK rows that need a person are listed in its §7, and one of
+  them -- **B9, whether the workbench renders in the window rather than
+  the diagnostic page, with a screenshot** -- is still `[OPEN]` and was
+  not attempted. The Phase 3 drill's §3.3 finding therefore stands
+  unresolved, and this drill neither confirms nor contradicts it. The
+  drill ran **without elevation**, unlike the 2026-11-20 one, and its
+  backup script's HKCU-export path was never exercised, so the record
+  does not claim that path works.
