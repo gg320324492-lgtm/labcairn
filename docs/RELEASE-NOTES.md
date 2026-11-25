@@ -1,7 +1,7 @@
 # LabCairn — Release notes
 **Anchors:** 1 — every converted pointer below carries the words it cites.  
 **Version:** 0.1.0 (`pyproject.toml`) · **Status:** unreleased — no tag has
-been cut · **The tree this describes:** the commit `fc73386` on `main`,
+been cut · **The tree this describes:** the commit `50615ea` on `main`,
 2026-11-25
 
 **Items below dated 2026-11-03 are measured on the branch that has not
@@ -48,28 +48,53 @@ staged analysis, report and figure generation to revision and restart
 recovery, with the multi-source index (the paper revision trajectory, PPT
 decks and meeting text), the pilot's issue record, the rule-sharing door
 and the real-model service wiring in place. **A Windows per-user installer
-was built from that tree and measured**: 354,229,356 bytes, sha256
-`32bca391…`, unsigned, with the frozen backend tree and the copy the
+was built from that tree and measured**: 354,236,364 bytes, sha256
+`dc29e794…`, unsigned, with the frozen backend tree and the copy the
 installer carries measuring the same digest — so the installer carries
 that freeze byte for byte. The structured record carries the digest and
 the build's own companion record
 ([`v0.1.0-artifact.json`](releases/v0.1.0-artifact.json)) carries the
 commands, the toolchain and the evidence
 ([`docs/releases/v0.1.0.json`](releases/v0.1.0.json), written and checked
-by [`scripts/release_record.py`](../scripts/release_record.py)). **One
-thing the build did not settle**: the installer's own file name and
-product version line still read 0.0.3, because the shell's package
-manifest was not bumped for this release. The bytes carry this tree's
-product code; the name does not yet say so, and that version line is the
-owner's call.
+by [`scripts/release_record.py`](../scripts/release_record.py)). **The
+installer's own file name and product version line read `0.1.0`**, the
+version the workbench declares, and a witness
+([`tests/test_shell_version_alignment.py`](../tests/test_shell_version_alignment.py))
+holds the shell's manifest, the workbench's three version declarations and
+the packaging configuration's own override in step with each other. The
+bytes carry this tree's product code and the name says so.
 
-**The tree it is cut from.** `main` at `fc73386` — the merge of pull request
-#223, whose seventeen required checks were all green when it landed (the
+**What the tree also carries, measured on this machine.** The
+installer was drilled: install, launch, upgrade from two earlier
+lineages, content proof, and the reverse direction, with the machine-wide
+listing before and after showing **no difference** and the userData tree
+restored byte for byte
+([`LC-P3-05-v010-install-drill-2026-11-25.md`](acceptance/LC-P3-05-v010-install-drill-2026-11-25.md)).
+One real request went out under the signed authorisation — the model, the
+protocol and the endpoint the record names, one request, the counts and
+durations measured
+([`LC-P4-PILOT-real-request-2026-11-25.md`](acceptance/LC-P4-PILOT-real-request-2026-11-25.md)),
+and the endpoint's four capabilities were probed
+([`LC-P4-PILOT-capability-probe-2026-11-25.md`](acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md)).
+The machine format that authorisation is expressed in — the workspace's
+`providers.json` — is written down with a complete example
+([`LC-P4-PILOT-providers-config.md`](acceptance/LC-P4-PILOT-providers-config.md)),
+and the machine-answerable half of the four exit gates' evidence is
+collected by a tool that runs the read-only routes and writes a
+self-checking record
+([`P4-G1-G4-system-capability-record.json`](acceptance/P4-G1-G4-system-capability-record.json)).
+
+**The tree it is cut from.** `main` at `50615ea` — the merge of pull request
+#223 (whose seventeen required checks were all green when it landed, the
 required set read from GitHub on 2026-11-18 at
-`ac362d2cb5536d05372cf02b49a499036efd2952`). Every number this section
-quotes was measured at that commit: the 58 API endpoints counted in
-`src/labcairn/api/routes.py`, the migration chain the store reads, and the
-commit that rolls the release back.
+`ac362d2cb5536d05372cf02b49a499036efd2952`) and the work that followed it.
+Every number this section quotes was measured on this tree: the 58 API
+endpoints counted in `src/labcairn/api/routes.py`, the migration chain the
+store reads, and the commit that rolls the release back. **The installer's
+own bytes were built from `4ddfa43`**, the commit that aligned the shell's
+version with the workbench's; `shell/` and `src/` are byte-identical
+between that commit and this one, so the installer is this tree's
+installer.
 
 **The baseline it inherits.** Phase 4's baseline is frozen in
 [`LC-P4-G0-baseline-freeze.md`](plans/LC-P4-G0-baseline-freeze.md) §3, and
