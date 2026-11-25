@@ -659,6 +659,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_no_reference_leakage.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The quickstart's command list and the README's against each other. The
+    # README's own list was watched -- by the walk script's table and by
+    # ``test_readme_accuracy.py`` -- and the quickstart's was not, so a
+    # command that changed in one page and not the other left the tree green.
+    "test_quickstart_commands.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_repo_root_guard.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_scaffolding.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_status_consistency.py": (REPOSITORY_CLASS, "repository-gate"),
