@@ -88,9 +88,12 @@ self-checking record
 #223 (whose seventeen required checks were all green when it landed, the
 required set read from GitHub on 2026-11-18 at
 `ac362d2cb5536d05372cf02b49a499036efd2952`) and the work that followed it.
-Every number this section quotes was measured on this tree: the 58 API
-endpoints counted in `src/labcairn/api/routes.py`, the migration chain the
-store reads, and the commit that rolls the release back. **The installer's
+Every number this section quotes was measured on this tree or on the tree
+the release names, and which is which is said: the 58 API endpoints
+counted in `src/labcairn/api/routes.py` at the commit this release names
+(**this** tree carries 60 — the work that followed added the rounds route
+and the suggest run's account), the migration chain the store reads, and
+the commit that rolls the release back. **The installer's
 own bytes were built from `4ddfa43`**, the commit that aligned the shell's
 version with the workbench's. `shell/` is byte-identical between that
 commit and this one, so the installer this version ships is the one this
