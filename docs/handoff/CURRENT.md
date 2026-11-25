@@ -2826,6 +2826,9 @@ Three facts about the rest of it are worth having before the code is written, be
   extract in the wrong order and nothing would record it. ADR-0008 constraint 7
   is unmet, and this is the honest reason the two-column work stopped at
   refusal rather than proceeding to reconstruction.
+  Re-checked on 2026-11-25: still true — `src/labcairn/material/pdf.py`
+  contains no rotation handling (no `rotation`, `/Rotate`, or `upright`
+  reference), and no test exercises a rotated fixture. The limitation stands.
 - **LC-P1-08:** the two-column detector is bracketed against single-column
   fixtures, not calibrated against two-column ones — there is no two-column
   paper in the repository to calibrate against, and the two-column CC-licensed
@@ -2839,6 +2842,12 @@ Three facts about the rest of it are worth having before the code is written, be
   because those real single-column pages sit in the same place. The residual
   is stated in ADR-0008 and in the adapter's docstring and pinned by a test of
   its own.
+  Re-checked on 2026-11-25: still true as recorded. The threshold lives in
+  `src/labcairn/material/pdf.py` (`_two_column_evidence`, 30% rival share,
+  80pt cluster separation), the band statement is in the module docstring,
+  and `tests/test_material_pdf.py` pins the disclosures. No two-column
+  CC-licensed fixture has entered the repository since, so the band remains
+  bracketed, not calibrated.
 - **LC-P1-08, discharged by LC-P1-09 and by LC-P1-11:** anchors were validated only in their
   **positive** direction — no code consumed a locator and returned content, so
   nothing showed that a wrong locator misses. `locate_anchor` now does exactly
@@ -2848,16 +2857,33 @@ Three facts about the rest of it are worth having before the code is written, be
   every citation against the material and acts on the answer, so an address
   that does not resolve is **refused** and the report cites **nothing** in its
   place — not the nearest page and not the last page.
+  Re-checked on 2026-11-25: the negative direction is still witnessed —
+  `tests/test_evidence_index.py` (`test_an_address_that_does_not_exist_is_unresolvable_not_resolved`,
+  `test_material_that_cannot_be_addressed_is_unaddressable`) and
+  `tests/test_analysis_report_checks.py:920`
+  (`test_a_citation_to_an_address_that_does_not_resolve_is_refused`,
+  asserting `check == "links"`).
 - **LC-P1-08:** `UNPARSEABLE` is a mixed bucket — a container that would not
   open, and a page deliberately not read. Both are honestly "not citable, here
   is why", but only the disclosure separates them.
+  Re-checked on 2026-11-25 and narrowed: the vocabulary now separates the
+  cases. Ingest splits a scan (`pdf_no_text_layer` → `UNREADABLE_NO_OCR`,
+  `src/labcairn/material/ingest.py:78`) from an unopenable container
+  (`_UNOPENABLE`, `ingest.py:58`); `SourceReadability` makes
+  `UNPARSEABLE` and `UNREADABLE_NO_OCR` distinct members with a
+  paired-disclosure invariant (`src/labcairn/sources/source.py:248`); and the
+  split is witnessed on the stored readability rather than a problem code
+  (`tests/test_material_pdf.py:133`, `:151`). What remains true of the
+  original point: the separation lives in the enum member and the disclosure
+  text, not in a machine-readable reason code on the row, and a two-column
+  refusal still shares `UNPARSEABLE` with the broken container.
 - **G1:** ~~`ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first.~~ **Closed**: `consume()` now asks the registry and refuses with `capability_unregistered` (`src/labcairn/security/approval.py:215-222`); `tests/test_security_approval.py` and `tests/test_recovery_approvals.py` are the witnesses.
-- **G1:** path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.
-- **G1:** ADR-0006's outbound-consent bridge is not built. Both modules exist.
-- **G1:** structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.
+- **G1:** ~~path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.~~ **Closed 2026-11-02**: `tests/test_security_paths.py` grew a `@requires_posix` branch (`e53db78`) — case-sensitive names, `:` as an ordinary character, trailing-dot/spaces non-aliasing, backslash not a namespace separator, `..` applied after a link is followed — each asserted as a witness in its own right, and the ADS probe (`test_security_paths.py:385`) skips honestly where a filesystem has no streams. The branch runs on the Ubuntu shards.
+- **G1:** ~~ADR-0006's outbound-consent bridge is not built. Both modules exist.~~ **Closed 2026-11-02** (ADR-0006 records it): the bridge landed as LC-P1-03/04's cross-cutting debt payoff — `src/labcairn/application/outbound.py` resolves `OUTBOUND_MODEL_REQUEST` through `consent` and the approval ledger, the disjointness witness moved into `tests/test_outbound_consent_bridge.py`, and the acceptance record is `docs/acceptance/LC-P1-03-outbound-bridge.md`.
+- **G1:** ~~structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.~~ **Updated 2026-11-25**: the capability is now measured against one endpoint/model/protocol, on record in `docs/acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md`: `structured_output_prompted` moved to **ok** (a schema-validating JSON object comes back), while `structured_output_native` is still unsupported — pydantic-ai's profile still refuses it before a request is sent, so the prompted channel is the one a caller may budget against. The measurement binds to the endpoint fingerprint; a different endpoint invalidates it.
 - **G2:** ~~`ArtifactLedger` is in memory. LC-P1-07's ledger does not survive a restart; the store does.~~ **Closed 2026-11-02**: `SqliteArtifactLedgerStore` writes the ledger to `artifact_ledger_entries` (migration 0022) and a new instance on the same database reads it back; the [acceptance record](../acceptance/LC-P1-06-artifact-ledger.md) lists the witnesses and the one measurement still owed to a runner (the shard cost).
-- **Cross-gate:** the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness.
-- **Cross-gate:** the README capability-claim detector has known holes. It is a floor, not a truth-checker.
+- **Cross-gate:** ~~the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness.~~ **Closed 2026-11-02**: `5f6a730` made the guard a parser (`tests/test_no_reference_leakage.py::_gitleaks_allowlist_offenders` walks all four allowlist shapes — top-level `[[allowlists]]`/`[allowlist]`, `[rules.allowlist]`, `[[rules.allowlists]]`, inline tables — across multi-line arrays), with `test_gitleaks_guard_sees_every_allowlist_shape` parametrising the shapes the old line-matcher passed and a fallback line rule still catching unenumerated shapes.
+- **Cross-gate:** ~~the README capability-claim detector has known holes. It is a floor, not a truth-checker.~~ **Closed 2026-11-02**: `5f6a730` also taught the detector the recorded hole forms — passive voice, "is capable of", "handles", "can", "has a built-in", "comes with", and the Chinese modals listed in `_RECORDED_HOLE_CLAIMS` (`tests/test_readme_accuracy.py`) — each pinned by `test_claim_detector_catches_forms_recorded_as_open_holes` (`tests/test_readme_accuracy.py:921`, the demonstration recorded in `docs/acceptance/LC-P2-25-guard-of-the-guards.md`), and the qualifier-laundering shapes are pinned by the clause-scope rule's own tests.
 - **Cross-gate:** ~~copyright ownership is unresolved and there is no `LICENSE` file~~. **Closed 2026-11-06**: the owner confirmed the holder and authority to grant MIT; `LICENSE` carries `Copyright (c) 2026 Tonghe Du`, and the placeholder is deleted.
 
 ## Merge authority

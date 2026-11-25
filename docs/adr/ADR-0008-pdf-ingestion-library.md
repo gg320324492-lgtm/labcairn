@@ -190,11 +190,13 @@ for the reasons under "What would close it" below. The residual is pinned by a
 test of its own, so it is a limit that is visible rather than a limit that is
 only described.
 
-**Constraint 7 below is still unmet.** Rotated text is not detected at all, so
-a rotated page would still extract in the wrong order with nothing recorded.
-This ADR's constraint list is the checklist; a reader should take the two
-entries as different answers rather than assume the list is uniformly
-satisfied.
+**Constraint 7 below is still unmet** — re-checked on 2026-11-25. Rotated
+text is not detected at all (`src/labcairn/material/pdf.py` carries no
+rotation, `/Rotate` or `upright` handling, and no test exercises a rotated
+fixture), so a rotated page would still extract in the wrong order with
+nothing recorded. This ADR's constraint list is the checklist; a reader
+should take the two entries as different answers rather than assume the list
+is uniformly satisfied.
 
 Recorded here rather than left for someone to discover from a wrong citation.
 
@@ -250,7 +252,7 @@ Each traces to a **measurement** above, numbered 1–5, so none can be satisfied
 5. **Reading order is column-aware.** A character range must not land in interleaved text. On a two-column page, `'Left column line one. Right column line one.'` is not a sentence anyone wrote and must never appear (measurements 1, 2).
 6. **A full-width element creates no gutter**, and **an intra-column gap is not a gutter** (measurement 4).
 7. **Rotated text is either read correctly or excluded and reported** — never silently reversed, which is what `extract_text()` does to it (measurement 5).
-8. **The extraction version is recorded** with the page text, so a library upgrade that changes extraction is attributable rather than mysterious. **No field for this exists today** — `Source` carries none, and `SOURCE_SCHEMA_VERSION` is bumped only with a migration — so satisfying this is a schema addition, not an implementation detail.
+8. **The extraction version is recorded** with the page text, so a library upgrade that changes extraction is attributable rather than mysterious. **No field for this exists today** — `Source` carries none, and `SOURCE_SCHEMA_VERSION` is bumped only with a migration — so satisfying this is a schema addition, not an implementation detail. *(Closed after this ADR was written: `SourceTextRow.extraction_version` exists (`src/labcairn/db/models.py`), populated by `derive_extraction_version` (`src/labcairn/material/version.py`), which mixes the adapter's source modules and its pinned libraries into the digest — re-checked on 2026-11-25.)*
 9. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
 10. Unreadable, empty, duplicate and modified inputs are handled without fabrication, and unreadable stays distinct from "no results".
 
