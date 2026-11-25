@@ -26,7 +26,21 @@ from labcairn.core.schema import LabCairnModel
 
 
 class OperationState(StrEnum):
-    """ADR-0003 C2. ``UNCERTAIN`` is the state that makes the rest meaningful."""
+    """ADR-0003 C2. ``UNCERTAIN`` is the state that makes the rest meaningful.
+
+    **``DENIED`` is defined here and written nowhere.** A policy denial is
+    raised before the operation is planned
+    (``labcairn/application/stages.py:187`` against ``:239``), so a denied
+    write leaves no row at all — no state, no reason, no rule. That is the
+    tree's honest position today, and it is a gap rather than a design:
+    ADR-0002's ``test_policy_denial_is_not_classified_as_provider_or_model_error``
+    names the contract that would record the denial and keep it terminal, and
+    that ADR's §"Contracts and acceptance tests" records the split — which
+    layer owns it, what this tree does instead, and what would close it.
+
+    The member is kept, because a state a reader must recognise is a state
+    a writer must be able to produce, and the reader is already written.
+    """
 
     PLANNED = "planned"
     AWAITING_APPROVAL = "awaiting_approval"

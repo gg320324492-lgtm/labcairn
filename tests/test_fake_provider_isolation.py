@@ -34,20 +34,53 @@ libraries are absent; the socket test is the fallback that never skips.
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 import socket
 import subprocess
 import sys
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
+from labcairn.application import ApplicationContext, create_task
+from labcairn.application.approvals import (
+    ApprovalRequest,
+    ApprovalUse,
+    grant_approval,
+    request_approval,
+)
+from labcairn.application.model_request import ModelInvocation, request_model
+from labcairn.application.refusal import ApplicationRefusedError
+from labcairn.core.ids import ApprovalId
 from labcairn.core.providers import FakeProvider, ModelProvider, ModelRequest
+from labcairn.core.providers.fake import Transcript, TranscriptStep
 from labcairn.core.providers.transcripts import ALL_TRANSCRIPTS, USAGE_ABSENT
+from labcairn.core.schema import LabCairnModel
+from labcairn.db.repository import list_approvals
+from labcairn.providers.capabilities import (
+    ALL_CAPABILITIES,
+    Capability,
+    CapabilityOutcome,
+    ProviderCapabilities,
+)
+from labcairn.runtime.lifecycle import TaskGoal
+from labcairn.security.approval import ApprovalLedger
+from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
+from labcairn.security.permissions import Grant
+from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
 pytestmark = pytest.mark.unit
+
+#: The shared store fixture, bound under the name the signature uses. The
+#: end-to-end witness below needs a task to run in; the isolation witnesses
+#: above it need nothing but the fake.
+env = _shared_env
 
 #: Any import of these would mean the package *could* reach the network.
 #: Matched on the root module name so ``import urllib.parse`` is caught too.
@@ -425,3 +458,312 @@ def test_transcripts_need_no_filesystem_to_resolve(frozen_now: datetime) -> None
         assert FakeProvider(transcript, clock=lambda: frozen_now).run()
 
     assert transcripts_module.__file__ is not None
+
+
+# ---------------------------------------------------------------------------
+# The whole path, against the fake, with no network
+# ---------------------------------------------------------------------------
+
+#: The destination a permitted request sends to. An example domain.
+_DESTINATION = "api.model-provider.example"
+
+#: The material the request is judged against.
+_MATERIAL_REF = "proj-1/manuscript.txt"
+
+#: The moment the run is dated.
+_MOMENT = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
+
+
+class _Card(LabCairnModel):
+    """The schema the run asks for: a title and a verdict, both required."""
+
+    title: str
+    verdict: str
+
+
+def _the_transcript() -> Transcript:
+    """Two scripted answers, both in the shape the run asked for.
+
+    **Scripted here rather than taken from the shared set** because the
+    shared transcripts answer in prose, and a prose answer is not a
+    document: this run asks for a schema, so its script has to answer in
+    one. The fake's own contract — replay the script, check the request,
+    count the exchange — is the same either way.
+    """
+    return Transcript.of(
+        "e2e_task",
+        [
+            TranscriptStep.of(
+                "e2e_task.step1",
+                ModelRequest(prompt="What does results.csv contain?"),
+                {
+                    "text": '{"title": "results.csv", "verdict": "128 rows"}',
+                    "tool_calls": [],
+                    "usage": {"input_tokens": 40, "output_tokens": 9},
+                },
+            ),
+            TranscriptStep.of(
+                "e2e_task.step2",
+                ModelRequest(prompt="Summarise it in one sentence."),
+                {
+                    "text": '{"title": "results.csv", "verdict": "128 rows, 12 columns"}',
+                    "tool_calls": [],
+                    "usage": {"input_tokens": 55, "output_tokens": 11},
+                },
+            ),
+        ],
+    )
+
+
+def _the_document(answer: str) -> Mapping[str, object] | None:
+    """The answer as a document, when it is one — the CLI's own rule."""
+    try:
+        decoded = json.loads(answer)
+    except (TypeError, ValueError):
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def _the_invocation(provider: FakeProvider, request: ModelRequest) -> ModelInvocation:
+    """One call through the fake, recorded in the layer's wire form.
+
+    **The same wiring the CLI's loop uses** (``labcairn/cli/commands.py``'s
+    ``_the_loop_invocation``): the transport's answer is the call's answer,
+    the transport's exchange records are carried through unchanged, and the
+    document the answer carried is handed to the layer, which judges it
+    against the schema it asked for. The fake is the transport here, so
+    nothing else is invented.
+    """
+    before = provider.exchanges()
+    answer = provider.send(request)
+    after = provider.exchanges()
+    fresh = after[len(before) :] if len(after) >= len(before) else after
+    return ModelInvocation(
+        answer=answer.text,
+        provider=provider.name.split(":", 1)[0],
+        model=provider.name,
+        exchanges=tuple(exchange.to_wire() for exchange in fresh),
+        credential_fingerprint="fp-" + "c" * 16,
+        structured=_the_document(answer.text),
+    )
+
+
+def _the_context(env: StoreEnv, tmp_path: Path) -> ApplicationContext:
+    """A store, a task, and a policy that asks — so an approval is needed."""
+    workspace_root = tmp_path / "workspace"
+    materials = workspace_root / "materials"
+    materials.mkdir(parents=True)
+    created = create_task(
+        store=env.store(),
+        policy=PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="**")]),
+        workspace_root=workspace_root,
+        title="The fake provider, end to end",
+        goal=TaskGoal(
+            objective="Ask the fake model under the gates.",
+            success_criterion="An answer the consent layer permitted.",
+        ),
+        source_dirs=(materials,),
+    )
+    return ApplicationContext(
+        workspace=created.workspace,
+        store=env.store(),
+        policy=PermissionPolicy.from_rules([Rule(effect=Permission.ASK, pattern="**")]),
+        ledger=ApprovalLedger(),
+    )
+
+
+def _the_use() -> ApprovalUse:
+    """What the model call is spent on — the capability whose payload leaves."""
+    return ApprovalUse(
+        capability=CapabilityId.MODEL_REQUEST,
+        arguments=ModelRequestArgs(
+            provider="fake",
+            model="scripted",
+            path=_MATERIAL_REF,
+            excerpts=(),
+            purpose="guidance_review",
+        ).model_dump(),
+        root_id="source:0",
+        resource_key=_MATERIAL_REF,
+    )
+
+
+def _the_grants() -> list[Grant]:
+    """The material-purpose grants the request is judged against."""
+    return [
+        Grant(
+            grant_id="g-model-1",
+            subject_ref="proj-1",
+            permission="external_transmit",
+            purpose="transmit",
+            scope="proj-1/**",
+            destination=_DESTINATION,
+            granted_by="Dr. Chen",
+            granted_at=_MOMENT,
+            expires_at=None,
+            state="active",
+            withdrawn_at=None,
+            withdrawn_by=None,
+            withdrawal_reason=None,
+        )
+    ]
+
+
+def _a_granted_approval(context: ApplicationContext) -> ApprovalId:
+    """An approval asked for and granted, and not yet spent."""
+    asked = request_approval(
+        context,
+        ApprovalRequest(use=_the_use(), expires_at=_MOMENT.replace(year=2027)),
+    )
+    approval_id = asked.approval.approval_id
+    grant_approval(context, approval_id, now=_MOMENT)
+    return approval_id
+
+
+def _probed(*capable: Capability) -> ProviderCapabilities:
+    """A probe record that licenses exactly the capabilities named."""
+    outcomes = {
+        capability: (
+            CapabilityOutcome.OK if capability in capable else CapabilityOutcome.UNSUPPORTED
+        )
+        for capability in ALL_CAPABILITIES
+    }
+    return ProviderCapabilities.from_outcomes(
+        endpoint_fingerprint="fp-" + "p" * 16,
+        model="scripted",
+        protocol="openai-chat",
+        outcomes=outcomes,
+        unsupported_reason=dict.fromkeys(
+            ALL_CAPABILITIES, "the probe asked and it did not do the thing"
+        ),
+    )
+
+
+@pytest.mark.integration
+def test_fake_provider_e2e_full_task_without_network(
+    env: StoreEnv,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-0002 binding name. The whole path, against the fake, with no network.
+
+    **What the isolation witnesses did not cover.** This file proves the fake
+    *has no way* to behave badly: no socket, no HTTP client, no key, no
+    environment. What it did not prove is that the path *works* when the fake
+    is the model — that a task really does reach the fake, that the answer
+    comes back, that the answer is judged against the schema it was asked
+    for, and that the exchange lands in the task's log. Six witnesses of a
+    capability are not a demonstration of the capability.
+
+    **What "the whole Phase 1 deliverable path" means here.** Phase 1
+    promised a provider layer that can be exercised without paid APIs. The
+    path is the product's own: a task, an approval asked for and granted, the
+    capability gate, the material gate, the call, the answer judged, and the
+    exchange written into the task's event log — with the FakeProvider
+    behind the seam it was built for. Nothing is stubbed but the model, and
+    the model is the fake.
+
+    **And the two capability verdicts.** With a capability set the probe
+    licensed, the run happens and the answer decodes. With one the probe
+    did not license, the request is refused **before the wire**: the fake is
+    never asked, no exchange is recorded, and the approval is still unspent.
+    A capability the probe did not confirm is a capability the run does not
+    get to try — and the second half of that sentence is the one worth
+    checking, because it is the half that costs money.
+    """
+    from labcairn.db.repository import events_after
+    from labcairn.runtime.event import EventType
+
+    def _forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("the FakeProvider path must never open a socket")
+
+    monkeypatch.setattr(socket, "socket", _forbidden)
+    monkeypatch.setattr(socket, "create_connection", _forbidden)
+    monkeypatch.setattr(socket, "create_server", _forbidden)
+
+    context = _the_context(env, tmp_path)
+    frozen = datetime(2026, 1, 1, tzinfo=UTC)
+
+    # --- the capability set the probe licensed ----------------------------
+    provider = FakeProvider(_the_transcript(), clock=lambda: frozen)
+    steps = iter(_the_transcript().steps)
+
+    def _next_invocation() -> ModelInvocation:
+        step = next(steps)
+        return _the_invocation(provider, step.request)
+
+    for _ in range(2):
+        answer = request_model(
+            context,
+            _a_granted_approval(context),
+            _the_grants(),
+            use=_the_use(),
+            subject_ref="proj-1",
+            destination=_DESTINATION,
+            material_ref=_MATERIAL_REF,
+            at=_MOMENT,
+            send=_next_invocation,
+            capabilities=_probed(Capability.STRUCTURED_OUTPUT_PROMPTED),
+            output_schema=_Card,
+        )
+        assert answer.answer, "the fake's answer did not reach the caller"
+        assert answer.destination == _DESTINATION
+
+    # Both calls are in the task's log, and the log is the only place the
+    # call is recorded.
+    recorded = [
+        event
+        for event in events_after(context.store.session, context.task_id)
+        if event.type is EventType.MODEL_EXCHANGED
+    ]
+    assert len(recorded) == 2, f"expected two exchange events; got {recorded!r}"
+    assert all(event.payload["provider"] == "fake" for event in recorded)
+
+    # And the fake is the one that was asked, twice.
+    assert len(provider.exchanges()) == 2
+
+    # --- the capability set the probe did not license ----------------------
+    blocked_provider = FakeProvider(_the_transcript(), clock=lambda: frozen)
+    blocked_approval = _a_granted_approval(context)
+    reached: list[str] = []
+
+    def _must_not_be_asked() -> ModelInvocation:
+        reached.append("the wire was reached")
+        step = next(iter(_the_transcript().steps))
+        return _the_invocation(blocked_provider, step.request)
+
+    with pytest.raises(ApplicationRefusedError):
+        request_model(
+            context,
+            blocked_approval,
+            _the_grants(),
+            use=_the_use(),
+            subject_ref="proj-1",
+            destination=_DESTINATION,
+            material_ref=_MATERIAL_REF,
+            at=_MOMENT,
+            send=_must_not_be_asked,
+            capabilities=_probed(),
+            output_schema=_Card,
+        )
+
+    assert reached == [], "a request the probe did not license reached the wire"
+    assert blocked_provider.exchanges() == (), "the fake was asked anyway"
+    blocked_recorded = [
+        event
+        for event in events_after(context.store.session, context.task_id)
+        if event.type is EventType.MODEL_EXCHANGED
+    ]
+    assert len(blocked_recorded) == 2, "a refused request wrote an exchange record"
+
+    # The refused request cost the person nothing: the approval is granted
+    # but not spent, while the two that were sent are consumed.
+    states = {
+        row.approval_id: row.state for row in list_approvals(context.store.session, context.task_id)
+    }
+    assert states[blocked_approval] != "consumed", (
+        f"the refused request spent the approval: {states[blocked_approval]!r}"
+    )
+    assert sorted(
+        state for approval_id, state in states.items() if approval_id != blocked_approval
+    ) == ["consumed", "consumed"], f"the two calls that were sent did not spend: {states!r}"

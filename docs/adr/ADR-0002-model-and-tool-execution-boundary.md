@@ -362,6 +362,35 @@ class OperationFailure:
     detail_digest: str             # sha256 of redacted detail — the ONLY part persisted
 ```
 
+**What this tree persists, read on 2026-11-25.** The record above is the
+*shape the ADR intends*. The tree's own is
+:class:`labcairn.providers.errors.ProviderFailure` — `kind`, `retryable`,
+`user_action`, `detail_digest` — and it has **no `operation_id`**. Two
+reasons, and they are different reasons:
+
+- **The provider layer cannot know the operation.** `ProviderFailure` is
+  built by `classify_exception` out of a third-party exception, before any
+  operation is in scope; the same classification is used for a capability
+  probe and for a budget pre-flight, and neither belongs to an operation.
+  Its own module says so: *"no `OperationFailure`, no `operation_id`, no
+  state transitions"* (`labcairn/providers/errors.py:6-7`).
+- **The linkage this tree does have is one level up.** A failure that
+  belongs to an operation is carried by the record that holds it — the
+  diagnostics package keeps an `OperationFact` and a `RefusalFact` as
+  separate facts of the same package
+  (`labcairn/diagnostics/package.py:178` and `:180`) — not by the failure
+  itself.
+
+**And the two things above the shape that are not in the tree.** An
+operation-side failure record does not exist. A failed operation is written
+as `state=FAILED` and carries **no reason** — the `operations` table has no
+column for one (`labcairn/db/models.py:412`) — and a policy-denied write
+writes **nothing at all**, because the denial is raised before the operation
+is planned (`labcairn/application/stages.py:187` against `:239`). So
+`OperationFailure` and its `operation_id` are named here and are **not** in
+the tree, and §"Contracts and acceptance tests" says which of the names
+below that leaves outstanding.
+
 Three separations upstream does not make, each of which is a test in §Contracts:
 
 - **`MODEL_ARGUMENT_INVALID` is retryable; `POLICY_DENIED` is not.** Pydantic-ai merges `ValidationError` and `ModelRetry` (`tool_manager.py:722-734`) and has no denial class at all. Feeding a policy denial back to the model as a retry prompt invites a retry storm against the policy — the single most exploitable behaviour if a retrieved document says *"keep retrying until the write succeeds."*
@@ -372,7 +401,7 @@ Three separations upstream does not make, each of which is a test in §Contracts
 
 `ARCHITECTURE.md` requires that SQLite is the task authority and Pydantic AI is not. Enforced structurally:
 
-- Pydantic AI types never appear in a persisted schema. `Operation` and `Event` are LabCairn Pydantic models; the Pydantic AI `messages.ModelMessage` list is a **derived, non-authoritative projection**, rebuilt from the event log exactly as OpenHands does at `event/base.py:107-159`. The projection is discarded on restart and re-derived.
+- Pydantic AI types never appear in a persisted schema. `Operation` and `Event` are LabCairn Pydantic models; the message list is a **derived, non-authoritative projection**, rebuilt from the event log exactly as OpenHands does at `event/base.py:107-159`. The projection is discarded on restart and re-derived. **This tree holds no message list**, so what it projects is the exchange record — the provider layer's digests and counts, never text — and the projection is `labcairn/runtime/message_projection.py`. The witness is `test_llm_message_projection_is_derived_and_discardable`; the first half of this bullet has its own, `test_no_pydantic_ai_type_in_persisted_schema`, which walks every contract the tree persists and every column the ORM defines.
 - `Operation` is the unit of side effect (`ARCHITECTURE.md`: *"Operation is one side-effect attempt"*) and is written in the **same transaction** as its state transition (LC-P1-05), with `action_id`-style correlation to the request that produced it.
 - Analysis tools are `readonly`/`deterministic` operators registered statically; there is no registration path that accepts model-authored code, so `sealing` (`registry.py:246`) is structural rather than policy.
 
@@ -393,6 +422,22 @@ Three separations upstream does not make, each of which is a test in §Contracts
 ## Contracts and acceptance tests
 
 Implemented by LC-P1-03 (`labcairn/core/`), verified by LC-P1-13 (`tests/integration/`, `tests/e2e/`). Test names below are binding.
+
+**What "binding" is read against, and what this tree carries.** Read on
+**2026-11-25**. A name is **carried** when a witness in this tree carries it
+— under that name, under a path that names it, or under another name that
+the accounting at the end of this section says carries it. A name that is
+not carried is **not** a promise this tree is keeping, and the accounting
+says which layer owns it, what this tree does instead, and what would close
+it.
+
+**And the accounting is checked rather than trusted.**
+`tests/test_event_payload_vocabulary.py::test_the_binding_names_are_carried_or_declared_outstanding`
+walks this section, this tree's test names and the three tables below on
+every run. It fails when a name here has neither a witness nor a row, when
+a row names a witness that has gone, and when a row declares a name
+outstanding that has since acquired a witness — because a record that lags
+the tree is worse than no record at all.
 
 ### Usage truthfulness
 
@@ -430,6 +475,55 @@ Implemented by LC-P1-03 (`labcairn/core/`), verified by LC-P1-13 (`tests/integra
 
 - **`test_fake_provider_e2e_full_task_without_network`** — the whole Phase 1 deliverable path against `FakeProvider`, covering both an `OK` capability set and an `UNSUPPORTED` one.
 - **`tests/test_real_provider_smoke.py::test_real_provider_smoke_records_capabilities_and_usage`** — one live probe of the four capabilities, against the endpoint and model the owner names through `LABCAIRN_PROVIDER_SMOKE_*`; it records which model it probed, and it skips when no credential is named. Corrected 2026-10-28: this test used to live in `test_provider_credentials.py` with the protocol and model hard-coded and `environ={}` passed to the loader, which meant **no credential on any machine could have run it** — the release notes' §2.7 records the first real runs.
+
+### Accounting for the names above
+
+Read on **2026-11-25** against this tree. The counts below are the tree's
+counts and the two tables say which names fall in each account. The witness
+named at the head of this section checks both on every run: a name with
+neither a witness nor a row fails it, a row naming a witness that has gone
+fails it, and a row declaring a name outstanding that has since acquired a
+witness fails it too.
+
+| Account | Count |
+|---|---|
+| Carried under the name declared above | 14 |
+| Carried under a path | 1 |
+| Carried under another name | 4 |
+| Not carried | 3 |
+| **Declared in this section** | **22** |
+
+#### Carried under another name
+
+The behaviour is witnessed; the witness is spelled differently, and its own
+docstring says which clause it carries. These are **not** weaker claims: a
+name is a name for a witness to answer to, and a witness that answers to
+another name still answers.
+
+| Name above | The witness that carries it | What that witness says it carries |
+|---|---|---|
+| `test_usage_reporting_capability_unverified_blocks_token_ceiling` | `tests/test_provider_budget.py::test_usage_reporting_capability_unverified_blocks_token_ceiling_before_the_request` | The capability is unverified, so the token ceiling cannot be evaluated, so the run halts before the request. |
+| `test_budget_exhausted_is_terminal_and_non_retryable` | `tests/test_provider_budget.py::test_a_measured_value_past_the_ceiling_raises_and_is_terminal` | *"ADR-0002: `BUDGET_EXHAUSTED` is terminal, non-retryable, `user_action="settings"`"*. |
+| `test_third_party_error_detail_never_persisted` | `tests/test_provider_redaction.py::test_a_classified_failure_carries_no_field_that_can_hold_third_party_text` | The failure record has **no field** that could hold third-party text — the stronger form of "the detail is not persisted". |
+| `test_operation_and_state_transition_commit_atomically` | `tests/test_store_atomicity.py::test_a_failure_between_events_and_state_rolls_back_both` | *"This is the exact scenario ADR-0003 C3 is written about"*: a failure between the events and the state rolls back both. |
+
+#### Not carried
+
+These name contracts whose owning layer this tree does not have. They are
+recorded here rather than left to look like promises this tree is keeping.
+
+| Name above | What it promises | The layer that owns it | What this tree does instead | What would close it |
+|---|---|---|---|---|
+| `test_tool_argument_validation_failure_is_model_class_not_provider_class` | Args failing schema validation ⇒ `FailureKind.MODEL_ARGUMENT_INVALID`, `retryable=True`, and **exactly one** retry prompt. | The **tool loop** — the part of LC-P1-03 that executes a model's tool call and answers it. Not built. | Nothing, and it says so. There is no tool loop: `ModelResponse.tool_calls` is parsed by the provider layer and read by no caller in `src/`; `ProviderAdapter.record_tool_attempt` (`labcairn/providers/adapter.py:448`) is the hook such a loop would call and has no callers; and no production request offers a tool at all — the only request carrying tool names is a test fixture (`labcairn/core/providers/transcripts.py:57`). So there is no model-authored argument to validate and no retry prompt to issue. The provider layer's `FailureKind` deliberately has no `MODEL_ARGUMENT_INVALID` member (`labcairn/providers/errors.py:65-69`): *"an enum member nothing can raise is a member that will eventually be raised by accident"*. | Build the tool loop; give `MODEL_ARGUMENT_INVALID` to the layer that raises it, with `retryable=True`; issue exactly one retry prompt; then write the witness. |
+| `test_policy_denial_is_not_classified_as_provider_or_model_error` | A denied write ⇒ `FailureKind.POLICY_DENIED`, `retryable=False`, **no retry prompt** to the model, and the operation recorded as `OperationOutcome.DENIED`. | **LC-P1-04's policy layer**, and the operation-recording path beside it. | The denial is refused, and it is refused **before** anything is recorded. `labcairn/application/consent.py:134` turns the permission layer's `DENY` into an `ApplicationRefusedError`, and `labcairn/application/stages.py:187` runs that check *before* the operation is planned at `:239` — so a denied write leaves **no row in `operations`**, no state and no reason. `OperationState.DENIED` (`labcairn/runtime/operation.py:34`) is a terminal state this tree defines and never writes, and there is no `OperationOutcome` type at all. The provider layer's `FailureKind` deliberately has no `POLICY_DENIED`, and putting it there would carry the permission layer's vocabulary (`ConsentRefusal` at `labcairn/security/permissions.py:58`, `ApprovalRefusal` at `labcairn/runtime/operation.py:55`, `Permission.DENY` at `labcairn/security/policy.py:85`) inside the provider's — which ADR-0006's and ADR-0015's disjoint-namespaces rule forbids. | Record the denial as an operation row in state `denied`, carrying the reason the permission layer already produced (`DecisionReason`), and classify it in the layer that owns that vocabulary. |
+| `test_denied_operation_is_not_retried_under_injection_pressure` | Retrieved content that says *"retry the write until it succeeds"* does not produce a second attempt; a denial is terminal whatever the model says next. | The **tool loop's retry policy** — the same missing layer as the row above. | Nothing that witnesses it, and that is the point. The clause is about a mechanism that must **refuse to fire**: a denied operation that is not retried. This tree has no such mechanism, so a run performs one attempt because there is nothing that could perform a second — not because the denial is terminal by design. A witness written today would assert the *absence of the loop*, and would go red the day the loop lands, which is the opposite of what a witness is for. | With the loop and the recorded denial in place, write the witness against a retrieved document that instructs a retry, and assert one attempt. |
+
+**Two names cited in the clauses above are upstream's, not this tree's.**
+`test_usage_unknown_provider` (`test_usage_limits.py:1162`) and
+`test_conversation_error_classifies_sensitive_detail_without_serializing_it`
+(`tests/sdk/event/test_error_classification.py:44`) are OpenHands' — the
+clauses that cite them cite them as the behaviour being guarded against, and
+neither is a name this tree has to carry.
 
 ## Re-evaluation trigger
 
