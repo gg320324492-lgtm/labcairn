@@ -95,6 +95,7 @@ from labcairn.core.providers.usage import Known
 from labcairn.db.models import EditActionRow
 from labcairn.guidance.rules import confirm_rule, propose_rule, record_counterexample
 from labcairn.papers.feedback import record_feedback, set_issue_key
+from labcairn.papers.responses import record_response
 from labcairn.providers.adapter import ExchangeRecord, OutboundDisclosure, prompt_digest
 from labcairn.providers.capabilities import (
     ALL_CAPABILITIES,
@@ -195,7 +196,13 @@ def _spec(context: Any, role_id: str) -> None:
 
 @pytest.fixture()
 def loop(env: StoreEnv, tmp_path: Path) -> ChainEnv:
-    """A chain with a keyed comment and its edit, a confirmed rule, the contracts.
+    """A chain with a keyed comment, its edit, the judgement, a confirmed rule.
+
+    **The rule's source was judged answered.** The memory serves a rule
+    whose source carries a judgement saying the change answered the
+    comment, and a rule over material nobody judged stands on nothing.
+    So the fixture records that judgement, and the rule below stands on
+    material that was answered.
 
     **The workspace carries the files a surface command reads.** The chain
     fixture binds a task to the directory, but the CLI's own command reads
@@ -239,6 +246,18 @@ def loop(env: StoreEnv, tmp_path: Path) -> ChainEnv:
         )
     )
     session.flush()
+    record_response(
+        chain.context,
+        response_link_id="resp-a1",
+        feedback_id=event.feedback_id,
+        edit_action_id="edit-201",
+        state="addressed",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=MOMENT,
+        evidence_refs=(f"check:{KEY}",),
+        now=MOMENT,
+    )
     rule = propose_rule(
         chain.context,
         issue_type="method_and_hypothesis",
