@@ -38,6 +38,8 @@ it were:
 
 Its visible text was the original's, character for character — 22,442
 characters over 155 paragraphs, and not one paragraph differing in position.
+(That is the copy registered as `pilot-paper-001`, sha256
+`42eefb065b82c833b213e6c0676b48e5b70417dab7634e9f89d8191aa4162a25`.)
 The desensitisation that had been done accepted the revision trail and
 removed nothing else.
 
