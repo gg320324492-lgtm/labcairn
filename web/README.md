@@ -76,7 +76,7 @@ uv run python -m labcairn.api.typescript web/src/api/generated.ts
 
 `tests/test_api.py` compares the checked-in file with the models, so a model
 that changes without the file being regenerated is a failing test rather than
-a stale type (`tests/test_api.py:1477` — `def test_the_checked_in_typescript_is_what_the_python_models_produce(`).
+a stale type (`tests/test_api.py:1517` — `def test_the_checked_in_typescript_is_what_the_python_models_produce(`).
 This package imports that file and does not write a second spelling of the
 API's shape.
 
@@ -121,7 +121,7 @@ report is shown with the limit the report itself states.
   the task's state from the API rather than reconstructing it from events, so a
   dropped stream never changes what a panel draws.
 - **The bound task can be switched, through a route that exists.**
-  `POST /task/select` in `src/labcairn/api/routes.py:369` — `@router.post("/task/select", response_model=Health, tags=["task"])` — is called by
+  `POST /task/select` in `src/labcairn/api/routes.py:373` — `@router.post("/task/select", response_model=Health, tags=["task"])` — is called by
   `Workbench.tsx` (`API_PATHS.taskSelect`). The service stays bound to one task
   at a time; the binding is changed by that call, and the `Events` view is keyed
   by the new bound task.

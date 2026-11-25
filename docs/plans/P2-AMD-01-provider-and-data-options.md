@@ -54,8 +54,8 @@ probe has run for this provider"*.
 ## 2. The protocols the tree speaks, and what that means for a choice
 
 **Two protocols**, both through `pydantic-ai`: **`anthropic`**
-(`src/labcairn/providers/pydantic_models.py:150` — `if settings.protocol is Protocol.ANTHROPIC:`)
-and **`openai`** (`src/labcairn/providers/pydantic_models.py:163` — `from pydantic_ai.models.openai import OpenAIChatModel`).
+(`src/labcairn/providers/pydantic_models.py:151` — `if settings.protocol is Protocol.ANTHROPIC:`)
+and **`openai`** (`src/labcairn/providers/pydantic_models.py:164` — `from pydantic_ai.models.openai import OpenAIChatModel`).
 
 **And that is the practical route to the suppliers the adjustment names.**
 A supplier that offers an **OpenAI-compatible endpoint** can be configured

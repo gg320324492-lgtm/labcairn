@@ -3257,3 +3257,24 @@ Expanding data access scope, write permission to original material, unapproved o
     `src/labcairn/evidence/gate.py`, `src/labcairn/application/guidance.py`,
     `src/labcairn/roles/guidance.py`). The drift is in the direction that
     costs the next reader work.
+- **A refusal enumeration lost a pairing when a window imported the CLI
+  into a test file.** The enumeration's witnesses are the test *modules*
+  that import the CLI or name one of its refusal reasons
+  (`tests/test_cli_refusal_enumeration.py::_witness_modules`), so one
+  import anywhere in a file makes every test in it a candidate. A window's
+  new test in `tests/test_api.py` imported the CLI, and that file already
+  held a test watching the same refusal, so two candidates chased one
+  refusal and neither was named. **The rule is at file granularity where
+  it should be at test granularity**, and the next window that imports the
+  CLI into a test file can lose a pairing the same way. The record now
+  says which witness is the witness — but the granularity is worth fixing
+  properly.
+- **A witness was written that had never been run.** The probe record's
+  own witness (`tests/test_provider_bounded_rehearsal.py::
+  test_the_run_gates_on_the_record_the_store_keeps`) asserted one request
+  where the case's own shape is two — the prompt and one per excerpt — so
+  it was red from the day it was written. It sat in the tree through two
+  merges because **the full suite had not been run on the tree that
+  carried it**. It now counts from the case's shape rather than a
+  literal. The lesson is the project's own: a witness nobody ran is a
+  claim, not a witness.

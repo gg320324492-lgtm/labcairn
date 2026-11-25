@@ -1142,8 +1142,15 @@ def wired(monkeypatch: pytest.MonkeyPatch, loop: ChainEnv) -> ProbedTransport:
     """
     transport = ProbedTransport(_probed(Capability.STRUCTURED_OUTPUT_NATIVE))
 
-    def _stub(settings: Any, credential: Any) -> ProbedTransport:
-        """The transport one provider's settings would build."""
+    def _stub(settings: Any, credential: Any, probe_cache: Any = None) -> ProbedTransport:
+        """The transport one provider's settings would build.
+
+        **The probe cache is accepted and ignored.** The production
+        function takes it so the wiring can read a stored probe record;
+        these witnesses are about the seam, not about the record, and the
+        parameter is accepted so that a change to the production
+        signature does not silently break the witness that replaces it.
+        """
         return transport
 
     monkeypatch.setenv(CREDENTIAL_ENV, FAKE_KEY)
@@ -1251,8 +1258,13 @@ def test_a_transport_that_cannot_present_the_seam_fails_loudly(
             """One answer, and no seam."""
             return json.dumps({"trajectory": _trajectory_answer()})
 
-    def _stub(settings: Any, credential: Any) -> _NoSeam:
-        """The transport one provider's settings would build."""
+    def _stub(settings: Any, credential: Any, probe_cache: Any = None) -> _NoSeam:
+        """The transport one provider's settings would build.
+
+        **The probe cache is accepted and ignored.** See the other stub
+        above: the production function takes it so the wiring can read a
+        stored probe record, and this witness is about the seam.
+        """
         return _NoSeam()
 
     monkeypatch.setenv(CREDENTIAL_ENV, FAKE_KEY)

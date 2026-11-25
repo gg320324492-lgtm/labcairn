@@ -143,7 +143,7 @@ Writes outside that path, in the whole of `src/`:
 | **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` (the pinned directory), `src/labcairn/analysis/chart/render.py:1070-1097` (the font cache), `src/labcairn/analysis/chart/render.py:1100-1157` (the settings file) | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267` — `MPL_CONFIG_DIR: Final[Path] = Path(tempfile.gettempdir()) / "labcairn-matplotlib"`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
 | **Workspace config + policy** | `src/labcairn/cli/workspace.py:284-304` | The user's own configuration, written by `labcairn init`. |
 | **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:85` — `DATABASE_NAME = "labcairn.db"`, `src/labcairn/cli/workspace.py:190-191` (where the file is named), `src/labcairn/db/session.py:112` — `engine = create_engine(` (the engine call; the read-only engine built from it refuses writes at SQLite), `src/labcairn/db/migrations.py:87` — `engine = create_engine(_as_url(db_path))` (where it is opened) | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. **The API's evidence routes write through it** — `POST /claims`, `POST /claims/extract` and `POST /records/{evidence_id}/accept` — so a record's write is the store's transaction, not a file a route names. |
-| **The workspace directories** | `src/labcairn/cli/commands.py:437-441`, `src/labcairn/workspace/roots.py:104` — `output_dir.mkdir(parents=True, exist_ok=True)` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
+| **The workspace directories** | `src/labcairn/cli/commands.py:440-444`, `src/labcairn/workspace/roots.py:104` — `output_dir.mkdir(parents=True, exist_ok=True)` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
 | **TypeScript contract** | `src/labcairn/api/typescript.py:380-381` | A build-time generator, not a runtime path. |
 
 **This section is an enumeration, and it is checked.** Every write in
@@ -413,8 +413,8 @@ OpenAPI document at `/openapi.json` — is generated locally and is served.
 
 | Path | Destination | Evidence |
 |---|---|---|
-| Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:121` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:190` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
-| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2948` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
+| Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:122` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:190` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
+| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:3156` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
 
 **There is no telemetry, no update check, no CDN fetch, no analytics, no
 font download.** `src/labcairn/sources/`, `src/labcairn/material/`,
@@ -854,8 +854,8 @@ so the required checks are implementer-confirmed, not independently proven
 
 **`src/labcairn/providers/pydantic_models.py` still says so in its own
 docstring, and it is now accurate in a different way.** The witness is
-`tests/test_real_provider_smoke.py:121` — `def test_real_provider_smoke_records_capabilities_and_usage() -> None:`; it skips unless
-`live_settings()` (`tests/test_real_provider_smoke.py:79` — `def live_settings(environ: Mapping[str, str]) -> ProviderSettings | None:`) finds both
+`tests/test_real_provider_smoke.py:140` — `def test_real_provider_smoke_records_capabilities_and_usage() -> None:`; it skips unless
+`live_settings()` (`tests/test_real_provider_smoke.py:98` — `def live_settings(environ: Mapping[str, str]) -> ProviderSettings | None:`) finds both
 `LABCAIRN_PROVIDER_SMOKE_KEY` and `LABCAIRN_PROVIDER_SMOKE_MODEL`, and a
 credential that merely happens to sit in a developer's environment —
 `ANTHROPIC_API_KEY`, say — does not satisfy it. The predicate is itself

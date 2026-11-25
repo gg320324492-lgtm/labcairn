@@ -446,7 +446,16 @@ def test_the_run_gates_on_the_record_the_store_keeps(context: ApplicationContext
     )
     case = _case()
     run.submit_case(case, consents=_ports(context, digests=case.excerpt_digests))
-    assert len(endpoint.calls) == 1
+    # **One request per payload, counted from the case.** A case is the
+    # prompt plus one request per excerpt, so the number of requests the
+    # run issued is the case's own shape and not a literal: a witness that
+    # hard-codes it goes stale the moment a fixture gains an excerpt, and
+    # a stale witness is one that was never run.
+    assert len(endpoint.calls) == len(case.excerpts) + 1, (
+        "the run issued one request per payload -- the prompt and one per "
+        f"excerpt -- and the stored record let the gate through: "
+        f"{len(endpoint.calls)} calls for {len(case.excerpts) + 1} payloads"
+    )
 
     elsewhere = FakeEndpoint(replies=(_OK_REPLY, _OK_REPLY))
     refused = _run(

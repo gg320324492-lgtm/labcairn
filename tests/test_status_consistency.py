@@ -2116,10 +2116,11 @@ _PROBE_HEADER = (
 )
 
 #: A pointer, and words that really are on the line the pointer cites -- so a probe that reads
-#: **one** anchor is reading the format and not an accident. (The route moved to line 369 when
+#: **one** anchor is reading the format and not an accident. (The route moved to line 373 when
 #: the review workbench's, preview, multi-source, meeting-text, issue, rule-sharing
-#: and recovery/quality/trajectory/cancel/role routes joined the file; the probe follows it.)
-_PROBE_POINTER = "`src/labcairn/api/routes.py:369`"
+#: and recovery/quality/trajectory/cancel/role routes joined the file, and again when
+#: the rounds route and the run's account joined it; the probe follows it.)
+_PROBE_POINTER = "`src/labcairn/api/routes.py:373`"
 _PROBE_WORDS = '@router.post("/task/select"'
 
 
@@ -2175,15 +2176,16 @@ def test_the_anchored_pointer_shape_reads_what_the_format_says_it_reads() -> Non
     # **The machinery is live, not just the shape.** The same probe, with its pointer moved to
     # a line the cited file does not print, has to produce a report. A probe that reads its
     # shape correctly while its checking half was switched off would pass every case above.
-    # Line 999 of routes.py exists and does not carry the words; the words live on line 369
+    # Line 500 of routes.py exists and does not carry the words; the words live on line 373
     # (they moved as the review workbench's, preview, multi-source, meeting-text,
-    # issue, rule-sharing, recovery and trajectory routes joined the file).
-    # The report has to say 369, because naming the destination is the whole point
+    # issue, rule-sharing, recovery and trajectory routes joined the file, and
+    # again when the rounds route and the run's account joined it).
+    # The report has to say 373, because naming the destination is the whole point
     # of carrying the words.
-    drifted = _PROBE_HEADER + "`src/labcairn/api/routes.py:999`" + f" — `{_PROBE_WORDS}`\n"
+    drifted = _PROBE_HEADER + "`src/labcairn/api/routes.py:500`" + f" — `{_PROBE_WORDS}`\n"
     problems = _anchor_problems(REPO / "docs" / "README.md", drifted, {})
     assert problems, "a probe carrying a pointer at a line the file does not print reported nothing"
-    assert any("369" in problem for problem in problems), (
+    assert any("373" in problem for problem in problems), (
         f"the probe's report did not name the line the words are really on: {problems}"
     )
     assert _declarations(_PROBE_HEADER), "the probe's own declaration is not being read"

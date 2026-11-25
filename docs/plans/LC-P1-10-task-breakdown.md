@@ -881,7 +881,7 @@ analyse one selection does not authorise another.
 **"Consented CSV/XLSX" has no code-side entity, and this subtask says which
 one it means.** There is no `Consent` record, no per-file consent table, and no
 `consented` flag on `sources`; the codebase's nearest neighbours are the
-`Approval` (single-use, digest-bound, `src/labcairn/runtime/operation.py:173` — `class Approval(LabCairnModel):`) and
+`Approval` (single-use, digest-bound, `src/labcairn/runtime/operation.py:187` — `class Approval(LabCairnModel):`) and
 `ResearchObjective.declared_materials` (material the researcher has declared
 the task to be about, bound by content hash, `src/labcairn/skills/artifacts.py:161` — `class DeclaredMaterial(LabCairnModel):`).
 
