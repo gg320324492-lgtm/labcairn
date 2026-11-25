@@ -34,6 +34,31 @@ reading the wrong evidence. It says so in the record instead: the slots
 that need a project read ``UNKNOWN``, and the reason names the round it
 could not find.
 
+**What each slot needs, and what it lacked.** Every slot carries the
+**precondition** its condition needs before it can be decided at all --
+a project id, a bound task, a rule, a closed binding, an applied round,
+published deliverables, a second project -- and the record says which
+of them this run could not satisfy. **The distinction is the point.** A
+slot that needs a project and a slot that needs a completed round both
+fail in an empty workspace, and they fail for different reasons: the
+first is a limit of the routes this tool reads, the second is a fact
+about the workspace, and only the second is a gap in the product. The
+reasons are therefore per slot: two slots that lack different things
+are told different things.
+
+**The slots that need less than a closed binding are read anyway.** The
+task entry, the declared workflow, the runtime's steps, the workspace's
+tasks and the material ledger are read whatever the workspace holds,
+and the link from a raw source through a distilled rule to the rule's
+record is walked from the rule's own chain key -- so a workspace that
+has closed no round still answers those slots. **A slot is never
+recorded ``UNKNOWN`` because some other route was unavailable.**
+
+**The chain is read under named issue keys.** ``GET /trajectory``
+serves the comments under the issue keys it is given, and a read with
+no key answers with an empty chain that says nothing about the
+workspace. The tool asks for the keys it means.
+
 **What the tool does with the session token.** It reads the token the
 service wrote to ``<workspace>/.labcairn/session-token`` and presents it in
 the ``Authorization`` header -- ``POST /task/select`` is a mutation, and
@@ -123,6 +148,54 @@ SHARED_WITH: Final = re.compile(r"shared with (G\d-\d)", re.IGNORECASE)
 #: The four deliverable kinds the export returns.
 DELIVERABLE_KINDS: Final = ("marked", "clean", "response_table", "quality_report")
 
+# --------------------------------------------------------------------------- #
+# what a slot needs before it can be decided
+# --------------------------------------------------------------------------- #
+
+#: The precondition of a slot: **the thing the workspace must hold before
+#: the slot's condition can be decided at all.**
+#:
+#: The names are a closed set, and they are the distinction the record
+#: makes. A slot that needs a *project* and a slot that needs a *completed
+#: round* fail for different reasons, and only the second is a gap in the
+#: product: a project the workspace holds is still out of reach, because
+#: no route lists the workspace's paper projects, and that is a limit of
+#: the routes this tool reads rather than a fact about the workspace.
+#: A round the workspace has not run yet is a fact about the workspace,
+#: and no tool can decide it.
+PRECONDITION_TRIAL: Final = "a-trial"
+PRECONDITION_BOUND_TASK: Final = "a-bound-task"
+PRECONDITION_RULE: Final = "a-rule"
+PRECONDITION_PROJECT_ID: Final = "a-project-id"
+PRECONDITION_SECOND_PROJECT: Final = "a-second-project"
+PRECONDITION_CLOSED_BINDING: Final = "a-closed-binding"
+PRECONDITION_APPLIED_ROUND: Final = "an-applied-round"
+PRECONDITION_PUBLISHED_DELIVERABLES: Final = "published-deliverables"
+
+#: What each precondition names, in the record's own words.
+#:
+#: The record carries this map, so a reader does not have to guess what
+#: ``a-closed-binding`` means from the slot it appears beside.
+PRECONDITIONS: Final[dict[str, str]] = {
+    PRECONDITION_TRIAL: (
+        "a participant's observation on the pilot paper, which no tool can decide"
+    ),
+    PRECONDITION_BOUND_TASK: ("a task bound to material, so a read has material to answer with"),
+    PRECONDITION_RULE: ("a guidance rule in the memory, so the listing has something to filter"),
+    PRECONDITION_PROJECT_ID: ("a paper project id, so the project's routes can be addressed"),
+    PRECONDITION_SECOND_PROJECT: (
+        "a second paper project, so a rule can be read from another's context"
+    ),
+    PRECONDITION_CLOSED_BINDING: (
+        "a closed binding's dossier manifest -- the one record that carries the "
+        "project id, the task id and both version ids at once"
+    ),
+    PRECONDITION_APPLIED_ROUND: ("an applied round, so the suggestion loop's own record exists"),
+    PRECONDITION_PUBLISHED_DELIVERABLES: (
+        "the four published deliverables, so the export and its digests exist"
+    ),
+}
+
 
 class EvidenceError(RuntimeError):
     """The tool could not do what it was asked to do.
@@ -173,6 +246,16 @@ class SlotCheck:
     the slot as a whole is decided is the skeleton's own business: a slot
     whose coverage kind also names the trial's confirmation stays
     ``PENDING`` whatever this says.
+
+    ``requires`` is the precondition the slot's condition needs before
+    it can be decided at all, and ``lacks`` is what of it this run
+    could not satisfy. **The two are separate on purpose.** A slot
+    whose condition needs a project id and a slot whose condition needs
+    a closed binding both fail when the workspace is empty, and they
+    fail for different reasons: the first is a limit of the routes this
+    tool reads, the second is a fact about the trial. A condition may
+    need more than one thing -- a path needs a task *and* a binding --
+    so both are named.
     """
 
     slot: str
@@ -180,6 +263,27 @@ class SlotCheck:
     reason: str
     evidence: Mapping[str, Any] = field(default_factory=dict)
     read_from: tuple[str, ...] = ()
+    requires: tuple[str, ...] = (PRECONDITION_TRIAL,)
+    lacks: tuple[str, ...] = ()
+    unreadable_routes: tuple[str, ...] = ()
+
+
+def _route_matches(template: str, read: Read) -> bool:
+    """Whether a read answered the route a slot names.
+
+    **A named route may carry a placeholder.** A slot says
+    ``GET /artifacts/{id}/content`` and the service answered
+    ``GET /artifacts/art-123/content``; the two are the same route, and a
+    refusal of the second is a refusal of the first.
+    """
+    method, _, path = template.partition(" ")
+    if read.method != method:
+        return False
+    if "{" not in path:
+        return read.route == path
+    prefix, _, rest = path.partition("{")
+    _, _, suffix = rest.partition("}")
+    return read.route.startswith(prefix) and read.route.endswith(suffix)
 
 
 def _as_int(value: Any) -> int | None:
@@ -357,6 +461,38 @@ class Collector:
             self._memo[key] = produce()
         return cast(_T, self._memo[key])
 
+    def _refused_routes(self, read_from: Sequence[str]) -> tuple[str, ...]:
+        """The routes a slot names that the service refused."""
+        return tuple(
+            route
+            for route in read_from
+            if any(_route_matches(route, read) and read.outcome != "ok" for read in self._reads)
+        )
+
+    def _refusal_note(self, read_from: Sequence[str]) -> str:
+        """What a refused route costs the slot that named it.
+
+        **The refusal is named, not swallowed.** A route that refused is
+        a fact about the tree, and a slot that leans on it says so
+        instead of reading as if the route had answered.
+        """
+        notes: list[str] = []
+        for route in read_from:
+            for read in self._reads:
+                if not _route_matches(route, read) or read.outcome == "ok":
+                    continue
+                note = route
+                if read.refusal is not None:
+                    note = f"{note} with {read.refusal}"
+                if read.status is not None:
+                    note = f"{note} ({read.status})"
+                notes.append(note)
+                break
+        if not notes:
+            return ""
+        listed = ", ".join(notes)
+        return f"; the service refused the read of {listed}, so what it carries was not measured"
+
     def health(self) -> dict[str, Any]:
         """What the service is, and where it listens."""
         payload, _ = self._read("GET", "/health")
@@ -410,8 +546,14 @@ class Collector:
         stage_rows = stages if isinstance(stages, list) else []
         artifact_rows = artifacts if isinstance(artifacts, list) else []
         approval_rows = approvals if isinstance(approvals, list) else []
+        bound = task.get("bound_source_ids") if isinstance(task, Mapping) else None
+        bound_rows = bound if isinstance(bound, list) else []
         return {
             "task_id": _as_str(task.get("task_id")) if isinstance(task, Mapping) else None,
+            "bound_source_count": len(bound_rows),
+            "bound_source_ids": [
+                identifier for identifier in (_as_str(item) for item in bound_rows) if identifier
+            ],
             "run_count": len(run_rows),
             "run_statuses": _counted(run_rows, "status"),
             "run_ids": _ids(run_rows, "run_id"),
@@ -422,6 +564,114 @@ class Collector:
             "approval_states": _counted(approval_rows, "state"),
             "last_event_seq": _as_int(payload.get("last_event_seq")),
         }
+
+    def tasks(self) -> list[dict[str, Any]]:
+        """The workspace's tasks, and the material each one is bound to.
+
+        **The task's title and goal are the operator's words** and are not
+        projected; the ids and the bound material are what the gates read,
+        because whether a task holds material is what decides whether a
+        read has anything to answer with.
+        """
+        return self._once("tasks", self._read_tasks)
+
+    def _read_tasks(self) -> list[dict[str, Any]]:
+        payload, _ = self._read("GET", "/tasks")
+        if not isinstance(payload, list):
+            return []
+        projected: list[dict[str, Any]] = []
+        for entry in payload:
+            if not isinstance(entry, Mapping):
+                continue
+            bound = entry.get("bound_source_ids")
+            bound_rows = bound if isinstance(bound, list) else []
+            projected.append(
+                {
+                    "task_id": _as_str(entry.get("task_id")),
+                    "bound_source_count": len(bound_rows),
+                    "revision": _as_int(entry.get("revision")),
+                    "created_at": _as_str(entry.get("created_at")),
+                    "updated_at": _as_str(entry.get("updated_at")),
+                }
+            )
+        return projected
+
+    def plan(self) -> dict[str, Any]:
+        """The declared workflow, and how far the task has got through it.
+
+        **The stage names are the workflow's own vocabulary** and the
+        status is a closed enumeration, so both are recorded; a stage's
+        blocked reason is not, because it is a sentence.
+        """
+        return self._once("plan", self._read_plan)
+
+    def _read_plan(self) -> dict[str, Any]:
+        payload, _ = self._read("GET", "/plan")
+        if not isinstance(payload, Mapping):
+            return {}
+        steps = payload.get("steps")
+        rows = steps if isinstance(steps, list) else []
+        return {
+            "task_id": _as_str(payload.get("task_id")),
+            "skill_id": _as_str(payload.get("skill_id")),
+            "skill_digest": _as_str(payload.get("skill_digest")),
+            "plan_stage_count": len(rows),
+            "plan_stage_statuses": _counted(rows, "status"),
+        }
+
+    def steps(self) -> dict[str, Any]:
+        """The runtime stages the store holds, and the attempts they took.
+
+        **A stage's name is not projected** -- it is a free label -- but
+        the attempt number is, and it is what says a stage was retried.
+        """
+        return self._once("steps", self._read_steps)
+
+    def _read_steps(self) -> dict[str, Any]:
+        payload, _ = self._read("GET", "/steps")
+        if not isinstance(payload, list):
+            return {}
+        rows = [entry for entry in payload if isinstance(entry, Mapping)]
+        stages = [entry.get("stage") for entry in rows]
+        stage_rows = [stage for stage in stages if isinstance(stage, Mapping)]
+        attempts = [_as_int(entry.get("attempt")) for entry in rows]
+        known = [attempt for attempt in attempts if attempt is not None]
+        return {
+            "step_count": len(rows),
+            "step_statuses": _counted(stage_rows, "status"),
+            "max_attempt": max(known) if known else None,
+            "retried_step_count": len([attempt for attempt in known if attempt > 1]),
+        }
+
+    def sources(self) -> list[dict[str, Any]]:
+        """The material ledger's rows, as ids and digests.
+
+        **The material's name and path are not projected.** A source's id,
+        its kind and its digest are what the gates read: whether a rule's
+        chain material resolves against the ledger is an equality of ids.
+        """
+        return self._once("sources", self._read_sources)
+
+    def _read_sources(self) -> list[dict[str, Any]]:
+        payload, _ = self._read("GET", "/sources")
+        if not isinstance(payload, list):
+            return []
+        projected: list[dict[str, Any]] = []
+        for entry in payload:
+            if not isinstance(entry, Mapping):
+                continue
+            source = entry.get("source")
+            if not isinstance(source, Mapping):
+                continue
+            projected.append(
+                {
+                    "source_id": _as_str(source.get("source_id")),
+                    "kind": _as_str(source.get("kind")),
+                    "content_sha256": _as_str(source.get("content_sha256")),
+                    "size_bytes": _as_int(source.get("size_bytes")),
+                }
+            )
+        return projected
 
     def artifacts(self) -> list[dict[str, Any]]:
         """The artefacts this task has produced, with their digests."""
@@ -494,16 +744,28 @@ class Collector:
             "opinion_ids": _ids(rows, "feedback_id"),
         }
 
-    def trajectory(self) -> dict[str, Any]:
-        """The paper's trajectory: the comments, the edits, the responses.
+    def trajectory(self, issue_keys: Sequence[str]) -> dict[str, Any]:
+        """The chain's comments under the named issue keys, and their answers.
+
+        **The route is keyed, and a read without keys reads nothing.**
+        ``GET /trajectory`` serves the comments under the issue keys it is
+        given, and the chain holds no key that was not asked for by name.
+        A read with no key therefore answers with an empty chain that says
+        nothing about the workspace, so this method takes the keys and
+        the callers say which ones they mean.
 
         **The comment's text is not projected.** The feedback ids are,
         because the trace walk is about which links resolve.
         """
-        return self._once("trajectory", self._read_trajectory)
+        keys = tuple(sorted({key for key in issue_keys if key}))
+        return self._once(
+            f"trajectory:{'|'.join(keys)}",
+            lambda: self._read_trajectory(keys),
+        )
 
-    def _read_trajectory(self) -> dict[str, Any]:
-        payload, _ = self._read("GET", "/trajectory")
+    def _read_trajectory(self, issue_keys: Sequence[str]) -> dict[str, Any]:
+        params = {"issue_key": list(issue_keys)} if issue_keys else None
+        payload, _ = self._read("GET", "/trajectory", params=params)
         if not isinstance(payload, Mapping):
             return {}
         comments = payload.get("comments")
@@ -513,8 +775,11 @@ class Collector:
         edit_rows = edits if isinstance(edits, list) else []
         response_rows = responses if isinstance(responses, list) else []
         return {
+            "asked_issue_keys": list(issue_keys),
             "comment_count": len(comment_rows),
             "comment_ids": _ids(comment_rows, "feedback_id"),
+            "comment_issue_keys": _ids(comment_rows, "issue_key"),
+            "comment_version_ids": _ids(comment_rows, "version_id"),
             "edit_count": len(edit_rows),
             "edit_ids": _ids(edit_rows, "edit_action_id"),
             "response_count": len(response_rows),
@@ -536,6 +801,23 @@ class Collector:
             "edge_count": len(edge_rows),
             "edge_ids": _ids(edge_rows, "edge_id"),
         }
+
+    def issue_keys(self, project_id: str) -> list[str]:
+        """The chain's issue keys for one project.
+
+        **The keys are names, and the names are all this carries.** What
+        the key is *about* travels with the comment the key names, and
+        that is read through the trajectory.
+        """
+        return self._once(f"issue_keys:{project_id}", lambda: self._read_issue_keys(project_id))
+
+    def _read_issue_keys(self, project_id: str) -> list[str]:
+        payload, _ = self._read("GET", "/trajectory/issue-keys", params={"project_id": project_id})
+        if not isinstance(payload, Mapping):
+            return []
+        keys = payload.get("issue_keys")
+        rows = keys if isinstance(keys, list) else []
+        return [key for key in (_as_str(item) for item in rows) if key]
 
     def guidance_rules(self) -> list[dict[str, Any]]:
         """The rules the memory holds, with the material they name.
@@ -776,24 +1058,54 @@ class Collector:
     # -- the checks --------------------------------------------------------- #
 
     def check_g1_1(self) -> SlotCheck:
-        """G1-1: task entry through to the delivery centre, in one workspace."""
+        """G1-1: task entry through to the delivery centre, in one workspace.
+
+        **The path has two halves and they need different things.** The
+        first half -- task entry, the task bound, the workflow declared,
+        the stages run -- needs a task and nothing else, and this tool
+        reads it whether or not a round has been closed. The second half
+        -- the opinions and the export -- needs the closed binding. So
+        the slot says which half was walked and which was not, rather
+        than reporting one catch-all for a path that was half walked.
+        """
         health = self.health()
         task_id = health.get("task_id")
         if not isinstance(task_id, str) or not task_id:
             return SlotCheck(
                 "G1-1",
                 UNKNOWN,
-                "the service named no task, so the walked path was not walked",
+                "the service named no task, so the path's first step -- task "
+                "entry -- was not taken",
                 {"service": health},
                 ("GET /health",),
+                requires=(PRECONDITION_BOUND_TASK,),
+                lacks=(PRECONDITION_BOUND_TASK,),
             )
         selection = self.select_task(task_id)
         state = self.task_state()
+        plan = self.plan()
+        steps = self.steps()
         events = self.events()
         dossier = self.dossier()
+        entry_read_from = (
+            "GET /health",
+            "POST /task/select",
+            "GET /task",
+            "GET /plan",
+            "GET /steps",
+            "GET /events",
+            "GET /artifacts",
+        )
         evidence: dict[str, Any] = {
             "task_id": task_id,
             "task_selected": bool(selection.get("task_id")),
+            "bound_source_count": state.get("bound_source_count"),
+            "plan_stage_count": plan.get("plan_stage_count"),
+            "plan_stage_statuses": plan.get("plan_stage_statuses"),
+            "skill_digest": plan.get("skill_digest"),
+            "step_count": steps.get("step_count"),
+            "step_statuses": steps.get("step_statuses"),
+            "max_attempt": steps.get("max_attempt"),
             "run_count": state.get("run_count"),
             "stage_count": state.get("stage_count"),
             "artifact_count": state.get("artifact_count"),
@@ -801,19 +1113,22 @@ class Collector:
             "event_count": events.get("event_count"),
         }
         if dossier is None:
+            reason = (
+                "the path's first half was walked -- the task was selected, the "
+                f"workflow declares {plan.get('plan_stage_count')} stage(s) and the "
+                f"runtime holds {steps.get('step_count')} step(s) -- and its second "
+                "half was not: the workspace holds no closed binding, so there were "
+                "no opinions to read and no deliverables to export"
+            )
             return SlotCheck(
                 "G1-1",
                 UNKNOWN,
-                "the workspace holds no closed binding, so the path from task "
-                "entry to the delivery centre was not walked",
+                reason + self._refusal_note(entry_read_from),
                 evidence,
-                (
-                    "GET /health",
-                    "POST /task/select",
-                    "GET /task",
-                    "GET /events",
-                    "GET /artifacts",
-                ),
+                entry_read_from,
+                requires=(PRECONDITION_BOUND_TASK, PRECONDITION_CLOSED_BINDING),
+                lacks=(PRECONDITION_CLOSED_BINDING,),
+                unreadable_routes=self._refused_routes(entry_read_from),
             )
         project_id = dossier.get("project_id")
         output_version_id = dossier.get("output_version_id")
@@ -825,13 +1140,12 @@ class Collector:
                 "opinions could not be read",
                 evidence,
                 (
-                    "GET /health",
-                    "POST /task/select",
-                    "GET /task",
-                    "GET /events",
-                    "GET /artifacts",
+                    *entry_read_from,
                     "GET /artifacts/{id}/content",
                 ),
+                requires=(PRECONDITION_BOUND_TASK, PRECONDITION_CLOSED_BINDING),
+                lacks=(PRECONDITION_CLOSED_BINDING,),
+                unreadable_routes=self._refused_routes(entry_read_from),
             )
         opinions = self.opinions(project_id, output_version_id)
         export = self.deliverables(project_id, dossier["dossier_artifact_id"])
@@ -844,11 +1158,7 @@ class Collector:
         evidence["deliverable_kinds"] = kinds
         evidence["decision_verdicts"] = dossier.get("decision_verdicts")
         read_from = (
-            "GET /health",
-            "POST /task/select",
-            "GET /task",
-            "GET /events",
-            "GET /artifacts",
+            *entry_read_from,
             "GET /artifacts/{id}/content",
             "GET /review/opinions",
             "GET /review/deliverables",
@@ -861,6 +1171,8 @@ class Collector:
                 "path did not reach the delivery centre",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         if not opinions.get("opinion_count"):
             return SlotCheck(
@@ -870,6 +1182,9 @@ class Collector:
                 "walk was not exercised",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_APPLIED_ROUND,),
+                lacks=(PRECONDITION_APPLIED_ROUND,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         if sorted(kinds) != sorted(DELIVERABLE_KINDS):
             return SlotCheck(
@@ -879,6 +1194,8 @@ class Collector:
                 f"four the gate names ({list(DELIVERABLE_KINDS)})",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         return SlotCheck(
             "G1-1",
@@ -887,45 +1204,76 @@ class Collector:
             "the four deliverables of the closed binding",
             evidence,
             read_from,
+            requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+            unreadable_routes=self._refused_routes(read_from),
         )
 
     def check_g2_1(self) -> SlotCheck:
-        """G2-1: the trace walk resolves every link."""
+        """G2-1: the trace walk resolves every link.
+
+        **The walk needs a project id, and the id is the whole limit.**
+        The chain is read under named issue keys, and the issue keys
+        belong to a project, so a project id is what makes the walk
+        possible at all. **No route lists the workspace's paper
+        projects**, so the id has to come from the closed binding's
+        manifest -- and a workspace without one cannot answer this slot
+        even though the chain's rows may well be there.
+        """
         dossier = self.dossier()
+        chain_read_from = ("GET /artifacts",)
         if dossier is None:
+            reason = (
+                "the chain was not read at all: GET /trajectory serves the "
+                "comments under named issue keys, and no route lists the "
+                "workspace's paper projects, so no key could be named -- the "
+                "workspace holds no closed binding to carry a project id either, "
+                "so the walk resolved no link"
+            )
             return SlotCheck(
                 "G2-1",
                 UNKNOWN,
-                "the workspace holds no closed binding, so there is no trace to walk",
+                reason,
                 {},
-                ("GET /artifacts",),
+                chain_read_from,
+                requires=(PRECONDITION_PROJECT_ID,),
+                lacks=(PRECONDITION_PROJECT_ID,),
+                unreadable_routes=self._refused_routes(chain_read_from),
             )
         project_id = dossier.get("project_id")
         if not isinstance(project_id, str):
             return SlotCheck(
                 "G2-1",
                 UNKNOWN,
-                "the dossier manifest names no project, so the graph could not be read",
-                {"dossier_artifact_id": dossier.get("dossier_artifact_id")},
+                "the dossier manifest names no project, so the graph could not be "
+                "read and the walk resolved no link",
+                {},
                 ("GET /artifacts", "GET /artifacts/{id}/content"),
+                requires=(PRECONDITION_PROJECT_ID,),
+                lacks=(PRECONDITION_PROJECT_ID,),
             )
-        trajectory = self.trajectory()
+        keys = self.issue_keys(project_id)
+        trajectory = self.trajectory(keys)
+        chain_evidence: dict[str, Any] = {
+            "issue_key_count": len(keys),
+            "comment_count": trajectory.get("comment_count"),
+            "edit_count": trajectory.get("edit_count"),
+            "response_count": trajectory.get("response_count"),
+        }
         graph = self.trajectory_graph(project_id)
         evidence: dict[str, Any] = {
+            **chain_evidence,
             "project_id": project_id,
             "task_id": dossier.get("task_id"),
             "input_version_id": dossier.get("input_version_id"),
             "output_version_id": dossier.get("output_version_id"),
             "edge_id": dossier.get("edge_id"),
-            "comment_count": trajectory.get("comment_count"),
-            "edit_count": trajectory.get("edit_count"),
-            "response_count": trajectory.get("response_count"),
             "version_count": graph.get("version_count"),
             "edge_count": graph.get("edge_count"),
         }
         read_from = (
             "GET /artifacts",
             "GET /artifacts/{id}/content",
+            "GET /trajectory/issue-keys",
             "GET /trajectory",
             "GET /trajectory/graph",
         )
@@ -933,9 +1281,14 @@ class Collector:
             return SlotCheck(
                 "G2-1",
                 UNKNOWN,
-                "the trajectory holds no comment, so the walk resolved no link",
+                f"the project holds {len(keys)} issue key(s) and the chain holds no "
+                "comment under any of them, so the walk resolved no link; the "
+                "round the walk runs through has not been applied",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_APPLIED_ROUND,),
+                lacks=(PRECONDITION_APPLIED_ROUND,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         if not graph.get("edge_count"):
             return SlotCheck(
@@ -944,6 +1297,8 @@ class Collector:
                 "the project's graph holds no accepted edge, so the trace walk resolves no link",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_APPLIED_ROUND,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         missing = [
             key
@@ -958,6 +1313,8 @@ class Collector:
                 "revision loop's own ids are not recorded",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_CLOSED_BINDING,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         return SlotCheck(
             "G2-1",
@@ -967,18 +1324,33 @@ class Collector:
             "accepted edges between the versions",
             evidence,
             read_from,
+            requires=(PRECONDITION_CLOSED_BINDING,),
+            unreadable_routes=self._refused_routes(read_from),
         )
 
     def check_g2_2(self) -> SlotCheck:
         """G2-2: the four deliverables are generated and consistently bound."""
+        artifacts = self.artifacts()
         dossier = self.dossier()
+        artefact_kinds = sorted(
+            {str(entry.get("kind")) for entry in artifacts if entry.get("kind")}
+        )
         if dossier is None:
             return SlotCheck(
                 "G2-2",
                 UNKNOWN,
-                "the workspace holds no closed binding, so there are no deliverables to bind",
-                {},
+                "the workspace holds no closed binding, so there were no "
+                f"deliverables to bind: the ledger holds {len(artifacts)} "
+                f"artefact(s) {artefact_kinds} and none of them is a dossier "
+                "manifest",
+                {
+                    "artifact_count": len(artifacts),
+                    "artifact_kinds": artefact_kinds,
+                    "manifest_count": 0,
+                },
                 ("GET /artifacts",),
+                requires=(PRECONDITION_CLOSED_BINDING,),
+                lacks=(PRECONDITION_CLOSED_BINDING,),
             )
         project_id = dossier.get("project_id")
         dossier_id = dossier.get("dossier_artifact_id")
@@ -989,6 +1361,8 @@ class Collector:
                 "the dossier manifest names no project, so the export could not be asked for",
                 {"dossier_artifact_id": dossier_id},
                 ("GET /artifacts", "GET /artifacts/{id}/content"),
+                requires=(PRECONDITION_CLOSED_BINDING,),
+                lacks=(PRECONDITION_CLOSED_BINDING,),
             )
         export = self.deliverables(project_id, dossier_id)
         if export is None:
@@ -998,6 +1372,10 @@ class Collector:
                 "the closed binding refused to export its deliverables",
                 {"dossier_artifact_id": dossier_id},
                 ("GET /artifacts", "GET /artifacts/{id}/content", "GET /review/deliverables"),
+                requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+                unreadable_routes=self._refused_routes(
+                    ("GET /artifacts", "GET /artifacts/{id}/content", "GET /review/deliverables")
+                ),
             )
         files = export.get("deliverables", [])
         by_kind = {str(item.get("kind")): item for item in files if isinstance(item, Mapping)}
@@ -1031,6 +1409,8 @@ class Collector:
                 f"the export answered without the kinds {missing}",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         mismatched: list[str] = []
         bindings = (
@@ -1051,6 +1431,8 @@ class Collector:
                 "digest the manifest binds",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         return SlotCheck(
             "G2-2",
@@ -1061,34 +1443,79 @@ class Collector:
             "their digests are derived from it rather than bound beside it",
             evidence,
             read_from,
+            requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+            unreadable_routes=self._refused_routes(read_from),
         )
 
     def check_g2_3(self) -> SlotCheck:
-        """G2-3: one real model generates suggestions within the authorised scope."""
-        return SlotCheck(
-            "G2-3",
-            UNKNOWN,
+        """G2-3: one real model generates suggestions within the authorised scope.
+
+        **The account exists; no route publishes it.** The mode, the model
+        id, the request count, the token estimate, the duration and the
+        stop reason are written by ``POST /review/suggest`` and held in
+        the ``model_suggestion_runs`` row, and nothing reads them back.
+        So the slot waits for a read-only route, and the slot says which
+        route is missing rather than blaming the workspace.
+        """
+        state = self.task_state()
+        evidence: dict[str, Any] = {
+            "run_count": state.get("run_count"),
+            "run_statuses": state.get("run_statuses"),
+            "approval_count": state.get("approval_count"),
+            "approval_states": state.get("approval_states"),
+        }
+        read_from = ("GET /task",)
+        reason = (
             "no read-only route publishes a suggestion run's account -- the mode, "
             "model id, request count, token estimate, duration and stop reason "
             "are returned by POST /review/suggest and held in the "
-            "model_suggestion_runs row, and nothing reads them back",
-            {},
-            (),
+            "model_suggestion_runs row, and nothing reads them back; the "
+            "workspace holds no applied round either, so a run had nothing to "
+            "record"
+        )
+        return SlotCheck(
+            "G2-3",
+            UNKNOWN,
+            reason,
+            evidence,
+            read_from,
+            requires=(PRECONDITION_APPLIED_ROUND,),
+            lacks=(PRECONDITION_APPLIED_ROUND,),
         )
 
     def check_g2_4(self) -> SlotCheck:
         """G2-4: preview, per-item approval, apply, publish, retry and recovery."""
         dossier = self.dossier()
+        state = self.task_state()
+        steps = self.steps()
         if dossier is None:
+            reason = (
+                "the workspace holds no closed binding, so no preview, decision or "
+                f"apply was recorded; the runtime holds {steps.get('step_count')} "
+                f"step(s) and the highest attempt any of them took was "
+                f"{steps.get('max_attempt')}, so the retry arm was not exercised "
+                "either"
+            )
             return SlotCheck(
                 "G2-4",
                 UNKNOWN,
-                "the workspace holds no closed binding, so no preview, decision or "
-                "apply was recorded",
-                {},
-                ("GET /artifacts",),
+                reason,
+                {
+                    "step_count": steps.get("step_count"),
+                    "step_statuses": steps.get("step_statuses"),
+                    "max_attempt": steps.get("max_attempt"),
+                    "retried_step_count": steps.get("retried_step_count"),
+                    "stage_count": state.get("stage_count"),
+                    "stage_statuses": state.get("stage_statuses"),
+                    "approval_count": state.get("approval_count"),
+                },
+                ("GET /artifacts", "GET /task", "GET /steps"),
+                requires=(PRECONDITION_APPLIED_ROUND,),
+                lacks=(PRECONDITION_APPLIED_ROUND,),
+                unreadable_routes=self._refused_routes(
+                    ("GET /artifacts", "GET /task", "GET /steps")
+                ),
             )
-        state = self.task_state()
         evidence: dict[str, Any] = {
             "decision_count": dossier.get("decision_count"),
             "decision_verdicts": dossier.get("decision_verdicts"),
@@ -1098,8 +1525,11 @@ class Collector:
             "approval_states": state.get("approval_states"),
             "stage_count": state.get("stage_count"),
             "stage_statuses": state.get("stage_statuses"),
+            "step_count": steps.get("step_count"),
+            "max_attempt": steps.get("max_attempt"),
+            "retried_step_count": steps.get("retried_step_count"),
         }
-        read_from = ("GET /artifacts", "GET /artifacts/{id}/content", "GET /task")
+        read_from = ("GET /artifacts", "GET /artifacts/{id}/content", "GET /task", "GET /steps")
         if not dossier.get("decision_count"):
             return SlotCheck(
                 "G2-4",
@@ -1108,6 +1538,9 @@ class Collector:
                 "step was not exercised",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_APPLIED_ROUND,),
+                lacks=(PRECONDITION_APPLIED_ROUND,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         return SlotCheck(
             "G2-4",
@@ -1118,19 +1551,33 @@ class Collector:
             "and are not measured here",
             evidence,
             read_from,
+            requires=(PRECONDITION_APPLIED_ROUND,),
+            unreadable_routes=self._refused_routes(read_from),
         )
 
     def check_g2_5(self) -> SlotCheck:
         """G2-5: the key refusal paths and the evidence checks pass."""
+        artifacts = self.artifacts()
         dossier = self.dossier()
         if dossier is None:
+            artefact_kinds = sorted(
+                {str(entry.get("kind")) for entry in artifacts if entry.get("kind")}
+            )
             return SlotCheck(
                 "G2-5",
                 UNKNOWN,
-                "the workspace holds no closed binding, so there is no deliverable "
-                "whose digest could be checked",
-                {},
+                "the workspace holds no closed binding, so there was no "
+                f"deliverable whose digest could be checked: the ledger holds "
+                f"{len(artifacts)} artefact(s) {artefact_kinds} and none of them "
+                "is a dossier manifest",
+                {
+                    "artifact_count": len(artifacts),
+                    "artifact_kinds": artefact_kinds,
+                    "manifest_count": 0,
+                },
                 ("GET /artifacts",),
+                requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+                lacks=(PRECONDITION_PUBLISHED_DELIVERABLES,),
             )
         project_id = dossier.get("project_id")
         dossier_id = dossier.get("dossier_artifact_id")
@@ -1141,6 +1588,8 @@ class Collector:
                 "the dossier manifest names no project, so the checks could not be asked for",
                 {"dossier_artifact_id": dossier_id},
                 ("GET /artifacts", "GET /artifacts/{id}/content"),
+                requires=(PRECONDITION_CLOSED_BINDING,),
+                lacks=(PRECONDITION_CLOSED_BINDING,),
             )
         export = self.deliverables(project_id, dossier_id)
         quality = self.quality(project_id, dossier_id)
@@ -1162,6 +1611,8 @@ class Collector:
                 "the export refused, so the digest check did not hold",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         if quality is None:
             return SlotCheck(
@@ -1170,6 +1621,9 @@ class Collector:
                 "the six §7.4 checks refused, so they were not measured",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_CLOSED_BINDING,),
+                lacks=(PRECONDITION_CLOSED_BINDING,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         failed = [
             str(item.get("check"))
@@ -1183,6 +1637,8 @@ class Collector:
                 f"the §7.4 checks {', '.join(failed)} did not hold",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_CLOSED_BINDING,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         return SlotCheck(
             "G2-5",
@@ -1192,10 +1648,19 @@ class Collector:
             "themselves are exercises rather than reads, and are not measured here",
             evidence,
             read_from,
+            requires=(PRECONDITION_PUBLISHED_DELIVERABLES,),
+            unreadable_routes=self._refused_routes(read_from),
         )
 
     def check_g3_1(self) -> SlotCheck:
-        """G3-1: paper, deck and meeting text are retrievable by source."""
+        """G3-1: paper, deck and meeting text are retrievable by source.
+
+        **A search surface needs material to answer with.** The three
+        surfaces are read whatever the workspace holds, but a workspace
+        with no material bound to a task gives them nothing to retrieve,
+        and an empty answer is then a fact about the workspace rather
+        than about the surfaces.
+        """
         if not self._queries:
             return SlotCheck(
                 "G3-1",
@@ -1203,6 +1668,8 @@ class Collector:
                 "no search query was supplied, so no search surface was exercised",
                 {},
                 (),
+                requires=(PRECONDITION_BOUND_TASK,),
+                lacks=(PRECONDITION_BOUND_TASK,),
             )
         surfaces = (
             ("/trajectory/search", "trajectory"),
@@ -1240,28 +1707,73 @@ class Collector:
                 f"the {', '.join(unanswered)} surface answered with hits that name no source",
                 evidence,
                 tuple(read_from),
+                requires=(PRECONDITION_BOUND_TASK,),
+                unreadable_routes=self._refused_routes(tuple(read_from)),
             )
+        state = self.task_state()
+        tasks = self.tasks()
+        sources = self.sources()
+        bound_tasks = [task for task in tasks if task.get("bound_source_count")]
+        evidence["task_count"] = len(tasks)
+        evidence["bound_task_count"] = len(bound_tasks)
+        evidence["bound_source_count"] = state.get("bound_source_count")
+        evidence["ledger_source_count"] = len(sources)
+        evidence["ledger_source_kinds"] = sorted(
+            {str(entry.get("kind")) for entry in sources if entry.get("kind")}
+        )
         if empty:
+            reason = (
+                f"the {', '.join(empty)} surface(s) answered with no hit for the "
+                "query, so the retrieval was not exercised there; the workspace "
+                f"holds {len(tasks)} task(s) and {len(bound_tasks)} of them is bound "
+                f"to material, and the ledger holds {len(sources)} source(s)"
+            )
+            if not bound_tasks:
+                reason += ", so there was nothing indexed to retrieve"
             return SlotCheck(
                 "G3-1",
                 UNKNOWN,
-                f"the {', '.join(empty)} surface(s) answered with no hit for the "
-                "query, so the retrieval was not exercised there",
+                reason,
                 evidence,
-                tuple(read_from),
+                (*read_from, "GET /task", "GET /tasks", "GET /sources"),
+                requires=(PRECONDITION_BOUND_TASK,),
+                lacks=(PRECONDITION_BOUND_TASK,),
+                unreadable_routes=self._refused_routes(tuple(read_from)),
             )
         dossier = self.dossier()
-        trajectory = self.trajectory()
-        evidence["comment_count"] = trajectory.get("comment_count")
-        read_from.append("GET /trajectory")
-        if dossier is None or not trajectory.get("comment_count"):
+        project_id = dossier.get("project_id") if dossier else None
+        if not isinstance(project_id, str):
             return SlotCheck(
                 "G3-1",
                 UNKNOWN,
-                "the paper's own trajectory holds no comment, so the pilot paper's "
-                "trajectory was not resolved",
+                "each search surface answered with hits addressed to their own "
+                "source, but the pilot paper's own trajectory was not resolved: "
+                "its issue keys belong to a project, and no route lists the "
+                "workspace's paper projects",
+                evidence,
+                (*read_from, "GET /artifacts"),
+                requires=(PRECONDITION_PROJECT_ID,),
+                lacks=(PRECONDITION_PROJECT_ID,),
+                unreadable_routes=self._refused_routes(tuple(read_from)),
+            )
+        keys = self.issue_keys(project_id)
+        trajectory = self.trajectory(keys)
+        evidence["issue_key_count"] = len(keys)
+        evidence["comment_count"] = trajectory.get("comment_count")
+        read_from.append("GET /trajectory/issue-keys")
+        read_from.append("GET /trajectory")
+        if not trajectory.get("comment_count"):
+            return SlotCheck(
+                "G3-1",
+                UNKNOWN,
+                f"the project holds {len(keys)} issue key(s) and the chain holds no "
+                "comment under any of them, so the pilot paper's trajectory was not "
+                "resolved",
                 evidence,
                 tuple(read_from),
+                requires=(PRECONDITION_APPLIED_ROUND,),
+                lacks=(PRECONDITION_APPLIED_ROUND,),
+                unreadable_routes=self._refused_routes(tuple(read_from)),
             )
         return SlotCheck(
             "G3-1",
@@ -1270,20 +1782,38 @@ class Collector:
             "source, and the paper's own trajectory resolved",
             evidence,
             tuple(read_from),
+            requires=(PRECONDITION_BOUND_TASK,),
+            unreadable_routes=self._refused_routes(tuple(read_from)),
         )
 
     def check_g3_2(self) -> SlotCheck:
-        """G3-2: a walked link from a raw source through its rule to the record."""
+        """G3-2: a walked link from a raw source through its rule to the record.
+
+        **The link is walked by name.** A rule names the chain material
+        it was learned from, and the chain's own key for that material is
+        the issue key -- so the rule's key can be asked for and the
+        chain's answer under it is the link. **The read needs no
+        project**: the key is in the rule, so the two-layer structure is
+        traceable in a workspace that has never closed a round.
+        """
         rules = self.guidance_rules()
-        evidence: dict[str, Any] = {"rule_count": len(rules)}
+        sources = self.sources()
+        evidence: dict[str, Any] = {
+            "rule_count": len(rules),
+            "ledger_source_count": len(sources),
+        }
+        read_from = ("GET /guidance/rules", "GET /sources")
         if not rules:
             return SlotCheck(
                 "G3-2",
                 UNKNOWN,
                 "the memory holds no rule, so the link from a raw source through "
-                "a distilled rule to the rule's record was not walked",
+                "a distilled rule to the rule's record was not walked; the ledger "
+                f"holds {len(sources)} source(s)",
                 evidence,
-                ("GET /guidance/rules",),
+                read_from,
+                requires=(PRECONDITION_RULE,),
+                lacks=(PRECONDITION_RULE,),
             )
         without_source = [
             str(rule.get("rule_id")) for rule in rules if not rule.get("source_count")
@@ -1297,45 +1827,112 @@ class Collector:
                 f"{len(without_source)} rule(s) name no material they were learned "
                 "from, so the link does not close",
                 evidence,
-                ("GET /guidance/rules",),
+                read_from,
+                requires=(PRECONDITION_RULE,),
+                unreadable_routes=self._refused_routes(read_from),
+            )
+        keys = sorted({key for rule in rules for key in rule.get("source_ids", [])})
+        evidence["source_key_count"] = len(keys)
+        chain = self.trajectory(keys)
+        chain_keys = set(chain.get("comment_issue_keys", []))
+        resolved = sorted(key for key in keys if key in chain_keys)
+        evidence["resolved_source_key_count"] = len(resolved)
+        evidence["chain_comment_count"] = chain.get("comment_count")
+        read_from = ("GET /guidance/rules", "GET /sources", "GET /trajectory")
+        if not resolved:
+            return SlotCheck(
+                "G3-2",
+                UNKNOWN,
+                f"the memory holds {len(rules)} rule(s) naming {len(keys)} chain "
+                "material key(s), and the chain holds no comment under any of "
+                "them, so the link from a raw source through a distilled rule to "
+                "the rule's record was not walked",
+                evidence,
+                read_from,
+                requires=(PRECONDITION_APPLIED_ROUND,),
+                lacks=(PRECONDITION_APPLIED_ROUND,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         return SlotCheck(
             "G3-2",
             PASS,
-            "every rule the memory holds names the chain material it was learned "
-            "from, so a source reaches its rule and the rule reaches its record",
+            f"{len(resolved)} of the {len(keys)} chain material key(s) the rules "
+            "name resolve to a comment the chain holds, so a source reaches its "
+            "rule and the rule reaches its record",
             evidence,
-            ("GET /guidance/rules",),
+            read_from,
+            requires=(PRECONDITION_RULE,),
+            unreadable_routes=self._refused_routes(read_from),
         )
 
     def check_g3_3(self) -> SlotCheck:
-        """G3-3: a rule confirmed by the advisor is callable by another project."""
+        """G3-3: a rule confirmed by the advisor is callable by another project.
+
+        **Two things are needed and neither of them is the rule alone.**
+        The rule must be confirmed and published to the group, and there
+        must be a second project to read it from. The second project is
+        the harder one: no route lists the workspace's paper projects, so
+        even a published rule cannot be read from another context by
+        this tool.
+        """
         rules = self.guidance_rules()
         confirmed = [rule for rule in rules if rule.get("state") == "confirmed"]
+        shared = [rule for rule in confirmed if rule.get("shared_scope") == "group"]
         evidence: dict[str, Any] = {
             "rule_count": len(rules),
             "confirmed_rule_count": len(confirmed),
+            "published_rule_count": len(shared),
         }
+        read_from = ("GET /guidance/rules", "GET /guidance/usable")
         if not confirmed:
             return SlotCheck(
                 "G3-3",
                 UNKNOWN,
-                "the memory holds no confirmed rule, so no advisor confirmation was exercised",
+                "the memory holds no confirmed rule, so no advisor confirmation "
+                "was exercised; a second project's context is not reachable either, "
+                "because no route lists the workspace's paper projects",
                 evidence,
-                ("GET /guidance/rules",),
+                read_from,
+                requires=(PRECONDITION_RULE, PRECONDITION_SECOND_PROJECT),
+                lacks=(PRECONDITION_RULE, PRECONDITION_SECOND_PROJECT),
+                unreadable_routes=self._refused_routes(read_from),
+            )
+        if not shared:
+            return SlotCheck(
+                "G3-3",
+                UNKNOWN,
+                f"the memory holds {len(confirmed)} confirmed rule(s), none of them "
+                "published to the group, so no rule was callable from another "
+                "project's context; a second project's context is not reachable "
+                "either, because no route lists the workspace's paper projects",
+                evidence,
+                read_from,
+                requires=(PRECONDITION_RULE, PRECONDITION_SECOND_PROJECT),
+                lacks=(PRECONDITION_RULE, PRECONDITION_SECOND_PROJECT),
+                unreadable_routes=self._refused_routes(read_from),
             )
         return SlotCheck(
             "G3-3",
             UNKNOWN,
-            "a second project's context is not reachable from one service, so "
-            "the cross-project call was not exercised; the confirmed rule's "
-            "shared scope is recorded, and the call itself is the trial's",
+            "a second project's context is not reachable from one service, and no "
+            "route lists the workspace's paper projects, so the cross-project call "
+            "was not exercised; the published rule's shared scope is recorded, and "
+            "the call itself is the trial's",
             evidence,
-            ("GET /guidance/rules",),
+            read_from,
+            requires=(PRECONDITION_SECOND_PROJECT,),
+            lacks=(PRECONDITION_SECOND_PROJECT,),
+            unreadable_routes=self._refused_routes(read_from),
         )
 
     def check_g3_4(self) -> SlotCheck:
-        """G3-4: an unconfirmed relation cannot become a guidance rule directly."""
+        """G3-4: an unconfirmed relation cannot become a guidance rule directly.
+
+        **The filtering is only tested by an unconfirmed rule.** A
+        listing that serves confirmed rules and nothing else holds
+        whether or not there was an unconfirmed rule to hold back, so the
+        slot says which of the two the workspace could show.
+        """
         rules = self.guidance_rules()
         states = {rule.get("rule_id"): rule.get("state") for rule in rules}
         dossier = self.dossier()
@@ -1347,14 +1944,6 @@ class Collector:
             "usable_states": _counted(usable, "state"),
         }
         read_from = ("GET /guidance/rules", "GET /guidance/usable")
-        if not usable:
-            return SlotCheck(
-                "G3-4",
-                UNKNOWN,
-                "no rule is served to a card, so the listing was not exercised",
-                evidence,
-                read_from,
-            )
         unconfirmed = [
             str(rule.get("rule_id"))
             for rule in usable
@@ -1368,14 +1957,51 @@ class Collector:
                 f"the listing served {len(unconfirmed)} rule(s) that are not confirmed",
                 evidence,
                 read_from,
+                requires=(PRECONDITION_RULE,),
+                unreadable_routes=self._refused_routes(read_from),
+            )
+        held_back = [
+            str(rule.get("rule_id"))
+            for rule in rules
+            if rule.get("state") not in (None, "confirmed")
+        ]
+        evidence["unconfirmed_in_memory"] = held_back
+        if not rules:
+            return SlotCheck(
+                "G3-4",
+                UNKNOWN,
+                "the listing was read and served no rule, so its filtering was "
+                "not exercised; the memory holds no rule to filter",
+                evidence,
+                read_from,
+                requires=(PRECONDITION_RULE,),
+                lacks=(PRECONDITION_RULE,),
+                unreadable_routes=self._refused_routes(read_from),
+            )
+        if not held_back:
+            return SlotCheck(
+                "G3-4",
+                UNKNOWN,
+                f"the memory holds {len(rules)} rule(s) and every one of them is "
+                "confirmed, so the listing's filtering was not tested against an "
+                "unconfirmed rule; nothing unconfirmed reached a card, but there "
+                "was nothing unconfirmed to hold back",
+                evidence,
+                read_from,
+                requires=(PRECONDITION_RULE,),
+                lacks=(PRECONDITION_RULE,),
+                unreadable_routes=self._refused_routes(read_from),
             )
         return SlotCheck(
             "G3-4",
             PASS,
-            "every rule the listing serves is a confirmed one, so a candidate "
-            "reaching a card would be a rule that was never confirmed",
+            f"the memory holds {len(held_back)} rule(s) that are not confirmed and "
+            "the listing served none of them, so an unconfirmed relation did not "
+            "reach a card",
             evidence,
             read_from,
+            requires=(PRECONDITION_RULE,),
+            unreadable_routes=self._refused_routes(read_from),
         )
 
     # -- the whole walk ----------------------------------------------------- #
@@ -1575,6 +2201,9 @@ def build_record(
                     reason=shared.reason,
                     evidence=shared.evidence,
                     read_from=shared.read_from,
+                    requires=shared.requires,
+                    lacks=shared.lacks,
+                    unreadable_routes=shared.unreadable_routes,
                 )
         if coverage == TRIAL_ONLY:
             verdict = NOT_ADDRESSED
@@ -1584,16 +2213,25 @@ def build_record(
             )
             evidence: Mapping[str, Any] = {}
             read_from: tuple[str, ...] = ()
+            requires: tuple[str, ...] = (PRECONDITION_TRIAL,)
+            lacks: tuple[str, ...] = (PRECONDITION_TRIAL,)
+            unreadable_routes: tuple[str, ...] = ()
         elif check is None:
             verdict = NOT_ADDRESSED
             reason = "this tool has no checker for the slot"
             evidence = {}
             read_from = ()
+            requires = (PRECONDITION_TRIAL,)
+            lacks = (PRECONDITION_TRIAL,)
+            unreadable_routes = ()
         else:
             verdict = check.verdict
             reason = check.reason
             evidence = check.evidence
             read_from = check.read_from
+            requires = check.requires
+            lacks = check.lacks
+            unreadable_routes = check.unreadable_routes
         slots.append(
             {
                 "slot": row.slot,
@@ -1601,9 +2239,12 @@ def build_record(
                 "coverage_kind": row.coverage_kind,
                 "coverage": coverage,
                 "verdict": verdict,
+                "requires": list(requires),
+                "lacks": list(lacks),
                 "reason": reason,
                 "evidence": dict(evidence),
                 "read_from": list(read_from),
+                "unreadable_routes": list(unreadable_routes),
                 "status_after_this_run": render_status(row, check, coverage, record_name),
             }
         )
@@ -1613,6 +2254,7 @@ def build_record(
         "command": command,
         "collected_at": datetime.now(UTC).isoformat(),
         "service": {"base_url": base_url},
+        "preconditions": dict(PRECONDITIONS),
         "workspace": {
             "root": str(workspace),
             "session_token_present": token is not None,
@@ -1817,7 +2459,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         record_path.parent.mkdir(parents=True, exist_ok=True)
         record_path.write_text(
-            json.dumps(record, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+            json.dumps(record, indent=2, sort_keys=False) + "\n",
+            encoding="utf-8",
+            newline="\n",
         )
     except OSError as error:
         print(f"the record at {record_path} could not be written: {error}")
@@ -1825,7 +2469,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     statuses = {str(slot["slot"]): str(slot["status_after_this_run"]) for slot in record["slots"]}
     try:
-        skeleton_path.write_text(apply_statuses(skeleton_text, statuses), encoding="utf-8")
+        skeleton_path.write_text(
+            apply_statuses(skeleton_text, statuses), encoding="utf-8", newline="\n"
+        )
     except OSError as error:
         print(f"the skeleton at {skeleton_path} could not be written: {error}")
         return 1
