@@ -47,6 +47,18 @@ machine-wide diff applies to the build it names, and **not** to the
 build the release record now carries. A reader comparing the two must
 not treat this record as evidence about the current artifact.
 
+**What the alignment closed.** The drill's §3.1 finding -- that an
+operator cannot tell a v0.1.0 installation from a 0.0.3 one by looking
+at the machine, because the registry, the file name, the executable's
+version resource and the uninstall row all say 0.0.3 -- is closed by the
+shell's manifest now declaring the workbench's version. The current
+artifact's file name and product version line read `0.1.0`, and a
+witness (`tests/test_shell_version_alignment.py`) holds the shell's
+manifest, the workbench's three version declarations and the packaging
+configuration's own override in step with each other. **The drill ran
+before that, so the machine's own bookkeeping in this record reads
+0.0.3; a re-run on the current artifact would read 0.1.0.**
+
 ## 1. The baseline — the four readings, before and after the clean
 
 The drill's card S01 asks four questions, and all four are asked **per
