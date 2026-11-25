@@ -71,7 +71,7 @@ one case they are *already written for this work order specifically*.
   *"A vetted analysis operator (LC-P1-10)"* — with the example spelling
   `labcairn.analysis.mean@1.2.0` already in the class docstring
   (`src/labcairn/reports/receipt.py:74` — `A figure with its deterministic data source`, `:81`, `:96`).
-- **The `artifacts` table exists** (`src/labcairn/db/models.py:537` — `__tablename__ = "artifacts"`) and mirrors that receipt
+- **The `artifacts` table exists** (`src/labcairn/db/models.py:538` — `__tablename__ = "artifacts"`) and mirrors that receipt
   field for field. **The manifest needs no migration.**
 - **`ComputationLocator` already exists and is already specified**
   (`src/labcairn/sources/locators.py:275` — `A derived number → input hashes + operator + parameters`): *"A derived number → input hashes + operator +
@@ -188,7 +188,7 @@ The aggregated number is recorded as a manifest and a figure, both
 This was not a free choice — the schema had already decided it. `EvidenceRecord`
 cites `anchor_ids`, which name rows in `source_anchors`; that table's
 `locator_key` is CHECK-constrained to the four *extractable* kinds
-(`src/labcairn/db/models.py:1093` — `"at least one resolving anchor"`, `source_anchors_locator_key_vocabulary`), and
+(`src/labcairn/db/models.py:1094` — `"at least one resolving anchor"`, `source_anchors_locator_key_vocabulary`), and
 `render_locator_key` **raises** for `LocatorKind.COMPUTATION` because a derived
 number has no address in `source_texts` (`src/labcairn/material/addressing.py:105` — `if locator.char_start is not None and locator.char_end is not None:`). A
 computation is therefore **not citable through the ledger, structurally**.
@@ -801,7 +801,7 @@ would be showing something the operator did not produce.
 ### T08 — the reproducibility manifest
 
 The manifest is **an `ArtifactReceipt` with `kind=MANIFEST`**, stored in the
-existing `artifacts` table (`src/labcairn/db/models.py:537` — `__tablename__ = "artifacts"`). **No migration is needed.**
+existing `artifacts` table (`src/labcairn/db/models.py:538` — `__tablename__ = "artifacts"`). **No migration is needed.**
 
 - `produced_by = ANALYSIS_OPERATOR`
 - `producer_id = "labcairn.analysis.chart.bar@1.0.0"` — the spelling
@@ -831,7 +831,7 @@ same directory, `fsync`, `os.replace`), output-root-only, and it reports
 four of those.
 
 **The chain is checked by the contract, not by the schema.** `artifacts.
-derived_from` is an untyped JSON column (`src/labcairn/db/models.py:558` — `derived_from: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)`), so nothing in
+derived_from` is an untyped JSON column (`src/labcairn/db/models.py:559` — `derived_from: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)`), so nothing in
 the database refuses a manifest whose chain is wrong. The assertion that the
 figure names the manifest's hash, and the manifest names the file's hash, is a
 **test's** job — and §4.1 lists it as one.

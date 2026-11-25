@@ -60,7 +60,7 @@ hard parts are.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/runtime/event.py:39-77` (`EventType`), `src/labcairn/db/models.py:592` — `__tablename__ = "events"` (`events`) |
+| **Where** | `src/labcairn/runtime/event.py:39-77` (`EventType`), `src/labcairn/db/models.py:593` — `__tablename__ = "events"` (`events`) |
 | **Watched by** | `tests/test_event_payload_vocabulary.py`, `tests/test_store_events.py` |
 | **Verdict** | **reuse, with one addition (see §3.1)** |
 

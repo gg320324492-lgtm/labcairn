@@ -413,8 +413,8 @@ OpenAPI document at `/openapi.json` — is generated locally and is served.
 
 | Path | Destination | Evidence |
 |---|---|---|
-| Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:120` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:190` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
-| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2837` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
+| Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:121` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:190` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
+| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2948` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
 
 **There is no telemetry, no update check, no CDN fetch, no analytics, no
 font download.** `src/labcairn/sources/`, `src/labcairn/material/`,
@@ -436,13 +436,13 @@ Being the only one is the point.
 
 ### 3.4 The outbound disclosure policy
 
-`PHASE_1_OUTBOUND_POLICY` (`src/labcairn/providers/adapter.py:175` — `PHASE_1_OUTBOUND_POLICY: OutboundDisclosure = OutboundDisclosure()`) is an
+`PHASE_1_OUTBOUND_POLICY` (`src/labcairn/providers/adapter.py:176` — `PHASE_1_OUTBOUND_POLICY: OutboundDisclosure = OutboundDisclosure()`) is an
 `OutboundDisclosure` declaring, per exchange, **what the layer says it put on
 the wire**: the prompt, the tool names, whether excerpts were included.
 
 **`sends_document_excerpts` is `False` in Phase 1**
-(`src/labcairn/providers/adapter.py:151` — `sends_document_excerpts: bool = False`), and that is asserted rather than
-assumed — `tests/test_provider_adapter.py:420` — `assert PHASE_1_OUTBOUND_POLICY.sends_document_excerpts is False`. Sending an excerpt is
+(`src/labcairn/providers/adapter.py:152` — `sends_document_excerpts: bool = False`), and that is asserted rather than
+assumed — `tests/test_provider_adapter.py:520` — `assert PHASE_1_OUTBOUND_POLICY.sends_document_excerpts is False`. Sending an excerpt is
 consented by an approval bound to a digest of the canonical arguments
 (`src/labcairn/security/capabilities.py:253-266`), and an outbound request is
 **ASK** under the default policy, so *transmitting data to a provider always
@@ -859,8 +859,8 @@ docstring, and it is now accurate in a different way.** The witness is
 `LABCAIRN_PROVIDER_SMOKE_KEY` and `LABCAIRN_PROVIDER_SMOKE_MODEL`, and a
 credential that merely happens to sit in a developer's environment —
 `ANTHROPIC_API_KEY`, say — does not satisfy it. The predicate is itself
-witnessed in the unit class (`tests/test_provider_credentials.py:319` — `def test_the_live_smoke_is_configured_only_by_the_named_variables() -> None:` and
-`tests/test_provider_credentials.py:355` — `assert live_settings({SMOKE_KEY_ENV: FAKE_KEY}) is None, (`), because a rule that gates a class
+witnessed in the unit class (`tests/test_provider_credentials.py:362` — `def test_the_live_smoke_is_configured_only_by_the_named_variables() -> None:` and
+`tests/test_provider_credentials.py:398` — `assert live_settings({SMOKE_KEY_ENV: FAKE_KEY}) is None, (`), because a rule that gates a class
 cannot be checked only inside that class. The marker is registered as *"needs a
 real paid provider credential; skipped wherever the owner has not named one"*
 (`pyproject.toml:331` — `requires_provider: needs a real paid provider credential; skipped wherever the owner has not named one`).
@@ -957,7 +957,7 @@ Stated here because they were real and because the code flagged them itself:
 ### 6.13 A reviewer's change is observed; **why it was changed is not established**
 
 **The tree now holds a table of the reviewer's own prose.** ADR-0014's
-`revision_events` (`src/labcairn/db/models.py:1850` — `__tablename__ = "revision_events"`, written by the migration
+`revision_events` (`src/labcairn/db/models.py:1851` — `__tablename__ = "revision_events"`, written by the migration
 `migrations/versions/0017_revision_events.py`) stores one row per tracked
 change a Word document records: the text that changed, the address it
 changed at, the author and the date. **On the corpus that motivated it,
@@ -1021,9 +1021,9 @@ its evidence on the row.
 **That is a property of the schema and not a promise this document
 makes.** A response that is not `pending` cannot be reached without a
 decider and a non-empty evidence list
-(`src/labcairn/db/models.py:2506` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
+(`src/labcairn/db/models.py:2507` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
 assessment may rest on **has no member meaning "the change was accepted"**
-(`src/labcairn/db/models.py:2602` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
+(`src/labcairn/db/models.py:2603` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
 process and not about the science, and a product that recorded the
 advisor's correctness as a consequence of the student's change being kept
 would be claiming something it cannot know.

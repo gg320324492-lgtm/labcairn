@@ -91,23 +91,46 @@ one token figure that was measured elsewhere — 2,510 output tokens for a
 372-character answer — says the number to spend against is an order of
 magnitude larger than the answer it produces.
 
-## 5. The probe's record is not stored by the product
+## 5. The probe's record is now stored by the product
 
-**This is the finding worth carrying.** The probe answered, and the answer
-is in this record — but **the product does not persist a probe record**.
-`doctor` reports a capability as `unverified — no probe record for this
-endpoint, model and protocol` because the only implementation of
-`ProbeCache` in the tree is `InMemoryProbeCache`
-(`src/labcairn/providers/probe.py`), and `doctor --probe` probes live and
-reports without writing anything down. **So the reading above is the only
-place it exists**, and a later `doctor` on this workspace will still say
-`unverified` — not because the endpoint is unmeasured, but because
-nothing writes the measurement down.
+**Corrected 2026-11-25, after the tenth batch.** This section first
+recorded the opposite, and the opposite was true when it was written:
+the probe answered, the answer was in this record, and **the product
+persisted no probe record** — the only implementation of `ProbeCache`
+was `InMemoryProbeCache`, and `doctor --probe` probed live and reported
+without writing anything down, so the reading above was the only place
+it existed.
 
-That matters for the pilot: the capability gate that refuses an endpoint
-with no probe record (`src/labcairn/providers/bounded_run.py`) has nothing
-to read on this workspace, and the honest fix is a probe record the
-product writes and the gate reads — not a record in a document.
+**It is now stored.** The tenth batch made ADR-0002's promise real: a
+probe record in the application-owned SQLite store, keyed on
+`(endpoint_fingerprint, model, protocol)` and invalidated by a change to
+any of the three (migration `0031_probe_records.py`,
+`src/labcairn/application/probe_records.py`). **Verified on this
+machine, on this endpoint**, against the anthropic route this record
+names:
+
+| what | before | after |
+|---|---|---|
+| `doctor` with no record | `declared, not probed`, every capability `unverified` | unchanged — an unprobed endpoint is still honestly unprobed |
+| `doctor --probe` | probed live, reported, **wrote nothing** | probed live, reported, **and stored it** |
+| `doctor` afterwards | still `unverified` — the measurement existed only in this document | **`probed, read back from the record of <timestamp>`**, with the four outcomes and their evidence |
+| the stored row | — | `probe_records`: the endpoint fingerprint, the model, the protocol, the four outcomes, the evidence, the probes run, the observation time |
+| a provider with `probed: false` | — | reports `declared unprobed by configuration`, every capability `unverified`, and **does not read the stored record or spend money even with `--probe`** |
+
+The capability gate that refuses an endpoint with no probe record
+(`src/labcairn/providers/bounded_run.py`) now reads what the product
+stored, through the same cache the suggestion and role loops use. **The
+honest fix the first version of this section asked for — a probe record
+the product writes and the gate reads, rather than a record in a
+document — is what this release carries.**
+
+**What is still not established.** A probe record is a *floor*, not a
+guarantee (ADR-0002's own words): it says the endpoint answered that
+capability once, on one day, for a tiny schema. The consent question —
+ADR-0006's *"a capability probe is not consent... a probe therefore
+requires consent too"* — is **not** closed by this batch, and the probe
+still issues its request without asking anyone. That is the next thing
+this record would have to say, and it does not yet.
 
 ## 6. What this record does not claim
 
@@ -118,7 +141,12 @@ product writes and the gate reads — not a record in a document.
 - **It does not claim multi-turn tool calling, retry, or cancellation over
   a real network** — the probe exercised none of them; that is the script's
   own disclaimer, and it stands.
-- **It does not claim the capability persists** (§5).
+- **It does not claim the capability persists beyond the endpoint,
+  model and protocol it was measured on.** It does persist (§5), and the
+  key is the invalidation: a change to any of the three means the stored
+  record is not read.
+- **It does not claim a probe needed anyone's consent** — ADR-0006 says
+  it does, and the probe still asks nobody (§5).
 - **It does not close a gate.** No gate row moves on the strength of a
   capability reading.
 

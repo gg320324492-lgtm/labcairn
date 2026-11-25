@@ -3104,7 +3104,7 @@ Expanding data access scope, write permission to original material, unapproved o
   answers**: a host that does not wire a piece answers 403 for it, and
   both witnesses look the other way.
 - **The anthropic endpoint's capabilities were measured, and the product
-  does not keep the measurement.**
+  now keeps the measurement.**
   [`LC-P4-PILOT-capability-probe-2026-11-25.md`](../acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md)
   records it: `tool_calls` ok, `usage_reporting` ok,
   `structured_output_prompted` **ok**, `structured_output_native`
@@ -3113,17 +3113,26 @@ Expanding data access scope, write permission to original material, unapproved o
   `structured_output_prompted` was carried as unsupported since
   2026-10-28 (the probe raised a `KeyError` that day) and answers `ok`
   now.
-  **What the finding is:** the probe answered and the answer is in the
-  record, but **the product persists no probe record**. The only
-  implementation of `ProbeCache` in the tree is `InMemoryProbeCache`
-  (`src/labcairn/providers/probe.py`), and `doctor --probe` probes live
-  and reports without writing anything down -- so a later `doctor` on
-  this workspace still says `unverified`, not because the endpoint is
-  unmeasured but because nothing writes the measurement down. The
-  capability gate that refuses an endpoint with no probe record
-  (`src/labcairn/providers/bounded_run.py`) therefore has nothing to
-  read. **The honest fix is a probe record the product writes and the
-  gate reads**, not a record in a document.
+  **Corrected 2026-11-25, after the tenth batch.** The record first said
+  the product persists no probe record, and that was true when it was
+  written: the only implementation of `ProbeCache` was `InMemoryProbeCache`
+  and `doctor --probe` probed live without writing anything down. **It
+  does now.** ADR-0002's promise is made real -- a probe record in the
+  application-owned SQLite store (migration `0031_probe_records.py`,
+  `src/labcairn/application/probe_records.py`), keyed on
+  `(endpoint_fingerprint, model, protocol)` and invalidated by a change to
+  any of the three -- and **verified on this machine on this endpoint**:
+  `doctor --probe` stores what it observed, plain `doctor` then reports
+  `probed, read back from the record of <timestamp>`, the capability gate
+  reads the stored record through the same cache the suggestion and role
+  loops use, and a provider declared `probed: false` reports every
+  capability `unverified` without reading the record or spending money
+  even with `--probe`.
+  **What is still open:** ADR-0006's *"a capability probe is not
+  consent... a probe therefore requires consent too"* is **not** closed
+  by this batch -- the probe still issues its request without asking
+  anyone. The tenth batch made the measurement durable; it did not make
+  it consented, and the two are separate questions.
 - **The pilot workspace's configuration now matches the signed
   authorisation.** `E:/labcairn-local/pilot-ws/providers.json` was
   replaced with the configuration in
@@ -3221,7 +3230,12 @@ Expanding data access scope, write permission to original material, unapproved o
     too"*). `src/labcairn/providers/probe.py` mentions consent nowhere and
     `PydanticAiProbe._send` issues the request itself, bypassing
     `provider.send()`'s gate. **This one is recorded as not done**
-    (ADR-0006:127-131), so it is public rather than hidden.
+    (ADR-0006:127-131), so it is public rather than hidden. **The tenth
+    batch made the measurement durable without making it consented** --
+    a probe record now exists in the store and the gate reads it -- and
+    that makes the consent question sharper rather than answered: a stored
+    record says an endpoint was asked once, with no one having approved
+    the asking.
   - **The seven real gaps differ in what closing them costs**, which is
     worth knowing before any of them is scheduled. Two are a missing
     witness over behaviour that already exists: the event record's
