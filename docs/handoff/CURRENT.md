@@ -3045,3 +3045,14 @@ Expanding data access scope, write permission to original material, unapproved o
   tokens for a 372-character answer**, so a token ceiling written from
   "answers of a few hundred characters" would be written from the wrong
   number; the run did not measure where those tokens went.
+- **The suggestion run's own record cannot be read back.** Gate G2-3 asks
+  for the suggest run's record -- mode, model id, request count, tokens,
+  durations, stop reason, approvals spent per opinion -- and the run
+  writes it: the row is `model_suggestion_runs` (`src/labcairn/db/models.py:3892`,
+  migration 0027) and the application layer's own shape for it is
+  `ModelSuggestionRunData` (`src/labcairn/application/model_suggestions.py:438`).
+  **No route serves it and no application function reads it back**, so the
+  evidence G2-3 asks for cannot be collected after a real run, and the
+  gate's collector has to record the slot as `UNKNOWN` with that reason.
+  This is the same shape as the missing paper-round route above: the
+  product writes the fact and the service cannot say it back.
