@@ -913,9 +913,7 @@ def _event_rows(path: Path) -> list[tuple[int, int, str, str]]:
     connection = sqlite3.connect(path)
     try:
         return list(
-            connection.execute(
-                "SELECT id, seq, event_id, type FROM events ORDER BY id"
-            ).fetchall()
+            connection.execute("SELECT id, seq, event_id, type FROM events ORDER BY id").fetchall()
         )
     finally:
         connection.close()
