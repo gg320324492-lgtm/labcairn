@@ -121,6 +121,32 @@ real trial has run, every verdict in the P4-G1..G4 exit skeleton is still
 `PENDING`, and no participant has used the product. v0.1.0 is releasable;
 it is not yet proven in front of a participant.
 
+**Four things this release does not do, found while measuring it.** These
+are stated here rather than left to the next reader to find:
+
+- **The workbench addresses a sample round, not the workspace's own.** The
+  review desk reads its project and version from a fixture and the delivery
+  centre from its own, and the service has **no route that names the
+  workspace's current paper round** — `list_paper_projects` exists in the
+  application layer and no route exposes it. Plan §6.4's first, second,
+  third, sixth and seventh conditions are therefore implemented against a
+  sample round and do not yet hold on the pilot paper.
+- **The suggestion run's own record cannot be read back.** The run writes it
+  (`model_suggestion_runs`), and the application layer has its own shape for
+  it, but no route serves it and no function reads it — so gate G2-3's
+  evidence cannot be collected after a real run.
+- **The service does not answer `GET /events`.** `serve` never passes an
+  event source, so the app falls back to the source that refuses in the
+  layer's own vocabulary (HTTP 403, `not_implemented`). The stage timeline
+  the runbook asks for cannot be read on the service the runbook starts.
+- **A capability probe requires no consent.** ADR-0006 says a probe needs
+  consent as any outbound request does; `probe.py` mentions consent nowhere
+  and issues the request itself. The ADR records this as not done.
+
+The other three gaps the sweep found are named in
+[`docs/handoff/CURRENT.md`](handoff/CURRENT.md), which carries the full
+list and what each one would take.
+
 ## 1. What this release is
 
 LabCairn is a **local-first AI research workspace** under construction. This
