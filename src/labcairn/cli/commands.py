@@ -3427,7 +3427,7 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
     judgements: dict[str, Any] = {}
     trajectory = parsed.get("trajectory")
     if trajectory is not None:
-        part = _the_part_or_refuse("trajectory", trajectory, as_json=as_json)
+        part = _the_judgement_part_or_declined("trajectory", trajectory, as_json=as_json)
         judgements["trajectory"] = TrajectoryJudgement(
             issue_type=str(part.get("issue_type", "")),
             alignment=str(part.get("alignment", "")),
@@ -3437,7 +3437,7 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
         )
     guidance = parsed.get("guidance")
     if guidance is not None:
-        part = _the_part_or_refuse("guidance", guidance, as_json=as_json)
+        part = _the_judgement_part_or_declined("guidance", guidance, as_json=as_json)
         judgements["guidance"] = GuidanceJudgement(
             issue_type=str(part.get("issue_type", "")),
             severity=str(part.get("severity", "")),
@@ -3459,7 +3459,7 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
         )
     critique = parsed.get("critique")
     if critique is not None:
-        part = _the_part_or_refuse("critique", critique, as_json=as_json)
+        part = _the_judgement_part_or_declined("critique", critique, as_json=as_json)
         judgements["critique"] = CritiqueJudgement(
             verdict=str(part.get("verdict", "")),
             repair_advice=str(part.get("repair_advice", "")),
@@ -3468,7 +3468,12 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
     return judgements
 
 
-def _the_part_or_refuse(part: str, payload: object, *, as_json: bool) -> Mapping[str, Any]:
+def _the_judgement_part_or_declined(
+    part: str,
+    payload: object,
+    *,
+    as_json: bool,
+) -> Mapping[str, Any]:
     """One judgement part, checked against the fields the role takes.
 
     **A part that is not an object is refused, and so is a part carrying a
@@ -3486,22 +3491,56 @@ def _the_part_or_refuse(part: str, payload: object, *, as_json: bool) -> Mapping
     **The refusal names the field.** A refusal that says only that something
     is wrong sends the caller looking; one that names the field sends them
     straight to it.
+
+    **Each part's message is a literal, and that is a rule rather than an
+    accident.** The refusal enumeration
+    (``tests/test_cli_refusal_enumeration.py``) reads the CLI's source and
+    matches each refusal to a witness by the words it quotes, so a message
+    built by interpolation reads to it as a refusal with no part in it --
+    ``the ' ' judgement ...`` -- and the refusal then has no witness of its
+    own to be named. One branch per part, each carrying its whole sentence
+    as a literal, keeps the message quotable and keeps the enumeration
+    able to say which part was refused.
     """
     from labcairn.application.judgement_fields import unknown_fields
     from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
 
     if not isinstance(payload, dict):
+        if part == "trajectory":
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "the 'trajectory' judgement is one JSON object.",
+                as_json=as_json,
+            )
+        if part == "guidance":
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "the 'guidance' judgement is one JSON object.",
+                as_json=as_json,
+            )
         _refuse(
             CLI_REFUSAL_INVALID_ARGUMENTS,
-            f"the '{part}' judgement is one JSON object.",
+            "the 'critique' judgement is one JSON object.",
             as_json=as_json,
         )
     unknown = unknown_fields(part, payload)
     if unknown:
+        names = ", ".join(repr(name) for name in unknown)
+        if part == "trajectory":
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"the 'trajectory' judgement has a field the role does not take: {names}.",
+                as_json=as_json,
+            )
+        if part == "guidance":
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"the 'guidance' judgement has a field the role does not take: {names}.",
+                as_json=as_json,
+            )
         _refuse(
             CLI_REFUSAL_INVALID_ARGUMENTS,
-            f"the '{part}' judgement has a field the role does not take: "
-            f"{', '.join(repr(name) for name in unknown)}.",
+            f"the 'critique' judgement has a field the role does not take: {names}.",
             as_json=as_json,
         )
     return payload

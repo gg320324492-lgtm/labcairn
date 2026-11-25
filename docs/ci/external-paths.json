@@ -26,9 +26,11 @@
         "docs/ci/protection-reading-2026-11-18.md",
         "docs/handoff/CURRENT.md",
         "docs/plans/LC-P3-05-shell-implementation-plan.md",
+        "docs/plans/LC-P4-PILOT-runbook.md",
         "scripts/closeout_12_rows.py",
         "scripts/lgpl_upstream_archives.py",
-        "tests/evaluation/manifest.py"
+        "tests/evaluation/manifest.py",
+        "tests/test_pilot_runbook.py"
       ]
     },
     {
@@ -849,6 +851,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/dist/v0.1.0",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/releases/v0.1.0-artifact.json"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/distil_rules_pilot3_revisions.py",
       "expectation": "present",
       "kind": "material",
@@ -1388,7 +1401,9 @@
       "sites": [
         "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md",
         "docs/changelog/phase-3.md",
-        "docs/handoff/CURRENT.md"
+        "docs/handoff/CURRENT.md",
+        "docs/plans/LC-P4-G0-baseline-freeze.md",
+        "docs/plans/PHASE_3-work-orders.md"
       ]
     },
     {

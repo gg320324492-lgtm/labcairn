@@ -475,6 +475,67 @@ def test_the_cli_refuses_a_part_with_a_field_the_role_does_not_take(
     )
 
 
+# --------------------------------------------------------------------------- #
+# one witness per refusal, each quoting the sentence the product writes
+# --------------------------------------------------------------------------- #
+#
+# **Why these three are separate and not one parameterised test.** The
+# refusal enumeration (``tests/test_cli_refusal_enumeration.py``) gives a
+# witness to exactly one refusal: it pairs them by matching the words the
+# product writes, and a witness that quoted all three sentences would be
+# offered all three refusals and given none. So each sentence the product
+# writes for a part is quoted by a test of its own, and each test names
+# one part.
+#
+# **The quotation is a literal, not an f-string.** A witness's texts are
+# read out of the test's source as the string literals it compares, so a
+# sentence built by interpolation is not text the enumeration can match.
+
+
+def test_the_trajectory_refusal_says_the_sentence_the_enumeration_matches(
+    workspace: Path,
+) -> None:
+    """The trajectory refusal carries the words a witness can match.
+
+    **Why the words matter.** The enumeration reads the CLI's source and
+    matches each refusal to a witness by the phrase the refusal says and no
+    other says. A refusal whose message is built by interpolation reads to
+    it as a sentence with an empty hole in the middle, and no phrase of
+    three words is left to match -- so the refusal has no witness of its
+    own and the enumeration says so.
+    """
+    payload = {**_the_part_payload(TRAJECTORY), UNKNOWN: "surprise"}
+    refusal = _the_refusal(_run_roles(workspace, TRAJECTORY, payload))
+    assert "the 'trajectory' judgement has a field the role does not take" in refusal["message"], (
+        "the refusal must say the sentence the enumeration matches a witness "
+        f"against: {refusal['message']!r}"
+    )
+
+
+def test_the_guidance_refusal_says_the_sentence_the_enumeration_matches(
+    workspace: Path,
+) -> None:
+    """The guidance refusal carries the words a witness can match."""
+    payload = {**_the_part_payload(GUIDANCE), UNKNOWN: "surprise"}
+    refusal = _the_refusal(_run_roles(workspace, GUIDANCE, payload))
+    assert "the 'guidance' judgement has a field the role does not take" in refusal["message"], (
+        "the refusal must say the sentence the enumeration matches a witness "
+        f"against: {refusal['message']!r}"
+    )
+
+
+def test_the_critique_refusal_says_the_sentence_the_enumeration_matches(
+    workspace: Path,
+) -> None:
+    """The critique refusal carries the words a witness can match."""
+    payload = {**_the_part_payload(CRITIQUE), UNKNOWN: "surprise"}
+    refusal = _the_refusal(_run_roles(workspace, CRITIQUE, payload))
+    assert "the 'critique' judgement has a field the role does not take" in refusal["message"], (
+        "the refusal must say the sentence the enumeration matches a witness "
+        f"against: {refusal['message']!r}"
+    )
+
+
 @pytest.mark.parametrize("part", PARTS)
 def test_a_part_with_exactly_the_roles_fields_is_accepted(part: str) -> None:
     """A part carrying exactly the role's fields is still accepted.
