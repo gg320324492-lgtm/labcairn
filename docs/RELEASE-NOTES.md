@@ -1,5 +1,5 @@
 # LabCairn — Release notes
-**Anchors:** 1 — every converted pointer below carries the words it cites.  
+**Anchors:** 17 — every converted pointer below carries the words it cites.  
 **Version:** 0.1.0 (`pyproject.toml`) · **Status:** unreleased — no tag has
 been cut · **The tree this describes:** the commit `50615ea` on `main`,
 2026-11-25
@@ -150,6 +150,15 @@ are stated here rather than left to the next reader to find:
 - **A capability probe requires no consent.** ADR-0006 says a probe needs
   consent as any outbound request does; `probe.py` mentions consent nowhere
   and issues the request itself. The ADR records this as not done.
+
+> **Dated snapshot — true when measured, superseded since.** The four bullets
+> above were measured on the tree this section names (`50615ea`), and **each
+> of the four was closed by the eleventh batch**: the service now names the
+> workspace's own round (`GET /review/rounds`), the suggestion run's account
+> is served (`GET /review/suggest/runs/{run_id}`), `serve` hands the app an
+> event source, and a capability probe goes through the same consent gate as
+> any other outbound request. **What each of them does not yet establish is
+> in §3**, and §3 is where Phase 4's own limits are stated.
 
 The other three gaps the sweep found are named in
 [`docs/handoff/CURRENT.md`](handoff/CURRENT.md), which carries the full
@@ -806,6 +815,100 @@ than left for the next reader to find.**
    2026-11-06. The placeholder was deleted in the same commit as the root
    `LICENSE` was added. This paragraph is a historical note, not the
    current licensing statement; §4 is current.
+5. **The pilot's exit gate is open, and the evidence it takes has never been
+   collected.** All **18** of the exit skeleton's slots — `P4-G1`'s four,
+   `P4-G2`'s five, `P4-G3`'s four and `P4-G4`'s five — carry `PENDING`, and
+   **no participant has used the product and no real trial has run.** Seven
+   of the eighteen are marked *Real trial only*
+   (`docs/acceptance/P4-G1-G4-record-skeleton.md:210` — `Real trial only`),
+   and **no tool can decide those** — they are what the trial itself produces.
+   What the gates do carry is a capability record, and **it was collected
+   against a synthetic workspace** — *"A synthetic workspace, made to
+   exercise the collector. It holds a task and nothing else: no paper, no
+   closed binding, no rule. It is not the pilot paper's workspace, and the
+   pilot's confirmation of every capability below is still outstanding."*
+   (`docs/acceptance/P4-G1-G4-system-capability-record.json:22` — `A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule.`).
+   **That record is evidence about the product; it is not evidence about the
+   pilot.**
+
+   **Three of the reasons those slots carry have since gone.** The skeleton
+   records, for `G1-1`, that *"the service refused the read of GET /events
+   with not_implemented (403)"*; for `G2-1`, that *"no route lists the
+   workspace's paper projects"*; and for `G2-3`, that *"no read-only route
+   publishes a suggestion run's account"*. All three were true when the
+   record was collected; **none of them is true of this tree.** `GET /events`
+   is answered
+   (`src/labcairn/api/routes.py:845` — `@router.get("/events", response_model=EventStreamPage, tags=["events"])`),
+   `serve` hands the app an event source
+   (`src/labcairn/cli/commands.py:2642` — `event_source=StoreEventSource(),`),
+   the workspace's rounds are named
+   (`src/labcairn/api/routes.py:1183` — `@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])`),
+   and the suggestion run's account is served
+   (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`).
+   **The slots stay `PENDING` because the trial has not run and the workspace
+   the record was taken in held no material — not because the service still
+   refuses.** A slot whose reason has expired must not be read as a defect
+   still open in the code, and the reasons the other slots carry are facts
+   about a synthetic workspace: no closed binding, no rule, no applied round.
+   *Evidence:* the skeleton's `PENDING` column, and the record it names.
+6. **The workbench addresses the workspace's own round only since this
+   batch, and the pilot paper has not been through it.** The service now
+   names the rounds a workspace holds, and the review desk and the delivery
+   centre ask it rather than naming a round themselves. **What has not
+   happened is a pilot paper going through them.** The centre's apply still
+   carries the sample binding's own material and consent-window arguments
+   (`web/src/views/deliveryRound.ts:31` — `The sample round, with the arguments the sample binding was built with.`);
+   the fixture remains as a declared fallback for when the service does not
+   answer
+   (`web/src/views/deliveryRound.ts:22` — `**The fixture stays, and it is a fallback.** When the service does not`);
+   and the only workspace any of this was exercised against is the synthetic
+   one that holds *"no paper, no closed binding, no rule"*.
+   *Evidence:* the workbench's own round reader, and the capability record.
+7. **The suggestion run's own account and the event stream became readable
+   only in this batch.** Both were service gaps the eleventh batch's
+   measurement found, and both are closed in this tree: the run's record is
+   served by `GET /review/suggest/runs/{run_id}`
+   (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`),
+   and `serve` hands the app an event source
+   (`src/labcairn/cli/commands.py:2642` — `event_source=StoreEventSource(),`).
+   **What has not happened is a real run whose account was read back, or an
+   event stream read during a trial** — the capability record that first
+   asked for them was collected on the synthetic workspace, and no
+   participant has used the product.
+   *Evidence:* the two routes, and the record that asked for them.
+8. **A capability probe needs consent only since this batch, and the consent
+   a probe spends is a synthetic resource under the task's area, not the
+   material.** A probe now goes through the same consent gate as any other
+   outbound request, and the approval binds the probe's own text
+   (`src/labcairn/providers/probe.py:198` — `material is in it. That is what makes a probe's consent a consent to send`).
+   **What it binds to is a key of the probe's own** — `probes/capability`
+   (`src/labcairn/application/outbound.py:108` — `PROBE_RESOURCE_KEY: str = "probes/capability"`),
+   under the task area `workspace`
+   (`src/labcairn/application/context.py:70` — `TASK_AREA_ROOT = "workspace"`) —
+   **so no consent has been spent on the pilot material and none has been
+   asked for.** A rule that wants to say something about probing can name
+   that key; a rule about one source file cannot reach a probe of an
+   endpoint, which is the point of the synthetic key.
+   *Evidence:* the probe's consent path, and the use its approval is spent on.
+9. **The material registration exists, and the owner's signature on part D
+   is still owed — so the grant the authorisation names covers a copy that is
+   not registered.** The tool is there
+   (`scripts/pilot_material_registration.py`), and the record it writes would
+   name the copy, the operator and the digest. **But
+   `docs/pilot/registrations/` holds no record**, and the checklist's result
+   cell is *"the owner's, and empty until the owner writes it"*
+   (`docs/plans/LC-P4-PILOT-desensitisation-checklist.md:97` — `the owner's, and empty until the owner writes it`),
+   so the signed check fails and the import step must not run. Meanwhile the
+   authorisation's grant already names the copy's address —
+   `"subject_ref": "pilot/LC-P4-PILOT/desensitised-copy"`
+   (`docs/acceptance/LC-P4-PILOT-providers-config.md:193` — `"subject_ref": "pilot/LC-P4-PILOT/desensitised-copy",`) —
+   and the record that carries it calls that *"a shape, not a signed
+   pointer"*
+   (`docs/acceptance/LC-P4-PILOT-providers-config.md:227` — `is a shape, not a signed pointer`).
+   **So the grant's scope reaches a copy that no registration record
+   describes, and which copy it is remains the owner's to choose.**
+   *Evidence:* the checklist's part D, the authorisation's §7, and the
+   registrations folder.
 
 ---
 
