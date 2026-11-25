@@ -3561,3 +3561,35 @@ Expanding data access scope, write permission to original material, unapproved o
   did not get a full R1–R7 pass, and the whole-suite run on the merged tree
   was not completed. A slice read in part has not been reviewed, and the
   record says so rather than dressing it up.
+
+## 2026-11-25 - a second reader finds the gate can be neutered, and that a denial's trace is three transactions
+
+- **The first review found fourteen; a reader with no stake in the design
+  found more.** Its record is in
+  [`docs/acceptance/batch-12-review-2026-11-25.md`](../acceptance/batch-12-review-2026-11-25.md),
+  in the table under *"The second reader's findings"*. Two of them are
+  substantive:
+  - **the enumeration's gate can be neutered.** `_pieces` resolves a
+    refusal's message when it is a literal, an f-string or a call to a
+    function of the same module — and **not a name**, while `_value_text`
+    does follow bindings. Hoisting a message to a module constant takes the
+    refusal out of the watch set, and **deleting its witness as well leaves
+    the gate green**; the control — message inline, witness deleted — is
+    red. A rule that reads the tests has a blind spot of the shape of its
+    own parser.
+  - **a denial's trace is three transactions, not one.** `_record_denial`
+    calls `ensure_run`, then `ensure_stage`, then `deny_operation`, each in
+    its own unit of work; measured with the event write failing, the store
+    keeps a `running` run and an `entered` stage and no operation — a trace
+    that could be mistaken for a partial success, which the records module's
+    own comment says a refusal must not leave.
+- **The owner settled two things.** A policy denial is recorded **on the
+  path that writes** — so ADR-0002's wording is what changes, not the code,
+  because a request for approval that the policy refuses never got as far
+  as a write. And the measurement record's mention of the advisor's folder
+  stays: it is a descriptive label, not material.
+- **The checklist itself has gaps the review exposed.** Six, recorded in the
+  same file: none of R1–R7 asks what a gate *decides to look at*, none
+  covers an admission rule that is too wide, none asks whether a schema
+  rebuild preserves the data, and none asks whether the transaction
+  boundary a record claims matches the transactions the code opens.
