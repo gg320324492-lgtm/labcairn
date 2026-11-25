@@ -1,7 +1,7 @@
 """Failure classification for the provider layer — the closed vocabulary, never raw text.
 
 The shape is ADR-0002 §"LabCairn's own contracts" item 5, scoped to the slice
-this work order owns. ``labcairn/runtime/operations.py`` is the intended home for
+this work order owns. ``labcairn/runtime/operation.py`` is the intended home for
 the persisted form and is owned by LC-P1-02/LC-P1-04, so this module defines the
 *provider-layer* failures and nothing else: no ``OperationFailure``, no
 ``operation_id``, no state transitions. What it does provide is the part the
@@ -67,6 +67,11 @@ class FailureKind(StrEnum):
     loop, ``POLICY_DENIED`` to LC-P1-04's policy layer, and ``OUT_OF_SCOPE`` to
     the stage allowlist. An enum member nothing can raise is a member that will
     eventually be raised by accident.
+
+    **Where the ADR records the split.** The ADR that names those four members
+    keeps the accounting: ``docs/adr/ADR-0002-model-and-tool-execution-boundary.md``
+    §"Contracts and acceptance tests", table "Not carried", says which layer
+    owns each of them, what this tree does instead, and what would close it.
     """
 
     # --- decided before the request goes out ---
