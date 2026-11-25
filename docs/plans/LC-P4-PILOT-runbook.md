@@ -14,7 +14,12 @@ signed (`AUTHORISED`, `owner / 2026-11-24`); the desensitisation
 checklist and the feedback-form template are still `DRAFT`, so the steps
 they gate — importing the desensitised copy (step 1) and collecting the
 participants' quality conclusions (step 12) — stay closed until the owner
-signs them. The owner-decisions form
+signs them. **The checklist's registration record**
+(`docs/pilot/registrations/`, the format in
+[`../pilot/README.md`](../pilot/README.md)) does not exist yet, because
+the copy it would register has not been chosen — that choice is the
+owner's (G0 §4) — and nothing is signed until a copy is registered and
+the owner signs the result (D-6). The owner-decisions form
 ([`LC-P4-PILOT-owner-decisions.md`](LC-P4-PILOT-owner-decisions.md))
 carries plan §12's three decisions, decided and signed on 2026-11-24, and
 a release record under `docs/releases/` is required for the version the
@@ -119,6 +124,24 @@ findings; nobody records on another's behalf.
 desensitised copy as the task's source material. The import ingests the
 bound directories and records what arrived.
 
+**Before the import, the copy is registered.** The registration record —
+`docs/pilot/registrations/<material-id>.json`, the checklist's part D — is
+what this step and step 2 compare the material against, and the owner's
+signature on it is what opens the step:
+
+```bash
+python scripts/pilot_material_registration.py check \
+  docs/pilot/registrations/<material-id>.json \
+  --copy "E:/trial-material/pilot/LC-P4-PILOT/desensitised-copy/<file>" \
+  --require-signed
+```
+
+`--require-signed` is the gate: an unsigned record fails the check, so the
+import does not run and no copy enters the pilot until the owner has
+signed the checklist result (D-6). The record is written and signed with
+[`scripts/pilot_material_registration.py`](../../scripts/pilot_material_registration.py);
+its format is in [`../pilot/README.md`](../pilot/README.md).
+
 **Entry points.**
 
 ```bash
@@ -143,14 +166,16 @@ line that touches the workspace.
 
 `task create` ingests the material and binds it to the task before it
 returns; the JSON's `bound_source_ids` names what arrived. The copy
-lives under `E:/trial-material/` (the checklist's D-5 path); the
+lives under `E:/trial-material/` — the registration record's
+`storage.root` and `storage.relative_path` (the checklist's D-5) — and the
 `--source-dir` argument names a directory **inside the workspace** that
 holds or links it, per the workspace's own source-root rule.
 
 **Evidence recorded.** The task id, the bound source ids, the material's
-sha256 (checked against the checklist's D-4 digest) and the metadata
-counts (against D-3) — ids and digests into the trial record, never the
-bytes.
+sha256 (checked against the registration record's `copy.sha256`, the
+checklist's D-4 digest) and the metadata counts (against the record's
+`metadata`, the checklist's D-3) — ids and digests into the trial record,
+never the bytes.
 
 **On failure.** A digest or count mismatch is a **stop**, not a
 workaround: the copy failed part E's re-check, and the material returns
@@ -165,7 +190,10 @@ channel) with severity `blocker` if it stops the trial, type `function`.
 
 **What.** Confirm what entered the system is what the checklist
 registered: the copy's digest, its format, its structural counts and the
-version record the import created.
+version record the import created. The registered values are the ones the
+registration record holds — the checklist's part D, measured when the
+record was written — so this step is a comparison between two measurements
+of the same bytes, not a reading of a table somebody typed.
 
 **Entry points.**
 
@@ -178,15 +206,19 @@ and, with the service up (step 3 runs it), `GET /sources/{source_id}` and
 `GET /task` with the workspace's session token. The version row the
 import created carries the input version id every later step names.
 
-**Evidence recorded.** The measured sha256 beside D-4's registered
-value; the format, page/word/figure/table, comment and revision-mark
-counts beside D-3's; the input version id. The P3 record's pattern is
+**Evidence recorded.** The measured sha256 beside the registration
+record's `copy.sha256` (D-4); the format, page/word/figure/table, comment
+and revision-mark counts beside the record's `copy.format` and `metadata`
+(D-3); the input version id. The P3 record's pattern is
 the model: file, role, bytes, sha256 — a table of fingerprints, no
 content.
 
 **On failure.** Any mismatch between measured and registered values
 fails the copy (checklist part E) — the trial stops until the advisor
-re-registers or replaces the copy. Record the mismatch as an issue,
+re-registers or replaces the copy. A re-registration writes a new record
+with new measurements (C-4: one desensitisation pass, one copy; a changed
+copy restarts the checklist), and the signed result it carries is bound to
+the digest of the copy that was signed. Record the mismatch as an issue,
 severity `blocker`, type `function`.
 
 **Evidence slot:** PENDING — digest comparison, counts comparison,

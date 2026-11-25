@@ -52,7 +52,7 @@ from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Final, get_args
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from workbench_serve_support import run_cli, start_served_workbench
@@ -783,6 +783,11 @@ TABLE_DIGEST: Final = "c" * 64
 QUALITY_DIGEST: Final = "d" * 64
 SOURCE_DIGEST: Final = "e" * 64
 
+#: The chain's own key for the issue the advisor raised. A rule names the
+#: chain material it was learned from by this key, so it is what joins the
+#: memory to the chain.
+ISSUE_KEY: Final = "k1"
+
 #: The ids the closed binding binds.
 TASK_ID: Final = "task-00000000-0000-7000-8000-000000000001"
 PROJECT_ID: Final = "prj-00000000-0000-7000-8000-000000000002"
@@ -791,6 +796,45 @@ OUTPUT_VERSION_ID: Final = "ver-00000000-0000-7000-8000-000000000004"
 DOSSIER_ID: Final = "art-00000000-0000-7000-8000-000000000005"
 CLEAN_RECEIPT_ID: Final = "art-00000000-0000-7000-8000-000000000006"
 EDGE_ID: Final = "edg-00000000-0000-7000-8000-000000000007"
+
+
+def _the_trajectory(query: Mapping[str, list[str]]) -> dict[str, Any]:
+    """The chain, under the issue keys the caller named.
+
+    **The real route is keyed and answers nothing for a key it does not
+    hold**, so the fixture is keyed too. A collector that read the chain
+    without naming a key would get an empty chain here exactly as it
+    would from the service -- and a witness that could not tell the two
+    apart would not be watching the thing it claims to watch.
+    """
+    keys = set(query.get("issue_key", []))
+    comments = [
+        {
+            "feedback_id": "fbk-1",
+            "issue_key": ISSUE_KEY,
+            "version_id": INPUT_VERSION_ID,
+            "comment_text": CANARY,
+            "anchor_text": CANARY,
+            "anchor_status": "anchored",
+            "anchor_reason": CANARY,
+        }
+    ]
+    held = [comment for comment in comments if comment["issue_key"] in keys]
+    edits = (
+        [
+            {
+                "edit_action_id": "edt-1",
+                "feedback_id": "fbk-1",
+                "version_edge_id": EDGE_ID,
+                "actor_kind": "model",
+                "grade": "accepted",
+            }
+        ]
+        if held
+        else []
+    )
+    responses = [{"feedback_id": "fbk-1", "states": ["applied"]}] if held else []
+    return {"comments": held, "edits": edits, "responses": responses}
 
 
 def _the_answers(
@@ -933,29 +977,60 @@ def _the_answers(
             "next_after_seq": 2,
             "caught_up": True,
         },
-        "/trajectory": {
-            "comments": [
-                {
-                    "feedback_id": "fbk-1",
-                    "issue_key": "k1",
-                    "version_id": INPUT_VERSION_ID,
-                    "comment_text": CANARY,
-                    "anchor_text": CANARY,
-                    "anchor_status": "anchored",
-                    "anchor_reason": CANARY,
-                }
-            ],
-            "edits": [
-                {
-                    "edit_action_id": "edt-1",
-                    "feedback_id": "fbk-1",
-                    "version_edge_id": EDGE_ID,
-                    "actor_kind": "model",
-                    "grade": "accepted",
-                }
-            ],
-            "responses": [{"feedback_id": "fbk-1", "states": ["applied"]}],
+        "/trajectory": _the_trajectory,
+        "/trajectory/issue-keys": {
+            "project_id": PROJECT_ID,
+            "issue_keys": [ISSUE_KEY],
         },
+        "/plan": {
+            "task_id": TASK_ID,
+            "skill_id": "skill-1",
+            "skill_digest": "f" * 64,
+            "steps": [
+                {"stage": "intake", "status": "done", "blocked_reason": None},
+                {"stage": "review", "status": "pending", "blocked_reason": None},
+            ],
+        },
+        "/steps": [
+            {
+                "stage": {
+                    "stage_id": "stg-1",
+                    "task_id": TASK_ID,
+                    "run_id": "run-1",
+                    "name": CANARY,
+                    "status": "succeeded",
+                    "input_hashes": [],
+                    "output_hashes": [],
+                },
+                "attempt": 1,
+            }
+        ],
+        "/tasks": [
+            {
+                "task_id": TASK_ID,
+                "title": CANARY,
+                "goal": CANARY,
+                "bound_source_ids": ["src-1"],
+                "revision": 1,
+                "created_at": "2026-11-25T08:00:00+00:00",
+                "updated_at": "2026-11-25T08:30:00+00:00",
+            }
+        ],
+        "/sources": [
+            {
+                "source": {
+                    "schema_version": 1,
+                    "source_id": "src-1",
+                    "kind": "pdf",
+                    "display_name": CANARY,
+                    "relative_path": "sources/paper.pdf",
+                    "content_sha256": SOURCE_DIGEST,
+                    "size_bytes": 1024,
+                    "readability": "readable",
+                },
+                "resource_key": "sources/paper.pdf",
+            }
+        ],
         "/trajectory/graph": {
             "version_ids": [INPUT_VERSION_ID, OUTPUT_VERSION_ID],
             "edges": [
@@ -981,13 +1056,34 @@ def _the_answers(
                 "confirmed_by": "advisor",
                 "confirmed_at": "2026-11-21T08:00:00+00:00",
                 "resolution_reason": None,
-                "sources": ["mat-1"],
+                "sources": [ISSUE_KEY],
                 "counterexamples": [],
                 "checks": [],
                 "shared_scope": "group",
                 "published_by": "advisor",
                 "published_at": "2026-11-22T08:00:00+00:00",
-            }
+            },
+            {
+                "rule_id": "rul-2",
+                "version": 1,
+                "issue_type": "clarity",
+                "statement": CANARY,
+                "context": CANARY,
+                "scope": "private",
+                "example": CANARY,
+                "state": "candidate",
+                "proposed_by": "operator",
+                "proposed_at": "2026-11-22T08:00:00+00:00",
+                "confirmed_by": None,
+                "confirmed_at": None,
+                "resolution_reason": None,
+                "sources": [ISSUE_KEY],
+                "counterexamples": [],
+                "checks": [],
+                "shared_scope": "private",
+                "published_by": None,
+                "published_at": None,
+            },
         ],
         "/guidance/usable": [
             {
@@ -997,7 +1093,7 @@ def _the_answers(
                 "summary": CANARY,
                 "scope": "group",
                 "state": "confirmed",
-                "sources": ["mat-1"],
+                "sources": [ISSUE_KEY],
                 "confirmed_by": "advisor",
                 "confirmed_at": "2026-11-21T08:00:00+00:00",
             }
@@ -1183,17 +1279,22 @@ class _ScriptedService:
                 length = int(self.headers.get("Content-Length") or 0)
                 if length:
                     self.rfile.read(length)
-                path = urlparse(self.path).path
+                parsed = urlparse(self.path)
+                path = parsed.path
+                query = parse_qs(parsed.query)
                 requests.append(
                     {
                         "method": self.command,
                         "path": path,
+                        "query": query,
                         "presented_the_token": (
                             self.headers.get("Authorization") == f"Bearer {TOKEN}"
                         ),
                     }
                 )
                 answer = answers.get(path)
+                if callable(answer):
+                    answer = answer(query)
                 if answer is None:
                     body = json.dumps({"reason": "not_found"}).encode("utf-8")
                     self.send_response(404)
@@ -1629,5 +1730,276 @@ def test_the_collector_reaches_the_products_own_service(tmp_path: Path) -> None:
         text = record_path.read_text(encoding="utf-8")
         assert service.session_token() not in text, "the record carries the session token"
         assert CANARY not in text, "the record carries the task's own words"
+    finally:
+        service.stop()
+
+
+# --------------------------------------------------------------------------- #
+# what the collector could reach, and what it could not
+# --------------------------------------------------------------------------- #
+
+
+def _the_answers_without_a_closed_binding() -> dict[str, Any]:
+    """The same answers, from a workspace that has closed no round.
+
+    **Only the binding is removed.** The rule, the chain under its key,
+    the ledger and the search surfaces are all still there, so a slot
+    that needs none of the binding can be watched on its own.
+    """
+    answers = _the_answers()
+    answers["/artifacts"] = []
+    return answers
+
+
+def _read_matches(template: str, read: Mapping[str, Any]) -> bool:
+    """Whether a read answered the route a slot names.
+
+    **A named route may carry a placeholder.** The record holds the
+    route the service was actually asked for, so ``GET /artifacts/{id}
+    /content`` and ``GET /artifacts/art-1/content`` are the same route.
+    """
+    method, _, path = template.partition(" ")
+    actual = str(read["route"])
+    actual_method, _, actual_path = actual.partition(" ")
+    if actual_method != method:
+        return False
+    if "{" not in path:
+        return actual_path == path
+    prefix, _, rest = path.partition("{")
+    _, _, suffix = rest.partition("}")
+    return actual_path.startswith(prefix) and actual_path.endswith(suffix)
+
+
+def test_a_slot_that_needs_no_closed_binding_is_answered_without_one(
+    tmp_path: Path,
+) -> None:
+    """A workspace that has closed no round still answers the slots that need less.
+
+    **The catch-all would have said UNKNOWN for every one of them.** The
+    link from a raw source through a distilled rule to the rule's record
+    is traceable from the rule's own chain key, so a workspace that has
+    never closed a round answers it. A collector that recorded UNKNOWN
+    here would be reporting the workspace's missing binding rather than
+    the slot's own condition.
+    """
+    service = _ScriptedService(_the_answers_without_a_closed_binding())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        slots = _slots(json.loads(record_path.read_text(encoding="utf-8")))
+        assert slots["G2-2"]["verdict"] == "UNKNOWN", (
+            "the slot that needs the binding is the one that cannot be answered without it"
+        )
+        assert slots["G3-2"]["verdict"] == "PASS", (
+            "the link from a raw source through a distilled rule to the rule's "
+            f"record needs no closed binding, so it must be answered: {slots['G3-2']['reason']}"
+        )
+        assert slots["G3-2"]["evidence"]["resolved_source_key_count"] == 1, (
+            "the answered slot says which chain material key resolved"
+        )
+        assert slots["G3-4"]["verdict"] == "PASS", (
+            "the listing holds an unconfirmed rule back, which needs no closed "
+            f"binding either: {slots['G3-4']['reason']}"
+        )
+    finally:
+        service.stop()
+
+
+def test_a_slot_that_needs_a_closed_binding_says_exactly_what_it_lacked(
+    tmp_path: Path,
+) -> None:
+    """The reason names the one thing that was missing, and names it per slot.
+
+    **"The workspace holds no closed binding" was true of every slot, and
+    true of none of them in particular.** A reader could not tell a slot
+    that needs a project from a slot that needs a round, and only the
+    second is a fact about the workspace rather than a limit of the
+    routes the collector reads.
+    """
+    service = _ScriptedService(_the_answers_without_a_closed_binding())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        slots = _slots(json.loads(record_path.read_text(encoding="utf-8")))
+        binding = slots["G2-2"]
+        assert binding["verdict"] == "UNKNOWN", "the slot needs the binding"
+        assert binding["requires"] == ["a-closed-binding"], (
+            f"the slot says what it needs: {binding['requires']}"
+        )
+        assert binding["lacks"] == ["a-closed-binding"], (
+            f"the slot says what it lacked: {binding['lacks']}"
+        )
+        assert "closed binding" in binding["reason"], (
+            f"the reason names what was missing: {binding['reason']}"
+        )
+        project = slots["G2-1"]
+        assert project["requires"] == ["a-project-id"], (
+            "a slot that needs a project says so, and it is a different thing "
+            f"from a closed binding: {project['requires']}"
+        )
+        assert project["lacks"] != binding["lacks"], (
+            "the two slots lack different things, so they must not be told the same thing"
+        )
+        assert "no route lists the workspace's paper projects" in project["reason"], (
+            f"a slot that needs a project says which limit stopped it: {project['reason']}"
+        )
+    finally:
+        service.stop()
+
+
+def test_the_record_names_a_precondition_for_every_slot(tmp_path: Path) -> None:
+    """Every slot says what it needs, and every unknown slot says what it lacked.
+
+    **A precondition outside the named set is a claim the reader cannot
+    check.** The vocabulary is the record's own, and a slot that named
+    something else would be a slot this tool does not understand.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        known = set(record["preconditions"])
+        assert known, "the record names the preconditions it uses"
+        for slot in record["slots"]:
+            name = str(slot["slot"])
+            assert slot["requires"], f"{name} names no precondition at all"
+            for needed in slot["requires"]:
+                assert needed in known, f"{name} names an unnamed precondition"
+            for lacking in slot["lacks"]:
+                assert lacking in known, f"{name} lacks an unnamed precondition"
+                assert lacking in slot["requires"], (
+                    f"{name} lacks {lacking}, which it does not require"
+                )
+            if slot["verdict"] == "UNKNOWN":
+                assert slot["lacks"] or slot["unreadable_routes"], (
+                    f"{name} is UNKNOWN and says neither what it lacked nor which route refused"
+                )
+            if slot["coverage"] == "trial-only":
+                assert slot["requires"] == ["a-trial"], (
+                    f"{name} is the trial's alone, and says so: {slot['requires']}"
+                )
+    finally:
+        service.stop()
+
+
+def test_the_reasons_are_per_slot_and_not_one_catch_all(tmp_path: Path) -> None:
+    """Two slots that lack different things are not told the same thing.
+
+    **The catch-all was one sentence for every slot that needed a
+    project.** The reasons are now per slot, so a reader can tell which
+    limit stopped which slot -- and the witness holds that by comparing
+    the slots that lack different things.
+
+    **A slot that shares its evidence with another says the same thing
+    on purpose**, so it is left out of the comparison.
+    """
+    service = _ScriptedService(_the_answers_without_a_closed_binding())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        slots = _slots(json.loads(record_path.read_text(encoding="utf-8")))
+        unknown = [
+            slot
+            for slot in slots.values()
+            if slot["verdict"] == "UNKNOWN"
+            and "shared with" not in str(slot["coverage_kind"]).lower()
+        ]
+        assert len(unknown) >= 4, "the empty workspace leaves several slots undecided"
+        reasons = {str(slot["slot"]): str(slot["reason"]) for slot in unknown}
+        assert len(set(reasons.values())) == len(reasons), (
+            f"two slots are told the same thing: {reasons}"
+        )
+        for left in unknown:
+            for right in unknown:
+                if left["lacks"] == right["lacks"]:
+                    continue
+                assert left["reason"] != right["reason"], (
+                    f"{left['slot']} and {right['slot']} lack different things and "
+                    "are told the same thing"
+                )
+    finally:
+        service.stop()
+
+
+def test_the_collector_reads_every_route_it_claims_to_read(tmp_path: Path) -> None:
+    """A slot's list of routes is a list of reads that happened.
+
+    **The other direction is the dangerous one.** A slot that names a
+    route the collector never asked for is claiming a measurement it did
+    not take, and the record would read as if the route had answered.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        reads = list(record["reads"])
+        assert reads, "the record names the routes it read"
+        for slot in record["slots"]:
+            for route in slot["read_from"]:
+                assert any(_read_matches(str(route), read) for read in reads), (
+                    f"{slot['slot']} claims to have read {route}, which the record does not carry"
+                )
+        for route in ("GET /plan", "GET /steps", "GET /tasks", "GET /sources"):
+            assert any(_read_matches(route, read) for read in reads), (
+                f"the collector must read {route}: it answers a slot without a closed binding"
+            )
+    finally:
+        service.stop()
+
+
+def test_the_collector_reads_the_chain_under_named_issue_keys(tmp_path: Path) -> None:
+    """The chain is read under the keys it is asked for.
+
+    **The route answers nothing for a key it was not given.** A read
+    with no key returns an empty chain that says nothing about the
+    workspace, so a collector that read it unkeyed would measure an
+    emptiness and report it as a fact about the paper.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        asked = [request for request in service.requests if request["path"] == "/trajectory"]
+        assert asked, "the collector read the chain"
+        for request in asked:
+            keys = request["query"].get("issue_key", [])
+            assert keys, f"the chain was read without naming a key: {request['query']}"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        slots = _slots(record)
+        assert slots["G3-2"]["verdict"] == "PASS", (
+            f"the rule's chain key resolves, so the link is walked: {slots['G3-2']['reason']}"
+        )
     finally:
         service.stop()

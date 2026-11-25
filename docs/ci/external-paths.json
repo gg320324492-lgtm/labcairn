@@ -1767,6 +1767,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-capability-probe-2026-11-25",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-25",
       "expectation": "present",
       "kind": "material",
@@ -1899,6 +1910,7 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
+        "docs/handoff/CURRENT.md",
         "scripts/run_ourside_competitor.py"
       ]
     },
