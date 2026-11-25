@@ -3125,6 +3125,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/tmp/win-b-evidence/fixture-workspace",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/P4-G1-G4-system-capability-record.json"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/v010-install-drill-20261125",
       "expectation": "present",
       "kind": "material",
