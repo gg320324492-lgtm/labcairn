@@ -3,7 +3,7 @@
 **Base:** `14b6189` (the tree before the batch's four windows) → `d92ebed`.
 **Checklist:** [`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md),
 items R1–R7.
-**Status:** `REVIEWED, with three slices not finished — see "What this review did not cover"`.
+**Status:** `REVIEWED TWICE — the first pass found fourteen findings, an independent reader found more; both tables are here`.
 
 ---
 
@@ -16,10 +16,10 @@ own gates had to be repaired afterwards:
 | Slice | What it changed | Review |
 |---|---|---|
 | A | the citation path's liveness check (`cite_rule`) | reviewed by a dispatched window; the findings re-checked by hand and repaired |
-| B | the refusal enumeration's candidate granularity | the mechanism's own witness was added and mutation-checked; a full R1–R7 pass was **not** completed |
+| B | the refusal enumeration's candidate granularity | reviewed twice: the first pass added the mechanism's own witness, and an independent reader found the hole below |
 | C | Phase 4's gates in the release notes and the review dossier | read against the tree; the numbers carry their anchors |
-| D | the denied write's trace | read; the core implementation was checked by hand; a full R1–R7 pass was **not** completed |
-| — | the pilot's two tools and revision 0032 | checked by hand against R1, R2, R4 and R6; a full R1–R7 pass was **not** completed |
+| D | the denied write's trace | reviewed twice: the first pass read the implementation by hand, and an independent reader measured the transactions |
+| — | the pilot's two tools and revision 0032 | reviewed twice: the first pass checked the boundary and the anchors by hand, and an independent reader compared the migration's constraint bodies against the models' |
 
 ## R1–R7
 
@@ -111,52 +111,86 @@ red. The four mutations the review ran against the enumeration's rule, the
 citation path's refusal, the citation's minting and the role run's wiring
 are recorded in the commit messages that carry them.
 
+## The second reader's findings
+
+A reader with no stake in the design read the three slices that had none.
+It worked on a copy of the tree, so the live checkout was never written to,
+and it measured rather than inferred: baseline **57 refusals, 53 groups,
+163 witnesses, 0 unwatched**, and the pairing's digest was compared across
+five hash seeds.
+
+| # | Severity | Finding | State |
+|---|---|---|---|
+| 15 | high | **the gate can be neutered.** `_pieces` (`tests/test_cli_refusal_enumeration.py:305`) resolves a string literal, an f-string or a call to a function of the same module — and **not a name**, while `_value_text` (`:298`) does follow bindings. Hoisting a refusal's message to a module constant takes it out of the watch set; **deleting its witness as well leaves the gate green** (measured: 10 passed), where the control — message inline, witness deleted — is red | to repair |
+| 16 | medium | **a candidacy rule that is too wide.** One of the three ways `_witness_reaches_the_cli` (`:807`) recognises a test as reaching the CLI is *it says one of the CLI's refusal reasons*. Any new test that asserts a CLI refusal reason therefore becomes a candidate, and a refusal that interpolates no value cannot be narrowed to one — so the gate goes **red on a tree whose product did not change** | to repair |
+| 17 | high | **the trace of a denial is three transactions, not one.** `_record_denial` (`src/labcairn/application/stages.py:205-241`) calls `ensure_run`, then `ensure_stage`, then `deny_operation`, each in its own unit of work. Measured with the event write failing: `operations` is empty, but `runs` holds a `running` row and `stages` an `entered` one — **a trace that could be mistaken for a partial success**, which the records module's own comment says a refusal must not leave, while the record says "one transaction" | to repair |
+| 18 | low | the operation row and the `operation_denied` event **are** one transaction — measured by making the event write raise: no operation row survives — but **no witness shows it**, and there is no fault-injection point to write one against | witness owed |
+| 19 | low | "a refusal for another reason leaves nothing at all" is witnessed for the ASK case only; the recovery-uncertain and approval-consumed refusals also leave nothing, and unwitnessed | witness owed |
+| 20 | medium | **revision 0032's carries are unwitnessed.** Its witness inserts its row *after* the upgrade, so nothing checks that rows written *before* it survive a rebuild that copies all fourteen columns; and the plain indexes (`ix_events_run_id`, `ix_events_task_id_type`) are compared nowhere | witness owed |
+| 21 | low | the records say *a `DENY` from the policy layer is recorded*, and that holds **on one path only**: `consent.decide` — the function that returns a verdict a caller can record — has one caller (the stage layer), while the other thirty consent calls go through `consent.evaluate`, which raises and writes nothing | **the owner decided**: a denial is recorded on the path that writes, so the ADR's wording is what changes |
+| 22 | low | two paths plan an operation outside the stage layer: `approvals.request_approval` (`src/labcairn/application/approvals.py:189-200`) and the recovery executor (`src/labcairn/recovery/executor.py:157-192`, which **never consults the policy at all**) | recorded |
+
+**What the second reader confirmed, by measurement.** The four constraint
+bodies revision 0032 writes are equal, after whitespace normalisation, to
+the ones `src/labcairn/db/models.py` renders from the frozen `EventType`
+enum; the downgrade restores the pre-amendment shape exactly (columns,
+nullability, defaults, unique constraints, CHECK bodies, indexes and
+foreign keys: 5 of 5); the boundary holds — every literal in the pilot's
+tools and its two records is a digest, a count, an id, a timestamp or a
+path, and the redaction refuses to run on a copy carrying an author its map
+does not name; and the enumeration's pairing is identical across five hash
+seeds, with `WATCHED_BY` load-bearing (removing an entry turns three
+tests red).
+
+**Two decisions the owner made.** A policy denial is recorded **on the path
+that writes** — so ADR-0002's wording is what changes, not the code. And
+the measurement record's mention of the advisor's folder stays: it is a
+descriptive label, not material.
+
+## What the checklist does not ask, and should
+
+The second reader's findings are not only about this batch. Six things fall
+between the lines of R1–R7:
+
+1. **A gate whose scope is derived by a parser has a syntax-shaped blind
+   spot.** R1–R7 ask what a witness *asserts*; none asks what a gate
+   *decides to look at*. Finding 15 is exactly that. The generalisable
+   question: for every rule of the shape "every X is watched", what change
+   to X's syntax drops it out of the watch set, and is that change one the
+   project would accept?
+2. **R3 covers a skipped arm; nothing covers an admission rule that is too
+   wide.** Finding 16. The question: for every rule that admits a
+   candidate by a proxy — a string, a name, a path — what unrelated code
+   can satisfy the proxy and be admitted by mistake?
+3. **R6 covers numbers; it does not cover digests as claims, and it does
+   not ask that a measurement carry the command that produced it.** The
+   pilot's boundary rests on digests being unquotable, and the measurement
+   record's counts of the advisor's material are exactly the kind R6 would
+   ask to be anchored to a command.
+4. **Nothing asks whether a schema rebuild preserves the data.** Revision
+   0032 is a destructive operation on a user's store, and its witness
+   exercises it with zero pre-existing rows.
+5. **Nothing asks whether the transaction boundary a record claims matches
+   the transactions the code opens.** Finding 17 is exactly that.
+6. **Nothing makes an enum's fan-out enumerable.** The vocabulary grew and
+   two derived artefacts had to follow — the migration's four constraint
+   bodies, and the web client's union type. Each has a witness; nothing
+   enumerates what else derives from the enum.
+
 ## What this review did not cover
 
-**No slice got a second, independent pair of eyes except slice A.** The
-dispatched reviewers for slices B, D and the pilot's tools were stopped
-before they reported, so each of those three was reviewed **in this
-session, by hand and by measurement**, and that is a weaker thing than a
-dispatched reviewer's independent read. What was done for each:
-
-- **Slice B (the enumeration).** Every item of R1–R7 was answered here.
-  The pairing was read as a whole: a candidate pool, then `WATCHED_BY` if
-  the record names one, else the unique candidate, else the value-narrowed
-  candidate, and **no name at all** otherwise — which is what makes the
-  gate red. `WATCHED_BY`'s three checks (the witness exists, it compares a
-  phrase the refusal says, and every witness the derivation offers is
-  written down) cover the two failure modes the gate exists for: a refusal
-  nobody watches, and a witness that has gone. The mechanism's determinism
-  was measured across three hash seeds (0, 1, 12345) with the same result.
-  The mechanism's own witness was added and mutation-checked (finding 10).
-  **Not done:** an independent reader with no stake in the design.
-- **Slice D (the denied write's trace).** R1, R2 and R4 were answered
-  mechanically over the diff; R3 by the eight mutation-checked witnesses
-  that cover both directions (a denial leaves a trace, a refusal for any
-  other reason leaves nothing); R5 by reading the module's own docstring
-  against its code — *"it leaves an operation in state `denied` carrying
-  the reason the permission layer produced … Every other refusal still
-  leaves nothing at all"* — which is what the code does; R6 by finding no
-  unanchored number in the diff; R7 by the fact that the witnesses drive
-  the product's own stage path rather than writing rows by hand.
-  **Not done:** an independent reader, and no second reading of the
-  transaction's rollback behaviour under a failure.
-- **The pilot's tools and revision 0032.** R1, R2 and R4 were answered
-  mechanically over the diff (no build artifact, no platform fact, no CJK
-  character); R5 by checking the acceptance record's claims against the
-  tool's own output — 14 pass, 7 undecided, 0 fail, and the seven are the
-  ones whose evidence is a person's reading; R6 by the repair in finding
-  12 and by the three new test files carrying an explicitly unmeasured
-  shard cost; R7 by the fact that the witnesses assert the tool's and the
-  migration's behaviour, while their inputs (a synthetic document, a
-  store built by the chain itself) are inputs rather than the thing under
-  test. **Not done:** an independent reader, and no third-party reading of
-  the constraint bodies against the models' rendering beyond the parity
-  witness the repository already carries.
+**The three slices that had no independent reader now have one**, and the
+second reader's findings are in the table above. What it did not do is
+finish the job it was given: it reported eight findings and did not repair
+them, because repairing them changes the tree the review is about.
 
 **The whole-suite run on the merged tree was not completed** when this
-record was written; the run started afterwards, against `d92ebed` and the
-commits that followed it. Its result is not in this record.
+record was written; a run started against `548e849` afterwards, and its
+result is not in this record either.
 
 **The shard costs for the three new test files are not measured.** They
 carry `0.0` and wait for a runner.
+
+**The pilot's own trial has not run.** Nothing in this record says the
+product works in the hands of a participant; it says the tree holds the
+properties the witnesses claim, on this machine, at these commits.
