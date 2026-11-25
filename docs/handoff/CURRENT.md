@@ -3461,3 +3461,31 @@ Expanding data access scope, write permission to original material, unapproved o
   shard table carries the new test file — `tests/test_operation_states.py`
   — with a cost of `0.0`, which is not a measurement and waits for the
   runner.
+
+## 2026-11-25 - the merged tree's own gates, which read the tree, were three of the things the merge broke
+
+- **A witness that reads the tree breaks when the tree moves.** The
+  merge landed four windows, three new test files and two new tools, and
+  three of the repository's own gates did not follow:
+  - the **evaluation harness's partition** did not know the three new test
+    files, so the partition was not complete and two of its checks could
+    not say what they meant. The three are filed now — the two pilot tools
+    under the repository gates, the operation-state witness under the
+    state transitions — and the operation-state file declares the class it
+    belongs to, because a protocol-class file that declares nothing is a
+    file nothing outside the partition table has to place.
+  - **three anchored pointers drifted**: the checklist document grew by a
+    paragraph, and two modules the batch edited moved their lines. The
+    pointers carry a line and the words on it, and the words are what say
+    where the line is now.
+  - the **tree carries no more Chinese than was measured**, and the two new
+    scripts broke that by naming the Chinese words their patterns match.
+    The words are written as escapes now: the patterns still match them —
+    checked — and the files carry no characters of their own.
+- **What this says about the batch.** Every witness the batch brought
+  passed, and none of them would have said any of this: a witness that
+  reads the tree is only as current as the tree it reads. The three gates
+  that caught it are themselves witnesses that read the tree, which is the
+  shape the project already relies on — and the reason the merge was
+  reviewed on the merged tree rather than on the branches, where each
+  window's own tree was intact.
