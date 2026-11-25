@@ -3138,3 +3138,55 @@ Expanding data access scope, write permission to original material, unapproved o
   still missing is the material: `subject_ref` and `scope` point at
   `pilot/LC-P4-PILOT/desensitised-copy`, and no registered excerpt
   exists because the desensitisation checklist is unsigned.
+- **Six ADRs promise things the code does not do, and only one of the
+  six is recorded anywhere as outstanding.** A sweep of all 22 ADRs
+  (0002–0023) against the tree found these. The sweep's false positives
+  were checked individually: fifteen "missing" test paths turned out to be
+  upstream repositories' paths (`tests/sdk/...` is openhands-sdk,
+  `tests/test_paperqa.py` is PaperQA2), and ADR-0003/0004/0005/0007/
+  0010/0011/0012/0013/0014/0015/0017/0019/0023 are fully implemented.
+  **What is not:**
+  - **`FailureKind` is missing four members** ADR-0002 names
+    (`docs/adr/ADR-0002-model-and-tool-execution-boundary.md:332-356`):
+    `MODEL_ARGUMENT_INVALID`, `MODEL_OUTPUT_MALFORMED`, `POLICY_DENIED`,
+    `OUT_OF_SCOPE`. `src/labcairn/providers/errors.py` has none of them,
+    and its own docstring says they are *"deliberately absent rather than
+    stubbed"* — but the ADR says the classification LabCairn persists
+    **is** that class, and it also fixes the semantics (`MODEL_ARGUMENT_
+    INVALID` retryable, `POLICY_DENIED` not).
+  - **Nine acceptance test names ADR-0002 calls *"binding"* are absent**
+    (`:393`, `:415-431`). Three are naming drift — the behaviour is
+    witnessed under another name (`test_budget_exhausted_is_terminal_
+    and_non_retryable`, `test_third_party_error_detail_never_persisted`,
+    `test_operation_and_state_transition_commit_atomically`). The other
+    six are real: the two failure-classification tests above, plus
+    `test_event_records_are_frozen_and_forbid_extra_fields`,
+    `test_llm_message_projection_is_derived_and_discardable`,
+    `test_no_pydantic_ai_type_in_persisted_schema` (the guard itself
+    does not exist — nothing walks the persisted schema for pydantic-ai
+    types) and `test_fake_provider_e2e_full_task_without_network`.
+  - **There is no price table.** ADR-0002:389 promises one, *"Priced
+    from a LabCairn-owned price table; entries are user-extendable."*
+    There is none, so **every run's cost is `Unknown(UNPRICED)` and a
+    `max_cost_usd` ceiling fails closed from the start** — that ceiling
+    can never be met. The records say so as current state; none of them
+    calls it a debt.
+  - **`doctor --assume-capability` writes no Event.** ADR-0002:388 says
+    the override *"is logged as an `Event` so it is auditable."* The
+    doctor path only reads: no store, no session, no event write.
+  - **`OperationFailure` does not match the ADR's shape** — the module is
+    `src/labcairn/runtime/operation.py` (singular), the class is
+    `ProviderFailure`, and the record has **no `operation_id`**, so a
+    failure cannot point back to the operation that produced it.
+  - **A capability probe requires no consent** (ADR-0006:81-83: *"A
+    capability probe is not consent... A probe therefore requires consent
+    too"*). `src/labcairn/providers/probe.py` mentions consent nowhere and
+    `PydanticAiProbe._send` issues the request itself, bypassing
+    `provider.send()`'s gate. **This one is recorded as not done**
+    (ADR-0006:127-131), so it is public rather than hidden.
+  - **Two ADRs under-report what is delivered.** ADR-0016 and ADR-0018
+    mark their contract tables *"to be written"*, while the contracts
+    exist (`src/labcairn/roles/refusals.py`,
+    `src/labcairn/evidence/gate.py`, `src/labcairn/application/guidance.py`,
+    `src/labcairn/roles/guidance.py`). The drift is in the direction that
+    costs the next reader work.
