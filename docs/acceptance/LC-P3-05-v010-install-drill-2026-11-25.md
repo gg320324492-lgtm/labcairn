@@ -34,6 +34,19 @@ open, and no board row is moved here.
 
 ---
 
+**Which bytes this drill ran.** The installer this drill ran is the one
+built before the shell's version was aligned to the workbench's: its
+file name and product version line read `0.0.3`, and its digest is
+`32bca391…`. **The release record's current artifact is a different
+build** — the shell's manifest now declares the workbench's `0.1.0`, so
+the installer is named `LabCairn Setup 0.1.0.exe` and measures
+`dc29e794…` — and **that build has not been drilled**. The two differ
+in the version line and in the bytes that line produces; everything this
+record measured about the install, the launch, the removal and the
+machine-wide diff applies to the build it names, and **not** to the
+build the release record now carries. A reader comparing the two must
+not treat this record as evidence about the current artifact.
+
 ## 1. The baseline — the four readings, before and after the clean
 
 The drill's card S01 asks four questions, and all four are asked **per
