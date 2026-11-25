@@ -3348,3 +3348,49 @@ Expanding data access scope, write permission to original material, unapproved o
     path (`src/labcairn/roles/guidance.py:303`) reads a rule by id
     without asking whether its source still lives, so a caller naming a
     dead rule directly would still cite it, and that path has no witness.
+
+## 2026-11-25 - the pilot's copy is registered, and the checklist is measured
+
+- **The copy is registered.** `docs/pilot/registrations/pilot-paper-001.json`
+  holds the registered copy's digest, the original it was derived from, the
+  metadata counts, the authorisation read out of the record that carries the
+  grant, and the storage path in the authorised environment. It holds no byte
+  of the material, no sentence of the manuscript and no comment body. The
+  checklist's part D is empty: the owner's signature is what fills it. The
+  record's `registered_by` says who ran the registration (`claude-code`), and
+  the owner is where the owner belongs — in `authorisation.granted_by`, read
+  out of the authorisation record, and in the signature that is still missing.
+- **Half the checklist is now a tool, and the tool says what it cannot
+  decide.** `scripts/pilot_desensitisation_check.py` reads the copy and the
+  original, computes the readings the checklist asks for, and reports every
+  item with a verdict. An item whose evidence a machine cannot read stays
+  `undecided` and is marked as needing a person — a byline, an affiliation
+  sentence, a numbering's continuity. Nothing turns an unread reading into a
+  pass, and `--require-signed` fails while D-6 is unsigned, so the gate the
+  checklist describes is a gate that is shut rather than a sentence that is
+  written.
+- **The measurement says four items fail: A-1, A-6, B-2 and C-2.** The
+  copy's visible text is the original's character for character (22,442
+  characters, 155 paragraphs, no paragraph differing in position). The
+  original carries 96 insertions and 17 deletions; the copy carries none of
+  either, and all 85 of the format changes. The `Author` and
+  `Last Modified By` properties are non-empty and are the original's, the
+  four custom properties are the original's, and the two revision author
+  fields are still names rather than role labels. **So the desensitisation
+  that was done accepted the revision trail and removed nothing else.** The
+  readings are in
+  `docs/acceptance/LC-P4-PILOT-desensitisation-measurement-2026-11-25.md`.
+- **The tool's witnesses were checked to bite.** Fourteen tests in
+  `tests/test_pilot_desensitisation_check.py`, five of them mutation-checked:
+  the item's verdict was broken (the property verdict, the revision
+  equality, the role-label test, the comment count, the digest match) and
+  the witness that watches each one went red, and the file's own tests were
+  green again when the script was restored.
+- **What is the owner's.** Three ways forward, and the choice is not the
+  session's: sign the result with the four failures recorded (the
+  checklist's own rule — *the check is repeated until A-1…A-7 all pass* —
+  would then be breached and the import step stays shut), redo the
+  desensitisation (blank the two identity properties, clear the custom
+  properties, replace the two revision author fields with role labels,
+  restore the 96 insertions and 17 deletions), or register a different copy.
+  Until one of them happens, no copy enters the pilot.

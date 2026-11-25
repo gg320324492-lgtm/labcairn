@@ -175,6 +175,7 @@
         "tests/test_baseline_document.py",
         "tests/test_review_dossier.py",
         "tests/test_cli_unknown_field_refusal.py",
+        "tests/test_pilot_desensitisation_check.py",
         "tests/test_provider_smoke_names.py",
         "tests/test_shell_version_alignment.py"
       ],
@@ -385,6 +386,7 @@
         "tests/test_material_addressing.py",
         "tests/test_provider_capabilities.py",
         "tests/test_cli_unknown_field_refusal.py",
+        "tests/test_pilot_desensitisation_check.py",
         "tests/test_provider_smoke_names.py",
         "tests/test_shell_version_alignment.py"
       ],
@@ -613,6 +615,7 @@
       "test_paperqa_adapter.py": 0.04,
       "test_parallel_temp_isolation.py": 3.47,
       "test_pilot_decisions.py": 0.8,
+      "test_pilot_desensitisation_check.py": 0.0,
       "test_pilot_feedback_ingest.py": 13.19,
       "test_pilot_material_registration.py": 0.3,
       "test_pilot_runbook.py": 0.85,
@@ -835,6 +838,7 @@
       "test_paperqa_adapter.py": 0.04,
       "test_parallel_temp_isolation.py": 3.74,
       "test_pilot_decisions.py": 1.29,
+      "test_pilot_desensitisation_check.py": 0.0,
       "test_pilot_feedback_ingest.py": 56.33,
       "test_pilot_material_registration.py": 0.3,
       "test_pilot_runbook.py": 1.36,

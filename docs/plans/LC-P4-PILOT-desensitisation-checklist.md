@@ -40,6 +40,18 @@ one person can execute before the copy enters the pilot. Item D-3
 import step (plan §9.2 step 2) verifies again on its side; the pilot does
 not re-desensitise, it refuses a copy that fails either check.
 
+**Half of this checklist is measurable, and the measurement is a tool.**
+[`scripts/pilot_desensitisation_check.py`](../../scripts/pilot_desensitisation_check.py)
+reads the copy and the original it was derived from, computes the readings
+this checklist asks for — the property states, the revision counts, the
+comment counts, the digests — and reports every item with a verdict. The
+items whose evidence a machine cannot read (a byline, an affiliation
+sentence, a numbering's continuity) stay `undecided` and are marked as
+needing a person, so a reading is never mistaken for a pass. The tool's
+`--require-signed` mode fails while item D-6 carries no signature. The
+readings it took on the registered copy are in
+[`docs/acceptance/LC-P4-PILOT-desensitisation-measurement-2026-11-25.md`](../acceptance/LC-P4-PILOT-desensitisation-measurement-2026-11-25.md).
+
 ## A. Removal items — nothing on this list may survive into the copy
 
 | # | Item | Where it hides | Check (executable) |
