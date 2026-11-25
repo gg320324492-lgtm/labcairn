@@ -24,11 +24,13 @@
  * flight the buttons stand down, and a refusal is shown as what it is: the
  * service declined, and the desk says so.
  *
- * **The round the desk draws is the fixture's.** The service's opinions read
- * is parameterless from the desk's seat — the round the fixtures name is the
- * round this workspace holds — so the desk asks for it by the fixture's own
- * `project_id` and `version_id`, and labels the data by who answered: the
- * service, or the fixture while the service is not up.
+ * **The round the desk draws is the one the service names.** The service
+ * holds the workspace's rounds, and `GET /review/rounds` says which they
+ * are; the desk asks for that first and draws the opinions and the
+ * manuscript of the round it was given. The sample fixture stands in when
+ * the service does not answer — and the desk says which one it is looking
+ * at either way, because a desk that draws a sample round without saying
+ * so cannot be believed about the pilot paper.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -57,10 +59,8 @@ import {
   opinionSummary,
   paragraphInView,
 } from './reviewContract'
-
-/** The round the desk draws: the fixture's own names, until the workbench names another. */
-const DESK_PROJECT_ID = fixtureOpinions.project_id
-const DESK_VERSION_ID = fixtureOpinions.version_id
+import { FIXTURE_ROUND, readWorkbenchRound } from './rounds'
+import type { WorkbenchRound } from './rounds'
 
 /** What a verdict click left behind, in the desk's own record. */
 interface DeskAction {
@@ -367,22 +367,50 @@ function GroundNote({ opinion }: { readonly opinion: ReviewOpinion }): JSX.Eleme
 }
 
 /** The desk's note about where the data it draws came from. */
-function DataSourceNote({ fromService }: { readonly fromService: boolean }): JSX.Element {
+function DataSourceNote({
+  round,
+  roundFromService,
+  fromService,
+}: {
+  readonly round: WorkbenchRound
+  readonly roundFromService: boolean
+  readonly fromService: boolean
+}): JSX.Element {
   if (fromService) {
     return (
       <p className="panel__note review-desk__fixture-note" role="note">
         Live data — read from the service&rsquo;s <code>/review</code> routes for{' '}
         <code>
-          {DESK_PROJECT_ID} / {DESK_VERSION_ID}
+          {round.projectId} / {round.versionId}
         </code>
         .
+      </p>
+    )
+  }
+  if (roundFromService) {
+    return (
+      <p className="panel__note review-desk__fixture-note" role="note">
+        Fixture data — the service named the round{' '}
+        <code>
+          {round.projectId} / {round.versionId}
+        </code>
+        , but its <code>/review</code> routes did not answer, so this desk is drawn from the sample
+        round (
+        <code>
+          {FIXTURE_ROUND.projectId} / {FIXTURE_ROUND.versionId}
+        </code>
+        ). Verdicts clicked here live on this page only.
       </p>
     )
   }
   return (
     <p className="panel__note review-desk__fixture-note" role="note">
       Fixture data — the service&rsquo;s <code>/review</code> routes did not answer, so this desk is
-      drawn from <code>src/fixtures/</code>. Verdicts clicked here live on this page only.
+      drawn from <code>src/fixtures/</code> for the sample round{' '}
+      <code>
+        {round.projectId} / {round.versionId}
+      </code>
+      . Verdicts clicked here live on this page only.
     </p>
   )
 }
@@ -392,6 +420,8 @@ export function ReviewDeskView(): JSX.Element {
   const [opinions, setOpinions] = useState<ReviewOpinions>(fixtureOpinions)
   const [manuscript, setManuscript] = useState<ReviewManuscript>(fixtureManuscript)
   const [fromService, setFromService] = useState<boolean | null>(null)
+  const [round, setRound] = useState<WorkbenchRound>(FIXTURE_ROUND)
+  const [roundFromService, setRoundFromService] = useState<boolean | null>(null)
   const [activeId, setActiveId] = useState<string | null>(
     fixtureOpinions.opinions[0]?.feedback_id ?? null,
   )
@@ -407,16 +437,27 @@ export function ReviewDeskView(): JSX.Element {
   const rowsRef = useRef<Map<number, HTMLParagraphElement>>(new Map())
   const programmaticScroll = useRef(false)
 
-  // The round is read once, from the service; the fixtures are what shows
-  // while the service does not answer. The read is not the workbench's cycle
-  // because the desk's question carries no parameter the cycle moves: one
-  // round, read once, and re-read only when a verdict changes it.
+  // The round is read first, from the service, and the desk's reads follow
+  // it: the opinions and the manuscript belong to a round, so the round has
+  // to be known before they are asked for. The sample round stands while
+  // the service does not answer, and the note says which one is drawn.
+  //
+  // The read is not the workbench's cycle because the desk's question
+  // carries no parameter the cycle moves: one round, read once, and re-read
+  // only when a verdict changes it.
   useEffect(() => {
     let live = true
-    void Promise.all([
-      readOpinions(DESK_PROJECT_ID, DESK_VERSION_ID),
-      readManuscript(DESK_PROJECT_ID, DESK_VERSION_ID),
-    ]).then(([opinionsRead, manuscriptRead]) => {
+    const load = async (): Promise<void> => {
+      const roundRead = await readWorkbenchRound()
+      if (!live) {
+        return
+      }
+      setRound(roundRead.round)
+      setRoundFromService(roundRead.fromService)
+      const [opinionsRead, manuscriptRead] = await Promise.all([
+        readOpinions(roundRead.round.projectId, roundRead.round.versionId),
+        readManuscript(roundRead.round.projectId, roundRead.round.versionId),
+      ])
       if (!live) {
         return
       }
@@ -428,7 +469,8 @@ export function ReviewDeskView(): JSX.Element {
           ? current
           : (opinionsRead.data.opinions[0]?.feedback_id ?? null),
       )
-    })
+    }
+    void load()
     return () => {
       live = false
     }
@@ -512,13 +554,13 @@ export function ReviewDeskView(): JSX.Element {
       })
       setPosting(true)
       setRefusal(null)
-      void recordDecision(DESK_PROJECT_ID, {
+      void recordDecision(round.projectId, {
         feedback_id: opinion.feedback_id,
         verdict,
         operator: REVIEW_OPERATOR,
         needs_evidence: held?.needsEvidence ?? false,
       })
-        .then(() => readOpinions(DESK_PROJECT_ID, DESK_VERSION_ID))
+        .then(() => readOpinions(round.projectId, round.versionId))
         .then((read: ReviewData<ReviewOpinions>) => {
           setOpinions(read.data)
           setFromService(read.fromService)
@@ -530,7 +572,7 @@ export function ReviewDeskView(): JSX.Element {
           setPosting(false)
         })
     },
-    [actions],
+    [actions, round],
   )
 
   /** Toggle the evidence flag on the desk's own record of the verdict. */
@@ -563,37 +605,40 @@ export function ReviewDeskView(): JSX.Element {
    * here; the desk says so and offers the substitute. A retryable failure
    * keeps the retry on the same mode, with the substitute one switch away.
    */
-  const onRunSuggestions = useCallback((mode: SuggestMode): void => {
-    setSuggesting(true)
-    setSuggestFailure(null)
-    setSuggestRefusal(null)
-    void runSuggestionLoop({
-      project_id: DESK_PROJECT_ID,
-      version_id: DESK_VERSION_ID,
-      mode,
-    })
-      .then((run: ReviewSuggestRun) => {
-        setSuggestRun(run)
-        return readOpinions(DESK_PROJECT_ID, DESK_VERSION_ID)
+  const onRunSuggestions = useCallback(
+    (mode: SuggestMode): void => {
+      setSuggesting(true)
+      setSuggestFailure(null)
+      setSuggestRefusal(null)
+      void runSuggestionLoop({
+        project_id: round.projectId,
+        version_id: round.versionId,
+        mode,
       })
-      .then((read: ReviewData<ReviewOpinions>) => {
-        setOpinions(read.data)
-        setFromService(read.fromService)
-      })
-      .catch((error: unknown) => {
-        setSuggestRun(null)
-        if (error instanceof ApiRefusal) {
-          setSuggestRefusal(error.reason)
-          setSuggestFailure(error.message)
-        } else {
-          setSuggestRefusal(null)
-          setSuggestFailure(error instanceof Error ? error.message : String(error))
-        }
-      })
-      .finally(() => {
-        setSuggesting(false)
-      })
-  }, [])
+        .then((run: ReviewSuggestRun) => {
+          setSuggestRun(run)
+          return readOpinions(round.projectId, round.versionId)
+        })
+        .then((read: ReviewData<ReviewOpinions>) => {
+          setOpinions(read.data)
+          setFromService(read.fromService)
+        })
+        .catch((error: unknown) => {
+          setSuggestRun(null)
+          if (error instanceof ApiRefusal) {
+            setSuggestRefusal(error.reason)
+            setSuggestFailure(error.message)
+          } else {
+            setSuggestRefusal(null)
+            setSuggestFailure(error instanceof Error ? error.message : String(error))
+          }
+        })
+        .finally(() => {
+          setSuggesting(false)
+        })
+    },
+    [round],
+  )
 
   const measure = useCallback((index: number, element: HTMLParagraphElement | null): void => {
     if (element === null) {
@@ -611,7 +656,11 @@ export function ReviewDeskView(): JSX.Element {
   return (
     <section className="panel review-desk" aria-label="Review desk">
       <h2 className="panel__title">Review desk</h2>
-      <DataSourceNote fromService={fromService === true} />
+      <DataSourceNote
+        round={round}
+        roundFromService={roundFromService === true}
+        fromService={fromService === true}
+      />
       {refusal !== null ? (
         <p className="review-desk__refusal" role="alert">
           The service refused that verdict: {refusal}

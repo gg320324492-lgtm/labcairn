@@ -24,6 +24,13 @@
  * `/review` routes do not answer, the centre draws the fixtures and labels
  * them; a note that hid itself would be a fixture that lied about being the
  * service.
+ *
+ * **The round is the service's, and the note says which round it is.** The
+ * centre asks `GET /review/rounds` for the round it addresses, so the
+ * pilot paper's round is the one the centre measures — and a reader is
+ * told the round's ids and whether they came from the service or from the
+ * sample, because a centre that measured a sample round without saying so
+ * could not be believed about the pilot paper.
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -47,7 +54,8 @@ import {
   readQuality,
 } from './deliveryCenterClient'
 import { fixtureDeliverablesExport, fixturePreview } from './deliveryFixture'
-import { DELIVERY_ROUND } from './deliveryRound'
+import { FIXTURE_APPLY_ROUND, readDeliveryRound } from './deliveryRound'
+import type { ApplyRound } from './deliveryCenterClient'
 
 /** What one round's commit did, as the centre's own record of it. */
 interface ApplyOutcome {
@@ -255,22 +263,48 @@ function PreviewBlock({ preview }: { readonly preview: ReviewPreview }): JSX.Ele
 function DataSourceNote({
   previewFromService,
   deliverablesFromService,
+  round,
+  roundFromService,
 }: {
   readonly previewFromService: boolean
   readonly deliverablesFromService: boolean
+  readonly round: ApplyRound
+  readonly roundFromService: boolean
 }): JSX.Element {
   if (previewFromService && deliverablesFromService) {
     return (
       <p className="panel__note delivery__fixture-note" role="note">
-        Live data — read from the service&rsquo;s <code>/review</code> routes.
+        Live data — read from the service&rsquo;s <code>/review</code> routes for the round{' '}
+        <code>
+          {round.projectId} / {round.inputVersionId}
+        </code>
+        .
+      </p>
+    )
+  }
+  if (roundFromService) {
+    return (
+      <p className="panel__note delivery__fixture-note" role="note">
+        Fixture data — the service named the round{' '}
+        <code>
+          {round.projectId} / {round.inputVersionId}
+        </code>
+        , and this centre draws the sample fixture (
+        <code>
+          {FIXTURE_APPLY_ROUND.projectId} / {FIXTURE_APPLY_ROUND.inputVersionId}
+        </code>
+        ) for the panels the service has not answered. Exports clicked here save fixture bytes.
       </p>
     )
   }
   return (
     <p className="panel__note delivery__fixture-note" role="note">
       Fixture data — the service&rsquo;s <code>/review</code> routes did not answer, so this centre
-      is drawn from <code>src/views/deliveryFixture.ts</code>. Exports clicked here save fixture
-      bytes.
+      is drawn from <code>src/views/deliveryFixture.ts</code> for the sample round{' '}
+      <code>
+        {round.projectId} / {round.inputVersionId}
+      </code>
+      . Exports clicked here save fixture bytes.
     </p>
   )
 }
@@ -282,6 +316,8 @@ export function DeliveryCenterView(): JSX.Element {
   const [export_, setExport] = useState<DeliverablesExportWire | null>(null)
   const [exportFromService, setExportFromService] = useState<boolean | null>(null)
   const [previewLoading, setPreviewLoading] = useState(true)
+  const [round, setRound] = useState<ApplyRound>(FIXTURE_APPLY_ROUND)
+  const [roundFromService, setRoundFromService] = useState<boolean | null>(null)
   const [applying, setApplying] = useState(false)
   const [cancelPending, setCancelPending] = useState(false)
   const [cancelAsked, setCancelAsked] = useState(false)
@@ -302,53 +338,62 @@ export function DeliveryCenterView(): JSX.Element {
   // re-read through its own dossier, so the four files the centre draws next
   // are the four files that round bound — and the preview is asked again, the
   // same rule the desk's verdicts follow: the service's answer is the record.
+  //
+  // **The round comes first.** The centre asks the service which round it
+  // holds, and the preview and the dossier are read against *that* round —
+  // so the pilot paper's round is the one the centre measures, and the
+  // sample's stands in only when the service does not answer.
   const readRound = useCallback((dossierArtifactId: string | null): void => {
     setPreviewLoading(true)
     setRefusal(null)
-    void readPreview(DELIVERY_ROUND)
-      .then((read) => {
-        setPreview(read.data)
-        setPreviewFromService(read.fromService)
-      })
-      .catch((error: unknown) => {
-        setRefusal(error instanceof Error ? error.message : String(error))
-      })
-      .finally(() => {
-        setPreviewLoading(false)
-      })
-    if (dossierArtifactId !== null) {
-      void readDeliverables(DELIVERY_ROUND.projectId, dossierArtifactId)
+    void readDeliveryRound().then((roundRead) => {
+      setRound(roundRead.round)
+      setRoundFromService(roundRead.fromService)
+      void readPreview(roundRead.round)
         .then((read) => {
-          setExport(read.data)
-          setExportFromService(read.fromService)
+          setPreview(read.data)
+          setPreviewFromService(read.fromService)
         })
         .catch((error: unknown) => {
           setRefusal(error instanceof Error ? error.message : String(error))
         })
-      // The round's manifest is the authority the six checks read. The
-      // quality report is asked by the same dossier the deliverables are —
-      // the apply's own answer names it — so the checks measure the round
-      // that was committed, and not whichever dossier is latest. Its states
-      // are its own: a report that fails to land does not unwrite the four
-      // deliverables drawn beside it.
-      setQuality({ kind: 'pending' })
-      void readQuality(DELIVERY_ROUND.projectId, dossierArtifactId)
-        .then((report) => {
-          setQuality({ kind: 'done', report })
+        .finally(() => {
+          setPreviewLoading(false)
         })
-        .catch((error: unknown) => {
-          // The refusal's code is drawn beside its message: a panel that
-          // said only "refused" would be saying less than the service said.
-          const described = describeError(error)
-          setQuality({
-            kind: 'failed',
-            message:
-              described.reason === null
-                ? described.message
-                : `${described.reason} — ${described.message}`,
+      if (dossierArtifactId !== null) {
+        void readDeliverables(roundRead.round.projectId, dossierArtifactId)
+          .then((read) => {
+            setExport(read.data)
+            setExportFromService(read.fromService)
           })
-        })
-    }
+          .catch((error: unknown) => {
+            setRefusal(error instanceof Error ? error.message : String(error))
+          })
+        // The round's manifest is the authority the six checks read. The
+        // quality report is asked by the same dossier the deliverables are —
+        // the apply's own answer names it — so the checks measure the round
+        // that was committed, and not whichever dossier is latest. Its states
+        // are its own: a report that fails to land does not unwrite the four
+        // deliverables drawn beside it.
+        setQuality({ kind: 'pending' })
+        void readQuality(roundRead.round.projectId, dossierArtifactId)
+          .then((report) => {
+            setQuality({ kind: 'done', report })
+          })
+          .catch((error: unknown) => {
+            // The refusal's code is drawn beside its message: a panel that
+            // said only "refused" would be saying less than the service said.
+            const described = describeError(error)
+            setQuality({
+              kind: 'failed',
+              message:
+                described.reason === null
+                  ? described.message
+                  : `${described.reason} — ${described.message}`,
+            })
+          })
+      }
+    })
   }, [])
 
   useEffect(() => {
@@ -367,7 +412,7 @@ export function DeliveryCenterView(): JSX.Element {
     setCancelledRound(false)
     setCancelAsked(false)
     setCancelNotice(null)
-    void applyReview(DELIVERY_ROUND)
+    void applyReview(round)
       .then((result) => {
         const next: ApplyOutcome = {
           outputVersionId: result.output_version_id,
@@ -400,12 +445,12 @@ export function DeliveryCenterView(): JSX.Element {
         // round answered with is what the centre shows instead.
         setCancelNotice(null)
       })
-  }, [readRound])
+  }, [readRound, round])
 
   /** Ask the running round to stop at its next publication checkpoint. */
   const onCancelApply = useCallback((): void => {
     setCancelPending(true)
-    void cancelApplyReview(DELIVERY_ROUND.projectId, 'cancelled from the delivery centre')
+    void cancelApplyReview(round.projectId, 'cancelled from the delivery centre')
       .then((answer) => {
         // The service has planted the flag where the round reads it; the
         // round stops at its next checkpoint, which the apply call's own
@@ -432,7 +477,7 @@ export function DeliveryCenterView(): JSX.Element {
       .finally(() => {
         setCancelPending(false)
       })
-  }, [])
+  }, [round])
 
   const onDownload = useCallback((deliverable: DeliverableFileWire): void => {
     setDownloadingKind(deliverable.kind)
@@ -458,6 +503,8 @@ export function DeliveryCenterView(): JSX.Element {
       <DataSourceNote
         previewFromService={previewFromService === true}
         deliverablesFromService={exportFromService === true}
+        round={round}
+        roundFromService={roundFromService === true}
       />
       {refusal !== null ? (
         <p className="delivery__refusal" role="alert">

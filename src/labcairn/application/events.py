@@ -42,6 +42,8 @@ there before it reads its log.
 
 from __future__ import annotations
 
+from sqlalchemy.orm import Session
+
 from labcairn.application import consent
 from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
@@ -49,7 +51,7 @@ from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedE
 from labcairn.db.repository import events_after as store_events_after
 from labcairn.db.repository import last_seq as store_last_seq
 from labcairn.db.repository import load_task
-from labcairn.runtime.event import Event
+from labcairn.runtime.event import Event, EventStreamPage, EventStreamRequest
 from labcairn.security.capabilities import CapabilityId
 
 #: How many events a page holds when the caller does not say.
@@ -176,10 +178,47 @@ def _refuse_unusable_request(*, after_seq: int, limit: int) -> None:
         )
 
 
+class StoreEventSource:
+    """Where the event stream reads from: **the store's own event log.**
+
+    **This is the port's implementation, and it lives here because the
+    layer is the only way to the store.** The API package may not import
+    the store's readers — a test holds that — so the thing that answers
+    the port's request is a layer object, and the host that starts the
+    service hands it over instead of leaving the stream unwired.
+
+    **It holds no session.** The caller hands it the session to read on,
+    so two requests that read the stream never share one: a session is not
+    thread-safe and the service serves several requests at once.
+
+    **It reads the task the request names.** The service is task-scoped and
+    the route builds the request from the bound task, so the log read here
+    is the log of the task the service is bound to.
+
+    **The page says whether the client is caught up.** The store's own
+    counter says the newest event's ``seq``, so "there is nothing after
+    this page" is a fact rather than an inference from the page's length.
+    """
+
+    def page(self, session: Session, request: EventStreamRequest) -> EventStreamPage:
+        """The events after the request's cursor, read on *session*."""
+        events = store_events_after(
+            session, request.task_id, after_seq=request.after_seq, limit=request.limit
+        )
+        counter = store_last_seq(session, request.task_id)
+        return EventStreamPage(
+            task_id=request.task_id,
+            events=events,
+            next_after_seq=events[-1].seq if events else request.after_seq,
+            caught_up=not events or events[-1].seq >= counter,
+        )
+
+
 __all__ = [
     "DEFAULT_EVENT_LIMIT",
     "MAX_EVENT_LIMIT",
     "MIN_EVENT_LIMIT",
     "EventPage",
+    "StoreEventSource",
     "read_events",
 ]

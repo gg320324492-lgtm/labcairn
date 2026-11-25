@@ -2421,8 +2421,19 @@ def service_app(
     and ``POST /review/suggest`` in ``real`` mode is refused with
     ``model_suggestion_no_provider`` — the refusal, not a failure, is the
     honest state of a service the owner has not authorised.
+
+    **The event stream is wired to the store's own log, and that is the
+    difference between a service and a shell.** The API's ``/events``
+    routes read through a port, and a service that starts without
+    something behind that port answers ``GET /events`` with a refusal that
+    says ``not_implemented`` — the stream was never wired, and the runbook
+    that asks for the stage timeline cannot read it on the service the
+    runbook starts. The source here is the store's own reader, and the
+    host — this command — is what supplies it, which is where the port
+    says the supplying belongs.
     """
     from labcairn.api import create_app
+    from labcairn.application.events import StoreEventSource
 
     return create_app(
         context,
@@ -2432,6 +2443,7 @@ def service_app(
         static_dir=static_dir,
         select_task=select_task,
         model_suggestions=model_suggestion_backend(context),
+        event_source=StoreEventSource(),
     )
 
 

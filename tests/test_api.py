@@ -1469,6 +1469,46 @@ def test_the_unwired_source_refuses_rather_than_returning_an_empty_page() -> Non
     assert caught.value.reason.value == "not_implemented"
 
 
+def test_the_service_the_runbook_starts_answers_the_event_stream(
+    context: ApplicationContext,
+) -> None:
+    """``GET /events`` answers on the service **the runbook starts**.
+
+    **The port existed and nothing was behind it.** ``create_app`` takes
+    an ``event_source`` and falls back to the unwired source, which
+    refuses in the layer's own vocabulary — ``not_implemented``, HTTP 403
+    — so the service the runbook starts answered the stage timeline's own
+    route with a refusal, and runbook step 4 could not be carried out on
+    it. The events were in the store the whole time; the service could
+    not say them back.
+
+    **The host supplies it.** The service is built by ``service_app``,
+    which is what ``serve`` calls, and that is where the store's own
+    reader is handed over — the port's own docstring says the host that
+    starts the service supplies the thing that answers it.
+
+    **So the witness goes through the same door the runbook does**: the
+    command's own wiring, not a test-only assembly of the API. A witness
+    that built its own app with a source of its own would stay green if
+    the command stopped supplying one.
+    """
+    from labcairn.cli.commands import service_app
+
+    app = service_app(
+        context,
+        host="127.0.0.1",
+        port=8000,
+        extra_origins=(),
+        static_dir=None,
+    )
+    with TestClient(app) as wired:
+        response = wired.get("/events")
+    assert response.status_code == 200, response.text
+    page = response.json()
+    assert page["events"], "the task was created, so the log is not empty"
+    assert page["task_id"] == str(context.task_id)
+
+
 # --------------------------------------------------------------------------- #
 # the typed contract
 # --------------------------------------------------------------------------- #

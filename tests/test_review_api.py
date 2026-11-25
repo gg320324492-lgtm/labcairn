@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import hashlib
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,7 @@ from labcairn.api.app import create_app
 from labcairn.application.context import ApplicationContext
 from labcairn.papers.binding import ReviewVerdict
 from labcairn.papers.feedback import record_feedback
+from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
 pytestmark = pytest.mark.integration
 
@@ -930,3 +932,157 @@ def test_the_export_refuses_an_unknown_dossier(
     assert status == 403, body
     assert body["reason"] == "artifact_not_found"
     assert "no artefact" in body["message"]
+
+
+# --------------------------------------------------------------------------- #
+# the round the service names
+# --------------------------------------------------------------------------- #
+
+
+def test_the_service_names_the_round_the_workspace_holds(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
+    """The service says which round it holds — **and names no material**.
+
+    **This is the read the workbench was missing.** The paper projects were
+    in the store and nothing exposed them, so a surface that wanted to work
+    on a round had to name one it had been told about by something other
+    than the service — and the thing it named was a sample round, forever.
+    The route that names the round is what ends that.
+
+    **A round is an address.** The pair of ids says which paper and which
+    revision of it; the words behind them are reached through the review
+    routes, which apply the policy. So the listing carries three fields and
+    no paragraph, no comment and no file name — asserted here, because a
+    listing that leaked the material would leak it *by being useful*.
+    """
+    wired, token = client
+    response = wired.get("/review/rounds", headers=_headers(token))
+    assert response.status_code == 200, response.text
+    rounds = response.json()
+    assert rounds, "the service named no round at all"
+    named = {(round_["project_id"], round_["version_id"]) for round_ in rounds}
+    assert (fixture.project_id, fixture.version_id) in named
+
+    for round_ in rounds:
+        assert set(round_) == {"project_id", "version_id", "created_at"}
+    assert PARAGRAPH_TEXT not in response.text
+    assert EDITABLE_TEXT not in response.text
+
+
+def test_a_round_the_policy_denies_is_not_named(
+    fixture: BindingFixture,
+) -> None:
+    """A denied version is dropped from the listing, not named in it.
+
+    **ADR-0003 C5's rule, kept where the listing is.** Refusing the whole
+    listing would disclose that a version is there and deny the work the
+    operator wanted allowed; naming it would say the same thing more
+    quietly. So a denied version is simply not in the answer.
+    """
+    denied = PermissionPolicy.from_rules(
+        [
+            Rule(
+                effect=Permission.DENY,
+                pattern="**",
+                capabilities=frozenset({"source.inventory"}),
+            )
+        ]
+    )
+    narrow = replace(fixture.context, policy=denied)
+    app = create_app(narrow, event_source=_NoEvents())
+    with TestClient(app) as refused:
+        session = refused.get("/session")
+        assert session.status_code == 200
+        refused_token = str(session.json()["token"])
+        response = refused.get("/review/rounds", headers=_headers(refused_token))
+    assert response.status_code == 200, response.text
+    assert response.json() == [], "a denied version was named in the listing"
+
+
+# --------------------------------------------------------------------------- #
+# the run's own record, read back
+# --------------------------------------------------------------------------- #
+
+
+def test_the_suggest_run_record_is_readable_back_after_the_run(
+    client: tuple[TestClient, str], fixture: BindingFixture
+) -> None:
+    """The run's account outlives the run, and can be read back.
+
+    **The gate needs exactly this.** G2-3's evidence is the suggest run's
+    own record — the mode, the model id, the request count, the tokens,
+    the durations, the stop reason and the approvals spent per opinion —
+    and before this there was no way to collect it: the run answered with
+    its account, the row held it, and nothing read either back, so the
+    evidence collector could only record the slot as unknown.
+
+    **The account that comes back is the account the run gave.** The two
+    are the same object, so a reader that compared them would be comparing
+    a thing with itself — and a difference between them would be a bug in
+    one of them, which is why they are compared here.
+    """
+    _record_comments(fixture)
+    wired, token = client
+    started = wired.post(
+        "/review/suggest",
+        json={
+            "project_id": fixture.project_id,
+            "version_id": fixture.version_id,
+            "mode": "substitute",
+        },
+        headers=_headers(token),
+    )
+    assert started.status_code == 201, started.text
+    account = started.json()
+
+    read = wired.get(f"/review/suggest/runs/{account['run_id']}", headers=_headers(token))
+    assert read.status_code == 200, read.text
+    record = read.json()
+
+    assert record["run_id"] == account["run_id"]
+    assert record["mode"] == account["mode"] == "substitute"
+    assert record["model_id"] == account["model_id"]
+    assert record["requests_made"] == account["requests_made"]
+    assert record["tokens_estimated"] == account["tokens_estimated"]
+    assert record["duration_seconds"] == account["duration_seconds"]
+    assert record["requests"] == account["requests"]
+
+    # The record answers what the gate asks for.
+    assert record["requests"], "the run made no request and recorded none"
+    for entry in record["requests"]:
+        assert set(entry) == {
+            "feedback_id",
+            "source",
+            "outcome",
+            "attempts",
+            "elapsed_s",
+            "tokens_estimated",
+            "detail",
+            "retryable",
+            "approval_id",
+            "approval_spent",
+        }
+        assert entry["elapsed_s"] >= 0.0
+    assert record["duration_seconds"] >= 0.0
+
+    # **And no prose.** The boundary holds on the way out too: ids, counts
+    # and durations, never the request and never the answer.
+    assert PARAGRAPH_TEXT not in read.text
+    assert EDITABLE_TEXT not in read.text
+
+
+def test_the_record_of_a_run_that_never_happened_is_refused(
+    client: tuple[TestClient, str],
+) -> None:
+    """A run id the store does not hold is refused, not answered with nothing.
+
+    **An empty account would be a false account.** A reader that asked for
+    a run and got a zeroed one would read "the run spent nothing" where
+    the truth is "there is no such run" — and the second is the one a
+    refusal says.
+    """
+    wired, token = client
+    response = wired.get("/review/suggest/runs/no-such-run", headers=_headers(token))
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == "arguments_invalid"

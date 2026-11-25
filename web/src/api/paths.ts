@@ -57,6 +57,8 @@ export const API_PATHS = {
   issueKeys: '/trajectory/issue-keys',
   /** One review round's opinions, with their suggestions and verdicts. */
   reviewOpinions: '/review/opinions',
+  /** The revision rounds this workspace holds, newest first. */
+  reviewRounds: '/review/rounds',
   /** One review round's manuscript, in the anchors' own numbering. */
   reviewManuscript: '/review/manuscript',
   /** One suggestion the model proposed, as a record and not a decision. */
