@@ -3103,3 +3103,38 @@ Expanding data access scope, write permission to original material, unapproved o
   refusal. **A route that is declared is not a route the service
   answers**: a host that does not wire a piece answers 403 for it, and
   both witnesses look the other way.
+- **The anthropic endpoint's capabilities were measured, and the product
+  does not keep the measurement.**
+  [`LC-P4-PILOT-capability-probe-2026-11-25.md`](../acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md)
+  records it: `tool_calls` ok, `usage_reporting` ok,
+  `structured_output_prompted` **ok**, `structured_output_native`
+  unsupported, against the endpoint whose fingerprint is the same one the
+  LC-P3-06 and LC-P2-18 runs measured. **One capability moved** --
+  `structured_output_prompted` was carried as unsupported since
+  2026-10-28 (the probe raised a `KeyError` that day) and answers `ok`
+  now.
+  **What the finding is:** the probe answered and the answer is in the
+  record, but **the product persists no probe record**. The only
+  implementation of `ProbeCache` in the tree is `InMemoryProbeCache`
+  (`src/labcairn/providers/probe.py`), and `doctor --probe` probes live
+  and reports without writing anything down -- so a later `doctor` on
+  this workspace still says `unverified`, not because the endpoint is
+  unmeasured but because nothing writes the measurement down. The
+  capability gate that refuses an endpoint with no probe record
+  (`src/labcairn/providers/bounded_run.py`) therefore has nothing to
+  read. **The honest fix is a probe record the product writes and the
+  gate reads**, not a record in a document.
+- **The pilot workspace's configuration now matches the signed
+  authorisation.** `E:/labcairn-local/pilot-ws/providers.json` was
+  replaced with the configuration in
+  [`LC-P4-PILOT-providers-config.md`](../acceptance/LC-P4-PILOT-providers-config.md)
+  §6 -- the same bytes the one real request went through -- and the
+  authorisation gate now accepts it: the eight `model_suggestions` fields
+  are filled, where before the workspace carried no grant at all and the
+  gate refused the whole thing. `doctor` on that workspace reports
+  `anthropic / MiniMax-M3.1-Flash (declared, not probed)`. **The
+  backup of the previous file sits beside it**
+  (`providers.json.backup-20260725`), outside the repository. What is
+  still missing is the material: `subject_ref` and `scope` point at
+  `pilot/LC-P4-PILOT/desensitised-copy`, and no registered excerpt
+  exists because the desensitisation checklist is unsigned.
