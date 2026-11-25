@@ -508,3 +508,22 @@ def test_the_gate_is_shut_until_the_owner_signs(tmp_path: Path) -> None:
     )
     assert code == 1
     assert "D-6" in out
+
+
+def test_the_report_says_how_big_each_visible_text_is(tmp_path: Path) -> None:
+    """A number a record quotes has to be one the tool can produce again.
+
+    The measurement record quotes the visible text's character count. A count
+    nobody can read again is a number somebody typed, so the checker reports
+    it — and the fact is one the reading produces, not one the record
+    carries.
+
+    Red by: the fact going missing from the report, or the two texts'
+    counts disagreeing when the texts are the same.
+    """
+    original = _build_docx(tmp_path / "original.docx", paragraphs=("the body",))
+    copy = _build_docx(tmp_path / "copy.docx", paragraphs=("the body",))
+    items = check.judge(check.measure(original), check.measure(copy))
+    facts = _facts(items, "B-3")
+    assert facts["visible_text_characters_copy"] > 0
+    assert facts["visible_text_characters_copy"] == facts["visible_text_characters_original"]
