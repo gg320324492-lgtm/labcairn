@@ -3167,9 +3167,9 @@ Expanding data access scope, write permission to original material, unapproved o
     that has not been built (the tool loop, LC-P1-04's policy layer, the
     stage allowlist). `POLICY_DENIED` in particular would break the
     disjoint-namespaces rule ADR-0015 and ADR-0006 hold: the permission
-    layer has its own vocabulary (`ConsentRefusal`,
-    `ApprovalRefusal`, `PathRefusal` in
-    `src/labcairn/security/permissions.py`), and a provider-layer enum
+    layer has its own vocabulary (`ConsentRefusal` in
+    `src/labcairn/security/permissions.py`, `ApprovalRefusal` in
+    `src/labcairn/runtime/operation.py`), and a provider-layer enum
     carrying "policy denied" would put the two in one place. **What the
     ADR describes is the whole classification; what the code implements is
     the part it can raise.** Either the ADR should say so, or the
