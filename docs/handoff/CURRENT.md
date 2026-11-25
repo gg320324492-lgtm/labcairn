@@ -3333,12 +3333,14 @@ Expanding data access scope, write permission to original material, unapproved o
     gate_and_the_reason_names_the_promotion`): the nearest witness before
     it covered a `planned` record made by a *rule*, not by a model.
   - **C5** — a field the model cannot fill is `UNKNOWN` and no other
-    field is affected. **This is not implemented**: there is no
-    per-field degradation, because the decoding layer
+    field is affected. **The owner settled this on 2026-11-25: the
+    contract is retired in favour of C4**, which is what the tree does —
+    there is no per-field degradation, because the decoding layer
     (`src/labcairn/application/model_request.py:155`) validates the whole
-    schema and refuses the whole answer. Either the layer grows the rule
-    or the contract is rewritten to what the tree does — and the second
-    is the one that would keep the tree honest.
+    schema and refuses the whole answer. The row now records that the
+    per-field degradation was considered and not adopted: a field that
+    cannot be filled is a reason to refuse the answer, not a hole to be
+    written around.
   - **C10's citation path** — the defence against citing a rule whose
     source is withdrawn is in *retrieval* (`search_rules` does not serve
     a dead rule's), and the witness
