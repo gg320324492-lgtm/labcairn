@@ -3489,3 +3489,37 @@ Expanding data access scope, write permission to original material, unapproved o
   shape the project already relies on — and the reason the merge was
   reviewed on the merged tree rather than on the branches, where each
   window's own tree was intact.
+
+## 2026-11-25 - the ADR's two rows and two diagrams now say what the tree does
+
+- **The denial window's ADR note was checked against the tree, not taken.**
+  It said the affected row is ADR-0002's
+  `test_policy_denial_is_not_classified_as_provider_or_model_error`, and
+  that the row should move from *"Not carried"* to *"Carried"*. **The row
+  stays where it is, and the reason is the tree's:** the row promises three
+  things — a `FailureKind.POLICY_DENIED` in the provider layer, `retryable
+  = False` with no retry prompt, and the operation recorded as
+  `OperationOutcome.DENIED` — and the tree now does the middle one and the
+  last one *in the state's spelling*: the denial leaves an operation row in
+  state `denied` with the reason the permission layer produced, and the
+  event that describes it, in one transaction, before the refusal is
+  raised. The provider layer's `FailureKind` still has no `POLICY_DENIED`,
+  and putting it there would carry the permission layer's vocabulary
+  inside the provider's, which ADR-0006's and ADR-0015's disjoint-namespaces
+  rule forbids; and there is no `OperationOutcome` type at all. So the row's
+  two columns are corrected to say that, and the accounting's counts do not
+  move. The witness that watches the accounting
+  (`tests/test_event_payload_vocabulary.py::test_the_binding_names_are_carried_
+  or_declared_outstanding`) is what says a row declaring a name outstanding
+  that has since acquired a witness is a failure — and the tree has no
+  witness under that name, so the row is honest where it stands.
+- **ADR-0003's vocabulary and diagram carry the new type.** C1's closed
+  vocabulary lists `operation_denied` now, and C2's operation state machine
+  has the edge the tree has: a policy denial is asked for from `PLANNED`,
+  before the operation is authorised, so it lands in `DENIED` — a terminal
+  state — without ever reaching `AUTHORIZED`. The diagram kept every
+  branch it had; the first redraw dropped the `(approval_denied)` branch and
+  was redone.
+- **The line numbers the ADR cites were stale.** The batch edited the
+  modules ADR-0002 names, so six of its pointers moved; they name the lines
+  as they are now.

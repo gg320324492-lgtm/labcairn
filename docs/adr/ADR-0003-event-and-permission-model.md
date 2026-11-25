@@ -324,7 +324,8 @@ Events are append-only, immutable, and closed. `events` rows carry:
 `type ∈ { task_created, task_revised, run_started, run_paused, run_resumed, run_finished,
 stage_entered, stage_completed, stage_blocked,
 operation_intent, operation_awaiting_approval, operation_attempted,
-operation_confirmed, operation_failed, operation_uncertain, operation_reconciled,
+operation_confirmed, operation_denied, operation_failed, operation_uncertain,
+operation_reconciled,
 approval_requested, approval_granted, approval_denied, approval_expired, approval_consumed,
 checkpoint_created, artifact_recorded, source_changed, outbound_consent_requested }`
 
@@ -339,16 +340,19 @@ checkpoint_created, artifact_recorded, source_changed, outbound_consent_requeste
 ```
                  policy=allow          commit(operation_attempted)
   PLANNED ───────────────────▶ AUTHORIZED ─────────────────────▶ ATTEMPTING
-     │                              │                                  │
-     │                        policy=ask                    commit(operation_confirmed,
-     ▼                              ▼                            receipt + state)
-  AWAITING_APPROVAL ─────▶ AUTHORIZED                            │
-     │                       │                                  ▼
-     │                       └──▶ DENIED (terminal)            CONFIRMED (terminal)
+     │  │                           │                                  │
+     │  │ policy=ask                │ policy=ask        commit(operation_confirmed,
+     │  ▼                           ▼                            receipt + state)
+     │ AWAITING_APPROVAL ───▶ AUTHORIZED                            │
+     │                             │                                  ▼
+     │                             └──▶ DENIED (terminal)            CONFIRMED (terminal)
+     │                                                                         │
+     ▼                                                                         ▼
+  (approval_denied)                                                       FAILED (terminal)
+     │
+     │  policy=deny
      ▼
-  (approval_denied)                                                   │
-                                                                     ▼
-                                                               FAILED (terminal)
+  DENIED (terminal)
 
   ATTEMPTING (any operation, at any point)  ──[ process dies, or run is killed ]──▶
                                                                   UNCERTAIN
