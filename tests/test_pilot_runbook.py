@@ -291,6 +291,115 @@ def test_the_runbook_names_both_entry_point_kinds_and_their_routes() -> None:
         )
 
 
+def test_every_route_the_runbook_names_is_a_route_this_tree_serves() -> None:
+    """A route the runbook names must exist in the service.
+
+    **Why the other direction needs a witness of its own.** The witness
+    above checks that the runbook *names* the routes the trial drives. It
+    says nothing about whether those routes are still served, so a route
+    renamed or removed leaves the runbook naming a surface that is not
+    there -- and the trial would discover it at the desk, in front of a
+    participant, at the step where the evidence is due.
+
+    **How the routes are read.** The service's routes are declared in one
+    file, so the file is parsed and the paths are read out of it: a path
+    the runbook names that no declaration carries is a runbook naming a
+    surface the service does not have.
+
+    **The command lines are read too.** A runbook that names a CLI
+    command the console script does not register is the same hole, and
+    the option's position matters as well: ``--workspace`` is the command
+    line's own option, so it is written before the command and a runbook
+    that puts it after would build the workspace in the wrong directory.
+    """
+    import ast
+    import re
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parent.parent
+    routes_source = repo_root / "src" / "labcairn" / "api" / "routes.py"
+    tree = ast.parse(routes_source.read_text(encoding="utf-8"))
+    declared: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        function = node.func
+        if not isinstance(function, ast.Attribute) or function.attr not in {
+            "get",
+            "post",
+            "put",
+            "patch",
+            "delete",
+        }:
+            continue
+        if not isinstance(function.value, ast.Name) or function.value.id != "router":
+            continue
+        for argument in node.args:
+            if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                declared.add(argument.value)
+                break
+
+    text = _runbook()
+    named = set(re.findall(r"\b(?:GET|POST|PUT|PATCH|DELETE) (/[A-Za-z0-9_{}/-]+)", text))
+    assert named, "the runbook names no routes at all, so this witness watches nothing"
+
+    missing = sorted(route for route in named if route not in declared)
+    assert not missing, (
+        "the runbook names routes the service does not serve: "
+        f"{missing}. A step whose entry point is not there fails at the desk, "
+        "in front of a participant, at the step where the evidence is due."
+    )
+
+    # The command lines the runbook writes, and the option's position.
+    commands = re.findall(r"uv run labcairn ([^\n\\]+)", text)
+    assert commands, "the runbook writes no command lines, so this witness watches nothing"
+    cli_source = repo_root / "src" / "labcairn" / "cli" / "commands.py"
+    cli_tree = ast.parse(cli_source.read_text(encoding="utf-8"))
+    registered: set[str] = set()
+    for node in ast.walk(cli_tree):
+        if not isinstance(node, ast.Call):
+            continue
+        function = node.func
+        if not isinstance(function, ast.Attribute) or function.attr != "command":
+            continue
+        if node.args and isinstance(node.args[0], ast.Constant):
+            registered.add(str(node.args[0].value))
+        for keyword in node.keywords:
+            if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+                registered.add(str(keyword.value.value))
+    # A sub-application's own command is registered on the sub-application, so
+    # the names of the sub-applications count too.
+    for node in ast.walk(cli_tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "add_typer"
+        ):
+            for keyword in node.keywords:
+                if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+                    registered.add(str(keyword.value.value))
+
+    for line in commands:
+        words = line.split()
+        if not words or words[0].startswith("-"):
+            continue
+        if "--workspace" not in words:
+            continue
+        # **The option is the command line's own, so it goes first.** A
+        # command line that writes it after the command builds the workspace
+        # in the current directory instead of the one the later steps
+        # address, and the later command refuses it with
+        # WORKSPACE_NOT_INITIALISED -- a failure at the desk, at the first
+        # step, in front of the owner.
+        assert words.index("--workspace") == 0, (
+            f"the runbook writes {line.strip()!r} with --workspace after the "
+            "command, but --workspace is the command line's own option: it "
+            "goes before the command, or the workspace is built in the "
+            "current directory and the later command refuses it with "
+            "WORKSPACE_NOT_INITIALISED"
+        )
+
+
 def test_every_runbook_step_names_its_evidence_and_its_failure_path() -> None:
     """Each step subsection carries an evidence slot and a failure path.
 

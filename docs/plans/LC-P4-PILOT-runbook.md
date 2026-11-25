@@ -122,14 +122,24 @@ bound directories and records what arrived.
 **Entry points.**
 
 ```bash
-uv run labcairn init                       # once, at the workspace root
-uv run labcairn doctor                     # pre-flight: workspace, db, policy
+uv run labcairn --workspace ./workspace init     # once, at the workspace root
+uv run labcairn --workspace ./workspace doctor   # pre-flight: workspace, db, policy
 uv run labcairn --workspace ./workspace task create \
   --title "Pilot revision round" \
   --objective "One desensitised paper through the full revision loop." \
   --criterion "Four deliverables bound to one task, input version and output version." \
   --source-dir <desensitised-copy-dir> --json
 ```
+
+**The `--workspace` option goes before the command, on all three.**
+It is the command line's own option, not a sub-command's, so
+`labcairn init --workspace ./workspace` is not the same command as
+`labcairn --workspace ./workspace init` — the first builds the
+workspace in the current directory and the second builds it in
+`./workspace`, and the `task create` below addresses `./workspace`. A
+workspace built in the wrong directory is one the later command refuses
+with `WORKSPACE_NOT_INITIALISED`, so the option is written on every
+line that touches the workspace.
 
 `task create` ingests the material and binds it to the task before it
 returns; the JSON's `bound_source_ids` names what arrived. The copy
