@@ -3377,20 +3377,47 @@ Expanding data access scope, write permission to original material, unapproved o
   `Last Modified By` properties are non-empty and are the original's, the
   four custom properties are the original's, and the two revision author
   fields are still names rather than role labels. **So the desensitisation
-  that was done accepted the revision trail and removed nothing else.** The
+  that was done accepted the revision trail and removed nothing else.**
+- **The owner chose to redo it, and the redone copy fails nothing.**
+  `scripts/pilot_redaction.py` redacts from the **original**, so the trail
+  stays and the identity goes: the built-in properties are blanked, every
+  custom property's value is blanked (that is where a WPS user id and a
+  Grammarly document id live), all 198 revision marks' author fields and
+  Word's two-person list carry role labels, and the paths inside two of the
+  seven pictures' own metadata are blanked in place at the same length.
+  The redone copy is registered as `pilot-paper-002` (sha256
+  `04cc31be9f9876fef975e8d4e6b427bb4a063920288fe5c0b72e8e3244a6172d`),
+  and the measurements on it are **14 pass, 7 undecided, 0 fail**: the
+  revision counts match the original's exactly, both author fields are
+  role labels, and **every one of the seven pictures decodes to the same
+  pixels as the original's** — the two whose metadata changed differ in
+  bytes and not in a pixel. The seven undecided are the ones whose
+  evidence is a person's reading, including D-6, the signature. The
   readings are in
   `docs/acceptance/LC-P4-PILOT-desensitisation-measurement-2026-11-25.md`.
+- **Two things went wrong on the way and are worth the record.** The first
+  redaction blanked a picture's pixels: a picture's data holds two
+  backslashes by chance often enough that a loose "looks like a path" test
+  damaged two of the seven pictures, and those copies would not decode.
+  The test is now narrow — a path names a folder or runs through several
+  segments — and the path is only looked for inside the ranges the
+  picture's own directory points at. The second: the paths in this paper's
+  pictures are not in an ASCII-typed TIFF label but in a BYTE-typed one.
+  Both failures are witnessed now (`tests/test_pilot_redaction.py`): a
+  picture's bytes that merely look like a path are left alone, and the
+  path inside a label is blanked.
 - **The tool's witnesses were checked to bite.** Fourteen tests in
-  `tests/test_pilot_desensitisation_check.py`, five of them mutation-checked:
-  the item's verdict was broken (the property verdict, the revision
-  equality, the role-label test, the comment count, the digest match) and
-  the witness that watches each one went red, and the file's own tests were
-  green again when the script was restored.
-- **What is the owner's.** Three ways forward, and the choice is not the
-  session's: sign the result with the four failures recorded (the
-  checklist's own rule — *the check is repeated until A-1…A-7 all pass* —
-  would then be breached and the import step stays shut), redo the
-  desensitisation (blank the two identity properties, clear the custom
-  properties, replace the two revision author fields with role labels,
-  restore the 96 insertions and 17 deletions), or register a different copy.
-  Until one of them happens, no copy enters the pilot.
+  `tests/test_pilot_desensitisation_check.py` and nine in
+  `tests/test_pilot_redaction.py`, eleven mutations between them: the
+  item's verdict was broken (the property verdict, the revision equality,
+  the role-label test, the comment count, the digest match, the property
+  blanking, the image-metadata blanking, the unmapped-author refusal) and
+  the witness that watches each one went red, and the files' own tests were
+  green again when the scripts were restored.
+- **What is the owner's.** Two things. The role labels are a reading and
+  not a fact: the two people who marked the document were replaced with
+  `advisor` and `student-1` from the number of marks each left (111 and
+  2), and if that is the other way round the map changes and the copy is
+  redone. And D-6 is unsigned, so the tool's `--require-signed` fails and
+  the checklist's own rule holds: *until the owner has signed that result,
+  the import step must not run and no copy enters the pilot.*
