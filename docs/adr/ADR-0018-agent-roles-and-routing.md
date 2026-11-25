@@ -315,20 +315,20 @@ abstention are rows and not logs.
 
 | # | Contract | Witness |
 |---|---|---|
-| C1 | A role's contract is versioned, and the version is on every output it produces | to be written at LC-P2-12 |
-| C2 | A role may exercise only the capabilities its contract lists, and a call outside them is refused by the layer | to be written at LC-P2-12 |
-| C3 | A role holds no database connection, no arbitrary file-write permission and no direct network path | to be written at LC-P2-12 |
-| C4 | The material-purpose check runs **before** the approval is consumed, and a refused request leaves the approval unspent | to be written at LC-P2-01 |
-| C5 | With no grant, **no socket is opened**, and the record says that no request was sent | to be written at LC-P2-01 |
-| C6 | A provider that has not been probed is blocked from a role that needs a schema, and a parse failure is a refusal with a reason | to be written at LC-P2-01 |
-| C7 | An unknown price, an unobservable consumption or an exhausted budget refuses, and a retry across a restart does not pay twice | to be written at LC-P2-01 |
-| C8 | A model's candidate carries no `comment_locator`, and a row that claims the advisor's words without having read them is refused | to be written at LC-P2-09 |
-| C9 | An abstention is a structured record naming what was missing, and it is not an empty result and not a crash | to be written at LC-P2-12 |
-| C10 | A `GuidanceCard` carries an anchor, the evidence, the counter-examples and the uncertainty, and a card with an empty `evidence_refs` is refused | to be written at LC-P2-12 |
-| C11 | Two providers agreeing does not promote a proposal, and the record's constructor still refuses it | to be written at LC-P2-12 |
-| C12 | A hand-over to a person records the reason, and an unanswered question stays unanswered | to be written at LC-P2-12 |
-| C13 | A role runs alone when the contract says it may, and the roles that do run are the ones the request needed | to be written at LC-P2-12 |
-| C14 | No model id, endpoint, price or capability claim is written into the tree | to be written at LC-P2-12 |
+| C1 | A role's contract is versioned, and the version is on every output it produces | **already implemented** (`src/labcairn/roles/models.py:169`); witness `tests/test_agent_role_specs.py:143` `test_a_role_spec_is_versioned_and_the_version_is_on_the_output` |
+| C2 | A role may exercise only the capabilities its contract lists, and a call outside them is refused by the layer | **already implemented** (`src/labcairn/roles/models.py:105`); witnesses `tests/test_agent_role_specs.py:173` and `tests/test_roles_run.py:960` |
+| C3 | A role holds no database connection, no arbitrary file-write permission and no direct network path | **already implemented** (`src/labcairn/roles/models.py:35`, `src/labcairn/roles/spec.py`); witness `tests/test_agent_role_specs.py:182` `test_a_role_holds_no_direct_path_out` |
+| C4 | The material-purpose check runs **before** the approval is consumed, and a refused request leaves the approval unspent | **already implemented** (`src/labcairn/application/model_transmit.py:140`); witnesses `tests/test_model_request_path.py:319` and `tests/test_roles_run.py:618` |
+| C5 | With no grant, **no socket is opened**, and the record says that no request was sent | **already implemented** (`src/labcairn/application/model_transmit.py:91`; the `MODEL_EXCHANGED` event is written only after a return, so the event stream's silence is the record that nothing went out); witnesses `tests/test_model_request_path.py:319`, `:295` and `:482` |
+| C6 | A provider that has not been probed is blocked from a role that needs a schema, and a parse failure is a refusal with a reason | **already implemented** (`src/labcairn/application/model_request.py:128`, `src/labcairn/application/model_refusals.py:15`); witnesses `tests/test_model_request_path.py:577` and `:657` |
+| C7 | An unknown price, an unobservable consumption or an exhausted budget refuses, and a retry across a restart does not pay twice | **already implemented** (`src/labcairn/providers/budget.py:369`, `src/labcairn/roles/orchestration.py:158`); witnesses `tests/test_model_request_path.py:413` and `tests/test_role_orchestration.py:178` |
+| C8 | A model's candidate carries no `comment_locator`, and a row that claims the advisor's words without having read them is refused | **already implemented** (`src/labcairn/roles/trajectory.py:107`, `:234`); witness `tests/test_role_trajectory.py:203` `test_role_a_proposes_judgements_and_never_facts` -- **LC-P2-12, not LC-P2-09** |
+| C9 | An abstention is a structured record naming what was missing, and it is not an empty result and not a crash | **already implemented** (`src/labcairn/roles/guidance.py:449`, `src/labcairn/roles/refusals.py:112`); witness `tests/test_role_guidance.py:445` `test_insufficient_material_produces_a_named_abstention` |
+| C10 | A `GuidanceCard` carries an anchor, the evidence, the counter-examples and the uncertainty, and a card with an empty `evidence_refs` is refused | **already implemented** (`src/labcairn/roles/guidance.py:140`, `:409`); witnesses `tests/test_role_guidance.py:148` and `:415` |
+| C11 | Two providers agreeing does not promote a proposal, and the record's constructor still refuses it | **already implemented** (`src/labcairn/roles/critique.py`, `src/labcairn/evidence/record.py:385`); witness `tests/test_role_critique.py:346` `test_a_verdict_does_not_promote_a_proposal` |
+| C12 | A hand-over to a person records the reason, and an unanswered question stays unanswered | **already implemented** (`src/labcairn/roles/critique.py:186`); witnesses `tests/test_role_critique.py:346` and `:275`, `tests/test_roles_run.py:541` |
+| C13 | A role runs alone when the contract says it may, and the roles that do run are the ones the request needed | **already implemented** (`src/labcairn/roles/orchestration.py:52`, `:106`); witness `tests/test_role_orchestration.py:132` `test_the_roles_that_run_are_the_ones_the_request_needed` |
+| C14 | No model id, endpoint, price or capability claim is written into the tree | **already implemented** (`src/labcairn/providers/pydantic_models.py`, `src/labcairn/providers/adapter.py` -- the supplier is injected by the operator and does not land in the tree); witness `tests/test_model_request_path.py:122` `test_no_model_id_endpoint_or_price_is_written_into_the_tree` -- **LC-P2-01, not LC-P2-12** |
 
 **Every one of these needs a witness, and the witness must fail for the
 property.** A test that fails because of an unrelated encoding or lint
