@@ -36,6 +36,12 @@ from store_support import env as _shared_env
 
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
+from labcairn.application.roles_run import (
+    ModelCallPlan,
+    RoleRunQuestion,
+    RoleRunRequest,
+    the_role_run_question,
+)
 from labcairn.db.models import EditActionRow
 from labcairn.guidance.retrieval import invalidated_rules, search_rules
 from labcairn.guidance.rules import confirm_rule, propose_rule, record_counterexample
@@ -43,6 +49,7 @@ from labcairn.papers.feedback import FeedbackEvent, record_feedback, set_issue_k
 from labcairn.papers.responses import record_response
 from labcairn.roles.guidance import (
     CardClaim,
+    RuleCitation,
     Uncertainty,
     abstaining_card,
     build_card,
@@ -50,7 +57,9 @@ from labcairn.roles.guidance import (
 )
 from labcairn.roles.refusals import RoleRefusal
 from labcairn.roles.spec import FORBIDDEN_ACTIONS, AgentRoleSpec, define_role_spec
+from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
+from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
 pytestmark = pytest.mark.integration
 
@@ -66,6 +75,10 @@ WITHDRAWN_KEY = "iss-gold-a-r3"
 #: A third key, whose comment was judged answered — a source a rule can stand on.
 ALIVE_KEY = "iss-gold-a-r4"
 
+#: A fourth key, whose comment **nobody judged** — a source that is
+#: unattested rather than withdrawn.
+UNATTESTED_KEY = "iss-gold-a-r5"
+
 RULE = (
     "When the claim rests on a comparison, the advisor asks for the baseline"
     " to be named in the same paragraph."
@@ -75,15 +88,46 @@ WITHDRAWN_RULE = "When a figure carries the claim, the advisor asks for the numb
 
 STANDING_RULE = "When a table carries the comparison, the advisor asks for the units in the header."
 
+UNATTESTED_RULE = "When nobody has judged the figure, the advisor's question is still open."
+
+#: The material the chain's manuscript is addressed by — the address the
+#: role run's declaration is checked against.
+MATERIAL_ROOT = "source:0"
+MATERIAL_KEY = "manuscript.docx"
+MATERIAL_PATH = "materials/manuscript.docx"
+DESTINATION = "api.model-provider.example"
+
 
 @dataclass(frozen=True)
 class Guidance:
-    """The context, the comment under its key, and a confirmed rule to cite."""
+    """The context, the comment under its key, and a candidate rule over it.
+
+    **The rule is a candidate, and its source is unattested** — the
+    chain holds the comment and no judgement on it. The fixture says so
+    because the two facts decide what the memory does with the rule.
+    """
 
     context: ApplicationContext
     chain: ChainEnv
     key: str
     event: FeedbackEvent
+    spec: AgentRoleSpec
+    rule_id: str
+
+
+@dataclass(frozen=True)
+class Unattested:
+    """A chain whose comment nobody judged, and a confirmed rule over it.
+
+    **The source is unattested, not withdrawn**: the chain holds the
+    comment and no judgement on it at all. The rule is confirmed, and a
+    confirmed rule stands only on the sources that carry a judgement
+    saying the change answered.
+    """
+
+    context: ApplicationContext
+    chain: ChainEnv
+    key: str
     spec: AgentRoleSpec
     rule_id: str
 
@@ -122,7 +166,15 @@ def _guidance_spec(context: ApplicationContext) -> AgentRoleSpec:
 
 @pytest.fixture()
 def guidance(env: StoreEnv, tmp_path: Path) -> Guidance:
-    """A chain with one keyed comment, and a confirmed rule with a case against it."""
+    """A chain with one keyed comment, and a **candidate** rule over it.
+
+    **The source is unattested: nobody has judged the comment.** The chain
+    holds the comment and the key, and there is no judgement on it — so
+    the material is *unattested*, not withdrawn. The rule is a candidate,
+    and a candidate is the case the memory serves on a found, reachable
+    source whatever the judgement says. The fixture says both, because
+    the two facts decide what the citation path does with the rule.
+    """
     workspace_root = tmp_path / "workspace"
     workspace_root.mkdir()
     store = env.store()
@@ -173,6 +225,7 @@ class Withdrawn:
     """
 
     context: ApplicationContext
+    chain: ChainEnv
     key: str
     rule_id: str
     standing_rule_id: str
@@ -254,10 +307,74 @@ def withdrawn(env: StoreEnv, tmp_path: Path) -> Withdrawn:
         confirm_rule(chain.context, rule_id=rule.rule_id, confirmed_by="the-advisor", now=MOMENT)
     return Withdrawn(
         context=chain.context,
+        chain=chain,
         key=WITHDRAWN_KEY,
         rule_id=withdrawn_rule.rule_id,
         standing_rule_id=standing_rule.rule_id,
         spec=_guidance_spec(chain.context),
+    )
+
+
+@pytest.fixture()
+def unattested(env: StoreEnv, tmp_path: Path) -> Unattested:
+    """A chain whose comment **nobody has judged**, and a confirmed rule over it.
+
+    **The source is unattested, not withdrawn.** The chain holds the
+    comment and the key, and there is no judgement on it at all — so
+    nobody has said the change did not answer it, and nothing has been
+    withdrawn from under the rule. The rule is confirmed, and a confirmed
+    rule stands only on the sources that carry a judgement saying the
+    change answered, so this is the case the memory does not serve.
+    """
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir()
+    store = env.store()
+    chain = build_chain(store, workspace_root, comments=(a_comment("205"),))
+    (event,) = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=MOMENT,
+    )
+    set_issue_key(
+        chain.context, feedback_id=event.feedback_id, issue_key=UNATTESTED_KEY, now=MOMENT
+    )
+    rule = propose_rule(
+        chain.context,
+        issue_type="method_and_hypothesis",
+        statement=UNATTESTED_RULE,
+        rule_context="A figure whose caption nobody has judged.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of the run, on the figure caption.",
+        sources=(UNATTESTED_KEY,),
+        proposed_by="a-mentor",
+        now=MOMENT,
+    )
+    confirm_rule(chain.context, rule_id=rule.rule_id, confirmed_by="the-advisor", now=MOMENT)
+    return Unattested(
+        context=chain.context,
+        chain=chain,
+        key=UNATTESTED_KEY,
+        spec=_guidance_spec(chain.context),
+        rule_id=rule.rule_id,
+    )
+
+
+def _denied_reader(context: ApplicationContext) -> ApplicationContext:
+    """The same store, under a policy that denies reading the material."""
+    return ApplicationContext(
+        workspace=context.workspace,
+        store=context.store,
+        policy=PermissionPolicy.from_rules(
+            [
+                Rule(
+                    effect=Permission.DENY,
+                    pattern="**",
+                    capabilities=frozenset({CapabilityId.SOURCE_READ.value}),
+                )
+            ]
+        ),
+        ledger=ApprovalLedger(),
     )
 
 
@@ -561,7 +678,7 @@ def test_a_card_cites_a_rule_with_its_counterexamples(guidance: Guidance) -> Non
 def test_a_card_cannot_cite_a_rule_whose_source_a_judgement_withdrew(
     withdrawn: Withdrawn,
 ) -> None:
-    """ADR-0016 C10: the citation path asks, and not only the retrieval layer.
+    """ADR-0016 C10: the citation path asks the memory's question.
 
     **The rule is named directly**, so the retrieval layer is not in the
     way: the caller hands in the id and the memory has stopped serving the
@@ -574,16 +691,24 @@ def test_a_card_cannot_cite_a_rule_whose_source_a_judgement_withdrew(
     rule as invalidated, over the same source, for the same reason — and
     a rule that stands on one living source is still citable, and still
     served, so neither layer refuses more than the contract says.
+
+    **What would make this red:** a citation path that asked its own
+    question instead of the memory's. A check that looked for a withdrawn
+    judgement and nothing else would hand this rule out, and the refusal
+    would never be raised.
     """
     refused = _capture(lambda: cite_rule(withdrawn.context, rule_id=withdrawn.rule_id))
-    assert _refusal(refused) is RoleRefusal.RULE_NOT_IN_THE_MEMORY
+    assert _refusal(refused) is RoleRefusal.RULE_NOT_SERVED_BY_THE_MEMORY
     assert withdrawn.rule_id in refused.detail
     assert withdrawn.key in refused.detail
     assert "source material has been withdrawn" in refused.detail
 
-    # **The card path is the one the contract names.** The only way a card
-    # gets a citation is through `cite_rule`, so a card that asks for this
-    # rule's citation is refused rather than produced.
+    # **The card path is the one the contract names, and it is driven.**
+    # The citation the memory will not mint is written by hand here, and
+    # the card refuses it: a citation the memory did not mint is not a
+    # citation a card may carry. (The minting is witnessed on its own
+    # below; this is the card path refusing, not the citation path
+    # refusing twice.)
     refused_card = _refusal(
         _capture(
             lambda: build_card(
@@ -595,11 +720,18 @@ def test_a_card_cannot_cite_a_rule_whose_source_a_judgement_withdrew(
                 evidence_refs=("chain:" + withdrawn.key,),
                 suggested_next_action="put the numbers in the caption.",
                 uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
-                rule_refs=(cite_rule(withdrawn.context, rule_id=withdrawn.rule_id),),
+                rule_refs=(
+                    RuleCitation(
+                        rule_id=withdrawn.rule_id,
+                        version=1,
+                        statement=WITHDRAWN_RULE,
+                        counterexamples=(),
+                    ),
+                ),
             )
         )
     )
-    assert refused_card is RoleRefusal.RULE_NOT_IN_THE_MEMORY
+    assert refused_card is RoleRefusal.CITATION_NOT_MINTED_BY_THE_MEMORY
 
     # **The retrieval layer reports the same rule, on the same source.**
     gone = invalidated_rules(withdrawn.context)
@@ -610,14 +742,251 @@ def test_a_card_cannot_cite_a_rule_whose_source_a_judgement_withdrew(
     ] == [(withdrawn.key, True, True, False)]
 
     # **And a rule that still stands on a living source is citable.** The
-    # rule names the withdrawn source and the answered one; the citation
-    # path refuses only the rule whose every source was taken away, and the
-    # retrieval layer serves this one on the source that stands.
+    # rule names the withdrawn source and the answered one; the memory
+    # serves it on the source that stands, and the citation path cites
+    # what the memory serves.
     standing = cite_rule(withdrawn.context, rule_id=withdrawn.standing_rule_id)
     assert standing.rule_id == withdrawn.standing_rule_id
     assert [hit.rule.rule_id for hit in search_rules(withdrawn.context)] == [
         withdrawn.standing_rule_id
     ]
+
+
+def test_a_card_cannot_cite_a_rule_whose_source_the_reader_may_not_read(
+    withdrawn: Withdrawn,
+) -> None:
+    """The reader's permission decides what the memory serves them.
+
+    **The same rule, read by a reader the policy denies the material to.**
+    The source is found and judged answered, and it is out of *this*
+    reader's reach — so the memory does not serve it, and the citation
+    path, which asks the memory's question, does not either.
+
+    **And the refusal says which of the three deaths it was.** A refusal
+    that said only "not served" would be a refusal nobody could act on:
+    the reach is what the reader can act on, and the withdrawal is not
+    what happened here.
+
+    **What would make this red:** a citation path that looked for a
+    withdrawn judgement only. It would find none, cite the rule, and the
+    reader would be handed material the policy denies them.
+    """
+    denied = _denied_reader(withdrawn.context)
+    refused = _capture(lambda: cite_rule(denied, rule_id=withdrawn.standing_rule_id))
+    assert _refusal(refused) is RoleRefusal.RULE_NOT_SERVED_BY_THE_MEMORY
+    assert withdrawn.standing_rule_id in refused.detail
+    assert "out of this reader's reach" in refused.detail
+
+    # **And the reader who may read it is served it.**
+    assert cite_rule(withdrawn.context, rule_id=withdrawn.standing_rule_id).rule_id == (
+        withdrawn.standing_rule_id
+    )
+
+
+def test_a_card_cannot_cite_a_confirmed_rule_nobody_judged(
+    unattested: Unattested,
+) -> None:
+    """A source nobody judged is not withdrawn — and it is not served either.
+
+    **The decision, and why.** The contract (ADR-0016 C10) forbids a
+    card that cites a rule whose source material has been *withdrawn*: a
+    judgement that says the change did not answer the comment. A source
+    nobody has judged has not been withdrawn — nobody has said anything
+    about it — and **the refusal says so, in those words**, because
+    saying "withdrawn" here would be false.
+
+    **But the citation path asks the memory's question, not a narrower
+    one.** The retrieval layer serves a *confirmed* rule only on the
+    sources that carry a judgement saying the change answered, and it
+    reports this rule as invalidated; a citation that asked a different
+    question would be a second definition of what the memory serves, and
+    the two could disagree. So the citation is refused.
+
+    **What would make this red:** a citation path that asked only about
+    withdrawal. It would find no withdrawn judgement, cite the rule, and
+    a card would advise on material the memory reports as invalidated.
+    """
+    refused = _capture(lambda: cite_rule(unattested.context, rule_id=unattested.rule_id))
+    assert _refusal(refused) is RoleRefusal.RULE_NOT_SERVED_BY_THE_MEMORY
+    assert unattested.rule_id in refused.detail
+    assert unattested.key in refused.detail
+    assert "nobody has judged" in refused.detail
+    assert "withdrawn" not in refused.detail, (
+        "nothing was withdrawn from under this rule, and the refusal says so"
+    )
+
+    # **And the retrieval layer reports the same rule, on the same source.**
+    gone = invalidated_rules(unattested.context)
+    assert [item.rule.rule_id for item in gone] == [unattested.rule_id]
+    assert [(source.issue_key, source.found, source.reachable) for source in gone[0].reasons] == [
+        (unattested.key, True, True)
+    ]
+
+
+def test_a_candidate_whose_source_nobody_judged_is_still_cited(
+    guidance: Guidance,
+) -> None:
+    """A proposal's cases have usually not been judged at all.
+
+    **The candidate is the case the memory exempts**: a rule nobody has
+    confirmed yet is shown to its reviewer on the cases that exist, and
+    requiring a judgement to show the proposal would hide from the
+    reviewer the very thing they are to judge. So the memory serves a
+    candidate whose source is found and in the reader's reach — an
+    unattested source and a live one — and the citation path cites what
+    the memory serves, counterexamples and all.
+
+    **What would make this red:** a citation path that asked for a
+    judgement on every source. It would refuse this rule, and the card
+    would lose the very rule the reviewer is there to judge.
+    """
+    citation = cite_rule(guidance.context, rule_id=guidance.rule_id)
+    assert citation.rule_id == guidance.rule_id
+    assert citation.statement == RULE
+    assert citation.counterexamples
+    assert [
+        hit.rule.rule_id for hit in search_rules(guidance.context, include_candidates=True)
+    ] == [guidance.rule_id]
+
+
+def test_a_rule_the_memory_does_not_hold_and_one_it_does_not_serve_have_two_reasons(
+    withdrawn: Withdrawn,
+) -> None:
+    """A caller that switches on the reason has to be able to tell them apart.
+
+    **"The memory holds no rule under that id"** and **"the memory holds
+    the rule and does not serve it"** are two situations with two
+    remedies, and the vocabulary's own rule is that each member names
+    what was wrong. The first is a mistake about an id; the second is a
+    rule whose material has been withdrawn, and no amount of retrying the
+    id will bring it back.
+
+    **What would make this red:** one member for both — the second
+    refusal would carry the first's reason, and a caller could not tell
+    a typo from a withdrawal.
+    """
+    missing = _capture(lambda: cite_rule(withdrawn.context, rule_id="rule-nowhere"))
+    unserved = _capture(lambda: cite_rule(withdrawn.context, rule_id=withdrawn.rule_id))
+    assert _refusal(missing) is RoleRefusal.RULE_NOT_IN_THE_MEMORY
+    assert _refusal(unserved) is RoleRefusal.RULE_NOT_SERVED_BY_THE_MEMORY
+    assert missing.reason is not unserved.reason
+
+
+def test_a_card_refuses_a_citation_the_memory_did_not_mint(guidance: Guidance) -> None:
+    """The card's subject is the card, and a citation is the memory's.
+
+    **A caller can write a citation by hand** — the type is public and
+    its fields are plain — and a statement the memory never held is not a
+    citation. So the citation carries a token only
+    :func:`cite_rule` can present, and the card refuses a citation that
+    does not carry it. **The token says where the citation came from and
+    nothing else**: it is not rendered, not compared, and not carried
+    onto the wire.
+
+    **And the positive case holds**: a card with a citation the memory
+    minted is accepted, with the statement and the counterexamples the
+    memory's own read gave.
+
+    **What would make this red:** a card that took any citation it was
+    handed. The statement below would go into the card and out to the
+    reader as the memory's own advice.
+    """
+    forged = RuleCitation(
+        rule_id=guidance.rule_id,
+        version=1,
+        statement="A statement the memory never held.",
+        counterexamples=(),
+    )
+    refused = _capture(
+        lambda: build_card(
+            guidance.context,
+            spec=guidance.spec,
+            issue_type="method_and_hypothesis",
+            severity="major",
+            reason="the comparison's baseline is nowhere in the paragraph.",
+            evidence_refs=("chain:" + guidance.key,),
+            suggested_next_action="name the baseline.",
+            uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+            rule_refs=(forged,),
+        )
+    )
+    assert _refusal(refused) is RoleRefusal.CITATION_NOT_MINTED_BY_THE_MEMORY
+    assert "never held" in refused.detail
+
+    minted = cite_rule(guidance.context, rule_id=guidance.rule_id)
+    card = build_card(
+        guidance.context,
+        spec=guidance.spec,
+        issue_type="method_and_hypothesis",
+        severity="major",
+        reason="the comparison's baseline is nowhere in the paragraph.",
+        evidence_refs=("chain:" + guidance.key,),
+        suggested_next_action="name the baseline.",
+        uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+        rule_refs=(minted,),
+    )
+    assert card.rule_refs == (minted,)
+    assert card.rule_refs[0].statement == RULE
+    assert card.rule_refs[0].counterexamples
+
+
+def test_the_role_run_does_not_send_a_rule_the_memory_does_not_serve(
+    withdrawn: Withdrawn,
+) -> None:
+    """The citation is the first read of the rule, and the excerpts are what leave.
+
+    **The role run puts the citation's statement into the excerpts** the
+    approval binds, so a check that came after the excerpts were built
+    would come after the withdrawn rule had already left the machine.
+    The citation path is before that, and this drives the run to show it:
+    the same request with a rule the memory serves carries that rule's
+    statement in the excerpts, and the same request with the withdrawn
+    rule is refused — so there is no excerpt, and no statement in it.
+
+    **What would make this red:** a role run that built its citation by
+    hand, or one that asked the excerpts before it asked the memory. The
+    first would put the withdrawn rule's statement into the excerpts; the
+    second would refuse, but too late to keep the text off the machine.
+    """
+    plan = ModelCallPlan(
+        provider="fake",
+        model="scripted",
+        root_id=MATERIAL_ROOT,
+        resource_key=MATERIAL_KEY,
+        material_ref=MATERIAL_PATH,
+        purpose="guidance_review",
+        destination=DESTINATION,
+        subject_ref=withdrawn.chain.project_id,
+    )
+
+    def _question(rule_id: str) -> RoleRunQuestion:
+        return the_role_run_question(
+            withdrawn.context,
+            RoleRunRequest(
+                roles=("guidance",),
+                project_id=withdrawn.chain.project_id,
+                issue_key=withdrawn.key,
+                version_ids=(withdrawn.chain.version_id,),
+                rule_id=rule_id,
+            ),
+            plan=plan,
+        )
+
+    # **The positive control.** The same request with a rule the memory
+    # serves carries that rule's statement in the excerpts the approval
+    # binds — so the excerpts really do carry a rule's text.
+    served = _question(withdrawn.standing_rule_id)
+    assert STANDING_RULE in served.excerpts
+
+    # **And the withdrawn rule produces no excerpts at all.** The run is
+    # refused at the citation, before the question is built, so the
+    # withdrawn rule's statement is nowhere in what the run produced.
+    refused = _capture(lambda: _question(withdrawn.rule_id))
+    assert _refusal(refused) is RoleRefusal.RULE_NOT_SERVED_BY_THE_MEMORY
+    assert withdrawn.rule_id in refused.detail
+    assert WITHDRAWN_RULE not in refused.detail, (
+        "the withdrawn rule's statement does not go out with the refusal either"
+    )
 
 
 def test_insufficient_material_produces_a_named_abstention(guidance: Guidance) -> None:
