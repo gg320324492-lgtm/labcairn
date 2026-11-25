@@ -631,6 +631,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_store_atomicity.py": ("negative", "crash-between-write-and-confirm"),
     "test_store_concurrency.py": ("integration", "event-append"),
     "test_store_events.py": ("integration", "event-append"),
+    # The operation's state machine, and the one state the tree used to
+    # define and never write: a policy denial now leaves an operation in
+    # state ``denied`` and the event that describes it, in one transaction,
+    # while a refusal for any other reason still leaves nothing at all.
+    "test_operation_states.py": ("integration", "state-transitions"),
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),
@@ -683,6 +688,19 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # repository gates, because it watches the repository's own tool and
     # the repository's own records.
     "test_pilot_material_registration.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §9.1). The checklist's own measurement: the tool
+    # computes the readings the checklist asks for, reports a verdict per
+    # item, and leaves an item whose evidence a machine cannot read open
+    # rather than passing it. Its clause is the repository gates, because
+    # it watches the repository's own tool and the records it reads.
+    "test_pilot_desensitisation_check.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §9.1). The redaction that keeps the revision trail
+    # and takes the identity out: the properties are blanked, the markup's
+    # author fields carry role labels, a picture's metadata is blanked
+    # without touching a pixel, and an author the map does not name is
+    # refused rather than kept. Its clause is the repository gates, because
+    # it watches the repository's own tool.
+    "test_pilot_redaction.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------

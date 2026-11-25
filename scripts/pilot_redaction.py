@@ -81,8 +81,15 @@ TIFF_TYPE_SIZES = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 
 #: picture's pixels hold two backslashes by chance often enough that a
 #: loose test would blank the picture. A path names a user folder, a
 #: desktop, a directory, or runs through several segments.
+#:
+#: The Chinese words are written as escapes on purpose: the material's
+#: paths name their folders in the document's own script, and the tree
+#: carries no Chinese characters of its own -- the pattern matches them
+#: without naming them.
 PATH_WORD = re.compile(
-    r"(users|folder|desktop|documents|pictures|用户|文档|图片|桌面)", re.IGNORECASE
+    r"(users|folder|desktop|documents|pictures|"
+    r"\u7528\u6237|\u6587\u6863|\u56fe\u7247|\u684c\u9762)",
+    re.IGNORECASE,
 )
 PATH_SEGMENTS = re.compile(r"(?:/[A-Za-z0-9_ .+-]+){2,}")
 

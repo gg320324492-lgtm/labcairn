@@ -66,6 +66,10 @@ from labcairn.security.policy import (
 #: The shared store fixture, imported rather than rebuilt.
 env = _shared_env
 
+#: The class this file belongs to, declared so that nothing outside the
+#: partition table has to say it.
+pytestmark = pytest.mark.integration
+
 _HASH = "b" * 64
 
 

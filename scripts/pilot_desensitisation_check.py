@@ -103,7 +103,7 @@ EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 #: A project-number-shaped string in the visible text.  The search is a
 #: search: a miss is reported as a miss, never as a verdict.
 PROJECT_NUMBER = re.compile(
-    r"(?:项目(?:编号|号)|课题(?:编号|号)|基金(?:编号|号)|grant\s*(?:no\.?|number)|"
+    r"(?:\u9879\u76ee(?:\u7f16\u53f7|\u53f7)|\u8bfe\u9898(?:\u7f16\u53f7|\u53f7)|\u57fa\u91d1(?:\u7f16\u53f7|\u53f7)|grant\s*(?:no\.?|number)|"
     r"contract\s*(?:no\.?|number)|NSFC|CFCN|No\.\s*[A-Za-z]{1,4}\d{4,})",
     re.IGNORECASE,
 )

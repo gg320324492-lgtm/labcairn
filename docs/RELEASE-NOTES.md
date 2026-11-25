@@ -897,7 +897,7 @@ than left for the next reader to find.**
    name the copy, the operator and the digest. **But
    `docs/pilot/registrations/` holds no record**, and the checklist's result
    cell is *"the owner's, and empty until the owner writes it"*
-   (`docs/plans/LC-P4-PILOT-desensitisation-checklist.md:97` — `the owner's, and empty until the owner writes it`),
+   (`docs/plans/LC-P4-PILOT-desensitisation-checklist.md:121` — `the owner's, and empty until the owner writes it`),
    so the signed check fails and the import step must not run. Meanwhile the
    authorisation's grant already names the copy's address —
    `"subject_ref": "pilot/LC-P4-PILOT/desensitised-copy"`
