@@ -92,9 +92,14 @@ Every number this section quotes was measured on this tree: the 58 API
 endpoints counted in `src/labcairn/api/routes.py`, the migration chain the
 store reads, and the commit that rolls the release back. **The installer's
 own bytes were built from `4ddfa43`**, the commit that aligned the shell's
-version with the workbench's; `shell/` and `src/` are byte-identical
-between that commit and this one, so the installer is this tree's
-installer.
+version with the workbench's. `shell/` is byte-identical between that
+commit and this one, so the installer this version ships is the one this
+version's shell would build — **but `src/` has moved on since**: the
+work that followed changed twenty-one files under it, and the frozen
+backend the installer carries is the earlier tree's. The digest below is
+the earlier tree's, measured from the bytes that were produced, and it is
+what a reader can verify; a rebuild from this tree would produce
+different bytes and needs its own measurement.
 
 **The baseline it inherits.** Phase 4's baseline is frozen in
 [`LC-P4-G0-baseline-freeze.md`](plans/LC-P4-G0-baseline-freeze.md) §3, and
