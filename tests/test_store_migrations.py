@@ -819,3 +819,71 @@ def test_a_position_row_downgrades_to_what_it_was_called_before(tmp_path: Path) 
     assert upgraded[status_ix] == "unknown"
     assert upgraded[_LEGACY_COLUMNS.index("anchor_start")] is None
     assert upgraded[_LEGACY_COLUMNS.index("anchor_end")] is None
+
+
+# ---------------------------------------------------------------------------
+# The event vocabulary a store that predates it must still be able to reach
+# ---------------------------------------------------------------------------
+
+
+def _insert_a_denied_event(path: Path, event_id: str) -> None:
+    """Write one ``operation_denied`` event the way a raw writer would.
+
+    The foreign keys are deferred and SQLite does not check them unless it is
+    asked to, so the row only has to satisfy the table's CHECK constraints --
+    which is exactly what the vocabulary is.
+    """
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO events (seq, event_id, task_id, run_id, stage_id, "
+            "operation_id, type, from_state, to_state, schema_version, "
+            "occurred_at, document, payload) "
+            "VALUES (1, ?, 'task-1', 'run-1', 'stage-1', 'op-1', "
+            "'operation_denied', 'intent', 'denied', 1, '2026-11-25T00:00:00Z', "
+            "'{}', '{}')",
+            (event_id,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_a_store_built_before_the_new_event_type_reaches_it_after_the_upgrade(
+    tmp_path: Path,
+) -> None:
+    """The vocabulary has to reach a store that was built before it carried it.
+
+    Revision 0001 was amended to carry ``operation_denied``, on the ground
+    that the product never migrates an existing workspace. That ground does
+    not hold for every store: alembic's upgrade path exists, the repository
+    witnesses it, and the 0.1.0 installer has been in users' hands since
+    2026-11-24. A store built before the amendment keeps the constraints it
+    was built with, because alembic does not run the first migration again.
+
+    So revision 0032 rebuilds the table for those stores. This witnesses the
+    rebuild by making the older shape the thing it starts from: the
+    downgrade puts the pre-amendment vocabulary back, and the upgrade has to
+    carry the type into it.
+
+    Red by: the upgrade leaving the type out of the vocabulary, which the
+    refusal below would then not raise.
+    """
+    path = tmp_path / "vocabulary.db"
+    upgrade_to_head(path)
+
+    alembic_command.downgrade(alembic_config(path), "0031")
+    with pytest.raises(sqlite3.IntegrityError, match="ck_events_type_is_closed_vocabulary"):
+        _insert_a_denied_event(path, "denied-before")
+
+    alembic_command.upgrade(alembic_config(path), "head")
+    _insert_a_denied_event(path, "denied-after")
+
+    connection = sqlite3.connect(path)
+    try:
+        count = connection.execute(
+            "SELECT count(*) FROM events WHERE type = 'operation_denied'"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    assert count == 1, "the event the upgrade made possible was not written"

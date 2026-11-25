@@ -3423,3 +3423,41 @@ Expanding data access scope, write permission to original material, unapproved o
   The tool's `--require-signed` mode passes on it, and the import step
   (plan §9.2 step 2) may now run against that copy. The part-E
   acceptance checks remain the pilot ticket's own.
+
+## 2026-11-25 - the twelfth batch lands in `main`, and the review finds a migration that did not reach the stores that already existed
+
+- **The four windows are merged locally, nothing pushed.** The citation
+  path's liveness check (`cite_rule`), the refusal enumeration's per-test
+  granularity, Phase 4's gates in the release notes and the review
+  dossier, and the denied write's trace are all on `main` now. No branch
+  was pushed and no pull request was opened; the owner keeps that call.
+- **The review found a gap the windows' own witnesses could not see.** The
+  denied write's event type was added to the **closed vocabulary of event
+  types**, and that vocabulary lives in the *first* migration, as four
+  CHECK constraints on the `events` table — so the change was made to
+  revision 0001 itself, on the ground its own comment gives: *the product
+  never migrates an existing workspace, so there is no deployed schema this
+  changes underneath.*
+- **That ground does not hold for every store there is.** Alembic's upgrade
+  path exists, the repository witnesses it, and the 0.1.0 installer has
+  been in users' hands since 2026-11-24. **Measured on 2026-11-25:** a store
+  built with the pre-amendment first migration and then upgraded to head
+  still **refused** `operation_denied`, because alembic does not run the
+  first migration again; a store built from scratch accepted it. The gap
+  was invisible to every witness in the batch, because they all build
+  their stores from scratch.
+- **Revision 0032 closes it.** It rebuilds the `events` table with the
+  vocabulary the models already carry — the four sets are written out in
+  the revision because a frozen migration may not import the live package,
+  the same reason 0001 carries its own copies — and the downgrade puts the
+  pre-amendment vocabulary back. The revision has a witness of its own
+  (`tests/test_store_migrations.py::test_a_store_built_before_the_new_event_
+  type_reaches_it_after_the_upgrade`): it starts from the older shape, by
+  downgrading, and holds that a raw write of the new event type is refused
+  there and accepted after the upgrade. Mutating the upgrade so that it
+  rebuilds with the older vocabulary turns that witness red.
+- **What the merge means for the other three windows.** Their witnesses
+  are green on `main` (231 passed over the files they touched), and the
+  shard table carries the new test file — `tests/test_operation_states.py`
+  — with a cost of `0.0`, which is not a measurement and waits for the
+  runner.
