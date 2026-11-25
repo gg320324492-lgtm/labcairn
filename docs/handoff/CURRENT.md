@@ -3037,14 +3037,24 @@ Expanding data access scope, write permission to original material, unapproved o
   down in [`LC-P4-PILOT-providers-config.md`](../acceptance/LC-P4-PILOT-providers-config.md),
   with a complete example.
   **Two things the owner must fix, both recorded there.** The pilot
-  workspace's own `providers.json` names a **retired** credential and the
-  `openai_compatible` route at `https://api.minimax.cn/v1` with a
-  300-second timeout -- none of which the signed record names -- so a
-  request run against that file as it stands would carry the wrong
-  credential to the wrong route. And the provider reported **2,510 output
-  tokens for a 372-character answer**, so a token ceiling written from
-  "answers of a few hundred characters" would be written from the wrong
-  number; the run did not measure where those tokens went.
+  workspace's own `providers.json` names the `openai_compatible` route at
+  `https://api.minimax.cn/v1` with a 120-second timeout, where the signed
+  record names the `anthropic` protocol at `https://api.minimax.cn/anthropic`
+  with 60 seconds -- and it carries **no `model_suggestions` grant at
+  all**, where the signed record names eight values and the authorisation
+  gate refuses the whole thing unless every one of them is filled. So the
+  suggestion loop against that workspace is not merely misrouted, it is
+  unauthorised. **Corrected 2026-11-25, by measurement:** the credential
+  that workspace names is *not* the problem -- the providers layer's
+  fingerprint shows the older `minimax-key.txt` and the current
+  `minimax-m31-flash-active.txt` hold the **same key**, so what LC-P2-18
+  called *retired* is a file name rather than a secret, and the run used
+  that key successfully. What has to change is the route, the protocol,
+  the timeout and the eight grant fields; no key has to be re-issued.
+  Separately, the provider reported **2,510 output tokens for a
+  372-character answer**, so a token ceiling written from "answers of a
+  few hundred characters" would be written from the wrong number; the run
+  did not measure where those tokens went.
 - **The suggestion run's own record cannot be read back.** Gate G2-3 asks
   for the suggest run's record -- mode, model id, request count, tokens,
   durations, stop reason, approvals spent per opinion -- and the run

@@ -219,26 +219,56 @@ reconciliation (`driver/fake_endpoint.py`), the configuration the run read
 the answer body (`answer.txt`). The key's value appears in none of them —
 checked mechanically, not by eye.
 
-**The workspace that already exists points at a retired credential.** The
+**The workspace that already exists names the wrong route.** The
 pilot workspace's own `providers.json` names
-`E:/labcairn-local/secrets/minimax-key.txt`, which LC-P2-18's record says
-is **retired** ("the old `minimax-key.txt` is retired", and the first key
+`E:/labcairn-local/secrets/minimax-key.txt`, which LC-P2-18's record calls
+**retired** ("the old `minimax-key.txt` is retired", and the first key
 of the operator's newer three-line file is the one that probed `ok` — see
-`docs/acceptance/LC-P2-18-live-run.md` §2). That workspace also names the
-`openai_compatible` route at `https://api.minimax.cn/v1` with a 300-second
-timeout, which is **not** the configuration the signed 2026-11-24 record
-names. **A request run against that file as it stands would carry the
-retired credential and the wrong route.** Replacing it with the
-configuration in `LC-P4-PILOT-providers-config.md` §6 is the owner's next
-step, and it is a one-file edit outside the repository.
+`docs/acceptance/LC-P2-18-live-run.md` §2).
+
+**Corrected 2026-11-25, by measurement: the key is not the problem.**
+The two files were compared by the providers layer's own credential
+fingerprint — the digest `Credential.of` computes over the stripped
+value, which is what the layer uses to say which two configurations
+share a key:
+
+| file | bytes | fingerprint |
+|---|---|---|
+| `minimax-key.txt` | 126 | `d8053fe1b4c635e49035…` |
+| `minimax-m31-flash-active.txt` | 125 | `d8053fe1b4c635e49035…` |
+| `minimax-m31-flash.txt` (the three-line file) | 270 | `6faaff29b74d13092902…` |
+
+**The first two hold the same key**, so what was retired is a *name*, not
+a secret: the file the workspace names carries the key that the
+three-line file's first line carried and that this run used successfully.
+The three-line file is a different key, and it is the one LC-P2-18 did
+not probe. **A request against the workspace's file as it stands would
+therefore not fail on the credential** — it would go to the wrong place.
+
+**What is wrong with it is the route, the protocol and the grant.** The
+workspace names the `openai_compatible` protocol at
+`https://api.minimax.cn/v1` with a 120-second timeout, where the signed
+2026-11-24 record names the `anthropic` protocol at
+`https://api.minimax.cn/anthropic` with 60 seconds; and the workspace
+carries **no `model_suggestions` grant at all** — eight fields where the
+signed record names eight values, and the authorisation gate refuses the
+whole thing unless every one of them is filled. **The suggestion loop
+against that workspace is not merely misrouted; it is unauthorised.**
+
+Replacing that file with the configuration in
+`LC-P4-PILOT-providers-config.md` §6 is the owner's next step, and it is
+a one-file edit outside the repository. It is a grant and a route that
+change, not a key that has to be re-issued.
 
 ## 7. The named gaps this run leaves, in the order they close
 
 1. **The desensitisation checklist's part-D result is unsigned**, so no
    registered excerpt exists and the pilot's step 3 has no material to
    send. **Owner.**
-2. **The workspace's `providers.json` names the retired credential** (§6).
-   **Owner.**
+2. **The workspace's `providers.json` names the wrong route and carries no
+   grant** (§6). The credential it names is the same key the run used, so
+   what has to change is the protocol, the endpoint, the timeout and the
+   eight `model_suggestions` fields — not the key. **Owner.**
 3. **No capability probe has been made against the anthropic route** since
    2026-10-28, and the suggestion path does not require one (§4.2).
    **Not blocking.**

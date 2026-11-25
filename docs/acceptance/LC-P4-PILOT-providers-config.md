@@ -205,7 +205,7 @@ Every field filled, with the values the signed authorisation record names.
 | Value | Source |
 |---|---|
 | `protocol`, `model`, `base_url` | The signed record §1: MiniMax, `MiniMax-M3.1-Flash`, `https://api.minimax.cn/anthropic`, protocol `anthropic` |
-| `credential_file` | The operator's single-line key file, outside the repository. The LC-P2-18 run wrote this one after probing it `ok`; the older `minimax-key.txt` is **retired** (`docs/acceptance/LC-P2-18-live-run.md` §2) |
+| `credential_file` | The operator's single-line key file, outside the repository. The LC-P2-18 run wrote this one after probing it `ok`. **Corrected 2026-11-25, by measurement:** the older `minimax-key.txt` that LC-P2-18 calls *retired* holds **the same key** — the providers layer's credential fingerprint is identical for the two — so what was retired is a file name, not a secret. The three-line file `minimax-m31-flash.txt` is the different key, and the one LC-P2-18 did not probe. The file named above is the right one to name, and the reason is not that the other is broken but that this one is the current one |
 | `timeout_s` | The signed record §5: 60 seconds |
 | `provider` | The key of the provider entry above |
 | `destination` | The endpoint the grant permits transmitting to |
@@ -219,8 +219,8 @@ credential is kept and never *what* it is; the key's value appears nowhere
 in this tree, in the run's artefacts, or in any log. The LC-P3-06 precedent
 recorded the same fact the same way — *"a single-line key outside the
 repository"* — and this document names the file because the workspace that
-already exists points at the **retired** one (§8), and that is a mistake a
-reader has to be able to see.
+already exists points at the **older** one (§8), and a reader has to be
+able to see which copy a request will actually read.
 
 ## 7. What the example cannot fill yet
 
