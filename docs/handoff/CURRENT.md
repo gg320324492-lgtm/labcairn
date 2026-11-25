@@ -3024,3 +3024,24 @@ Expanding data access scope, write permission to original material, unapproved o
   with no step that produces them -- `POST /approvals/{approval_id}/grant`
   and the CLI's `task approval-request` / `task approval-grant` exist, but
   the runbook never names them.
+- **One real request went out under the signed authorisation, and it
+  found the pilot workspace's configuration is wrong.**
+  [`LC-P4-PILOT-real-request-2026-11-25.md`](../acceptance/LC-P4-PILOT-real-request-2026-11-25.md)
+  records it: model `MiniMax-M3.1-Flash`, protocol `anthropic`, the
+  endpoint the signed record names (its fingerprint is the same one
+  LC-P3-06 measured), one request, 23,251 ms wall clock, 2,603 tokens,
+  priced `Unknown(UNPRICED)` as the precedent carried. **The material
+  sent was synthetic, on purpose**: the desensitisation checklist is
+  unsigned, so the owner's own material was not sent, and the record says
+  so. The machine format the authorisation is expressed in is now written
+  down in [`LC-P4-PILOT-providers-config.md`](../acceptance/LC-P4-PILOT-providers-config.md),
+  with a complete example.
+  **Two things the owner must fix, both recorded there.** The pilot
+  workspace's own `providers.json` names a **retired** credential and the
+  `openai_compatible` route at `https://api.minimax.cn/v1` with a
+  300-second timeout -- none of which the signed record names -- so a
+  request run against that file as it stands would carry the wrong
+  credential to the wrong route. And the provider reported **2,510 output
+  tokens for a 372-character answer**, so a token ceiling written from
+  "answers of a few hundred characters" would be written from the wrong
+  number; the run did not measure where those tokens went.
