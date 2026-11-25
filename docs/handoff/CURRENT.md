@@ -3071,3 +3071,25 @@ Expanding data access scope, write permission to original material, unapproved o
   drill ran **without elevation**, unlike the 2026-11-20 one, and its
   backup script's HKCU-export path was never exercised, so the record
   does not claim that path works.
+- **The same shape, a third time: `labcairn serve` does not answer
+  `GET /events`.** The application layer has the abstraction
+  (`create_app` takes an `event_source=`, `src/labcairn/api/app.py:250`)
+  and the host does not supply one: `src/labcairn/cli/commands.py`'s
+  `serve` never passes it, so `create_app` falls back to
+  `UnwiredEventSource` (`src/labcairn/api/app.py:314`), which refuses in
+  the layer's own vocabulary — `not_implemented`, HTTP 403. The
+  collector's record carries that answer as it came
+  (`docs/acceptance/P4-G1-G4-system-capability-record.json`, `GET /events`
+  → `refused`, 403, `not_implemented`). **The stage timeline the runbook
+  asks for cannot be read on the service the runbook starts**: step 4
+  (`docs/plans/LC-P4-PILOT-runbook.md:242`) and the measures section
+  (`:472`) both name `GET /events`, and `web/src/api/events.ts` reads
+  that route. Only the tests pass an event source.
+  **This one is worth stating as its own class, because two witnesses
+  straddle it and neither catches it.** The runbook witness checks that
+  every route the runbook names is *declared*; `GET /events` **is**
+  declared, so that witness is green. The collector's witness checks
+  that the routes it calls are answered — and it is answered, with a
+  refusal. **A route that is declared is not a route the service
+  answers**: a host that does not wire a piece answers 403 for it, and
+  both witnesses look the other way.
