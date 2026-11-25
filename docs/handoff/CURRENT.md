@@ -3308,3 +3308,16 @@ Expanding data access scope, write permission to original material, unapproved o
     is still the one thing this batch deliberately did not do**, and the
     authorisation's `subject_ref` and `scope` point at a copy that is not
     registered until that signature exists.
+- **The shard costs no longer describe this tree, and the batch's CI run
+  must re-measure them.** The table's anchor is `1aacd3b` (the tree the
+  seventh batch merged), and **55 files under `src/` and `tests/` have
+  changed since** — the eleventh batch alone added 43 test files, three of
+  which carry a 0.0 cost because no runner has measured them. The
+  re-measurement is the project's own command against the batch's own run
+  (`python .github/remeasure_shards.py <run-id> --measured-at <commit>`),
+  and the numbers must come from a runner: **a development machine gives a
+  different answer, not only a different total but a different order**,
+  which is why the partition is one per platform. The three documents that
+  print the figures — `.github/CI.md`, `.github/workflows/python.yml` and
+  `docs/plans/LC-P1-13-evaluation-ci.md` — carry the anchor and the totals
+  and have to be carried with the re-measurement.
