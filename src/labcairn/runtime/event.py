@@ -58,6 +58,7 @@ class EventType(StrEnum):
 
     OPERATION_INTENT = "operation_intent"
     OPERATION_AWAITING_APPROVAL = "operation_awaiting_approval"
+    OPERATION_DENIED = "operation_denied"
     OPERATION_ATTEMPTED = "operation_attempted"
     OPERATION_CONFIRMED = "operation_confirmed"
     OPERATION_FAILED = "operation_failed"
@@ -247,6 +248,42 @@ class ReconciliationPayload(LabCairnModel):
 
 
 register_payload_schema(EventType.OPERATION_RECONCILED, ReconciliationPayload)
+
+
+class OperationDeniedPayload(LabCairnModel):
+    """What an ``operation_denied`` event carries beyond its transition.
+
+    The permission layer's own word for why the verdict was reached — a
+    :class:`~labcairn.security.policy.DecisionReason` value — rather than a
+    sentence about it. Prose cannot be told apart from any other prose: a
+    reader asking "was this the default deny, or a rule of mine?" needs the
+    word, and only the word answers it.
+
+    **The word is carried as a string and not as the enum.** This module is the
+    vocabulary, and the enum belongs to the layer that produced the verdict;
+    the writer takes the word from the decision it holds, so the stored value
+    is a ``DecisionReason`` and not anything that merely looks like one.
+    :class:`ReconciliationPayload` sets the precedent, and the reason is the
+    same one it gives: the reader imports the vocabulary and not the writer.
+
+    And the rule that matched, when there was one, with the spelling that
+    matched: ``matched_rule`` is ``None`` for the default deny and for the
+    structural refusals, and ``matched_spelling`` says whether the rule fired
+    on the path the caller wrote or on the path the filesystem resolved to.
+    Without the second, a symlink denial and a denial of the file itself read
+    the same, and the operator cannot tell which of their own rules stopped
+    the write.
+    """
+
+    #: The permission layer's reason, as its vocabulary word.
+    reason: str = Field(min_length=1)
+    #: The rule that decided, as its canonical rendering, or ``None``.
+    matched_rule: str | None = None
+    #: ``"declared"`` or ``"resolved"`` — which spelling produced the rule.
+    matched_spelling: str | None = None
+
+
+register_payload_schema(EventType.OPERATION_DENIED, OperationDeniedPayload)
 
 
 class Event(LabCairnModel):

@@ -84,29 +84,85 @@ class Authorisation:
         the same call produce the same digest and a different call produces a
         different one.
         """
-        payload = self.arguments.model_dump(mode="json")
-        try:
-            json.dumps(payload, allow_nan=False)
-        except (TypeError, ValueError) as error:
-            raise ApplicationRefusedError(
-                ApplicationRefusal.ARGUMENTS_INVALID,
-                f"the capability's arguments are not JSON: {error}. A digest over them "
-                "could not be reproduced by another reader.",
-            ) from error
-        return dict(payload)
+        return _digest_arguments(self.arguments)
 
 
-def evaluate(
+@dataclass(frozen=True, slots=True)
+class Verdict:
+    """The policy's answer, and what it was said about.
+
+    **Not an authorisation.** A ``DENY`` is a refusal, and this is the shape
+    that can carry one: the caller decides what a denial means for it. This
+    layer's :func:`evaluate` turns it into a refusal, and the stage layer
+    turns it into a denial that is *recorded* before the refusal is raised.
+
+    The decision is carried whole rather than as its prose, because the reason
+    the permission layer produced — a
+    :class:`~labcairn.security.policy.DecisionReason` — has to reach the
+    record, and a sentence about it cannot be told apart from any other
+    sentence.
+    """
+
+    arguments: BaseModel
+    resource: CanonicalPath
+    decision: PermissionDecision
+
+    @property
+    def denied(self) -> bool:
+        """Whether the policy refused this request outright."""
+        return self.decision.permission is Permission.DENY
+
+    @property
+    def authorisation(self) -> Authorisation:
+        """The verdict as an authorisation. A ``DENY`` has none."""
+        if self.denied:
+            raise ValueError("a DENY verdict is a refusal, not an authorisation")
+        return Authorisation(
+            arguments=self.arguments,
+            resource=self.resource,
+            decision=self.decision,
+        )
+
+    def digest_arguments(self) -> dict[str, object]:
+        """The mapping the approval's digest is computed over."""
+        return _digest_arguments(self.arguments)
+
+
+def _digest_arguments(arguments: BaseModel) -> dict[str, object]:
+    """The canonical JSON form of the validated arguments.
+
+    Shared by :class:`Authorisation` and :class:`Verdict` so the two spellings
+    of the same mapping cannot drift: an approval's digest and a denial's
+    record are computed over one thing, not two.
+    """
+    payload = arguments.model_dump(mode="json")
+    try:
+        json.dumps(payload, allow_nan=False)
+    except (TypeError, ValueError) as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the capability's arguments are not JSON: {error}. A digest over them "
+            "could not be reproduced by another reader.",
+        ) from error
+    return dict(payload)
+
+
+def decide(
     context: ApplicationContext,
     *,
     capability: CapabilityId,
     arguments: Mapping[str, Any],
     resource: CanonicalPath,
-) -> Authorisation:
+) -> Verdict:
     """The capability's arguments validated, and the policy's verdict on the resource.
 
-    :raises ApplicationRefusedError: the arguments are not usable, or the policy
-        denied the request.
+    **The verdict is returned, not raised.** A ``DENY`` is a refusal, and a
+    refusal has two consequences — it stops the caller, and it is a fact worth
+    recording — and only the caller can say which of them it wants.
+    :func:`evaluate` is the raising form every other caller uses; the stage
+    layer calls this one, so it can record the denial and *then* refuse.
+
+    :raises ApplicationRefusedError: the arguments are not usable.
     """
     try:
         parsed = parse_args(capability, {**arguments, "path": resource.declared_key})
@@ -131,14 +187,50 @@ def evaluate(
         capability=capability.value,
         resource=ResourceRef.from_canonical(resource),
     )
-    if decision.permission is Permission.DENY:
-        raise ApplicationRefusedError(
-            ApplicationRefusal.PERMISSION_DENIED,
-            f"the policy denied {capability.value} on {resource.resolved_key!r}: "
-            f"{decision.reason.value}"
-            + (f" (rule: {decision.matched_rule})" if decision.matched_rule else ""),
-        )
-    return Authorisation(arguments=parsed, resource=resource, decision=decision)
+    return Verdict(arguments=parsed, resource=resource, decision=decision)
+
+
+def permission_denied(
+    decision: PermissionDecision,
+    *,
+    capability: CapabilityId,
+    resource: CanonicalPath,
+) -> ApplicationRefusedError:
+    """The refusal a ``DENY`` becomes.
+
+    One place builds it, so the refusal a caller sees is the same refusal
+    whoever raised it: the reason the permission layer produced is in the
+    message, and the rule that produced it is named when there was one.
+    """
+    return ApplicationRefusedError(
+        ApplicationRefusal.PERMISSION_DENIED,
+        f"the policy denied {capability.value} on {resource.resolved_key!r}: "
+        f"{decision.reason.value}"
+        + (f" (rule: {decision.matched_rule})" if decision.matched_rule else ""),
+    )
+
+
+def evaluate(
+    context: ApplicationContext,
+    *,
+    capability: CapabilityId,
+    arguments: Mapping[str, Any],
+    resource: CanonicalPath,
+) -> Authorisation:
+    """The capability's arguments validated, and the policy's verdict on the resource.
+
+    :raises ApplicationRefusedError: the arguments are not usable, or the policy
+        denied the request.
+    """
+    verdict = decide(
+        context,
+        capability=capability,
+        arguments=arguments,
+        resource=resource,
+    )
+    if verdict.denied:
+        raise permission_denied(verdict.decision, capability=capability, resource=resource)
+    return verdict.authorisation
 
 
 def evaluate_all(
@@ -268,4 +360,13 @@ def consume(
         ) from error
 
 
-__all__ = ["Authorisation", "consume", "evaluate", "evaluate_all", "evaluate_each"]
+__all__ = [
+    "Authorisation",
+    "Verdict",
+    "consume",
+    "decide",
+    "evaluate",
+    "evaluate_all",
+    "evaluate_each",
+    "permission_denied",
+]

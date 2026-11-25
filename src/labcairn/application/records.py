@@ -9,8 +9,13 @@ them are stated once rather than repeated in each operation:
   ``operation_intent`` may name an operation whose row does not exist yet.
 * **a transition event carries the states it moved between**, so the event log
   can say what happened without the rows being read.
-* **nothing is written on a refusal.** A refused operation leaves no trace
-  that could be mistaken for a partial success.
+* **nothing is written on a refusal — except the policy's own denial, which
+  writes its denial.** A refused operation leaves no trace that could be
+  mistaken for a partial success. The one exception is a ``DENY`` from the
+  policy layer: it is recorded as an operation in state ``denied``, carrying
+  the reason the permission layer produced, because a refusal nobody can see
+  is a refusal the operator cannot act on — and a row whose state says
+  ``denied`` is not a trace that could be mistaken for a partial success.
 * **a stage's status and its reason are written together.** The schema pairs
   them — a stage is ``blocked`` if and only if it carries a reason — so the
   two are set in one update. A stage that is waiting says why it is waiting;
@@ -259,6 +264,58 @@ def fail_operation(
     return failed, stopped
 
 
+def deny_operation(
+    context: ApplicationContext,
+    operation: Operation,
+    stage: Stage,
+    *,
+    reason: str,
+    matched_rule: str | None = None,
+    matched_spelling: str | None = None,
+    now: datetime,
+) -> tuple[Operation, Stage]:
+    """The operation denied, and the stage it was denied in.
+
+    **A policy denial is recorded, and the reason is the permission layer's
+    own word for it.** The reason rides in the event's payload as a
+    :class:`~labcairn.security.policy.DecisionReason` value rather than as
+    prose, because a reader asking "was this the default deny, or a rule of
+    mine?" needs the word and only the word answers it. The rule that
+    matched, and which spelling of the path matched it, ride with it.
+
+    **The event vocabulary has no ``stage_failed``**, for the reason
+    :func:`fail_operation` gives, and a denial has the same shape: the
+    operation's row carries the state, the stage's row records where it
+    happened, and both are written in the same transaction as the event.
+
+    Leaving the stage ``ENTERED`` instead was the alternative, and it is
+    worse: it would report a stage as still running after the policy had
+    stopped it.
+    """
+    denied = operation.model_copy(update={"state": OperationState.DENIED})
+    stopped = _finished(stage, StageStatus.FAILED, stage.output_hashes)
+    with context.store.unit(context.task_id) as work:
+        work.emit(
+            EventType.OPERATION_DENIED,
+            run_id=denied.run_id,
+            stage_id=denied.stage_id,
+            operation_id=denied.operation_id,
+            transition=EventTransition(
+                from_state=operation.state.value,
+                to_state=OperationState.DENIED.value,
+            ),
+            payload={
+                "reason": reason,
+                "matched_rule": matched_rule,
+                "matched_spelling": matched_spelling,
+            },
+            occurred_at=now,
+        )
+        work.put_operation(denied)
+        work.put_stage(stopped)
+    return denied, stopped
+
+
 def block_stage(
     context: ApplicationContext,
     stage: Stage,
@@ -388,6 +445,7 @@ def move_approval(
 __all__ = [
     "block_stage",
     "complete_operation",
+    "deny_operation",
     "ensure_run",
     "ensure_stage",
     "fail_operation",
