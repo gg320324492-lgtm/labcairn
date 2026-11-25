@@ -1509,3 +1509,44 @@ def test_the_words_a_witness_quotes_are_the_products_own() -> None:
         assert refusal.pieces or refusal.kind == "_refuse", (
             f"{refusal.place} has no words; a witness cannot quote it"
         )
+
+
+def test_the_granularity_is_the_test_and_not_the_file() -> None:
+    """A file's import does not make every test in it a candidate.
+
+    **The mechanism needs a witness of its own.** The gate reads the tests,
+    so a rule that reads the tests is a mechanism, and a mechanism with no
+    witness can be neutered while the whole tree stays green. This one
+    holds the rule that decides *who* is a candidate: the rule reads the
+    test, not the file the test lives in.
+
+    The file used here is a real one whose tests divide: some of them reach
+    the CLI and some do not. If the rule went back to reading the file, the
+    division would disappear and this witness would go red.
+
+    Red by: the candidate rule reading a module's imports instead of a
+    test's own.
+    """
+    module = "test_cli_layer_models"
+    tree = _tree_of(module)
+    assert tree is not None, f"{module} is not readable"
+    assert _imports_the_cli(tree), (
+        f"{module} reaches the CLI at file level, which is this witness's premise"
+    )
+    functions = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    ]
+    assert len(functions) > 1, f"{module} has too few tests to divide"
+    reaching = [function for function in functions if _witness_reaches_the_cli(function, module)]
+    assert reaching, f"no test in {module} reaches the CLI, which cannot be true"
+    assert len(reaching) < len(functions), (
+        f"every test in {module} is a candidate, so the rule is reading the file "
+        f"rather than the test"
+    )
+    quiet = [function for function in functions if function not in reaching]
+    assert quiet, f"no test in {module} stays away from the CLI"
+    assert not any(_witness_reaches_the_cli(function, module) for function in quiet), (
+        "a test that does not reach the CLI is a candidate anyway"
+    )
