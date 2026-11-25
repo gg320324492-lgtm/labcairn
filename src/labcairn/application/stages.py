@@ -188,6 +188,16 @@ def run_stage(
     ``denied`` carrying the reason the permission layer produced, so the
     operator can see that a write was refused and why. Every other refusal
     still leaves nothing at all.
+
+    **This is the path that records a denial, and the whole of it.** The
+    policy is asked for a verdict through
+    :func:`labcairn.application.consent.decide` rather than through the
+    raising :func:`labcairn.application.consent.evaluate`, because only the
+    caller can say whether a verdict is worth recording. Every other caller
+    of the consent layer goes through ``evaluate``, and a refusal there
+    writes nothing at all — which is the right shape rather than a gap: a
+    request for approval that the policy refuses never got as far as a write,
+    so there is no run, no stage and no operation for a denial to belong to.
     """
     moment = now if now is not None else datetime.now(UTC)
     resource = context.resource_in(request.root_id, request.resource_key)
@@ -202,7 +212,8 @@ def run_stage(
         # is the refusal this has always been. A policy denial that left no
         # trace would be indistinguishable from a run that was never started,
         # and the operator would have no way to see that a write was refused or
-        # why.
+        # why. The record is one transaction, so a denial whose event cannot be
+        # written leaves nothing behind rather than half of something.
         _record_denial(context, request, resource, verdict, now=moment)
         raise consent.permission_denied(
             verdict.decision,
@@ -401,9 +412,14 @@ def _record_denial(
     stopped by policy and a run that was never started look the same
     otherwise.
 
-    The run and the stage are created by the same calls the success path uses,
-    because the operation's row names both and neither is optional: an
-    operation that names no stage is a record of nothing.
+    **The whole trace is one transaction.** The run, the stage, the operation
+    and the events that describe them are written by one call, because a
+    denial whose event cannot be written must leave nothing behind: a run in
+    ``running`` and a stage in ``entered`` are exactly the trace that could be
+    mistaken for a partial success. The run and the stage are created by the
+    same rules the success path uses, because the operation's row names both
+    and neither is optional: an operation that names no stage is a record of
+    nothing.
 
     And the reason is the permission layer's own word — a
     :class:`~labcairn.security.policy.DecisionReason` — rather than a sentence
@@ -415,23 +431,14 @@ def _record_denial(
     created only once the digest is in hand.
     """
     digest = _args_digest(context, request, resource, verdict.digest_arguments())
-    run = records.ensure_run(context, request.run_id, now=now)
-    stage = records.ensure_stage(context, run, request.stage_name, now=now)
-    operation = Operation(
-        operation_id=OperationId(new_id()),
-        task_id=context.task_id,
-        run_id=run.run_id,
-        stage_id=stage.stage_id,
-        state=OperationState.PLANNED,
+    records.record_denial(
+        context,
+        run_id=request.run_id,
+        stage_name=request.stage_name,
         capability=request.capability.value,
         resource_key=resource.resolved_key,
         depends_on=request.depends_on,
         args_digest=digest,
-    )
-    records.deny_operation(
-        context,
-        operation,
-        stage,
         reason=verdict.decision.reason.value,
         matched_rule=verdict.decision.matched_rule,
         matched_spelling=verdict.decision.matched_spelling,
