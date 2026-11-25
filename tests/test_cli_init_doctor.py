@@ -403,6 +403,48 @@ def test_doctor_probe_reports_a_probe_it_could_not_make(workspace: Path) -> None
         assert capability["usable"] is False
 
 
+def test_doctor_probe_without_an_approval_reports_the_refusal(
+    workspace: Path, task_id: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--probe`` on a provider nobody agreed to asks nothing, and says so.
+
+    ADR-0006 statement 3: *"A capability probe is not consent. Probing a model
+    sends requests. A probe therefore requires consent too — in the same way,
+    and for the same reason, as any other outbound request."*
+
+    The workspace has a task, so an approval *could* be granted against it, and
+    none is. The endpoint is configured with a credential, so the probe gets
+    as far as the gate — and the gate refuses before the request is built.
+    The finding carries the refusal rather than a silence: a diagnostic that
+    said nothing about a probe it did not make would be saying the endpoint
+    was asked.
+    """
+    (workspace / "providers.json").write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "local": {
+                        "protocol": "openai_compatible",
+                        "model": "some-model",
+                        "base_url": "http://127.0.0.1:9/v1",
+                        "credential_env": "LABCAIRN_TEST_PROBE_KEY",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LABCAIRN_TEST_PROBE_KEY", "not-a-real-key")
+
+    result = run_cli("--workspace", str(workspace), "doctor", "--probe", "--json")
+
+    assert result.returncode == 0, result.stderr
+    provider = result.json()["providers"][0]
+    assert provider["probed"] is False
+    assert provider["probe_error"] is not None
+    assert "approval" in provider["probe_error"]
+
+
 def test_doctors_prose_says_what_its_data_says(workspace: Path, task_id: str) -> None:
     """The paragraph is generated from the findings, so the two agree.
 
@@ -451,11 +493,19 @@ def _a_stubbed_probe(observed_at: datetime) -> Any:
     window is about the product keeping a reading, not about taking one.
     So the probe answers with a fixed record, filed under the key the CLI
     itself computes -- which is the key the reader will ask for.
+
+    **The consent port is accepted and not asked.** A probe is consented to
+    like any other outbound request (ADR-0006 statement 3), so the real probe
+    asks a port before it sends; this stub answers with a reading and asks
+    nothing, because what these tests are about is the record the product
+    keeps. The gate's own witnesses live in
+    ``tests/test_outbound_consent_bridge.py``, where the transport is
+    counted.
     """
     from labcairn.providers.capabilities import ALL_CAPABILITIES, CapabilityOutcome
     from labcairn.providers.probe import ProbeRecord, endpoint_fingerprint
 
-    def _probe(settings: Any) -> ProbeRecord:
+    def _probe(settings: Any, consent: Any) -> ProbeRecord:
         return ProbeRecord(
             endpoint_fingerprint=endpoint_fingerprint(
                 base_url=settings.sanitised_base_url(),
@@ -624,9 +674,9 @@ def test_a_provider_the_configuration_declares_unprobed_is_reported_unverified(
     asked: list[str] = []
     stub = _a_stubbed_probe(observed_at)
 
-    def _probe(settings: Any) -> Any:
+    def _probe(settings: Any, consent: Any) -> Any:
         asked.append(settings.model)
-        return stub(settings)
+        return stub(settings, consent)
 
     monkeypatch.setattr(commands, "_probe_record", _probe)
 

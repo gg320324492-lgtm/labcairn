@@ -26,6 +26,19 @@ provider sends without a decision, which is exactly the defect ADR-0006
 describes. :class:`~labcairn.providers.adapter.PydanticAiModelProvider` is
 therefore unbuildable without one, and a caller that has no approval to hand
 over has no provider to send with.
+
+A capability probe is unbuildable without one for the same reason
+------------------------------------------------------------------
+ADR-0006 §Decision, statement 3:
+
+    *"A capability probe is not consent. Probing a model sends requests. A
+    probe therefore requires consent too — in the same way, and for the same
+    reason, as any other outbound request."*
+
+So :class:`~labcairn.providers.probe.PydanticAiProbe` is handed this port too,
+and asks it before every request it makes. **It is the same port and the same
+question** — *may this request leave?* — asked by a different caller, and a
+probe that was not agreed to never reaches the transport.
 """
 
 from __future__ import annotations
@@ -33,6 +46,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from labcairn.core.providers.protocol import ModelRequest
+from labcairn.providers.errors import OutboundRefusedError
 
 
 @runtime_checkable
@@ -86,3 +100,32 @@ class OutboundConsent(Protocol):
             request did not leave.
         """
         ...
+
+
+class RefusingConsent:
+    """A consent port that refuses every request, and says why.
+
+    **The safest port there is**, and the one a caller without a decision
+    should be given: it cannot permit anything, so a caller that has no
+    approval to hand over has no way to send by accident. The reason is the
+    caller's own sentence — the layer that could not find a decision says why
+    in its own words — and it is what the operator reads.
+
+    It is the same port type as every other implementation
+    (:class:`OutboundConsent`) and the same refusal
+    (:class:`~labcairn.providers.errors.OutboundRefusedError`): a caller cannot
+    tell a refusing port from any other refusal by its class.
+    """
+
+    __slots__ = ("_reason",)
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+
+    def require(self, request: ModelRequest) -> None:
+        """Refuse, always.
+
+        :raises labcairn.providers.errors.OutboundRefusedError: always, with the
+            reason the caller gave.
+        """
+        raise OutboundRefusedError(self._reason)
