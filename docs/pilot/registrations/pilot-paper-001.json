@@ -1,0 +1,43 @@
+{
+  "record_type": "pilot-material-registration",
+  "record_version": 1,
+  "material_id": "pilot-paper-001",
+  "registered_at": "2026-11-25T06:58:11+00:00",
+  "registered_by": "claude-code",
+  "copy": {
+    "file_name": "pilot-paper-001.docx",
+    "byte_size": 8804644,
+    "sha256": "42eefb065b82c833b213e6c0676b48e5b70417dab7634e9f89d8191aa4162a25",
+    "format": "docx",
+    "origin_sha256": "a7a38132cf35d3632c4cb8aacba910994e9ad7e8b27413761260ade2d6502278",
+    "origin_byte_size": 8871367
+  },
+  "metadata": {
+    "page_count": 18,
+    "word_count": 11710,
+    "figure_count": 7,
+    "table_count": 1,
+    "comment_count": 0,
+    "revision_mark_count": 0,
+    "heading_count": 9,
+    "heading_outline_sha256": "6cd62cc49106407f14085bdff7f1fe85ac4078792a24547a40edf47b50922fab"
+  },
+  "authorisation": {
+    "grant_id": "grant-model-suggestions-pilot/LC-P4-PILOT",
+    "record": "docs/acceptance/LC-P4-PILOT-providers-config.md",
+    "subject_ref": "pilot/LC-P4-PILOT/desensitised-copy",
+    "scope": "pilot/LC-P4-PILOT/desensitised-copy/**",
+    "granted_by": "owner",
+    "granted_at": "2026-11-24T00:00:00+00:00",
+    "expires_at": "2026-12-24T00:00:00+00:00"
+  },
+  "storage": {
+    "root": "E:/trial-material",
+    "relative_path": "pilot/LC-P4-PILOT/desensitised-copy/pilot-paper-001.docx"
+  },
+  "checklist": {
+    "document": "docs/plans/LC-P4-PILOT-desensitisation-checklist.md",
+    "applies_to_sha256": "42eefb065b82c833b213e6c0676b48e5b70417dab7634e9f89d8191aa4162a25",
+    "result": null
+  }
+}
