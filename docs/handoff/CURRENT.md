@@ -3593,3 +3593,17 @@ Expanding data access scope, write permission to original material, unapproved o
   covers an admission rule that is too wide, none asks whether a schema
   rebuild preserves the data, and none asks whether the transaction
   boundary a record claims matches the transactions the code opens.
+- **Both substantive findings of the second round are closed.** The
+  enumeration's gate now reads a message through one scope — the literal,
+  the f-string, the module's own function **and the name it is bound to** —
+  so hoisting a message to a module constant no longer takes its refusal
+  out of the watch set, and a candidacy rule that admitted a test for
+  *saying* a refusal reason is gone, because unrelated code can satisfy
+  that proxy (`182ab60`). And a policy denial's **whole trace is now one
+  transaction**: the run, the stage, the operation and the three events are
+  written inside one unit of work, so a denial whose event cannot be
+  written leaves nothing at all rather than a running run and an entered
+  stage — the fault is injected the way `tests/test_store_atomicity.py`
+  injects it, so the product gains no switch (`0e3b06b`). Six mutations
+  were tried against those repairs; each turned the witness that watches it
+  red.
