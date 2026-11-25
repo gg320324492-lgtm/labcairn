@@ -421,6 +421,14 @@ _ALLOWED_STORE_READERS = frozenset(
         # recorded here because a module that reaches the store must be
         # named.
         "labcairn.application.probe_records",
+        # The outbound consent port. ADR-0006 says a capability probe needs
+        # consent too, so a probe's approval is spent the way any other
+        # transmission's is: the module reads the approval rows to find the
+        # one the operator granted and the ledger to spend it. It reaches
+        # the store for the approval and the ledger and for nothing else --
+        # no task state, no event -- so it is recorded here because a module
+        # that reaches the store must be named.
+        "labcairn.application.outbound",
         # Phase 4 (P4-CAP §7.4). The round's quality checks read the closed
         # manifest, the opinions, the stored suggestions and the drafts'
         # digests, and report per-check facts; they write nothing. It is

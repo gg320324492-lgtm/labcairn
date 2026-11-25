@@ -792,6 +792,13 @@ WATCHED_BY: Final[tuple[tuple[str, str, str, str, tuple[str, ...]], ...]] = (
         "test_a_source_directory_that_is_not_a_directory_is_refused",
         ("test_a_configured_source_directory_that_is_not_a_directory_is_refused",),
     ),
+    (
+        "src/labcairn/cli/commands.py",
+        "guidance_rule_confirm",
+        "a reason belongs to a dispute",
+        "test_the_guidance_door_refuses_a_reason_it_cannot_keep",
+        (),
+    ),
 )
 
 

@@ -533,6 +533,37 @@ def _approval_spent(mode: str, outcome: str, approval_id: object) -> bool:
     return outcome in _TRANSPORT_OUTCOMES
 
 
+def _measured_int(record: Mapping[str, object], field: str) -> int:
+    """One measured count, read back — or refused.
+
+    **A missing field is not a zero.** The run writes these three values
+    itself and always writes them, so a record without one is a record
+    that was not written by this writer — and reading it as a zero would
+    turn "nobody measured it" into "it measured nothing". The repository's
+    own negative control watches for exactly that fold
+    (`tests/test_fake_provider_invariants.py`), so this reads the value it
+    was given and refuses a record that does not carry one.
+    """
+    value = record.get(field)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the stored request record's {field!r} is not a measured count: {value!r}.",
+        )
+    return value
+
+
+def _measured_seconds(record: Mapping[str, object], field: str) -> float:
+    """One measured duration, read back — or refused. See :func:`_measured_int`."""
+    value = record.get(field)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the stored request record's {field!r} is not a measured duration: {value!r}.",
+        )
+    return float(value)
+
+
 def _entry_from_record(record: Mapping[str, object], *, mode: str) -> SuggestionRequestEntry:
     """One stored request entry, read back as the layer's own shape."""
     outcome = str(record.get("outcome", ""))
@@ -542,9 +573,9 @@ def _entry_from_record(record: Mapping[str, object], *, mode: str) -> Suggestion
         feedback_id=str(record.get("feedback_id", "")),
         source=str(record.get("source", "")),
         outcome=outcome,
-        attempts=int(record.get("attempts", 0) or 0),
-        elapsed_s=float(record.get("elapsed_s", 0.0) or 0.0),
-        tokens_estimated=int(record.get("tokens_estimated", 0) or 0),
+        attempts=_measured_int(record, "attempts"),
+        elapsed_s=_measured_seconds(record, "elapsed_s"),
+        tokens_estimated=_measured_int(record, "tokens_estimated"),
         detail=str(record.get("detail", "")),
         retryable=None if retryable is None else bool(retryable),
         approval_id=None if approval_id is None else str(approval_id),
