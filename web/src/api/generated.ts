@@ -265,6 +265,7 @@ export type EventType =
   | 'stage_blocked'
   | 'operation_intent'
   | 'operation_awaiting_approval'
+  | 'operation_denied'
   | 'operation_attempted'
   | 'operation_confirmed'
   | 'operation_failed'
