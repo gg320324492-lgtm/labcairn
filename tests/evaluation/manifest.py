@@ -674,6 +674,15 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # and its witnesses run against a temporary database, not the
     # repository's own.
     "test_pilot_feedback_ingest.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §9.1, part D). The registration record for the
+    # pilot's desensitised copy: the tool measures the digests, the record
+    # holds every part the checklist lists, it holds no content of the
+    # copy, a digest that does not match the copy fails the check, and the
+    # tool refuses a copy inside the repository, outside the authorised
+    # root or outside the signed grant's scope. Its clause is the
+    # repository gates, because it watches the repository's own tool and
+    # the repository's own records.
+    "test_pilot_material_registration.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------
