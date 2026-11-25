@@ -3278,3 +3278,33 @@ Expanding data access scope, write permission to original material, unapproved o
   carried it**. It now counts from the case's shape rather than a
   literal. The lesson is the project's own: a witness nobody ran is a
   claim, not a witness.
+- **The eleventh batch closed four standing gaps and made the probe
+  answerable.**
+  - **The workbench addresses the workspace's own round.**
+    `GET /review/rounds` names the rounds the workspace holds, and the
+    review desk and the delivery centre read it instead of a fixture
+    (`web/src/views/rounds.ts`); the fixture is now the fallback that
+    declares itself.
+  - **The suggest run's account is readable back.**
+    `GET /review/suggest/runs/{run_id}` returns the run's own record, so
+    gate G2-3's evidence — mode, model id, request count, tokens,
+    durations, stop reason — can be collected after a real run.
+  - **The service answers the event stream.**
+    `serve` supplies the store's event source, so the stage timeline
+    runbook step 4 asks for is readable on the service the runbook
+    starts; before this the route was declared and refused with 403.
+  - **A probe needs consent.** `PydanticAiProbe` is handed an
+    `OutboundConsent` and asks before every request, so a probe without a
+    consent decision never reaches the network. The approval a probe is
+    spent on binds to the probe's own prompt and a synthetic resource
+    under the task's area; because the ledger is single-use, one probe
+    (three requests) takes three approvals, and `doctor --probe` now says
+    which one is missing and which command to run.
+  - **The material registration is possible.** Part D of the
+    desensitisation checklist now has a shape a copy can be registered
+    against — a structured record under `docs/pilot/registrations/`, a tool
+    that measures the digests itself, and a check that refuses a record
+    whose digest does not match its copy. **The owner's signature on D-6
+    is still the one thing this batch deliberately did not do**, and the
+    authorisation's `subject_ref` and `scope` point at a copy that is not
+    registered until that signature exists.
