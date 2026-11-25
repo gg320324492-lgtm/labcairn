@@ -3321,3 +3321,30 @@ Expanding data access scope, write permission to original material, unapproved o
   print the figures — `.github/CI.md`, `.github/workflows/python.yml` and
   `docs/plans/LC-P1-13-evaluation-ci.md` — carry the anchor and the totals
   and have to be carried with the re-measurement.
+- **Three contracts from ADR-0016 are still owed, and the tables now say
+  so.** Both ADR-0016 and ADR-0018 marked twenty-six contracts "to be
+  written"; twenty-five were built years ago with witnesses, and the
+  tables now say where each one is and which test holds it. What is left
+  is three things, each named in its row:
+  - **C3** — the evidence gate refuses a model proposal with no rule and
+    no attestation, and its reason names the missing promotion
+    (`src/labcairn/evidence/gate.py:194`), but **no witness covers the
+    property the row states**: the nearest test
+    (`tests/test_evidence_gate.py:230`) refuses a `planned` record made
+    by a *rule*, not by a model. A witness is owed for a
+    `created_by=model_proposal` record being refused, and for the reason
+    naming the promotion.
+  - **C5** — a field the model cannot fill is `UNKNOWN` and no other
+    field is affected. **This is not implemented**: there is no
+    per-field degradation, because the decoding layer
+    (`src/labcairn/application/model_request.py:155`) validates the whole
+    schema and refuses the whole answer. Either the layer grows the rule
+    or the contract is rewritten to what the tree does — and the second
+    is the one that would keep the tree honest.
+  - **C10's citation path** — the defence against citing a rule whose
+    source is withdrawn is in *retrieval* (`search_rules` does not serve
+    a dead rule's), and the witness
+    (`tests/test_guidance_retrieval.py:213`) holds that. The citation
+    path (`src/labcairn/roles/guidance.py:303`) reads a rule by id
+    without asking whether its source still lives, so a caller naming a
+    dead rule directly would still cite it, and that path has no witness.
