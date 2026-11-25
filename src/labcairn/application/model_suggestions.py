@@ -64,11 +64,13 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Protocol, runtime_checkable
+from typing import Final, Protocol, runtime_checkable
 
+from labcairn.application import consent
 from labcairn.application.approvals import ApprovalUse
-from labcairn.application.context import ApplicationContext
+from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.model_transmit import transmit_request
+from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.review import record_review_suggestion
 from labcairn.core.ids import ApprovalId
@@ -97,7 +99,9 @@ __all__ = [
     "SubstituteSuggestionSource",
     "SubstituteTransport",
     "SuggestionLoopConfig",
+    "SuggestionRequestEntry",
     "desensitised_prompt",
+    "read_suggestion_run",
     "suggest_for_version",
     "suggestion_approval_use",
 ]
@@ -434,6 +438,44 @@ class SuggestionLoopConfig:
     backoff_base_s: float = 0.0
 
 
+class SuggestionRequestEntry(Result):
+    """One opinion's request, as the run recorded it.
+
+    **The boundary holds on the way back too.** An entry names the opinion,
+    the model that answered, what happened, how long it took and what it
+    cost — and never what was said. The request text and the model's
+    answer are not here; the request is not here either, only the
+    identifiers and the counts.
+
+    ``approval_spent`` says whether an approval was consumed for this
+    opinion's request, and ``approval_id`` names the one that was, when the
+    run recorded it. **The two are different facts and neither is inferred
+    from the other**: a run written before the approval id was recorded
+    still says whether an approval was spent, and a run that spent one
+    names it.
+
+    **This is the layer's own model, and the service serves it as it is.**
+    It is not a dataclass beside a twin: a second spelling of one
+    request's account is a spelling that drifts.
+    """
+
+    feedback_id: str
+    #: The model that answered — the run's primary or its substitute.
+    source: str
+    #: What happened to this opinion. The closed vocabulary the run writes.
+    outcome: str
+    attempts: int
+    elapsed_s: float
+    tokens_estimated: int
+    #: A class name, never prose: the refusal's reason or the failure's kind.
+    detail: str
+    retryable: bool | None
+    #: The approval this request spent, when the run recorded which.
+    approval_id: str | None
+    #: Whether an approval was consumed for this opinion's request.
+    approval_spent: bool
+
+
 @dataclass(frozen=True, slots=True)
 class ModelSuggestionRunData:
     """One loop run's accounting, as the caller reads it back."""
@@ -450,6 +492,119 @@ class ModelSuggestionRunData:
     opinions_skipped: int
     started_at: datetime
     finished_at: datetime
+    #: One entry per request the run made, in the order it made them.
+    requests: tuple[SuggestionRequestEntry, ...] = ()
+
+    @property
+    def duration_seconds(self) -> float:
+        """How long the run took, in seconds.
+
+        **The run's own two timestamps, subtracted.** Not a sum of the
+        requests' durations: the run spent time that was not a request's —
+        the backoff between retries, the write of its own row — and a
+        duration that added up only the requests would say the run was
+        shorter than it was.
+        """
+        return (self.finished_at - self.started_at).total_seconds()
+
+
+#: The outcomes that mean a request was made — and therefore, in a real run,
+#: that an approval was consumed to make it. The gate consumes the approval
+#: *before* the model is asked (ADR-0015 D3's order), so a request that
+#: happened is a request an approval paid for.
+_TRANSPORT_OUTCOMES: Final[frozenset[str]] = frozenset({"answered", "empty", "failed", "exhausted"})
+
+
+def _approval_spent(mode: str, outcome: str, approval_id: object) -> bool:
+    """Whether an approval was consumed for one opinion's request.
+
+    **The recorded id settles it; the outcome settles it for the runs that
+    predate the id.** A run that recorded which approval it spent needs no
+    inference: the id is there. A run written before the id was recorded
+    still says, from the outcome, whether the request happened — and in a
+    real run a request that happened is a request an approval paid for. A
+    substitute run spent nothing at all, whatever the outcome says, because
+    nothing left the machine.
+    """
+    if approval_id is not None:
+        return True
+    if mode != MODEL_SUGGESTION_MODE_REAL:
+        return False
+    return outcome in _TRANSPORT_OUTCOMES
+
+
+def _entry_from_record(record: Mapping[str, object], *, mode: str) -> SuggestionRequestEntry:
+    """One stored request entry, read back as the layer's own shape."""
+    outcome = str(record.get("outcome", ""))
+    approval_id = record.get("approval_id")
+    retryable = record.get("retryable")
+    return SuggestionRequestEntry(
+        feedback_id=str(record.get("feedback_id", "")),
+        source=str(record.get("source", "")),
+        outcome=outcome,
+        attempts=int(record.get("attempts", 0) or 0),
+        elapsed_s=float(record.get("elapsed_s", 0.0) or 0.0),
+        tokens_estimated=int(record.get("tokens_estimated", 0) or 0),
+        detail=str(record.get("detail", "")),
+        retryable=None if retryable is None else bool(retryable),
+        approval_id=None if approval_id is None else str(approval_id),
+        approval_spent=_approval_spent(mode, outcome, approval_id),
+    )
+
+
+def read_suggestion_run(context: ApplicationContext, run_id: str) -> ModelSuggestionRunData:
+    """One run's account, read back after the run has finished.
+
+    **The run writes its own record, and this is the read of it.** The
+    ``POST /review/suggest`` answer is the account of the run that answer
+    arrived with, and it is gone the moment the caller lets it go: a gate
+    that wants the evidence of a run *after* the run has finished had
+    nothing to read, and recorded the slot as unknown for exactly that
+    reason. The row is the durable half of the answer, and this operation
+    is what makes it readable.
+
+    **The same shape comes back.** The read returns the very
+    :class:`ModelSuggestionRunData` the run returned, so there is one
+    spelling of a run's account and not two that agree until somebody
+    changes one of them.
+
+    **The permission is asked for the task's own area.** The account is the
+    task's own record, and reading it is reading the task's area — the same
+    question :func:`labcairn.application.events.read_events` asks of the
+    event log, because both are the task's own facts.
+
+    :raises ApplicationRefusedError: the store holds no run with that id, or
+        the policy denied reading the task's area.
+    """
+    area = context.task_area()
+    consent.evaluate(
+        context,
+        capability=CapabilityId.FS_READ,
+        arguments={"path": area.declared_key},
+        resource=area,
+    )
+    with store_refusals():
+        row = context.store.session.get(ModelSuggestionRunRow, run_id)
+    if row is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the store holds no suggestion run with the id {run_id!r}.",
+        )
+    return ModelSuggestionRunData(
+        run_id=row.run_id,
+        project_id=row.project_id,
+        version_id=row.version_id,
+        mode=row.mode,
+        model_id=row.model_id,
+        requests_made=row.requests_made,
+        tokens_estimated=row.tokens_estimated,
+        stopped_reason=row.stopped_reason,
+        suggestions_recorded=row.suggestions_recorded,
+        opinions_skipped=row.opinions_skipped,
+        started_at=row.started_at,
+        finished_at=row.finished_at,
+        requests=tuple(_entry_from_record(record, mode=row.mode) for record in row.requests_json),
+    )
 
 
 def suggestion_approval_use(
@@ -646,14 +801,17 @@ class SuggestionLoop:
             return
         if self._fallback is not None and not self._exhausted:
             # The real path: consent, then bounded retries.
-            if not self._spend_approval(event):
+            approval_id = self._spend_approval(event)
+            if approval_id is None:
                 return
             attempts = self._config.retry_attempts + 1
             status = _RETRY
             for attempt in range(1, attempts + 1):
                 if self._stopped_reason is not None:
                     return
-                status = self._attempt_with(self._primary, event, attempts=attempt)
+                status = self._attempt_with(
+                    self._primary, event, attempts=attempt, approval_id=approval_id
+                )
                 if status != _RETRY:
                     break
                 if attempt < attempts and self._config.backoff_base_s > 0:
@@ -684,7 +842,12 @@ class SuggestionLoop:
         self._attempt_with(source, event, attempts=1)
 
     def _attempt_with(
-        self, source: ModelSuggestionSource, event: FeedbackEvent, *, attempts: int
+        self,
+        source: ModelSuggestionSource,
+        event: FeedbackEvent,
+        *,
+        attempts: int,
+        approval_id: str | None = None,
     ) -> str:
         """One attempt, classified and recorded.
 
@@ -693,6 +856,12 @@ class SuggestionLoop:
         cannot fix (auth, policy, refusal) and the caller should fall back
         rather than try again; ``_RETRY`` when the failure is retryable and
         the caller may back off and ask again.
+
+        **``approval_id`` is the approval the request spent, if it spent
+        one.** The real path has already consumed it by the time the model
+        is asked, and the entry records it so a reader can say which
+        approval paid for which opinion's request. The substitute path
+        spends none, and says so by recording none.
         """
         started = time.monotonic()
         tokens_before = source.accounting.tokens_estimated
@@ -711,6 +880,7 @@ class SuggestionLoop:
                     tokens=source.accounting.tokens_estimated - tokens_before,
                     detail=failure.kind.value,
                     retryable=failure.retryable,
+                    approval_id=approval_id,
                 )
             )
             return _RETRY if failure.retryable else _GIVE_UP
@@ -723,6 +893,7 @@ class SuggestionLoop:
                 attempts=attempts,
                 elapsed_s=elapsed,
                 tokens=source.accounting.tokens_estimated - tokens_before,
+                approval_id=approval_id,
             )
         )
         if edit is not None:
@@ -746,7 +917,7 @@ class SuggestionLoop:
 
     # --- the gates --------------------------------------------------------
 
-    def _spend_approval(self, event: FeedbackEvent) -> bool:
+    def _spend_approval(self, event: FeedbackEvent) -> str | None:
         """Run the transmit gate for one real request, and spend its approval.
 
         **No approval, no request.** An opinion whose approval is missing
@@ -755,6 +926,12 @@ class SuggestionLoop:
         does not cover this material, this destination, this purpose) is a
         refusal, not a retry: the approval stays unspent for the remedy a
         person applies, and the opinion is recorded as refused.
+
+        **The id of the approval that was spent is what this returns**, and
+        ``None`` means no approval was spent: none was presented, or the
+        gate refused and left it unspent. The caller records it on the
+        request's own entry, so a reader of the run can say which approval
+        paid for which opinion.
         """
         approval_id = self._approvals.get(event.feedback_id)
         if approval_id is None:
@@ -762,7 +939,7 @@ class SuggestionLoop:
                 _entry(event, source=self._primary.model_id, outcome="unauthorised")
             )
             self._opinions_skipped += 1
-            return False
+            return None
         use = suggestion_approval_use(
             self._context,
             event,
@@ -791,8 +968,8 @@ class SuggestionLoop:
                 )
             )
             self._count_failure()
-            return False
-        return True
+            return None
+        return str(approval_id)
 
     def _within_request_budget(self, event: FeedbackEvent) -> bool:
         """The request ceiling, checked before the call it bounds.
@@ -908,6 +1085,7 @@ class SuggestionLoop:
             opinions_skipped=self._opinions_skipped,
             started_at=self._started_at,
             finished_at=finished_at,
+            requests=tuple(_entry_from_record(record, mode=self._mode) for record in self._entries),
         )
 
 
@@ -949,11 +1127,20 @@ def _entry(
     tokens: int = 0,
     detail: str = "",
     retryable: bool | None = None,
+    approval_id: str | None = None,
 ) -> dict[str, object]:
     """One request entry: counts, class names, and the opinion's id.
 
     The request text is never here. The entry answers "what happened to
     this opinion, at what cost" and nothing about what was said.
+
+    **``approval_id`` is the approval that was spent on this request, and
+    only that.** The transmit gate consumes the approval before the model
+    is asked, so an entry that carries an id is an entry whose approval is
+    gone, and an entry without one is an entry where no approval was
+    consumed — the caller presented none, or the gate refused and left it
+    unspent. It is an id, never a digest of the request and never the
+    request itself.
     """
     record: dict[str, object] = {
         "feedback_id": event.feedback_id,
@@ -966,6 +1153,8 @@ def _entry(
     }
     if retryable is not None:
         record["retryable"] = retryable
+    if approval_id is not None:
+        record["approval_id"] = approval_id
     return record
 
 
