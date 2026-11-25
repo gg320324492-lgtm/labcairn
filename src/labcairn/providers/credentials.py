@@ -161,6 +161,13 @@ class ProviderSettings:
     credential_file: Path | None = None
     #: Per-request timeout handed to the HTTP client.
     timeout_s: float = 60.0
+    #: Whether this provider's capabilities are **established** for this
+    #: workspace. ``False`` is ADR-0002's ``probed: false`` override: the
+    #: operator declares the provider unprobed, so a stored probe record is
+    #: not read for it and ``doctor --probe`` does not spend money asking it.
+    #: The default is ``True`` -- the absence of a statement is not a
+    #: statement.
+    probed: bool = True
 
     def __post_init__(self) -> None:
         if not self.model.strip():
@@ -215,6 +222,7 @@ class ProviderSettings:
             "credential_env",
             "credential_file",
             "timeout_s",
+            "probed",
         }
         unknown = sorted(set(payload) - known)
         if unknown:
@@ -234,6 +242,7 @@ class ProviderSettings:
             credential_env=_optional_str(payload.get("credential_env")),
             credential_file=Path(str(raw_file)) if isinstance(raw_file, str) and raw_file else None,
             timeout_s=_as_float(payload.get("timeout_s"), 60.0),
+            probed=_as_bool(payload.get("probed"), True),
         )
 
 
@@ -301,3 +310,19 @@ def _as_float(value: object, default: float) -> float:
 
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
+
+
+def _as_bool(value: object, default: bool) -> bool:
+    """A configuration boolean, refused when it is anything else.
+
+    ``bool("false")`` is ``True``, so a JSON file that writes the *string*
+    ``"false"`` would read as a provider that **is** probed -- the opposite
+    of what the operator wrote. The refusal is the honest answer: a value
+    that is not a boolean is a spelling mistake, and this repository refuses
+    spelling mistakes rather than guessing at them.
+    """
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ValueError(f"probed must be true or false, got {value!r}")
+    return value

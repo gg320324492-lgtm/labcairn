@@ -248,6 +248,49 @@ def test_a_misspelled_config_key_is_an_error_rather_than_a_silent_default() -> N
 
 
 @pytest.mark.unit
+def test_the_probed_override_is_read_and_defaults_to_true() -> None:
+    """ADR-0002's ``probed: false`` override, and the absence of a statement.
+
+    The default is ``True``: a configuration that says nothing about probing
+    says nothing, and the absence of a statement is not a statement. An
+    explicit ``false`` is the operator's way of saying this provider's
+    capabilities are not established for this workspace.
+    """
+    assert ProviderSettings.from_mapping(
+        {"protocol": "openai_compatible", "model": "m", "base_url": "http://h/v1"}
+    ).probed
+    assert not ProviderSettings.from_mapping(
+        {
+            "protocol": "openai_compatible",
+            "model": "m",
+            "base_url": "http://h/v1",
+            "probed": False,
+        }
+    ).probed
+
+
+@pytest.mark.unit
+def test_a_probed_override_that_is_not_a_boolean_is_refused() -> None:
+    """``"false"`` as a string reads as ``True``, which is the opposite of the
+    operator's meaning.
+
+    ``bool("false")`` is ``True``, so a JSON file that wrote the *string*
+    would make a provider the workspace was told to leave alone into one it
+    probes. The refusal is the honest answer: a value that is not a boolean
+    is a spelling mistake.
+    """
+    with pytest.raises(ValueError, match="probed must be true or false"):
+        ProviderSettings.from_mapping(
+            {
+                "protocol": "openai_compatible",
+                "model": "m",
+                "base_url": "http://h/v1",
+                "probed": "false",
+            }
+        )
+
+
+@pytest.mark.unit
 def test_an_unrecognised_protocol_names_the_there_are_ones() -> None:
     with pytest.raises(UnknownProviderError) as raised:
         ProviderSettings.from_mapping({"protocol": "llama-cpp-server", "model": "m"})
@@ -408,8 +451,26 @@ PROVIDERS_FILE_NAME = "providers.json"
 
 #: The keys the provider settings format has. **Closed**: an entry carrying
 #: anything else is refused rather than ignored.
+#:
+#: ``probed`` joined the set on 2026-11-25, and it is here because it was
+#: **deliberately reviewed** rather than because a dataclass field was added
+#: somewhere else. ADR-0002 §Risks asks for *"a ``probed: false`` override
+#: that yields ``UNVERIFIED``"*, and an override has to live somewhere. **It
+#: is not a capability claim**: it says that no measurement applies to this
+#: provider here, which is the opposite of claiming one — a capability
+#: claim is a measurement (ADR-0018 §D5), and a measurement still has
+#: nowhere to sit in this format. It is the *refusal* of a claim, and the
+#: closedness this witness protects is not affected by it.
 SETTINGS_KEYS: frozenset[str] = frozenset(
-    {"protocol", "model", "base_url", "credential_env", "credential_file", "timeout_s"}
+    {
+        "protocol",
+        "model",
+        "base_url",
+        "credential_env",
+        "credential_file",
+        "timeout_s",
+        "probed",
+    }
 )
 
 #: The two public endpoints the tree names, and the only two. ADR-0019 §D2
@@ -609,7 +670,7 @@ def test_the_settings_schema_has_nowhere_to_put_a_price_or_a_capability_claim(
 ) -> None:
     """The format itself cannot carry a price or a capability claim.
 
-    **The key set is closed, and it is exactly these six.** An entry carrying
+    **The key set is closed, and it is exactly these seven.** An entry carrying
     anything else is *refused* rather than ignored, so the schema has no room
     for a price or a capability claim in the first place — which is what makes
     *"no price and no capability claim is written into the tree"* a property

@@ -21,12 +21,15 @@ check the implementation against the ADR without a mapping table.
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from provider_fakes import FakeEndpoint, Reply, sync_runner
+from sqlalchemy.orm import Session
 
+from labcairn.application.probe_records import SqliteProbeCache
 from labcairn.providers.capabilities import (
     ALL_CAPABILITIES,
     Capability,
@@ -43,6 +46,7 @@ from labcairn.providers.probe import (
     ProbeRecord,
     PydanticAiProbe,
     endpoint_fingerprint,
+    probe_key,
 )
 
 _FINGERPRINT = endpoint_fingerprint(
@@ -640,3 +644,253 @@ def test_usage_reporting_reads_the_openai_wire_names() -> None:
     )
 
     assert record.outcomes[Capability.USAGE_REPORTING] is CapabilityOutcome.OK
+
+
+# --------------------------------------------------------------------------- #
+# the persistent cache: ADR-0002's SQLite promise, made real
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def probe_session() -> Iterator[Session]:
+    """A session over a database built from the ORM's own tables.
+
+    **The models' tables, not a migration's**, because this file's subject is
+    the cache's contract and not the schema's history. The migration is
+    witnessed where it belongs: ``tests/test_store_migrations.py`` asserts
+    that the migrated schema and these models are one schema, so a witness
+    here that used the models is a witness about the same tables the
+    migration installs.
+    """
+    from labcairn.db.base import Base
+    from labcairn.db.session import create_db_engine, create_session_factory
+
+    engine = create_db_engine(":memory:")
+    Base.metadata.create_all(engine)
+    factory = create_session_factory(engine)
+    session = factory()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def _a_record(
+    *,
+    fingerprint: str = _FINGERPRINT,
+    model: str = "gpt-4-turbo-mimic",
+    protocol: str = "openai_compatible",
+    tool_calls: CapabilityOutcome = CapabilityOutcome.OK,
+) -> ProbeRecord:
+    """A record as a probe leaves it, filed under one key."""
+    outcomes = dict.fromkeys(ALL_CAPABILITIES, CapabilityOutcome.OK)
+    outcomes[Capability.TOOL_CALLS] = tool_calls
+    return ProbeRecord(
+        endpoint_fingerprint=fingerprint,
+        model=model,
+        protocol=protocol,
+        outcomes=outcomes,
+        evidence=dict.fromkeys(ALL_CAPABILITIES, "probe said no"),
+        probes_run=frozenset(ALL_CAPABILITIES),
+        observed_at=datetime(2026, 11, 25, 9, 30, tzinfo=UTC),
+    )
+
+
+@pytest.mark.unit
+def test_the_in_memory_cache_and_the_persistent_one_answer_the_same_key(
+    probe_session: Session,
+) -> None:
+    """The substitution is real: the same key, the same answer.
+
+    ADR-0002 asked for a SQLite cache and the tree carried a dict. A
+    persistent cache that answered a *different* key would make the
+    substitution nominal, so the two are asked the same question and their
+    answers are compared -- for a key that was filled and for one that was
+    not.
+    """
+    record = _a_record()
+    memory = InMemoryProbeCache()
+    persistent = SqliteProbeCache(probe_session)
+    memory.put(record)
+    persistent.put(record)
+
+    for cache in (memory, persistent):
+        found = cache.get(
+            endpoint_fingerprint=_FINGERPRINT,
+            model="gpt-4-turbo-mimic",
+            protocol="openai_compatible",
+        )
+        assert found is not None
+        assert found.outcomes == record.outcomes
+        assert found.evidence == record.evidence
+        assert found.probes_run == record.probes_run
+        assert found.observed_at == record.observed_at
+
+    for cache in (memory, persistent):
+        assert (
+            cache.get(
+                endpoint_fingerprint="a-fingerprint-nobody-probed",
+                model="gpt-4-turbo-mimic",
+                protocol="openai_compatible",
+            )
+            is None
+        )
+
+
+@pytest.mark.unit
+def test_the_record_is_keyed_on_the_endpoint_the_model_and_the_protocol(
+    probe_session: Session,
+) -> None:
+    """ADR-0002's invalidation, as a property of the key.
+
+    "Probe results are cached per ``(endpoint, model, protocol)`` ... and are
+    invalidated by a protocol or endpoint change." A cache keyed on less than
+    the whole triple would answer for an endpoint nobody asked, so **each
+    part is changed on its own** and the record must not come back.
+    """
+    persistent = SqliteProbeCache(probe_session)
+    persistent.put(_a_record())
+
+    assert (
+        persistent.get(
+            endpoint_fingerprint="a-different-endpoint",
+            model="gpt-4-turbo-mimic",
+            protocol="openai_compatible",
+        )
+        is None
+    )
+    assert (
+        persistent.get(
+            endpoint_fingerprint=_FINGERPRINT,
+            model="a-different-model",
+            protocol="openai_compatible",
+        )
+        is None
+    )
+    assert (
+        persistent.get(
+            endpoint_fingerprint=_FINGERPRINT,
+            model="gpt-4-turbo-mimic",
+            protocol="a-different-protocol",
+        )
+        is None
+    )
+    # The key it was filed under still answers.
+    assert (
+        persistent.get(
+            endpoint_fingerprint=_FINGERPRINT,
+            model="gpt-4-turbo-mimic",
+            protocol="openai_compatible",
+        )
+        is not None
+    )
+
+
+@pytest.mark.unit
+def test_a_second_probe_of_the_same_key_replaces_the_first_reading(
+    probe_session: Session,
+) -> None:
+    """The newest reading is the one that is kept.
+
+    A probe of the same endpoint, model and protocol is a later
+    measurement of the same thing, so it replaces the earlier one rather
+    than joining it. The row's timestamp says when, so the replacement is a
+    fact about time and not a silent overwrite.
+    """
+    persistent = SqliteProbeCache(probe_session)
+    persistent.put(_a_record(tool_calls=CapabilityOutcome.OK))
+    persistent.put(_a_record(tool_calls=CapabilityOutcome.UNSUPPORTED))
+
+    found = persistent.get(
+        endpoint_fingerprint=_FINGERPRINT,
+        model="gpt-4-turbo-mimic",
+        protocol="openai_compatible",
+    )
+    assert found is not None
+    assert found.outcomes[Capability.TOOL_CALLS] is CapabilityOutcome.UNSUPPORTED
+
+
+@pytest.mark.unit
+def test_the_stored_record_holds_no_secret_and_no_corpus_text(
+    probe_session: Session,
+) -> None:
+    """The row holds a fingerprint, a closed vocabulary and a time.
+
+    **Both halves are checked on the row, not on the record.** The record is
+    secret-free by construction -- the endpoint is a fingerprint and the
+    evidence is a class name -- but the claim is about what the *row* holds,
+    because the row is what a shared database and a diagnostic dump carry.
+
+    **The endpoint is a fingerprint, so a credential in the URL cannot reach
+    the row.** The base URL below carries an ``?api_key=``; the row holds the
+    fingerprint of it, and neither the key nor the host.
+
+    **The text in the row is drawn from closed vocabularies.** Every
+    capability named is one this build knows, every outcome is one of the
+    four, and the only other strings are the model, the protocol, the
+    fingerprint and the timestamp. There is nowhere for a document excerpt
+    to be.
+    """
+    from sqlalchemy import select
+
+    from labcairn.db.models import ProbeRecordRow
+
+    secret = "sk-ant-not-a-real-key-abcdef0123456789"
+    base_url = f"https://gateway.internal/v1?api_key={secret}"
+    fingerprint = endpoint_fingerprint(
+        base_url=base_url, model="some-model", protocol="openai_compatible"
+    )
+    record = ProbeRecord(
+        endpoint_fingerprint=fingerprint,
+        model="some-model",
+        protocol="openai_compatible",
+        outcomes={Capability.TOOL_CALLS: CapabilityOutcome.UNSUPPORTED},
+        evidence={Capability.TOOL_CALLS: "UserError"},
+        probes_run=frozenset({Capability.TOOL_CALLS}),
+        observed_at=datetime(2026, 11, 25, 9, 30, tzinfo=UTC),
+    )
+    SqliteProbeCache(probe_session).put(record)
+
+    row = probe_session.execute(select(ProbeRecordRow)).scalars().one()
+    rendered = " ".join(
+        [
+            row.endpoint_fingerprint,
+            row.model,
+            row.protocol,
+            *row.outcomes,
+            *row.outcomes.values(),
+            *row.evidence,
+            *row.evidence.values(),
+            *row.probes_run,
+            row.observed_at.isoformat(),
+        ]
+    )
+
+    assert secret not in rendered
+    assert "gateway.internal" not in rendered
+    assert row.endpoint_fingerprint == fingerprint
+    assert set(row.outcomes) <= {capability.value for capability in ALL_CAPABILITIES}
+    assert set(row.evidence) <= {capability.value for capability in ALL_CAPABILITIES}
+    assert set(row.probes_run) <= {capability.value for capability in ALL_CAPABILITIES}
+    assert set(row.outcomes.values()) <= {outcome.value for outcome in CapabilityOutcome}
+
+
+@pytest.mark.unit
+def test_the_key_a_probe_is_filed_under_is_the_one_a_reader_asks_for() -> None:
+    """One call computes the fingerprint a report shows and the key it is filed under.
+
+    The two are computed together on purpose: a report that showed one
+    fingerprint and filed the record under another would be a report about a
+    measurement nobody can find again.
+    """
+    key = probe_key(
+        base_url="https://gateway.internal/v1",
+        model="gpt-4-turbo-mimic",
+        protocol="openai_compatible",
+    )
+
+    assert key.endpoint_fingerprint == _FINGERPRINT
+    assert key.model == "gpt-4-turbo-mimic"
+    assert key.protocol == "openai_compatible"
+    assert key == (key.endpoint_fingerprint, key.model, key.protocol)

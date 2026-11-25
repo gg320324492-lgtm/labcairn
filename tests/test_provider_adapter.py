@@ -22,6 +22,7 @@ The four properties
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -53,6 +54,7 @@ from labcairn.providers.errors import (
     ProviderTimeoutError,
     UnsupportedCapabilityError,
 )
+from labcairn.providers.probe import InMemoryProbeCache, ProbeKey, ProbeRecord
 from labcairn.providers.redaction import Redactor
 
 
@@ -159,6 +161,104 @@ def test_no_capability_gate_when_none_is_required() -> None:
     provider = _provider(endpoint, required_capabilities=None, capabilities=None)
     provider.send(ModelRequest(prompt="summarise"))
     assert endpoint.call_count == 1
+
+
+# --- 1b. the gate reads the record the product keeps ------------------------
+
+
+def _a_record(*, tool_calls: CapabilityOutcome = CapabilityOutcome.OK) -> ProbeRecord:
+    """A probe record as a probe leaves it, filed under ``("fp", "m", "p")``."""
+    outcomes = dict.fromkeys(ALL_CAPABILITIES, CapabilityOutcome.OK)
+    outcomes[Capability.TOOL_CALLS] = tool_calls
+    return ProbeRecord(
+        endpoint_fingerprint="fp",
+        model="m",
+        protocol="p",
+        outcomes=outcomes,
+        evidence=dict.fromkeys(ALL_CAPABILITIES, "probe said no"),
+        probes_run=frozenset(ALL_CAPABILITIES),
+        observed_at=datetime(2026, 11, 25, 9, 30, tzinfo=UTC),
+    )
+
+
+@pytest.mark.unit
+def test_the_gate_reads_the_stored_record_and_not_what_the_caller_passed() -> None:
+    """A stored record is the gate's answer, and the caller's is not.
+
+    ADR-0002 wants probe results kept so that the capability gate can read
+    them. A gate that only ever saw what a caller handed it would have
+    nothing to read, and the record the product keeps would be a record
+    nothing consults -- so the store's reading is put under the gate's key
+    and a *different* reading is handed to the constructor, and the store's
+    is the one that decides.
+
+    **The call is made, and the assertion is the call count.** A gate that
+    merely did not raise would be a witness of nothing.
+    """
+    endpoint = FakeEndpoint(replies=(_OK_REPLY,))
+    cache = InMemoryProbeCache()
+    cache.put(_a_record(tool_calls=CapabilityOutcome.OK))
+    provider = _provider(
+        endpoint,
+        capabilities=_capabilities(tool_calls=CapabilityOutcome.UNSUPPORTED),
+        required_capabilities=frozenset({Capability.TOOL_CALLS}),
+        probe_cache=cache,
+        probe_key=ProbeKey("fp", "m", "p"),
+    )
+
+    response = provider.send(ModelRequest(prompt="do the thing", tools=("read_file",)))
+    assert endpoint.call_count == 1
+    assert response.text == "the answer"
+
+
+@pytest.mark.unit
+def test_a_stored_record_that_says_no_still_gates_the_call() -> None:
+    """The stored record is read for what it says, not merely for being there.
+
+    A record that says the endpoint cannot do the thing must stop the call
+    before the wire, exactly as a record handed in by a caller would.
+    """
+    endpoint = FakeEndpoint(replies=(_OK_REPLY,))
+    cache = InMemoryProbeCache()
+    cache.put(_a_record(tool_calls=CapabilityOutcome.UNSUPPORTED))
+    provider = _provider(
+        endpoint,
+        capabilities=_capabilities(tool_calls=CapabilityOutcome.OK),
+        required_capabilities=frozenset({Capability.TOOL_CALLS}),
+        probe_cache=cache,
+        probe_key=ProbeKey("fp", "m", "p"),
+    )
+
+    with pytest.raises(UnsupportedCapabilityError):
+        provider.send(ModelRequest(prompt="do the thing", tools=("read_file",)))
+    assert endpoint.call_count == 0
+
+
+@pytest.mark.unit
+def test_a_record_kept_for_another_key_does_not_gate_this_one() -> None:
+    """A record kept for another endpoint, model or protocol is not this one's.
+
+    ADR-0002: a record is "invalidated by a protocol or endpoint change". A
+    cache that answered for a key it was not asked about would gate a
+    provider on a reading taken against a different one -- so the key is
+    part of the question, and the provider with no record of its own is
+    refused as unprobed.
+    """
+    endpoint = FakeEndpoint(replies=(_OK_REPLY,))
+    cache = InMemoryProbeCache()
+    cache.put(_a_record(tool_calls=CapabilityOutcome.OK))
+    provider = _provider(
+        endpoint,
+        capabilities=None,
+        required_capabilities=frozenset({Capability.TOOL_CALLS}),
+        probe_cache=cache,
+        probe_key=ProbeKey("another-endpoint", "m", "p"),
+    )
+
+    with pytest.raises(UnsupportedCapabilityError) as raised:
+        provider.send(ModelRequest(prompt="do the thing", tools=("read_file",)))
+    assert endpoint.call_count == 0
+    assert "no capability probe has run" in raised.value.reason
 
 
 @pytest.mark.unit

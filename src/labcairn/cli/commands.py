@@ -87,8 +87,9 @@ if TYPE_CHECKING:
     from labcairn.core.providers.protocol import ModelRequest, ModelResponse
     from labcairn.guidance.models import GuidanceCheck, GuidanceRule
     from labcairn.providers.adapter import ExchangeRecord
-    from labcairn.providers.capabilities import Capability, ProviderCapabilities
+    from labcairn.providers.capabilities import ProviderCapabilities
     from labcairn.providers.credentials import ProviderSettings
+    from labcairn.providers.probe import ProbeCache, ProbeKey, ProbeRecord
     from labcairn.security.paths import CanonicalPath
     from labcairn.security.permissions import Grant
 
@@ -608,7 +609,12 @@ def _doctor_report(
         workspace=workspace_finding,
         database=database,
         policy=policy_finding,
-        providers=_provider_findings(location, probe=probe, assume_capability=assume_capability),
+        providers=_provider_findings(
+            location,
+            probe=probe,
+            assume_capability=assume_capability,
+            database_path=database_path if present else None,
+        ),
         api_session=session,
     )
 
@@ -680,6 +686,7 @@ def _provider_findings(
     *,
     probe: bool,
     assume_capability: tuple[str, ...],
+    database_path: Path | None = None,
 ) -> tuple[ProviderFinding, ...]:
     """What the workspace's model providers can do.
 
@@ -687,11 +694,27 @@ def _provider_findings(
     reported as unverified — which is the honest state of a workspace whose
     endpoints have never been asked. With it, the providers are probed for
     real, which costs money and is why it is opt-in.
+
+    **A stored record is read back, and reading one is not a probe.** ADR-0002
+    wants probe results cached per ``(endpoint, model, protocol)``, so a
+    reading that was measured once is available to every later ``doctor``
+    without paying for it again. The report says which of the two it shows —
+    ``live`` for a reading this run took, ``stored`` for one read back out of
+    the store — because "probed" alone does not say whether the number in
+    front of the reader is minutes old or months old.
+
+    **A provider the configuration declares unprobed is not probed and not
+    read.** ADR-0002 §Risks names ``a ``probed: false`` override that yields
+    ``UNVERIFIED````: with a record in the store, an operator needs a way to
+    say *treat this one as not measured* — on an offline machine, or against a
+    reading they do not trust. The override suppresses both the stored
+    reading and the probe, so no money is spent on a reading the workspace
+    has been told to ignore.
     """
     from labcairn.cli.models import ProviderFinding
     from labcairn.cli.workspace import WorkspaceSetupError
     from labcairn.providers.capabilities import ALL_CAPABILITIES
-    from labcairn.providers.probe import endpoint_fingerprint
+    from labcairn.providers.probe import probe_key
 
     settings_by_name = _provider_settings(location)
     if not settings_by_name:
@@ -707,19 +730,26 @@ def _provider_findings(
 
     findings: list[ProviderFinding] = []
     for name, settings in settings_by_name.items():
-        fingerprint = endpoint_fingerprint(
+        key = probe_key(
             base_url=settings.sanitised_base_url(),
             model=settings.model,
             protocol=settings.protocol_label,
         )
-        capabilities = _probe_capabilities(settings, fingerprint) if probe else None
+        record, source, error = _probe_finding(
+            settings, key, probe=probe, database_path=database_path
+        )
+        capabilities = record.to_provider_capabilities() if record is not None else None
         findings.append(
             ProviderFinding(
                 name=name,
                 protocol=settings.protocol_label,
                 model=settings.model,
-                endpoint_fingerprint=fingerprint,
-                probed=capabilities is not None,
+                endpoint_fingerprint=key.endpoint_fingerprint,
+                probed=record is not None,
+                probe_source=source,
+                observed_at=record.observed_at.isoformat() if record is not None else None,
+                probe_error=error,
+                probed_override=not settings.probed,
                 capabilities=_capability_findings(
                     capabilities,
                     assume_capability=assume_capability,
@@ -727,6 +757,119 @@ def _provider_findings(
             )
         )
     return tuple(findings)
+
+
+def _probe_finding(
+    settings: ProviderSettings,
+    key: ProbeKey,
+    *,
+    probe: bool,
+    database_path: Path | None,
+) -> tuple[ProbeRecord | None, str, str | None]:
+    """One provider's reading: where it came from, and what could be kept.
+
+    **Three answers, and they are not the same answer.** A provider that was
+    never asked has no reading (``none``); a provider this run asked has one
+    (``live``); a provider whose reading the store already held has one too
+    (``stored``). The third value returned is the reason the record could not
+    be kept, when it could not — a reading the product does not keep is not
+    the same claim as one it does, and the report says which it is.
+
+    **The store is asked, never assumed.** A workspace whose database has not
+    been migrated past this revision has no table to read and no table to
+    write, and both are reported rather than raised: ``doctor`` is a
+    diagnostic, and a diagnostic that dies on the first thing it cannot read
+    is not a diagnostic.
+
+    **A provider declared unprobed is not asked about, at all.** ADR-0002's
+    ``probed: false`` override: the operator has said this provider's
+    capabilities are not established here, so the stored record is not read
+    and the probe is not made. Probing it would spend money on a reading the
+    workspace was told to ignore.
+    """
+    if not settings.probed:
+        return None, "none", None
+    if probe:
+        record = _probe_record(settings)
+        if record is None:
+            return None, "none", None
+        error = _keep_probe_record(database_path, record)
+        return record, "live", error
+    record = _stored_probe_record(database_path, key)
+    if record is None:
+        return None, "none", None
+    return record, "stored", None
+
+
+def _probe_record(settings: ProviderSettings) -> ProbeRecord | None:
+    """Ask one endpoint what it can do, and return what it answered.
+
+    A probe that fails is reported as a capability that could not be observed
+    rather than as a crash: ``doctor`` is a diagnostic, and a diagnostic that
+    dies on the first thing it cannot read is not a diagnostic.
+    """
+    try:
+        from labcairn.providers.pydantic_models import probe_record as run_probe
+
+        return run_probe(settings)
+    except Exception:
+        return None
+
+
+def _stored_probe_record(database_path: Path | None, key: ProbeKey) -> ProbeRecord | None:
+    """The record the store keeps for this key, or ``None`` when it has none.
+
+    **A store that cannot be read is a store with nothing to say.** The
+    workspace's database may not exist, may not have been migrated past the
+    revision that adds this table, or may be unreadable; each of those means
+    the same thing to the reader — no record — and each is reported as
+    ``unverified`` rather than raised.
+    """
+    if database_path is None or not database_path.is_file():
+        return None
+    from labcairn.application.probe_records import SqliteProbeCache
+    from labcairn.db import create_db_engine, create_session_factory, session_scope
+
+    try:
+        engine = create_db_engine(database_path, readonly=True)
+        factory = create_session_factory(engine)
+        try:
+            with session_scope(factory) as session:
+                return SqliteProbeCache(session).get(
+                    endpoint_fingerprint=key.endpoint_fingerprint,
+                    model=key.model,
+                    protocol=key.protocol,
+                )
+        finally:
+            engine.dispose()
+    except Exception:
+        return None
+
+
+def _keep_probe_record(database_path: Path | None, record: ProbeRecord) -> str | None:
+    """Write the record into the store. The reason it could not be, or ``None``.
+
+    **A reading that could not be kept is reported, not hidden.** The probe
+    happened and cost money whatever the store does with it, so the operator
+    is told what was observed *and* that the product is not holding it.
+    """
+    if database_path is None or not database_path.is_file():
+        return "the workspace has no database to keep the probe record in"
+    from labcairn.application.probe_records import SqliteProbeCache
+    from labcairn.db import create_db_engine, create_session_factory, session_scope
+
+    engine = None
+    try:
+        engine = create_db_engine(database_path)
+        factory = create_session_factory(engine)
+        with session_scope(factory) as session:
+            SqliteProbeCache(session).put(record)
+    except Exception as error:
+        return f"the probe record could not be kept: {error}"
+    finally:
+        if engine is not None:
+            engine.dispose()
+    return None
 
 
 def _provider_settings(location: WorkspaceLocation) -> Mapping[str, ProviderSettings]:
@@ -745,65 +888,6 @@ def _provider_settings(location: WorkspaceLocation) -> Mapping[str, ProviderSett
         raise WorkspaceSetupError(f'{path} must hold a top-level "providers" object.')
     entries = raw["providers"]
     return {str(name): ProviderSettings.from_mapping(entry) for name, entry in entries.items()}
-
-
-def _probe_capabilities(
-    settings: ProviderSettings,
-    fingerprint: str,
-) -> ProviderCapabilities | None:
-    """Ask one endpoint what it can do.
-
-    A probe that fails is reported as a capability that could not be observed
-    rather than as a crash: ``doctor`` is a diagnostic, and a diagnostic that
-    dies on the first thing it cannot read is not a diagnostic.
-    """
-    from labcairn.providers.capabilities import Capability, CapabilityOutcome, ProviderCapabilities
-
-    try:
-        from labcairn.providers.pydantic_models import smoke_test
-
-        wire = smoke_test(settings)
-    except Exception:
-        return None
-
-    outcomes = wire.get("outcomes", {})
-    evidence = wire.get("evidence", {})
-    if not isinstance(outcomes, Mapping) or not isinstance(evidence, Mapping):
-        return None
-    try:
-        parsed_outcomes = {
-            Capability(str(capability)): CapabilityOutcome(str(outcome))
-            for capability, outcome in outcomes.items()
-        }
-    except ValueError:
-        return None
-    return ProviderCapabilities.from_outcomes(
-        endpoint_fingerprint=str(wire.get("endpoint_fingerprint", fingerprint)),
-        model=str(wire.get("model", settings.model)),
-        protocol=str(wire.get("protocol", settings.protocol_label)),
-        outcomes=parsed_outcomes,
-        unsupported_reason=_evidence_by_capability(evidence),
-    )
-
-
-def _evidence_by_capability(evidence: Mapping[Any, Any]) -> dict[Capability, str]:
-    """The probe's evidence, keyed by the capability it explains.
-
-    An entry whose key is not a capability this build knows is dropped rather
-    than guessed at: the reason is only meaningful against the capability it
-    was observed for, and a reason attached to the wrong one would be a claim
-    about something nobody measured.
-    """
-    from labcairn.providers.capabilities import Capability
-
-    reasons: dict[Capability, str] = {}
-    for key, value in evidence.items():
-        try:
-            capability = Capability(str(key))
-        except ValueError:
-            continue
-        reasons[capability] = str(value)
-    return reasons
 
 
 def _capability_findings(
@@ -2477,8 +2561,11 @@ def _real_suggestion_backend(
     """
     from labcairn.application.approvals import access_grants, register_access_grant
     from labcairn.application.model_suggestions import ModelSuggestionBackend
+    from labcairn.application.probe_records import SqliteProbeCache
 
-    transport = _suggestion_transport(settings, credential)
+    transport = _suggestion_transport(
+        settings, credential, probe_cache=SqliteProbeCache(context.store.session)
+    )
     if transport is None:
         return None
 
@@ -2591,7 +2678,11 @@ class _TransportSeam(Protocol):
         ...
 
 
-def _suggestion_transport(settings: Any, credential: Any) -> _TransportSeam | None:
+def _suggestion_transport(
+    settings: Any,
+    credential: Any,
+    probe_cache: ProbeCache | None = None,
+) -> _TransportSeam | None:
     """The gated transport one provider's settings build, or ``None``.
 
     The adapter is built with the same five gates every other real call
@@ -2605,8 +2696,22 @@ def _suggestion_transport(settings: Any, credential: Any) -> _TransportSeam | No
     **The loop's seam names a ``model_id``**, and the adapter names itself
     ``label:model``; the seam is what the loop reads and records, so the
     returned object carries that name, not the adapter's.
+
+    **The probe record is handed to the gate, not merely to the report.**
+    ADR-0002 wants a provider gated by what was measured against it, and the
+    measurement the product keeps is the one in the store — so the cache and
+    the key the record is filed under go to the adapter, which reads the
+    record when it is assembled and gates on that.
+
+    **A provider the configuration declares unprobed is gated as unprobed.**
+    The cache is not handed over for one, so the adapter finds no record and
+    the gate refuses it the way it refuses an endpoint nobody has asked.
+    Otherwise the product would contradict itself: the doctor would report
+    the provider as unverified while the gate held it to a reading the
+    operator has disowned.
     """
     from labcairn.providers.adapter import PydanticAiModelProvider
+    from labcairn.providers.probe import probe_key
     from labcairn.providers.pydantic_models import (
         build_http_client,
         build_model,
@@ -2627,6 +2732,12 @@ def _suggestion_transport(settings: Any, credential: Any) -> _TransportSeam | No
             redactor=credential_redactor(credential),
             timeout_s=settings.timeout_s,
             clock=lambda: 0.0,
+            probe_cache=probe_cache if settings.probed else None,
+            probe_key=probe_key(
+                base_url=settings.sanitised_base_url(),
+                model=settings.model,
+                protocol=settings.protocol_label,
+            ),
         )
         return _ProviderTransport(
             adapter,
@@ -3225,6 +3336,7 @@ def role_run_backend(context: ApplicationContext) -> RoleRunBackend | None:
     run, and the refusal would name the provider rather than the wiring
     that caused it.
     """
+    from labcairn.application.probe_records import SqliteProbeCache
     from labcairn.application.roles_run import RoleRunBackend
     from labcairn.providers.credentials import load_credential, load_providers_config
 
@@ -3245,7 +3357,9 @@ def role_run_backend(context: ApplicationContext) -> RoleRunBackend | None:
         credential = load_credential(settings)
     except Exception:
         return None
-    transport = _suggestion_transport(settings, credential)
+    transport = _suggestion_transport(
+        settings, credential, probe_cache=SqliteProbeCache(context.store.session)
+    )
     if transport is None:
         return None
     grant = _suggestion_grant(record)

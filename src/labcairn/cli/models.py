@@ -320,7 +320,29 @@ class CapabilityFinding(Result):
 
 
 class ProviderFinding(Result):
-    """One configured model provider, as ``doctor`` found it."""
+    """One configured model provider, as ``doctor`` found it.
+
+    **``probed`` says the capabilities were observed; ``probe_source`` says
+    where the observation came from.** The three sources are ``none`` (never
+    probed -- every capability is ``unverified``), ``live`` (this run asked
+    the endpoint) and ``stored`` (the reading was read back out of the
+    store's probe record). The distinction is reported rather than left
+    implicit: a reading the product keeps and a reading this run made are
+    different claims, and a report that said only "probed" would not say
+    which one a reader is looking at.
+
+    ``observed_at`` is when the probe that produced this reading ran, in UTC,
+    and it is ``None`` when there is no reading to put a time on.
+
+    ``probe_error`` says why the record could not be kept, when it could not
+    be: a reading the product does not hold is not the same claim as one it
+    does, and the report says which it is making.
+
+    ``probed_override`` says the provider's configuration declares it
+    unprobed — ADR-0002's ``probed: false`` override. The provider is then
+    reported as unverified whether or not the store holds a record for it,
+    and the report says the configuration is the reason.
+    """
 
     name: str
     protocol: str
@@ -328,6 +350,10 @@ class ProviderFinding(Result):
     endpoint_fingerprint: str
     probed: bool
     capabilities: tuple[CapabilityFinding, ...]
+    probe_source: str = "none"
+    observed_at: str | None = None
+    probe_error: str | None = None
+    probed_override: bool = False
 
 
 class ApiSessionFinding(Result):

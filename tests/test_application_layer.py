@@ -413,6 +413,14 @@ _ALLOWED_STORE_READERS = frozenset(
         # conditional UPDATE on the row. It is recorded here because a
         # module that reaches the store must be named.
         "labcairn.application.issues",
+        # ADR-0002's probe record. The store-backed implementation of the
+        # provider layer's ``ProbeCache``: one row per
+        # ``(endpoint, model, protocol)``, holding what a probe observed of
+        # one endpoint. It reaches the store for its own table and for
+        # nothing else -- no task state, no event, no approval -- so it is
+        # recorded here because a module that reaches the store must be
+        # named.
+        "labcairn.application.probe_records",
         # Phase 4 (P4-CAP §7.4). The round's quality checks read the closed
         # manifest, the opinions, the stored suggestions and the drafts'
         # digests, and report per-check facts; they write nothing. It is
