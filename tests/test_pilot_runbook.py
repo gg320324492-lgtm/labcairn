@@ -42,11 +42,20 @@ them.
 
 from __future__ import annotations
 
+import base64
+import json
 import re
+import subprocess
+import sys
+import threading
+from collections.abc import Mapping
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Final, get_args
+from typing import Any, Final, get_args
+from urllib.parse import urlparse
 
 import pytest
+from workbench_serve_support import run_cli, start_served_workbench
 
 from labcairn.application.issues import PILOT_ISSUE_CATEGORIES, PILOT_ISSUE_SEVERITIES
 
@@ -617,3 +626,892 @@ def test_the_plan_still_holds_twelve_steps_four_gates_and_three_decisions() -> N
     assert [int(n) for n in steps] == list(range(1, 13)), (
         "plan §9.2's flow must still number twelve steps"
     )
+
+
+# ---------------------------------------------------------------------------
+# The collector that fills the machine-answerable slots.
+# ---------------------------------------------------------------------------
+#
+# The skeleton says which kind of evidence fills each slot, and half of
+# those kinds are decidable by reading the service: the machinery is
+# built and witnessed, and the trial confirms it on the pilot paper.
+# ``scripts/pilot_gate_evidence.py`` is the tool that reads the service
+# and writes that half down, and this section holds it to its contract:
+#
+# * it reads the routes over HTTP, with the session token presented and
+#   never printed;
+# * it decides a slot whose condition holds, and a slot whose condition
+#   does not, and says which in the record;
+# * it leaves the slots the real trial alone decides exactly as they
+#   were;
+# * it writes no material into the record -- the canary is the witness.
+#
+# **The service it reads is a scripted one, built here.** The tool is a
+# console entry point and its contract with a caller is a process
+# boundary, so the witness runs it as a subprocess rather than calling
+# into it; a subprocess needs a real address, and a scripted service on
+# a port the operating system chose is one. The answers are the ones the
+# test writes down, so a condition can be made to hold and made not to
+# hold without a corpus.
+
+#: The tool that collects the machine-answerable half of the gates' evidence.
+COLLECTOR: Final = REPO_ROOT / "scripts" / "pilot_gate_evidence.py"
+
+#: A sentence the routes carry and the record must not. The witness writes
+#: it into every text field the routes answer with, and then looks for it.
+CANARY: Final = "CANARY-PILOT-PAPER-SENTENCE-MUST-NOT-REACH-THE-RECORD"
+
+#: The token the scripted service expects, and the one the workspace holds.
+TOKEN: Final = "canary-session-token-that-must-never-be-printed"
+
+#: The slots the skeleton says only the real trial can decide.
+TRIAL_ONLY_SLOTS: Final = ("G1-2", "G1-3", "G1-4", "G4-1", "G4-3", "G4-4", "G4-5")
+
+#: The digests the closed binding binds and the export answers with.
+MARKED_DIGEST: Final = "a" * 64
+CLEAN_DIGEST: Final = "b" * 64
+TABLE_DIGEST: Final = "c" * 64
+QUALITY_DIGEST: Final = "d" * 64
+SOURCE_DIGEST: Final = "e" * 64
+
+#: The ids the closed binding binds.
+TASK_ID: Final = "task-00000000-0000-7000-8000-000000000001"
+PROJECT_ID: Final = "prj-00000000-0000-7000-8000-000000000002"
+INPUT_VERSION_ID: Final = "ver-00000000-0000-7000-8000-000000000003"
+OUTPUT_VERSION_ID: Final = "ver-00000000-0000-7000-8000-000000000004"
+DOSSIER_ID: Final = "art-00000000-0000-7000-8000-000000000005"
+CLEAN_RECEIPT_ID: Final = "art-00000000-0000-7000-8000-000000000006"
+EDGE_ID: Final = "edg-00000000-0000-7000-8000-000000000007"
+
+
+def _the_answers(
+    *,
+    manifest_marked: str = MARKED_DIGEST,
+    export_marked: str = MARKED_DIGEST,
+) -> dict[str, Any]:
+    """The routes' answers, for a workspace where the conditions hold.
+
+    Every text field the routes answer with carries the canary, so a
+    record that copied a payload rather than projecting it would be
+    caught by the very first assertion that reads the record.
+
+    **The two digests are separate arguments on purpose.** The binding
+    is what the manifest records and the export is what the service
+    answers with, and the condition the gate states is that they are
+    equal; a witness that could only make them equal would never test
+    the equality.
+    """
+    manifest: dict[str, Any] = {
+        "task_id": TASK_ID,
+        "project_id": PROJECT_ID,
+        "input_version_id": INPUT_VERSION_ID,
+        "output_version_id": OUTPUT_VERSION_ID,
+        "marked_receipt_id": DOSSIER_ID,
+        "marked_sha256": manifest_marked,
+        "clean_receipt_id": CLEAN_RECEIPT_ID,
+        "clean_sha256": CLEAN_DIGEST,
+        "edge_id": EDGE_ID,
+        "opinions": [
+            {
+                "feedback_id": "fbk-1",
+                "location_state": "located",
+                "anchor_status": "anchored",
+                "anchor_paragraph": 3,
+                "comment_text": CANARY,
+            }
+        ],
+        "suggestions": [{"feedback_id": "fbk-1", "paragraph": 3, "author": "model"}],
+        "decisions": [
+            {
+                "feedback_id": "fbk-1",
+                "verdict": "accepted",
+                "operator": "advisor",
+                "needs_evidence": False,
+                "comment_text": CANARY,
+            }
+        ],
+        "responses": [
+            {
+                "response_link_id": "rsp-1",
+                "feedback_id": "fbk-1",
+                "edit_action_id": "edt-1",
+                "state": "applied",
+            }
+        ],
+        "unresolved": [{"feedback_id": "fbk-2", "reason": "needs_evidence", "detail": CANARY}],
+        "handovers": [
+            {"feedback_id": "fbk-3", "reason": "handover", "detail": CANARY, "handover": CANARY}
+        ],
+        "closed_at": "2026-11-25T09:00:00+00:00",
+    }
+    health = {
+        "status": "ok",
+        "host": "127.0.0.1",
+        "port": 8000,
+        "origins": ["http://127.0.0.1:8000"],
+        "task_id": TASK_ID,
+    }
+    return {
+        "/health": health,
+        "/task": {
+            "task": {"task_id": TASK_ID, "title": CANARY, "goal": CANARY},
+            "runs": [
+                {
+                    "run_id": "run-1",
+                    "task_id": TASK_ID,
+                    "status": "succeeded",
+                    "attempt": 1,
+                    "started_at": "2026-11-25T08:00:00+00:00",
+                    "finished_at": "2026-11-25T08:30:00+00:00",
+                }
+            ],
+            "stages": [
+                {
+                    "stage_id": "stg-1",
+                    "name": CANARY,
+                    "status": "succeeded",
+                    "input_hashes": [],
+                    "output_hashes": [],
+                }
+            ],
+            "artifacts": [],
+            "approvals": [
+                {
+                    "approval_id": "apr-1",
+                    "capability": "paper.modify",
+                    "state": "consumed",
+                    "expires_at": "2026-11-25T10:00:00+00:00",
+                }
+            ],
+            "last_event_seq": 12,
+        },
+        "/artifacts": [
+            {
+                "receipt": {
+                    "schema_version": 1,
+                    "receipt_id": DOSSIER_ID,
+                    "task_id": TASK_ID,
+                    "kind": "manifest",
+                    "relative_path": "output/dossier.json",
+                    "content_sha256": SOURCE_DIGEST,
+                    "size_bytes": 2048,
+                    "revision": 1,
+                    "produced_by": "operator",
+                    "producer_id": "operator",
+                    "derived_from": [],
+                    "staleness": "current",
+                    "created_at": "2026-11-25T08:45:00+00:00",
+                },
+                "resource_key": "output/dossier.json",
+            }
+        ],
+        f"/artifacts/{DOSSIER_ID}/content": manifest,
+        "/events": {
+            "task_id": TASK_ID,
+            "events": [
+                {
+                    "event_id": "evt-1",
+                    "seq": 1,
+                    "task_id": TASK_ID,
+                    "type": "stage.transition",
+                    "transition": "succeeded",
+                    "occurred_at": "2026-11-25T08:30:00+00:00",
+                    "payload": {"detail": CANARY},
+                }
+            ],
+            "next_after_seq": 2,
+            "caught_up": True,
+        },
+        "/trajectory": {
+            "comments": [
+                {
+                    "feedback_id": "fbk-1",
+                    "issue_key": "k1",
+                    "version_id": INPUT_VERSION_ID,
+                    "comment_text": CANARY,
+                    "anchor_text": CANARY,
+                    "anchor_status": "anchored",
+                    "anchor_reason": CANARY,
+                }
+            ],
+            "edits": [
+                {
+                    "edit_action_id": "edt-1",
+                    "feedback_id": "fbk-1",
+                    "version_edge_id": EDGE_ID,
+                    "actor_kind": "model",
+                    "grade": "accepted",
+                }
+            ],
+            "responses": [{"feedback_id": "fbk-1", "states": ["applied"]}],
+        },
+        "/trajectory/graph": {
+            "version_ids": [INPUT_VERSION_ID, OUTPUT_VERSION_ID],
+            "edges": [
+                {
+                    "edge_id": EDGE_ID,
+                    "parent_version_id": INPUT_VERSION_ID,
+                    "child_version_id": OUTPUT_VERSION_ID,
+                }
+            ],
+        },
+        "/guidance/rules": [
+            {
+                "rule_id": "rul-1",
+                "version": 2,
+                "issue_type": "clarity",
+                "statement": CANARY,
+                "context": CANARY,
+                "scope": "group",
+                "example": CANARY,
+                "state": "confirmed",
+                "proposed_by": "advisor",
+                "proposed_at": "2026-11-20T08:00:00+00:00",
+                "confirmed_by": "advisor",
+                "confirmed_at": "2026-11-21T08:00:00+00:00",
+                "resolution_reason": None,
+                "sources": ["mat-1"],
+                "counterexamples": [],
+                "checks": [],
+                "shared_scope": "group",
+                "published_by": "advisor",
+                "published_at": "2026-11-22T08:00:00+00:00",
+            }
+        ],
+        "/guidance/usable": [
+            {
+                "rule_id": "rul-1",
+                "version": 2,
+                "name": CANARY,
+                "summary": CANARY,
+                "scope": "group",
+                "state": "confirmed",
+                "sources": ["mat-1"],
+                "confirmed_by": "advisor",
+                "confirmed_at": "2026-11-21T08:00:00+00:00",
+            }
+        ],
+        "/trajectory/search": [
+            {
+                "trajectory_id": "trj-1",
+                "project_id": PROJECT_ID,
+                "entry_kind": "comment",
+                "feedback_id": "fbk-1",
+                "version_id": INPUT_VERSION_ID,
+                "issue_key": "k1",
+                "comment_text": CANARY,
+                "anchor_text": CANARY,
+                "change_text": CANARY,
+                "text_digest": SOURCE_DIGEST,
+                "source_version_id": INPUT_VERSION_ID,
+                "source_locator": "p3",
+                "source_sha256": SOURCE_DIGEST,
+                "ingested_at": "2026-11-22T08:00:00+00:00",
+            }
+        ],
+        "/ppt/search": [
+            {
+                "object_id": "obj-1",
+                "project_id": PROJECT_ID,
+                "source_sha256": SOURCE_DIGEST,
+                "slide_no": 4,
+                "object_position": 2,
+                "object_kind": "text",
+                "object_fingerprint": "fp-1",
+                "text": CANARY,
+                "media_target": CANARY,
+                "locator_json": CANARY,
+                "ingested_at": "2026-11-22T08:00:00+00:00",
+            }
+        ],
+        "/meeting/search": [
+            {
+                "record_id": "rec-1",
+                "project_id": PROJECT_ID,
+                "source_sha256": SOURCE_DIGEST,
+                "record_format": "paragraph",
+                "record_index": 2,
+                "timestamp_label": None,
+                "record_fingerprint": "fp-2",
+                "text": CANARY,
+                "locator_json": CANARY,
+                "ingested_at": "2026-11-22T08:00:00+00:00",
+            }
+        ],
+        "/review/opinions": {
+            "project_id": PROJECT_ID,
+            "version_id": OUTPUT_VERSION_ID,
+            "opinions": [
+                {
+                    "feedback_id": "fbk-1",
+                    "issue_key": "k1",
+                    "version_id": OUTPUT_VERSION_ID,
+                    "comment_text": CANARY,
+                    "anchor_status": "anchored",
+                    "anchor_reason": CANARY,
+                    "suggestion": CANARY,
+                    "decision": CANARY,
+                }
+            ],
+        },
+        "/review/deliverables": {
+            "project_id": PROJECT_ID,
+            "dossier_artifact_id": DOSSIER_ID,
+            "task_id": TASK_ID,
+            "input_version_id": INPUT_VERSION_ID,
+            "output_version_id": OUTPUT_VERSION_ID,
+            "marked_receipt_id": DOSSIER_ID,
+            "clean_receipt_id": CLEAN_RECEIPT_ID,
+            "edge_id": EDGE_ID,
+            "deliverables": [
+                {
+                    "kind": "marked",
+                    "relative_path": "output/marked.docx",
+                    "content_base64": base64.b64encode(CANARY.encode("utf-8")).decode("ascii"),
+                    "sha256": export_marked,
+                    "size_bytes": 64,
+                },
+                {
+                    "kind": "clean",
+                    "relative_path": "output/clean.docx",
+                    "content_base64": base64.b64encode(CANARY.encode("utf-8")).decode("ascii"),
+                    "sha256": CLEAN_DIGEST,
+                    "size_bytes": 64,
+                },
+                {
+                    "kind": "response_table",
+                    "relative_path": "output/response_table.md",
+                    "content_base64": base64.b64encode(CANARY.encode("utf-8")).decode("ascii"),
+                    "sha256": TABLE_DIGEST,
+                    "size_bytes": 64,
+                },
+                {
+                    "kind": "quality_report",
+                    "relative_path": "output/quality_report.md",
+                    "content_base64": base64.b64encode(CANARY.encode("utf-8")).decode("ascii"),
+                    "sha256": QUALITY_DIGEST,
+                    "size_bytes": 64,
+                },
+            ],
+        },
+        "/review/quality": {
+            "project_id": PROJECT_ID,
+            "input_version_id": INPUT_VERSION_ID,
+            "output_version_id": OUTPUT_VERSION_ID,
+            "dossier_artifact_id": DOSSIER_ID,
+            "checks": [
+                {
+                    "check": name,
+                    "passed": True,
+                    "facts": [
+                        {
+                            "check": name,
+                            "detail": CANARY,
+                            "feedback_id": "fbk-1",
+                            "paragraph": 3,
+                            "expected": CANARY,
+                            "actual": CANARY,
+                        }
+                    ],
+                }
+                for name in (
+                    "opinion_coverage",
+                    "suggestion_correspondence",
+                    "edit_scope",
+                    "evidence_complete",
+                    "response_table_consistency",
+                    "report_binding",
+                )
+            ],
+        },
+    }
+
+
+class _ScriptedService:
+    """A service whose answers the test writes down.
+
+    **A socket, not a stub.** The tool is run as a subprocess, so it
+    needs a real address to talk to, and this is one. Every request it
+    received is recorded, so the witness can say what the collector asked
+    for and whether it presented the token.
+    """
+
+    def __init__(self, answers: Mapping[str, Any]) -> None:
+        self._answers = dict(answers)
+        self.requests: list[dict[str, Any]] = []
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    @property
+    def origin(self) -> str:
+        """The address the service answers on."""
+        address = self._server.server_address
+        assert isinstance(address, tuple), "the server bound a socket address"
+        raw_host, port = address[0], address[1]
+        host = raw_host.decode("utf-8") if isinstance(raw_host, bytes) else raw_host
+        return f"http://{host}:{port}"
+
+    def stop(self) -> None:
+        """Stop answering."""
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=10)
+
+    def _handler(self) -> type[BaseHTTPRequestHandler]:
+        answers = self._answers
+        requests = self.requests
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, format: str, *args: Any) -> None:
+                """The service says nothing; the test reads what it was asked."""
+
+            def _answer(self) -> None:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length:
+                    self.rfile.read(length)
+                path = urlparse(self.path).path
+                requests.append(
+                    {
+                        "method": self.command,
+                        "path": path,
+                        "presented_the_token": (
+                            self.headers.get("Authorization") == f"Bearer {TOKEN}"
+                        ),
+                    }
+                )
+                answer = answers.get(path)
+                if answer is None:
+                    body = json.dumps({"reason": "not_found"}).encode("utf-8")
+                    self.send_response(404)
+                else:
+                    body = json.dumps(answer).encode("utf-8")
+                    self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            # The names are the base class's, and the base class's own.
+            do_GET = _answer  # noqa: N815
+            do_POST = _answer  # noqa: N815
+
+        return Handler
+
+
+def _a_workspace(root: Path) -> Path:
+    """A workspace holding a session token, as the service writes one."""
+    (root / ".labcairn").mkdir(parents=True, exist_ok=True)
+    (root / ".labcairn" / "session-token").write_text(f"{TOKEN}\n", encoding="utf-8")
+    return root
+
+
+def _a_skeleton(root: Path) -> Path:
+    """A copy of the real skeleton, so the test writes to a copy."""
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / "skeleton.md"
+    target.write_text(_skeleton(), encoding="utf-8")
+    return target
+
+
+def _run_collector(
+    workspace: Path,
+    origin: str,
+    skeleton: Path,
+    record: Path,
+    *extra: str,
+) -> subprocess.CompletedProcess[str]:
+    """The collector, run as an operator runs it.
+
+    **A subprocess, deliberately.** The tool is a console entry point and
+    its exit status is part of what a caller's script reads, so the
+    witness watches the process boundary rather than a call.
+    """
+    return subprocess.run(
+        [
+            sys.executable,
+            str(COLLECTOR),
+            "--workspace",
+            str(workspace),
+            "--base-url",
+            origin,
+            "--skeleton",
+            str(skeleton),
+            "--record",
+            str(record),
+            *extra,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(workspace),
+    )
+
+
+def _slots(record: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """The record's slots, by their id."""
+    return {str(slot["slot"]): dict(slot) for slot in record["slots"]}
+
+
+def _row(text: str, slot: str) -> str:
+    """The skeleton's row for one slot, as the text holds it."""
+    for line in text.splitlines():
+        if line.startswith(f"| {slot} |"):
+            return line
+    raise AssertionError(f"the skeleton holds no row for {slot}")
+
+
+def _status_of(row: str) -> str:
+    """The status cell of one row, as the table holds it."""
+    cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
+    assert len(cells) == 6, f"the row has {len(cells)} cells, not six: {row}"
+    return cells[5]
+
+
+def test_the_collector_reads_the_service_and_writes_a_self_checking_record(
+    tmp_path: Path,
+) -> None:
+    """The record says what was read, where it was read, and what it concluded.
+
+    A record that holds a verdict and nothing else is a claim; a record
+    that holds the route, the ids, the digests and the counts beside the
+    verdict is a measurement somebody else can check.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        assert record["schema"] == "labcairn.pilot-gate-evidence/1"
+        assert record["command"], "the record names the command that produced it"
+        assert record["collected_at"], "the record says when it was collected"
+        assert record["reads"], "the record names the routes it read"
+        slots = _slots(record)
+        assert slots["G2-2"]["verdict"] == "PASS"
+        assert slots["G2-2"]["read_from"], "a decided slot names the routes it was read from"
+        assert slots["G2-2"]["evidence"]["digests"], "a decided slot carries the evidence it read"
+        assert "GET /review/deliverables" in slots["G2-2"]["read_from"]
+    finally:
+        service.stop()
+
+
+def test_the_collector_reports_a_verdict_for_a_condition_that_holds_and_for_one_that_does_not(
+    tmp_path: Path,
+) -> None:
+    """A condition that holds reads PASS, and one that does not reads FAIL.
+
+    **Both halves, because a witness that only ever sees green proves
+    nothing.** A tool that answered PASS to everything would satisfy a
+    test that only checked for PASS.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        holding = _slots(json.loads(record_path.read_text(encoding="utf-8")))
+        assert holding["G2-2"]["verdict"] == "PASS", (
+            f"the digests match, so the slot must read PASS: {holding['G2-2']['reason']}"
+        )
+    finally:
+        service.stop()
+
+    drifted = _ScriptedService(_the_answers(export_marked="f" * 64))
+    try:
+        workspace = _a_workspace(tmp_path / "workspace-2")
+        skeleton = _a_skeleton(tmp_path / "drifted")
+        record_path = tmp_path / "drifted.json"
+        result = _run_collector(
+            workspace, drifted.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        failing = _slots(json.loads(record_path.read_text(encoding="utf-8")))
+        assert failing["G2-2"]["verdict"] == "FAIL", (
+            "the export's digest does not equal the manifest's, so the slot must "
+            f"read FAIL: {failing['G2-2']['reason']}"
+        )
+    finally:
+        drifted.stop()
+
+
+def test_the_collector_leaves_the_slots_the_real_trial_decides_exactly_as_they_were(
+    tmp_path: Path,
+) -> None:
+    """A slot the real trial alone decides is not the tool's to fill.
+
+    The skeleton marks those slots **real trial only**, and the
+    evidence is a person's observation of the workbench. A tool that
+    filled one of them would be writing a verdict it has no evidence
+    for, and the skeleton's own header says no verdict is written before
+    its evidence exists.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        before = skeleton.read_text(encoding="utf-8")
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        after = skeleton.read_text(encoding="utf-8")
+        slots = _slots(json.loads(record_path.read_text(encoding="utf-8")))
+        for slot in TRIAL_ONLY_SLOTS:
+            assert slots[slot]["verdict"] == "NOT_ADDRESSED", (
+                f"{slot} is the real trial's to decide, and the tool must say so"
+            )
+            assert slots[slot]["reason"], f"{slot} carries the reason it was left alone"
+            assert _row(before, slot) == _row(after, slot), (
+                f"{slot}'s row must not move: the trial decides it"
+            )
+    finally:
+        service.stop()
+
+
+def test_the_collector_leaves_a_slot_pending_when_nothing_was_exercised(
+    tmp_path: Path,
+) -> None:
+    """A slot the workspace could not exercise stays PENDING, with a reason.
+
+    The record's verdict is about the machine-checkable part; a
+    condition that was never exercised is not a condition that failed,
+    and a slot that was not measured must not read as if it had been.
+    """
+    service = _ScriptedService({"/health": {"status": "ok", "task_id": TASK_ID}})
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        slots = _slots(json.loads(record_path.read_text(encoding="utf-8")))
+        assert slots["G2-2"]["verdict"] == "UNKNOWN"
+        assert slots["G2-2"]["reason"], "an unexercised slot carries the reason it was not measured"
+        row = _row(skeleton.read_text(encoding="utf-8"), "G2-2")
+        assert _status_of(row).startswith("PENDING"), f"an unexercised slot stays PENDING: {row}"
+    finally:
+        service.stop()
+
+
+def test_the_collector_writes_no_material_and_no_token_into_the_record(
+    tmp_path: Path,
+) -> None:
+    """The record holds ids, digests, counts and timestamps -- and nothing else.
+
+    **The canary is in every text field the routes answer with.** The
+    comment body, the rule's statement, the deck's text, the meeting's
+    text, the deliverable's bytes, the task's title and the reviewer's
+    own words all carry it, and none of them may reach the record -- in
+    the record, in the record's base64, or on the terminal.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        text = record_path.read_text(encoding="utf-8")
+        assert CANARY not in text, "the record carries the material the routes answered with"
+        assert base64.b64encode(CANARY.encode("utf-8")).decode("ascii") not in text, (
+            "the record carries the deliverable's bytes"
+        )
+        assert TOKEN not in text, "the record carries the session token"
+        assert CANARY not in result.stdout, "the terminal carries the material"
+        assert TOKEN not in result.stdout, "the terminal carries the session token"
+        assert TOKEN not in result.stderr, "the terminal carries the session token"
+    finally:
+        service.stop()
+
+
+def test_the_collector_presents_the_token_it_reads_from_the_workspace(
+    tmp_path: Path,
+) -> None:
+    """The token is read from the workspace and presented, and nowhere else.
+
+    The service's own guard asks for the token on every method that is
+    not a read, so ``POST /task/select`` is the one call that must
+    carry it; and the runbook says the token is read from the workspace
+    and never shared in chat, so the record and the terminal must not
+    carry it either.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        mutations = [request for request in service.requests if request["method"] != "GET"]
+        assert mutations, "the collector asked for no mutation at all"
+        assert all(request["presented_the_token"] for request in mutations), (
+            "a mutation without the token would be refused by the service"
+        )
+    finally:
+        service.stop()
+
+
+def test_the_dry_run_writes_nothing(tmp_path: Path) -> None:
+    """A dry run connects, reads and reports, and leaves the tree alone.
+
+    The preview is the point: an operator reads what the run would
+    decide before anything is written, and a dry run that wrote the
+    record would take that choice away.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        before = skeleton.read_text(encoding="utf-8")
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--dry-run", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        assert not record_path.exists(), "a dry run wrote the record"
+        assert skeleton.read_text(encoding="utf-8") == before, "a dry run moved the skeleton"
+        assert "G2-2: PASS" in result.stdout, "the dry run reports what it would decide"
+    finally:
+        service.stop()
+
+
+def test_the_skeletons_status_column_is_rendered_from_the_record(tmp_path: Path) -> None:
+    """Each slot's cell says what the record measured, and no more.
+
+    A slot whose condition only the machinery can decide carries its
+    verdict. A slot whose condition also needs the trial's confirmation
+    stays PENDING and says what was measured. A slot the trial alone
+    decides is untouched.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        text = skeleton.read_text(encoding="utf-8")
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        for slot in _slots(record).values():
+            row = _row(text, str(slot["slot"]))
+            assert str(slot["status_after_this_run"]) in row, (
+                f"{slot['slot']}'s cell must be what the record says it is: {row}"
+            )
+        assert _status_of(_row(text, "G3-4")).startswith("PASS"), (
+            "a slot the machinery alone decides carries its verdict: " + _row(text, "G3-4")
+        )
+        assert _status_of(_row(text, "G1-2")) == "PENDING", (
+            "a slot the trial alone decides keeps its PENDING: " + _row(text, "G1-2")
+        )
+        assert _status_of(_row(text, "G2-2")).startswith("PENDING"), (
+            "a slot the trial must confirm keeps its PENDING: " + _row(text, "G2-2")
+        )
+    finally:
+        service.stop()
+
+
+def test_the_collector_reads_the_skeleton_rather_than_guessing_its_slots(
+    tmp_path: Path,
+) -> None:
+    """A slot the tool has no checker for is named, not quietly ignored.
+
+    The tool's own table of slots and the skeleton's table of slots are
+    two different lists, and they can drift. A row the tool does not
+    recognise must appear in the record as unaddressed, so a reader can
+    see that nothing was measured for it.
+    """
+    service = _ScriptedService(_the_answers())
+    try:
+        workspace = _a_workspace(tmp_path / "workspace")
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        names = {str(slot["slot"]) for slot in record["slots"]}
+        assert names == {str(slot["slot"]) for slot in record["slots"]}, (
+            "the record names each slot once"
+        )
+        rows = re.findall(r"^\| (G\d-\d) \|", _skeleton(), re.MULTILINE)
+        assert names == set(rows), (
+            "the record must hold every row the skeleton holds, and no row it does not"
+        )
+    finally:
+        service.stop()
+
+
+def test_the_collector_reaches_the_products_own_service(tmp_path: Path) -> None:
+    """The routes the collector calls are the product's own routes.
+
+    **A scripted service proves the collector's protocol; only the
+    product proves the routes.** The collector's route set, its query
+    parameters and its request body were written by reading the source,
+    and a route that had moved, a parameter that had been renamed or a
+    body that had changed shape would be answered by the scripted
+    service exactly as it answers everything else. The service the
+    runbook starts is the one that would refuse -- and it refuses
+    ``POST /task/select`` outright when the token is not presented.
+    """
+    workspace = tmp_path / "workspace"
+    made = run_cli("--workspace", str(workspace), "init")
+    assert made.returncode == 0, f"labcairn init refused: {made.stderr}"
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        CANARY,
+        "--objective",
+        CANARY,
+        "--criterion",
+        CANARY,
+        "--json",
+    )
+    assert created.returncode == 0, f"labcairn task create refused: {created.stderr}"
+    service = start_served_workbench(workspace=workspace)
+    try:
+        skeleton = _a_skeleton(tmp_path)
+        record_path = tmp_path / "record.json"
+        result = _run_collector(
+            workspace, service.origin, skeleton, record_path, "--apply", "--query", "paper"
+        )
+        assert result.returncode == 0, f"the collector refused: {result.stderr}"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        reads = {str(read["route"]): read for read in record["reads"]}
+        assert reads["GET /health"]["outcome"] == "ok", "the service must answer the health route"
+        assert reads["POST /task/select"]["outcome"] == "ok", (
+            "the service must accept the task selection the collector sends, "
+            "which it does only when the token is presented"
+        )
+        unreachable = [
+            str(read["route"]) for read in record["reads"] if read["outcome"] == "unreachable"
+        ]
+        assert not unreachable, f"the service could not answer {unreachable}"
+        text = record_path.read_text(encoding="utf-8")
+        assert service.session_token() not in text, "the record carries the session token"
+        assert CANARY not in text, "the record carries the task's own words"
+    finally:
+        service.stop()

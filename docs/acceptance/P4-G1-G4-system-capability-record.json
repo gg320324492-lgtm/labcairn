@@ -1,0 +1,318 @@
+{
+  "schema": "labcairn.pilot-gate-evidence/1",
+  "tool": "scripts/pilot_gate_evidence.py",
+  "command": "python scripts/pilot_gate_evidence.py --workspace E:\\labcairn-local\\tmp\\win-b-evidence\\fixture-workspace --base-url http://127.0.0.1:57338 --apply --query 'paper' --note \"A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule. It is not the pilot paper's workspace, and the pilot's confirmation of every capability below is still outstanding.\"",
+  "collected_at": "2026-11-25T02:01:03.378703+00:00",
+  "service": {
+    "base_url": "http://127.0.0.1:57338"
+  },
+  "workspace": {
+    "root": "E:\\labcairn-local\\tmp\\win-b-evidence\\fixture-workspace",
+    "session_token_present": true,
+    "note": "A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule. It is not the pilot paper's workspace, and the pilot's confirmation of every capability below is still outstanding."
+  },
+  "queries": [
+    "paper"
+  ],
+  "reads": [
+    {
+      "route": "GET /health",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "POST /task/select",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /task",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /events",
+      "outcome": "refused",
+      "status": 403,
+      "refusal": "not_implemented"
+    },
+    {
+      "route": "GET /artifacts",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /trajectory/search",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /ppt/search",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /meeting/search",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /guidance/rules",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /guidance/usable",
+      "outcome": "ok",
+      "status": 200
+    }
+  ],
+  "slots": [
+    {
+      "slot": "G1-1",
+      "condition": "Task entry through to the delivery centre, in one workspace",
+      "coverage_kind": "System capability, **confirmed on real data by the trial**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "reason": "the workspace holds no closed binding, so the path from task entry to the delivery centre was not walked",
+      "evidence": {
+        "task_id": "01a2106f-42c3-7a44-a279-800658a1ec32",
+        "task_selected": true,
+        "run_count": 0,
+        "stage_count": 0,
+        "artifact_count": 0,
+        "approval_count": 0,
+        "event_count": null
+      },
+      "read_from": [
+        "GET /health",
+        "POST /task/select",
+        "GET /task",
+        "GET /events",
+        "GET /artifacts"
+      ],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so the path from task entry to the delivery centre was not walked (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G1-2",
+      "condition": "Three-column layout and opinion location work on real data",
+      "coverage_kind": "**Real trial only** (usability on the pilot paper)",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G1-3",
+      "condition": "Task stages and manuscript changes give evident, comprehensible feedback",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G1-4",
+      "condition": "Approval, preview, failure and retry states are correctly understood by users",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G2-1",
+      "condition": "A real desensitised paper completes the full revision loop",
+      "coverage_kind": "System capability (apply/publish binding, witnessed in code), **confirmed end-to-end on the pilot paper by the trial**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "reason": "the workspace holds no closed binding, so there is no trace to walk",
+      "evidence": {},
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so there is no trace to walk (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G2-2",
+      "condition": "Four deliverables generated and consistently bound",
+      "coverage_kind": "System capability (manifest-bound export, digest-checked), **confirmed on the pilot paper**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "reason": "the workspace holds no closed binding, so there are no deliverables to bind",
+      "evidence": {},
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so there are no deliverables to bind (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G2-3",
+      "condition": "One real model generates suggestions within the authorised scope",
+      "coverage_kind": "System capability (authorisation gate, per-opinion consent), **executed on the pilot paper**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "reason": "no read-only route publishes a suggestion run's account -- the mode, model id, request count, token estimate, duration and stop reason are returned by POST /review/suggest and held in the model_suggestion_runs row, and nothing reads them back",
+      "evidence": {},
+      "read_from": [],
+      "status_after_this_run": "PENDING \u2014 no read-only route publishes a suggestion run's account -- the mode, model id, request count, token estimate, duration and stop reason are returned by POST /review/suggest and held in the model_suggestion_runs row, and nothing reads them back (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G2-4",
+      "condition": "Preview, per-item approval, apply, publish, retry and recovery pass",
+      "coverage_kind": "System capability (witnessed), **confirmed on the pilot paper**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "reason": "the workspace holds no closed binding, so no preview, decision or apply was recorded",
+      "evidence": {},
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so no preview, decision or apply was recorded (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G2-5",
+      "condition": "Key refusal paths and evidence checks pass",
+      "coverage_kind": "System capability, **re-confirmed on the pilot deployment**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "reason": "the workspace holds no closed binding, so there is no deliverable whose digest could be checked",
+      "evidence": {},
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so there is no deliverable whose digest could be checked (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G3-1",
+      "condition": "Paper/revision trajectory, PPT and meeting text are retrievable by source",
+      "coverage_kind": "System capability (the three search surfaces), **confirmed with the pilot's real sources**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "reason": "the trajectory, deck, meeting surface(s) answered with no hit for the query, so the retrieval was not exercised there",
+      "evidence": {
+        "trajectory_hit_count": 0,
+        "deck_hit_count": 0,
+        "meeting_hit_count": 0
+      },
+      "read_from": [
+        "GET /trajectory/search",
+        "GET /ppt/search",
+        "GET /meeting/search"
+      ],
+      "status_after_this_run": "PENDING \u2014 the trajectory, deck, meeting surface(s) answered with no hit for the query, so the retrieval was not exercised there (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G3-2",
+      "condition": "The two-layer structure (raw material \u2192 guidance rules) is traceable",
+      "coverage_kind": "System capability",
+      "coverage": "capability-only",
+      "verdict": "UNKNOWN",
+      "reason": "the memory holds no rule, so the link from a raw source through a distilled rule to the rule's record was not walked",
+      "evidence": {
+        "rule_count": 0
+      },
+      "read_from": [
+        "GET /guidance/rules"
+      ],
+      "status_after_this_run": "PENDING \u2014 the memory holds no rule, so the link from a raw source through a distilled rule to the rule's record was not walked (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G3-3",
+      "condition": "Advisor-confirmed rules are callable by other projects",
+      "coverage_kind": "System capability",
+      "coverage": "capability-only",
+      "verdict": "UNKNOWN",
+      "reason": "the memory holds no confirmed rule, so no advisor confirmation was exercised",
+      "evidence": {
+        "rule_count": 0,
+        "confirmed_rule_count": 0
+      },
+      "read_from": [
+        "GET /guidance/rules"
+      ],
+      "status_after_this_run": "PENDING \u2014 the memory holds no confirmed rule, so no advisor confirmation was exercised (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G3-4",
+      "condition": "Unconfirmed relations cannot become guidance rules directly",
+      "coverage_kind": "System capability (witnessed)",
+      "coverage": "capability-only",
+      "verdict": "UNKNOWN",
+      "reason": "no rule is served to a card, so the listing was not exercised",
+      "evidence": {
+        "rule_count": 0,
+        "usable_rule_count": 0,
+        "usable_states": {}
+      },
+      "read_from": [
+        "GET /guidance/rules",
+        "GET /guidance/usable"
+      ],
+      "status_after_this_run": "PENDING \u2014 no rule is served to a card, so the listing was not exercised (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G4-1",
+      "condition": "3\u20135 members completed the first trial round",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G4-2",
+      "condition": "One paper completed the full loop",
+      "coverage_kind": "Shared with G2-1",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "reason": "the workspace holds no closed binding, so there is no trace to walk",
+      "evidence": {},
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so there is no trace to walk (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G4-3",
+      "condition": "Efficiency, quality and traceability data recorded",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G4-4",
+      "condition": "Blocker issues are fixed, or explicitly block wider trial",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G4-5",
+      "condition": "Serious issues have an owner, a fix version and a regression record",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "status_after_this_run": "PENDING"
+    }
+  ]
+}
