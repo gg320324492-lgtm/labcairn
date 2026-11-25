@@ -753,6 +753,8 @@ def _the_answers(
     }
     return {
         "/health": health,
+        # The selection answers with the binding, which is the health shape.
+        "/task/select": health,
         "/task": {
             "task": {"task_id": TASK_ID, "title": CANARY, "goal": CANARY},
             "runs": [
@@ -1197,7 +1199,12 @@ def test_the_collector_reads_the_service_and_writes_a_self_checking_record(
         assert slots["G2-2"]["verdict"] == "PASS"
         assert slots["G2-2"]["read_from"], "a decided slot names the routes it was read from"
         assert slots["G2-2"]["evidence"]["digests"], "a decided slot carries the evidence it read"
+        assert slots["G2-2"]["evidence"]["project_id"] == PROJECT_ID, (
+            "a decided slot names the round it was measured on"
+        )
         assert "GET /review/deliverables" in slots["G2-2"]["read_from"]
+        refused = [str(read["route"]) for read in record["reads"] if read["outcome"] != "ok"]
+        assert not refused, f"the collector asked for routes the service does not serve: {refused}"
     finally:
         service.stop()
 

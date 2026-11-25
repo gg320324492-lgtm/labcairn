@@ -22,6 +22,18 @@ in the record is projected through an explicit allow-list rather than
 copied out of a route payload, so a route that grows a new field cannot
 leak into the record by accident.
 
+**Which round the tool is looking at.** The paper round's project id
+comes from the **closed binding's own dossier manifest**, which is the
+record that names the project, the task and the two versions. No route
+lists the workspace's paper projects: the application layer's
+``list_paper_projects`` exists and nothing exposes it, so a workspace
+that holds no closed binding gives the tool no project id at all.
+**The tool does not add that route** -- doing so is another piece of
+work, and a tool that guessed which round it was reading would be
+reading the wrong evidence. It says so in the record instead: the slots
+that need a project read ``UNKNOWN``, and the reason names the round it
+could not find.
+
 **What the tool does with the session token.** It reads the token the
 service wrote to ``<workspace>/.labcairn/session-token`` and presents it in
 the ``Authorization`` header -- ``POST /task/select`` is a mutation, and
@@ -900,6 +912,7 @@ class Collector:
         trajectory = self.trajectory()
         graph = self.trajectory_graph(project_id)
         evidence: dict[str, Any] = {
+            "project_id": project_id,
             "task_id": dossier.get("task_id"),
             "input_version_id": dossier.get("input_version_id"),
             "output_version_id": dossier.get("output_version_id"),
@@ -990,6 +1003,7 @@ class Collector:
         by_kind = {str(item.get("kind")): item for item in files if isinstance(item, Mapping)}
         evidence: dict[str, Any] = {
             "dossier_artifact_id": dossier_id,
+            "project_id": project_id,
             "task_id": export.get("task_id"),
             "input_version_id": export.get("input_version_id"),
             "output_version_id": export.get("output_version_id"),

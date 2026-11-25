@@ -1,10 +1,10 @@
 {
   "schema": "labcairn.pilot-gate-evidence/1",
   "tool": "scripts/pilot_gate_evidence.py",
-  "command": "python scripts/pilot_gate_evidence.py --workspace E:\\labcairn-local\\tmp\\win-b-evidence\\fixture-workspace --base-url http://127.0.0.1:57338 --apply --query 'paper' --note \"A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule. It is not the pilot paper's workspace, and the pilot's confirmation of every capability below is still outstanding.\"",
-  "collected_at": "2026-11-25T02:01:03.378703+00:00",
+  "command": "python scripts/pilot_gate_evidence.py --workspace E:\\labcairn-local\\tmp\\win-b-evidence\\fixture-workspace --base-url http://127.0.0.1:51046 --apply --query 'paper' --note \"A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule. It is not the pilot paper's workspace, and the pilot's confirmation of every capability below is still outstanding.\"",
+  "collected_at": "2026-11-25T02:09:01.390463+00:00",
   "service": {
-    "base_url": "http://127.0.0.1:57338"
+    "base_url": "http://127.0.0.1:51046"
   },
   "workspace": {
     "root": "E:\\labcairn-local\\tmp\\win-b-evidence\\fixture-workspace",
@@ -76,7 +76,7 @@
       "verdict": "UNKNOWN",
       "reason": "the workspace holds no closed binding, so the path from task entry to the delivery centre was not walked",
       "evidence": {
-        "task_id": "01a2106f-42c3-7a44-a279-800658a1ec32",
+        "task_id": "01a21076-9275-7401-bddf-2966da23251a",
         "task_selected": true,
         "run_count": 0,
         "stage_count": 0,
