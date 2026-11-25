@@ -641,6 +641,14 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # Whether CI runs the shell's Node witnesses, which `norecursedirs` puts
     # outside pytest's sight and the witness ledger outside its count.
     "test_shell_ci.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The shell's version line against the workbench's. The installer's own
+    # file name and product version are written from `shell/package.json`,
+    # and the version that manifest carried on 2026-11-25 was the Phase 3
+    # lineage's `0.0.3` while the workbench read `0.1.0` -- so the installer
+    # carrying v0.1.0's product code called itself `LabCairn Setup 0.0.3.exe`.
+    # Its clause is the repository gates, because it watches two of the
+    # repository's own files against one another.
+    "test_shell_version_alignment.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_baseline_document.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_docx_fixture_corpus.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_no_reference_leakage.py": (REPOSITORY_CLASS, "repository-gate"),
