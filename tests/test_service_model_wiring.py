@@ -169,7 +169,7 @@ def wired_backend(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[ModelRequest
 
     transport = RecordingTransport()
 
-    def _stub(settings: Any, credential: Any) -> Any:
+    def _stub(settings: Any, credential: Any, probe_cache: Any = None) -> Any:
         return transport
 
     monkeypatch.setattr(commands, "_suggestion_transport", _stub)

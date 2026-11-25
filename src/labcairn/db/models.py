@@ -9,13 +9,14 @@ LC-P2-06 added five more, "twenty-four" while the file held thirty, and
 "thirty-two" by the time the feedback chain and the identifier registry had
 outgrown it -- because nothing recomputed it. The count above was re-derived
 from the ``__tablename__`` lines when the artifact ledger was made durable.
-The count reads **forty-four** at this writing: the two review tables
+The count reads **forty-five** at this writing: the two review tables
 (``review_suggestions``, ``review_decisions``), the trajectory index's two
 (``trajectory_index_rows``, ``trajectory_fts``), the real-model loop's
 ``model_suggestion_runs``, the deck index's two (``ppt_index_rows``,
 ``ppt_fts``), the meeting-text index's two (``meeting_index_rows``,
-``meeting_fts``), and the pilot's in-system issue record (``pilot_issues``)
-are this phase's additions. The number is re-derived from the
+``meeting_fts``), the pilot's in-system issue record (``pilot_issues``)
+and the capability probe's record (``probe_records``) are this phase's
+additions. The number is re-derived from the
 ``__tablename__`` lines, never carried forward.
 
 Three decisions in this file are load bearing, and two of them were corrections
@@ -4234,5 +4235,70 @@ class PilotIssueRow(Base):
         CheckConstraint(
             "retry_count IS NULL OR retry_count >= 0",
             name="pilot_issues_retry_non_negative",
+        ),
+    )
+
+
+class ProbeRecordRow(Base):
+    """One probe record: what one probe session observed of one endpoint.
+
+    **ADR-0002's promise, made durable.** ADR-0002 §Contracts says probe
+    results "are cached per ``(endpoint, model, protocol)`` in SQLite with a
+    timestamp and are invalidated by a protocol or endpoint change". Until
+    this revision the only cache was a dict in memory that no product code
+    read, so a probe result was a thing a document could record and the
+    product could not: ``doctor`` reported every capability as unverified
+    however many times the endpoint had actually been asked.
+
+    **The key is the identity of the observation, and the endpoint in it is
+    opaque.** The endpoint is a fingerprint rather than a URL, because a URL
+    can carry a credential in its query string and this row is meant to be
+    readable, reportable and shareable. The unique constraint is what makes
+    "invalidated by a protocol or endpoint change" true rather than merely
+    intended: a record for a different protocol is a *different row*, not a
+    row that overwrites this one, so the two coexist and neither claims to
+    speak for the other.
+
+    **The row holds class names, never text.** The evidence strings are
+    LabCairn-authored one-liners -- an exception's class name, or a fixed
+    phrase -- and never an exception message, which may echo a credential.
+    The outcomes and the capabilities probed are closed vocabularies written
+    into JSON, because a probe record that could hold an arbitrary string
+    would be a place a secret could be put.
+    """
+
+    __tablename__ = "probe_records"
+
+    #: Row identity, table-wide, and never the record's identity: the key
+    #: below is that. See :mod:`labcairn.db.base` on the two being different.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The opaque endpoint key -- a ``sha256`` hex digest, 64 characters.
+    endpoint_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The model that was probed.
+    model: Mapped[str] = mapped_column(String(255), nullable=False)
+    #: The protocol it was probed over.
+    protocol: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: Capability value -> outcome value. The four capabilities and the
+    #: four outcomes are closed vocabularies.
+    outcomes: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    #: Capability value -> the LabCairn-authored one-liner that explains it.
+    evidence: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    #: The capabilities a request was actually issued for. A capability absent
+    #: from here was never asked about, which is not the same as having
+    #: failed.
+    probes_run: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    #: When the probe ran. The record's timestamp, and UTC.
+    observed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "endpoint_fingerprint",
+            "model",
+            "protocol",
+            name="uq_probe_records_key",
+        ),
+        CheckConstraint(
+            "length(endpoint_fingerprint) > 0 AND length(model) > 0 AND length(protocol) > 0",
+            name="probe_records_key_present",
         ),
     )

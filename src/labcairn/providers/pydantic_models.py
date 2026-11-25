@@ -61,6 +61,7 @@ from labcairn.providers.credentials import (
     ProviderSettings,
     load_credential,
 )
+from labcairn.providers.probe import ProbeRecord
 from labcairn.providers.usage_capture import HttpxUsageSniffer
 
 #: Header name per protocol. Kept here so a future protocol is one row rather
@@ -175,22 +176,23 @@ def build_model(
     )
 
 
-def smoke_test(
+def probe_record(
     settings: ProviderSettings,
     *,
     environ: Mapping[str, str] | None = None,
     credential: Credential | None = None,
-) -> Mapping[str, object]:
+) -> ProbeRecord:
     """One live capability probe against a real endpoint. **Costs money.**
 
     Not called by any test in this repository, and not to be called without the
     project owner's authorisation and a credential they supplied for the purpose.
-    It exists so the work order's *"real smoke on at least one provider"* has a
-    defined, repeatable procedure rather than a shell history.
 
-    The result is deliberately a plain mapping rather than a
-    :class:`~labcairn.providers.probe.ProbeRecord`: a smoke result gets pasted
-    into an issue, and the record's ``to_wire`` form is what to paste.
+    **This is the record form, and it is what the store keeps.** ADR-0002
+    wants probe results cached per ``(endpoint, model, protocol)``, so the
+    thing a probe produces has to be the thing the cache holds:
+    :class:`~labcairn.providers.probe.ProbeRecord` is frozen, secret-free and
+    keyed on exactly that triple. :func:`smoke_test` is this function's
+    wire-form wrapper, for the procedure that pastes a result into an issue.
 
     The client is wired through :func:`build_http_client`, so ``USAGE_REPORTING``
     is a real observation of this endpoint's response bodies rather than an
@@ -198,7 +200,7 @@ def smoke_test(
     only ever report ``usage_reporting: unsupported`` would tell the project
     owner nothing about their endpoint.
 
-    What the result will **not** contain is a cost figure. Phase 1 has no price
+    What the record will **not** contain is a cost figure. Phase 1 has no price
     table, so the honest output is ``usage_reporting: ok`` and no money — and a
     ``max_cost_usd`` ceiling would fail closed against it.
     """
@@ -215,7 +217,7 @@ def smoke_test(
         http_client=build_http_client(settings, sniffer=sniffer),
     )
     probe = PydanticAiProbe(model=model, usage_capture=sniffer, clock=lambda: datetime.now(tz=UTC))
-    record = probe.probe(
+    return probe.probe(
         capabilities=frozenset(ALL_CAPABILITIES),
         endpoint_fingerprint=endpoint_fingerprint(
             base_url=settings.sanitised_base_url(),
@@ -224,4 +226,35 @@ def smoke_test(
         ),
         protocol=settings.protocol_label,
     )
-    return record.to_wire()
+
+
+def smoke_test(
+    settings: ProviderSettings,
+    *,
+    environ: Mapping[str, str] | None = None,
+    credential: Credential | None = None,
+) -> Mapping[str, object]:
+    """One live capability probe against a real endpoint. **Costs money.**
+
+    Not called by any test in this repository, and not to be called without the
+    project owner's authorisation and a credential they supplied for the purpose.
+    It exists so the work order's *"real smoke on at least one provider"* has a
+    defined, repeatable procedure rather than a shell history.
+
+    The result is deliberately a plain mapping rather than a
+    :class:`~labcairn.providers.probe.ProbeRecord`: a smoke result gets pasted
+    into an issue, and the record's ``to_wire`` form is what to paste. The
+    record itself is :func:`probe_record`'s return value, and that is the form
+    the store keeps.
+
+    The client is wired through :func:`build_http_client`, so ``USAGE_REPORTING``
+    is a real observation of this endpoint's response bodies rather than an
+    artefact of how the smoke was assembled. That matters: a smoke that could
+    only ever report ``usage_reporting: unsupported`` would tell the project
+    owner nothing about their endpoint.
+
+    What the result will **not** contain is a cost figure. Phase 1 has no price
+    table, so the honest output is ``usage_reporting: ok`` and no money — and a
+    ``max_cost_usd`` ceiling would fail closed against it.
+    """
+    return probe_record(settings, environ=environ, credential=credential).to_wire()

@@ -219,6 +219,14 @@ EXPECTED_TABLES = frozenset(
         # unified feedback form records the subjective experience; this
         # table is the system-side record the form's line points at.
         "pilot_issues",
+        # ADR-0002 §Contracts. The capability probe's record: one row per
+        # ``(endpoint, model, protocol)``, carrying the outcome of each
+        # capability, the one-liner that explains it, the capabilities a
+        # request was issued for, and when the probe ran. Without it a probe
+        # result was a thing a document could record and the product could
+        # not -- ``doctor`` reported every capability as unverified however
+        # many times the endpoint had actually been asked.
+        "probe_records",
     }
 )
 
@@ -505,6 +513,35 @@ def test_migration_files_are_discovered_by_alembic() -> None:
     on_disk = {p.stem.split("_", 1)[0] for p in versions.glob("*.py")} - {"__init__"}
     reachable = {r.revision for r in scripts.walk_revisions()}
     assert on_disk == reachable, f"on disk {sorted(on_disk)} vs reachable {sorted(reachable)}"
+
+
+def test_the_chain_has_exactly_one_head() -> None:
+    """One head, no branching.
+
+    **A second ``down_revision`` pointing at an existing revision forks the
+    chain**, and alembic then refuses to say what "head" means. That failure
+    is not a red test: it is a refused upgrade on a machine that deploys,
+    which is the worst place to discover it.
+
+    **The tip's parent is a real revision and is not the tip.** A revision
+    that names a parent that does not exist, or names itself, is caught
+    here rather than by the first deployment that tries to build it.
+
+    The numbers are not hard-coded: a future revision legitimately changes
+    the head, and this test is about the shape of the chain rather than
+    about which revision is currently at the top of it.
+    """
+    scripts = ScriptDirectory(str(MIGRATIONS_DIR))
+    heads = scripts.get_heads()
+    assert len(heads) == 1, f"the chain has {len(heads)} heads: {sorted(heads)}"
+
+    head = scripts.get_revision(heads[0])
+    assert head.down_revision is not None, "the tip of the chain must have a parent"
+    assert head.down_revision != head.revision, "a revision cannot be its own parent"
+    reachable = {r.revision for r in scripts.walk_revisions()}
+    assert head.down_revision in reachable, (
+        f"the tip's parent {head.down_revision} is not among {sorted(reachable)}"
+    )
 
 
 def test_the_schema_records_its_owner_scope(env: StoreEnv) -> None:

@@ -89,7 +89,7 @@ import json
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, NamedTuple, Protocol, runtime_checkable
 
 from labcairn.core.providers.protocol import canonical_json
 from labcairn.core.providers.usage import Known
@@ -222,13 +222,48 @@ class CapabilityProbe(Protocol):
         ...
 
 
+class ProbeKey(NamedTuple):
+    """``(endpoint, model, protocol)`` -- the key a probe record is filed under.
+
+    ADR-0002 §Contracts: probe results "are cached per ``(endpoint, model,
+    protocol)``" and "are invalidated by a protocol or endpoint change". The
+    three parts are one key, and they are a tuple so that a caller cannot pass
+    them in the wrong order without the type saying so. **The endpoint is the
+    fingerprint**, never the URL -- see :func:`endpoint_fingerprint` for why.
+    """
+
+    endpoint_fingerprint: str
+    model: str
+    protocol: str
+
+
+def probe_key(*, base_url: str | None, model: str, protocol: str) -> ProbeKey:
+    """The key a probe of this endpoint is filed under.
+
+    One call, so the fingerprint a report shows and the key a record is stored
+    under cannot be computed two different ways.
+    """
+    return ProbeKey(
+        endpoint_fingerprint=endpoint_fingerprint(
+            base_url=base_url, model=model, protocol=protocol
+        ),
+        model=model,
+        protocol=protocol,
+    )
+
+
 @runtime_checkable
 class ProbeCache(Protocol):
     """Where a record is kept between runs.
 
-    In-memory here. ADR-0002 specifies SQLite, and SQLite tables belong to
-    LC-P1-05 — so this is a Protocol with an in-memory implementation and the
-    same key shape, and LC-P1-05 adds a persistent one without touching a probe.
+    **Two implementations, one key shape.** ADR-0002 specifies SQLite, and
+    SQLite tables belong to LC-P1-05 — so this is a Protocol with an
+    in-memory implementation and the same key shape, and the persistent one
+    was added later **without touching a probe**:
+    :class:`labcairn.application.probe_records.SqliteProbeCache` keeps a
+    record per ``(endpoint, model, protocol)`` in the store, and the two are
+    interchangeable because they answer the same two questions with the same
+    key.
     """
 
     def get(

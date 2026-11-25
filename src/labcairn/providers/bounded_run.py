@@ -64,6 +64,7 @@ from labcairn.providers.consent import OutboundConsent
 from labcairn.providers.deidentify import DeidentifiedCase
 from labcairn.providers.errors import FailureKind, ProviderError
 from labcairn.providers.ledger import RunLedger
+from labcairn.providers.probe import ProbeCache, ProbeKey
 from labcairn.providers.usage_capture import UsageCapture
 
 #: The owner's answered budget shape (§4.9, Q4): 20 requests / 50 000 tokens
@@ -288,6 +289,12 @@ class BoundedRun:
     build around. The only per-request input the caller supplies is the
     consent port, one per request, each bound to that request's excerpt
     digest (Q3).
+
+    **The capabilities may come from the store.** ``probe_cache`` and
+    ``probe_key`` reach the adapter, which reads the record the product
+    keeps and gates on that rather than on whatever the caller handed over
+    — ADR-0002 wants the gate to read the measurement, and the measurement
+    the product keeps is the one in the store.
     """
 
     def __init__(
@@ -297,6 +304,8 @@ class BoundedRun:
         budget: RunBudget,
         ledger: RunLedger,
         capabilities: ProviderCapabilities | None = None,
+        probe_cache: ProbeCache | None = None,
+        probe_key: ProbeKey | None = None,
         required_capabilities: frozenset[Capability] | None = None,
         usage_capture: UsageCapture | None = None,
         timeout_s: float | None = None,
@@ -317,6 +326,8 @@ class BoundedRun:
         self._budget = budget
         self._ledger = ledger
         self._capabilities = capabilities
+        self._probe_cache = probe_cache
+        self._probe_key = probe_key
         self._required_capabilities = required_capabilities
         self._usage_capture = usage_capture
         self._timeout_s = timeout_s
@@ -471,6 +482,8 @@ class BoundedRun:
             "budget": self._budget,
             "ledger": self._ledger,
             "capabilities": self._capabilities,
+            "probe_cache": self._probe_cache,
+            "probe_key": self._probe_key,
             "required_capabilities": self._required_capabilities,
             "clock": lambda: 0.0,
         }

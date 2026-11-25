@@ -86,6 +86,7 @@ from labcairn.providers.errors import (
     ProviderTimeoutError,
 )
 from labcairn.providers.ledger import RunLedger
+from labcairn.providers.probe import InMemoryProbeCache, ProbeCache, ProbeKey, ProbeRecord
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CAPABILITIES, CapabilityId, Effect, ModelRequestArgs
@@ -154,6 +155,27 @@ def _probed(*, tool_calls: CapabilityOutcome = CapabilityOutcome.OK) -> Provider
         protocol="fake",
         outcomes=outcomes,
         unsupported_reason=dict.fromkeys(ALL_CAPABILITIES, "the probe said no"),
+    )
+
+
+def _a_record(
+    *,
+    fingerprint: str = "substitute-fingerprint",
+    model: str = "scripted",
+    protocol: str = "fake",
+    tool_calls: CapabilityOutcome = CapabilityOutcome.OK,
+) -> ProbeRecord:
+    """A probe record as a probe leaves it, filed under one key."""
+    outcomes = dict.fromkeys(ALL_CAPABILITIES, CapabilityOutcome.OK)
+    outcomes[Capability.TOOL_CALLS] = tool_calls
+    return ProbeRecord(
+        endpoint_fingerprint=fingerprint,
+        model=model,
+        protocol=protocol,
+        outcomes=outcomes,
+        evidence=dict.fromkeys(ALL_CAPABILITIES, "the probe said no"),
+        probes_run=frozenset(ALL_CAPABILITIES),
+        observed_at=datetime(2026, 11, 25, 9, 30, tzinfo=UTC),
     )
 
 
@@ -273,6 +295,8 @@ def _run(
     endpoint: FakeEndpoint,
     *,
     capabilities: ProviderCapabilities | None = None,
+    probe_cache: ProbeCache | None = None,
+    probe_key: ProbeKey | None = None,
     required: frozenset[Capability] | None = None,
     budget: RunBudget | None = None,
     timeout_s: float | None = None,
@@ -285,6 +309,8 @@ def _run(
         budget=_budget() if budget is None else budget,
         ledger=RunLedger(clock=lambda: 0.0, capabilities=caps, priced=False),
         capabilities=caps,
+        probe_cache=probe_cache,
+        probe_key=probe_key,
         required_capabilities=required,
         usage_capture=endpoint.capture,
         timeout_s=timeout_s,
@@ -391,6 +417,52 @@ def test_a_supplier_name_is_not_a_capability(context: ApplicationContext) -> Non
         run.submit_case(case, consents=_ports(context, digests=case.excerpt_digests))
     assert raised.value.kind.value == "capability_unavailable"
     assert endpoint.calls == []
+
+
+def test_the_run_gates_on_the_record_the_store_keeps(context: ApplicationContext) -> None:
+    """The rehearsal harness reads the stored record, not only what it is handed.
+
+    ADR-0002 wants probe results kept so that the capability gate can read
+    them. The gate is the adapter's, and this harness is what wires it, so
+    the record has to reach it from here too: a run that is handed no
+    capabilities but is given the cache and the key sends the case, and the
+    same run with the record filed under another key refuses.
+
+    **Counter-mutation:** take the record away, or move the key, and the
+    request is not issued and ``endpoint.calls == []`` holds.
+    """
+    endpoint = FakeEndpoint(replies=(_OK_REPLY, _OK_REPLY))
+    cache = InMemoryProbeCache()
+    cache.put(_a_record())
+    run = _run(
+        endpoint,
+        capabilities=ProviderCapabilities.unverified(
+            endpoint_fingerprint="substitute-fingerprint", model="scripted", protocol="fake"
+        ),
+        probe_cache=cache,
+        probe_key=ProbeKey("substitute-fingerprint", "scripted", "fake"),
+        required=frozenset({Capability.TOOL_CALLS}),
+        budget=RunBudget(max_model_requests=REHEARSAL_MAX_REQUESTS),
+    )
+    case = _case()
+    run.submit_case(case, consents=_ports(context, digests=case.excerpt_digests))
+    assert len(endpoint.calls) == 1
+
+    elsewhere = FakeEndpoint(replies=(_OK_REPLY, _OK_REPLY))
+    refused = _run(
+        elsewhere,
+        capabilities=ProviderCapabilities.unverified(
+            endpoint_fingerprint="substitute-fingerprint", model="scripted", protocol="fake"
+        ),
+        probe_cache=cache,
+        probe_key=ProbeKey("another-fingerprint", "scripted", "fake"),
+        required=frozenset({Capability.TOOL_CALLS}),
+        budget=RunBudget(max_model_requests=REHEARSAL_MAX_REQUESTS),
+    )
+    with pytest.raises(RunRequestRefusedError) as raised:
+        refused.submit_case(case, consents=_ports(context, digests=case.excerpt_digests))
+    assert raised.value.kind.value == "capability_unavailable"
+    assert elsewhere.calls == []
 
 
 def test_an_unsupported_capability_refuses_before_the_wire(
