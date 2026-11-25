@@ -43,16 +43,15 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from labcairn.application import consent
-from labcairn.application.approvals import ApprovalUse, consume_approval
+from labcairn.application.approvals import ApprovalUse, consume_approval, granted_approvals_for
 from labcairn.application.context import TASK_AREA_ROOT, ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.core.ids import ApprovalId
 from labcairn.core.providers.protocol import ModelRequest
-from labcairn.db.repository import list_approvals
 from labcairn.providers.capabilities import Capability
 from labcairn.providers.errors import OutboundRefusedError
 from labcairn.providers.probe import ProbeRequest
-from labcairn.runtime.operation import ApprovalState, compute_args_digest
+from labcairn.runtime.operation import compute_args_digest
 from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
 
 
@@ -339,7 +338,6 @@ def probe_consent(
     :raises labcairn.application.refusal.ApplicationRefusedError: the policy
         denied the request, so there is nothing to cover.
     """
-    granted = list_approvals(context.store.session, context.task_id)
     entries: list[tuple[Capability, ApprovalUse, OutboundApproval | None]] = []
     spent: set[ApprovalId] = set()
     for request in requests:
@@ -348,10 +346,8 @@ def probe_consent(
         match = next(
             (
                 approval
-                for approval in granted
+                for approval in granted_approvals_for(context, args_digest=digest)
                 if approval.approval_id not in spent
-                and approval.state is ApprovalState.GRANTED
-                and approval.args_digest == digest
             ),
             None,
         )
