@@ -3222,6 +3222,21 @@ Expanding data access scope, write permission to original material, unapproved o
     `PydanticAiProbe._send` issues the request itself, bypassing
     `provider.send()`'s gate. **This one is recorded as not done**
     (ADR-0006:127-131), so it is public rather than hidden.
+  - **The seven real gaps differ in what closing them costs**, which is
+    worth knowing before any of them is scheduled. Two are a missing
+    witness over behaviour that already exists: the event record's
+    frozen-and-forbid-extra-fields properties (`src/labcairn/runtime/
+    event.py` says `extra="forbid"`; nothing watches it), and the guard
+    against a pydantic-ai type in the persisted schema (the guard itself
+    would be a short walk over the model columns). Two need behaviour
+    built: the message projection is derived and discardable, and a fake
+    provider running a whole task without network (the fake provider's
+    *isolation* is already witnessed six ways — no network library, no
+    socket, no outbound request, no real model layer, no key, no
+    environment — but no test runs a whole task through it). Two depend on
+    the failure-classification question above and inherit its design
+    tension, and one (`test_denied_operation_is_not_retried_under_
+    injection_pressure`) needs the denial path end to end.
   - **Two ADRs under-report what is delivered.** ADR-0016 and ADR-0018
     mark their contract tables *"to be written"*, while the contracts
     exist (`src/labcairn/roles/refusals.py`,
