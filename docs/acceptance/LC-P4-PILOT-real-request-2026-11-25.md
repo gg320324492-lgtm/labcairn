@@ -275,3 +275,258 @@ change, not a key that has to be re-issued.
 4. **The spend is unpriced** (§5). **Owner, before a budget is set.**
 5. **The output-token accounting is larger than the answer it produces**
    (§2), and the reason is not measured. **Owner, before a ceiling is set.**
+
+## 8. The second round — the imported copy, and the gate
+
+**Date:** 2026-11-26 (the run itself is on the night of 2026-11-25 UTC).
+**Tree:** `5a4e4587d076f1e934df86ed6a00e6126981fcc0` (worktree
+`pilot-import-request-0745db`).
+**Status:** local evidence only. No push, no pull request, no CI run, no
+merge.
+**Companion record:**
+[`LC-P4-PILOT-import-2026-11-25.md`](LC-P4-PILOT-import-2026-11-25.md).
+
+Sections 1–7 above are the first round and are left as they were written.
+This section is the second run under the same signed authorisation.
+
+### 8.1 What is new here, and what is the same
+
+**New.**
+
+- **The material.** The request carries excerpts of the *registered
+  desensitised copy* (`pilot-paper-002`, digest `04cc31be…a6172d`), imported
+  into the pilot workspace through the product's own `sources ingest`. The
+  first round sent two sentences written for the run, because the checklist
+  was then DRAFT.
+- **The checklist is signed**, so the material is the signed copy and the
+  import ran against it.
+- **The consent gate was exercised.** Each request spent a digest-bound
+  approval and passed the transmit gate; one request inside the boundaries
+  was sent, one outside them was refused with the approval left unspent and
+  nothing sent.
+- **The ceiling comes from the provider's own usage report**, not from an
+  answer's length.
+
+**The same.** The endpoint, model, protocol, timeout, credential
+fingerprint, destination, grant id, subject ref, scope, budget and retry
+policy are the ones §1–§3 name. The machine format is the §6 example, with
+the one change §8.4 explains. The boundary is the same too — ids, digests,
+counts and durations; no prompt prose, no answer prose, no key.
+
+### 8.2 The request's shape, and where its material came from
+
+The prompt is the product's own template with the reviewer-comment section
+dropped, because the copy carries no comments (import record §6):
+
+```
+You are suggesting one replacement for a manuscript passage.
+Anchored passage:
+{excerpt}
+Reply with the replacement text for the passage, and nothing else.
+```
+
+| Field | Value |
+|---|---|
+| Excerpt's provenance | the accepted view of the imported copy, digest `04cc31be…a6172d` — 1,539 characters read from the product's own `source_texts` rows (251 accepted rows for that digest) |
+| Scrubbing | the product's `Redactor`; **0 characters changed** — nothing credential-shaped was in the excerpt |
+| Prompt length | 1,699 characters |
+| Prompt digest (this record) | `3ea976c476ca58479550b2e53a630ee8bb1ad0f4de71b6deb35269e4d7981b75` |
+| Prompt digest (provider layer) | `895e8eb8a3d1b9a6e97860a1c9b4821c9d412c7b6fe3dafa39a8147452716bef` — the same value in every request of this round |
+| Material reference | `pilot/LC-P4-PILOT/desensitised-copy/pilot-paper-002.docx` — the imported source's root-relative key |
+| Subject | `pilot/LC-P4-PILOT/desensitised-copy` |
+| Destination | `https://api.minimax.cn/anthropic` |
+| Provider / model / protocol / timeout | `minimax` / `MiniMax-M3.1-Flash` / `anthropic` / 60 s |
+| Credential | fingerprint `d8053fe1…dc9a7b` (§1) |
+| Grant | `grant-model-suggestions-pilot/LC-P4-PILOT`, scope `pilot/LC-P4-PILOT/desensitised-copy/**` |
+
+Three permitted requests were made, each with its own digest-bound
+approval:
+
+| Round | Approval | Gate | Answer | Provider's reported usage (in / out) | Duration |
+|---|---|---|---|---|---|
+| A — measuring | `01a213fc-36f0…` | permitted; approval **consumed** | 1,666 characters, digest `94af4c82…` | `Known(1)` / `Known(6089)` | 34.64 s |
+| B — under the ceiling the report gives | `01a213fc-bede…` | permitted; approval **consumed** | 1,780 characters, digest `4eeaa1a3…` | `Known(1)` / `Known(2231)` | 23.65 s |
+| D — a second reading | `01a213fd-c3a2…` | permitted; approval **consumed** | 1,546 characters, digest `fb68f086…` | `Known(1)` / `Known(3000)` | 34.32 s |
+
+### 8.3 The gate: inside the boundaries allowed, outside them refused
+
+**Inside.** The transmit check returned `permitted = True` — the consent
+layer's own decision, naming the grant, the permission `external_transmit`,
+the purpose `transmit`, the destination, and the owner who granted it on
+2026-11-24. The approval was consumed, the request went out, the provider
+answered, and the exchange landed in the event log (`01a213fc-be4b-…` for
+round A).
+
+**Outside.** The same request shape, the same subject, the same destination
+— with the material reference pointing at `batch10-v01-main.doc`, a corpus
+file that exists in the workspace and is **not** under the grant's scope:
+
+```
+application refused (consent_scope_not_covered): grant
+'grant-model-suggestions-pilot/LC-P4-PILOT' covers 'batch10-v01-main.doc' for
+'external_transmit', but its scope 'pilot/LC-P4-PILOT/desensitised-copy/**' does
+not reach this material. The remedy is a grant whose scope covers it.
+```
+
+Measured after the refusal:
+
+| | |
+|---|---|
+| The approval's state | **`granted`** — not consumed |
+| Exchange records | **none** — nothing was sent |
+| The wire | never reached |
+
+That is the order the repository's own bridge holds: the transmit check runs
+**before** the approval is spent, so a request refused for want of a grant
+leaves the approval unspent and sends nothing.
+
+### 8.4 The token ceiling, from the provider's own report
+
+**The first round's warning was right, and is now measured.** The first
+round saw a 372-character answer and a provider report of 2,510 output
+tokens (≈6.7 tokens per character). Three readings of one prompt in this
+round:
+
+| Round | Answer characters | Provider's reported output tokens | Tokens per character |
+|---|---|---|---|
+| A | 1,666 | 6,089 | 3.65 |
+| B | 1,780 | 2,231 | 1.25 |
+| D | 1,546 | 3,000 | 1.94 |
+
+The factor is **not a constant**: it moves between 1.25 and 3.65 on the same
+prompt, and between 1.25 and 6.75 across both rounds. A ceiling written
+from an answer's length is written from a number that varies by nearly a
+factor of three, and it is not the number the provider reports.
+
+**The ceiling this run used, and where it came from.**
+
+- Per request, the output ceiling was **`max_output_tokens = 6,089`** — the
+  provider's own reported output tokens for round A, and the largest of the
+  three figures measured. No character count appears in it.
+- Per run, the token ceiling was `RunBudget(max_total_tokens=Known(6090))`,
+  with the ledger carrying round A's measured usage (`Known(1)` in,
+  `Known(6089)` out). The pre-flight measured that ceiling, found it
+  satisfied, and the request went out. The ceiling was enforceable because
+  the provider reports usage at all.
+- **The input side of the provider's report cannot be used.** It reads
+  `Known(1)` for a prompt of 1,699 characters. Whatever that field counts
+  at this endpoint, 1 is not the size of this prompt, so "input + output"
+  taken from this report would under-read the traffic that was sent by more
+  than a thousand tokens. The ceiling is therefore anchored on the output
+  side, and the input side is carried as what the operator can state — the
+  prompt's 1,699 characters — not as the provider's number.
+
+**Why a ceiling had to be set at all.** The first attempt of this round
+used the product's own CLI assembly, which passes no output ceiling, and the
+provider's answer reached **its** output ceiling: the product refused the
+answer (`ProviderOutputTruncatedError`) rather than record a truncated answer
+as one. That refusal is the product behaving correctly; the gap is that the
+operator had nowhere to put a ceiling (§8.5, fact 1).
+
+**The variance is the practical finding.** Three readings of one prompt
+differ by 2.7× (2,231 → 6,089). A ceiling equal to a single reading is a
+bet; the largest of three is better and still not a bound. **A pilot that
+sets one output ceiling for a run of requests needs the largest figure the
+provider has reported, and needs to read a refusal as a measurement rather
+than as a failure.**
+
+### 8.5 Three facts about the product this run turned up
+
+1. **The CLI's wiring passes no output ceiling, and the authorisation record
+   has nowhere to put one.** `_suggestion_transport` builds
+   `PydanticAiModelProvider` without `max_output_tokens`
+   (`src/labcairn/cli/commands.py:2889`), and `MODEL_SUGGESTIONS_FIELDS` is
+   a closed set of eight fields — `provider`, `destination`, `subject_ref`,
+   `granted_by`, `granted_at`, `expires_at`, `scope`, `grant_id`
+   (`src/labcairn/cli/commands.py:136`) — with no output limit among them.
+   So the product's suggestion path runs under the provider's default output
+   ceiling, and a long answer is refused as truncated instead of being asked
+   for shorter. This round had to assemble the transport itself — the
+   product's own `build_model`, `PydanticAiModelProvider`, `make_sniffer`
+   and `_ProviderTransport`, with that one argument added — to run under a
+   ceiling at all. **A finding for the owner; this record changes no code.**
+2. **The provider's usage report is not symmetric.** Output tokens are
+   plausible (3,000–6,089 for answers of 1,546–1,780 characters); input
+   tokens read `1` for every request, including a 1,699-character prompt.
+   Any ceiling or budget that reads "input + output" as the traffic would be
+   wrong by more than a thousand tokens per request against this endpoint.
+3. **The suggestion loop's own `max_tokens` is an estimate, not a
+   measurement.** `SuggestionLoop._check_token_budget` compares
+   `_tokens_total()`, which sums `tokens_estimated`
+   (`src/labcairn/application/model_suggestions.py:1058` and `:1094`), while
+   the provider's own report sits in the exchange record and the run row
+   does not use it. The loop's ceiling is therefore still written from
+   something that is not the provider's number — the defect §8.4 names, one
+   layer further in.
+
+### 8.6 What the pilot's own suggestion loop can ask about the imported copy: nothing
+
+The product's suggestion loop is the pilot's step-3 surface
+(`POST /review/suggest`, mode `real`). It was run over the imported copy's
+version in real mode, against the same grant, the same transport and the
+same ceiling:
+
+| | |
+|---|---|
+| Project / version | `proj-pilot-002` / `ver-pilot-002-input` |
+| Requests made | **0** |
+| Opinions skipped | 0 |
+| Suggestions recorded | 0 |
+| Stopped because | nothing — the run had no opinion to ask about |
+
+The reason is the material's: the copy carries **no Word comments** (0
+`commentRangeStart`, no `word/comments.xml`), and its advisor's marks are 113
+tracked changes. The loop walks comment feedback events, so for this copy it
+has no opinion, and it spends no approval and sends nothing. The import
+record's §6 measures the same fact from the file side.
+
+**So the request this round made was not a suggestion about an opinion.** It
+was one request carrying desensitised excerpts of the imported copy, made
+through the product's own model-request bridge (`request_model` — the bridge
+the roles path and the claim-extraction path use), under the signed grant,
+with the excerpts read from the ledger the import wrote. That is the honest
+description of what the pilot's first real request was.
+
+### 8.7 The answers are not quoted, and cannot be
+
+The model reproduced the material: the longest run of characters the round-D
+answer shares with the excerpt it was given is **70 characters**. A copy of
+the manuscript therefore sits inside the model's answer, which is why this
+record carries digests and character counts and no prose — and why the
+answer text was not written to the repository. It was not written to the
+evidence directory either: the run compared the two texts by measurement and
+reported the number.
+
+### 8.8 Evidence
+
+| What | Where |
+|---|---|
+| The run record (ids, digests, counts, usage) | `E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-26/run-record.json` |
+| The third request and the loop probe | `E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-26/run-record-round-d.json` |
+| The driver (outside the repository) | `…/LC-P4-PILOT-real-request-2026-11-26/driver/run_request.py`, `…/driver/run_round_d.py` |
+| The workspace's provider configuration (outside the repository) | `E:/labcairn-local/pilot-ws/providers.json` — the §6 example, which replaces the file the first round found naming the wrong route (§7, gap 2) |
+| The ledger | `E:/labcairn-local/pilot-ws/labcairn.db` — `approvals` (consumed, and unspent), `events` (the exchange records), `access_grants` (`grant-model-suggestions-pilot/LC-P4-PILOT`), `model_suggestion_runs` |
+| The import | [`LC-P4-PILOT-import-2026-11-25.md`](LC-P4-PILOT-import-2026-11-25.md) |
+
+### 8.9 The gaps, after this round
+
+1. **Closed — the checklist's part-D result was unsigned.** The checklist is
+   signed, the copy is registered, and the copy has been imported (import
+   record §1–§4).
+2. **Closed — the workspace's `providers.json` named the wrong route and
+   carried no grant.** The file now names the authorised route and carries
+   the grant, the grant is registered in the store, and the gate has
+   permitted and refused for real (§8.3).
+3. **Open — the output-token accounting is unexplained on the input side**
+   (§8.5, facts 2 and 3): the provider reports `Known(1)` input tokens for a
+   1,699-character prompt, and the loop's ceiling is still an estimate.
+   **Owner, before a budget is set.**
+4. **Open — there is nowhere to put an output ceiling** (§8.5, fact 1): the
+   closed `model_suggestions` record has no field for it, so the product's
+   own wiring cannot run under one. **Owner.**
+5. **Open — the pilot's step 3 still has no opinion to work on.** The
+   material's advisor marks are tracked changes, and the loop reads
+   comments (§8.6). Until a version of the copy carries comments, or the
+   loop learns to read revision events, the pilot's suggestion surface has
+   nothing to suggest about. **Owner — this is the pilot's first structural
+   finding.**
