@@ -3165,17 +3165,36 @@ Expanding data access scope, write permission to original material, unapproved o
     ADR describes is the whole classification; what the code implements is
     the part it can raise.** Either the ADR should say so, or the
     separation should be documented in it.
-  - **Nine acceptance test names ADR-0002 calls *"binding"* are absent**
-    (`:393`, `:415-431`). Three are naming drift — the behaviour is
-    witnessed under another name (`test_budget_exhausted_is_terminal_
-    and_non_retryable`, `test_third_party_error_detail_never_persisted`,
-    `test_operation_and_state_transition_commit_atomically`). The other
-    six are real: the two failure-classification tests above, plus
-    `test_event_records_are_frozen_and_forbid_extra_fields`,
-    `test_llm_message_projection_is_derived_and_discardable`,
-    `test_no_pydantic_ai_type_in_persisted_schema` (the guard itself
-    does not exist — nothing walks the persisted schema for pydantic-ai
-    types) and `test_fake_provider_e2e_full_task_without_network`.
+  - **Eleven acceptance test names ADR-0002 calls *"binding"* are absent**
+    (`:393`, `:395-431`). The section names 23; ten are present. Two of
+    the absent ones are **upstream's** — `test_usage_unknown_provider`
+    and `test_conversation_error_classifies_sensitive_detail_without_
+    serializing_it` — and the ADR itself annotates them with upstream
+    paths and line numbers, so they are not LabCairn's to have.
+    **Of the eleven, four are naming drift** — the behaviour is witnessed
+    under another name, and the witness's own docstring says which
+    clause it carries:
+    `test_usage_reporting_capability_unverified_blocks_token_ceiling`
+    (witnessed as `test_..._before_the_request`),
+    `test_budget_exhausted_is_terminal_and_non_retryable` (witnessed by
+    a docstring that opens *"ADR-0002: `BUDGET_EXHAUSTED` is terminal,
+    non-retryable, `user_action="settings"`"*),
+    `test_third_party_error_detail_never_persisted` (witnessed by a
+    docstring that says there is no `detail` field to omit, which is the
+    stronger claim), and
+    `test_operation_and_state_transition_commit_atomically` (witnessed by
+    a docstring that says *"This is the exact scenario ADR-0003 C3 is
+    written about"*).
+    **Seven are real gaps**, and two of them have no behaviour to witness
+    at all: `test_event_records_are_frozen_and_forbid_extra_fields` (the
+    behaviour exists — `src/labcairn/runtime/event.py` says
+    `extra="forbid"` — but nothing witnesses it) and
+    `test_no_pydantic_ai_type_in_persisted_schema` (**the guard itself
+    does not exist** — nothing walks the persisted schema for pydantic-ai
+    types). The other five are the two failure-classification tests
+    above, `test_denied_operation_is_not_retried_under_injection_pressure`,
+    `test_llm_message_projection_is_derived_and_discardable` and
+    `test_fake_provider_e2e_full_task_without_network`.
   - **There is no price table.** ADR-0002:389 promises one, *"Priced
     from a LabCairn-owned price table; entries are user-extendable."*
     There is none, so **every run's cost is `Unknown(UNPRICED)` and a
