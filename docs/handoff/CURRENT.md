@@ -3328,12 +3328,10 @@ Expanding data access scope, write permission to original material, unapproved o
   is three things, each named in its row:
   - **C3** — the evidence gate refuses a model proposal with no rule and
     no attestation, and its reason names the missing promotion
-    (`src/labcairn/evidence/gate.py:194`), but **no witness covers the
-    property the row states**: the nearest test
-    (`tests/test_evidence_gate.py:230`) refuses a `planned` record made
-    by a *rule*, not by a model. A witness is owed for a
-    `created_by=model_proposal` record being refused, and for the reason
-    naming the promotion.
+    (`src/labcairn/evidence/gate.py:194`). **This one is now witnessed**
+    (`tests/test_evidence_gate.py::test_a_model_proposal_is_refused_by_the_
+    gate_and_the_reason_names_the_promotion`): the nearest witness before
+    it covered a `planned` record made by a *rule*, not by a model.
   - **C5** — a field the model cannot fill is `UNKNOWN` and no other
     field is affected. **This is not implemented**: there is no
     per-field degradation, because the decoding layer

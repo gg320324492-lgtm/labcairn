@@ -251,6 +251,65 @@ def test_a_record_with_no_anchor_at_all_fails(store: Store) -> None:
     assert result.findings[0].kind == "status"
 
 
+def test_a_model_proposal_is_refused_by_the_gate_and_the_reason_names_the_promotion(
+    store: Store,
+) -> None:
+    """ADR-0016 C3: a model's own proposal is not citable, and the gate says why.
+
+    **A model proposal with no rule and no human attestation is refused by
+    the evidence gate, and the refusal names the missing promotion.** That
+    is the contract ADR-0016 states, and the nearest witness for it
+    covered a *planned* record made by a **rule** -- which says the gate
+    refuses a state a report may not cite, and not that it refuses a
+    model's proposal for the reason a model's proposal is refused.
+
+    **The reason is the point.** A refusal that says only "not citable"
+    sends the reader looking; this one names the two ways a claim becomes
+    citable and says the record is neither, so the reader knows the two
+    things that are missing rather than the one that is wrong.
+
+    Counter-mutation: let a `model_proposal` record through the gate's
+    status rule and this witness reddens.
+    """
+    connection, index = store
+    record = EvidenceRecord(
+        evidence_id="ev-model-1",
+        task_id="task-1",
+        kind=EvidenceKind.CLAIM,
+        text="A claim a model proposed and nobody has confirmed.",
+        anchor_ids=(),
+        extracted_span=None,
+        extracted_span_sha256=None,
+        source_content_hash=None,
+        status=VerificationStatus.PLANNED,
+        created_by=EvidenceCreator.MODEL_PROPOSAL,
+        created_by_id="model-run-1",
+        created_at=NOW,
+    )
+    append_record(connection, record)
+
+    result = evaluate_task(connection, task_id="task-1", index=index)
+
+    assert not result.passed, (
+        "a model proposal with no rule and no attestation is not citable, so "
+        "the gate must refuse it"
+    )
+    assert [f.kind for f in result.findings] == ["status"], (
+        f"the refusal must be the state one: {result.findings}"
+    )
+    reason = result.findings[0].reason
+    assert "a rule has verified it or a person has attested to it" in reason, (
+        "the refusal must name the promotion that is missing, so the reader "
+        f"knows what is absent rather than only that something is wrong: {reason}"
+    )
+    assert "neither" in reason, (
+        f"the refusal must say the record is neither of the two: {reason}"
+    )
+    assert result.citable == (), (
+        "a refused proposal is not citable, and the gate must not list it"
+    )
+
+
 def test_a_fabricated_source_fails_the_gate(store: Store) -> None:
     """A12: a source the ledger has never heard of.
 
