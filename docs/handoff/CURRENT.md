@@ -3524,12 +3524,12 @@ Expanding data access scope, write permission to original material, unapproved o
   modules ADR-0002 names, so six of its pointers moved; they name the lines
   as they are now.
 
-## 2026-11-25 - the batch is reviewed, and the review found thirteen findings
+## 2026-11-25 - the batch is reviewed, and the review found fourteen findings
 
 - **The review ran against R1–R7** ([`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md))
   and its record is
   [`docs/acceptance/batch-12-review-2026-11-25.md`](../acceptance/batch-12-review-2026-11-25.md).
-  It names **thirteen findings**, all closed, each with a witness and a
+  It names **fourteen findings**, all closed, each with a witness and a
   mutation that turns it red.
 - **The two that mattered most were both about the same thing: a second
   place to look.**

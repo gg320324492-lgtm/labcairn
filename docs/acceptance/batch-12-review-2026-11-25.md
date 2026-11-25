@@ -102,6 +102,7 @@ so.
 | 10 | high | **the enumeration's candidate rule had no witness of its own**: a mechanism that reads the tests could be neutered while the tree stayed green | `f1b72a6` — a witness that names a test whose file reaches the CLI and which does not, and that goes red when the rule reads the file |
 | 11 | medium | the merge broke three of the tree's own gates — the evaluation harness's partition did not know the three new test files, three anchored pointers drifted, and the tree carried more Chinese than was measured | `752efa6` |
 | 12 | low | the acceptance record quoted a reading without the digest it was taken on | `fadc4e4` |
+| 14 | medium | **the checked-in TypeScript was not regenerated** when the event vocabulary grew, so the tree's own witness — *the checked-in TypeScript is what the Python models produce* — was red at fourteen per cent of the suite; the same shape as finding 11, from the same merge | `5fae156` |
 | 13 | medium | **the two role-run fixtures confirmed a rule without ever judging the change the rule cites**, so the memory reported it as invalidated and the run was citing a rule the memory does not serve — the repair in finding 1 made 15 tests red, which is how this showed | `d92ebed` |
 
 Each repair carries a witness, and each witness was mutation-checked: the
