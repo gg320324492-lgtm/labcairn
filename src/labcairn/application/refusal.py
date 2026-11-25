@@ -460,6 +460,11 @@ class ApplicationRefusal(StrEnum):
     ROLE_ABSTENTION_WITHOUT_A_MISSING = "role_abstention_without_a_missing"
     #: The memory holds no rule under the id a card tries to cite.
     ROLE_RULE_NOT_IN_THE_MEMORY = "role_rule_not_in_the_memory"
+    #: The memory holds the rule and does not serve it: its source
+    #: material is withdrawn, out of the reader's reach, or unattested.
+    ROLE_RULE_NOT_SERVED_BY_THE_MEMORY = "role_rule_not_served_by_the_memory"
+    #: A rule reference is a citation the memory did not mint.
+    ROLE_CITATION_NOT_MINTED_BY_THE_MEMORY = "role_citation_not_minted_by_the_memory"
     #: The verdict named is outside the four the vocabulary closes.
     ROLE_VERDICT_UNKNOWN = "role_verdict_unknown"
     #: The review accepted evidence it cannot check.
@@ -747,6 +752,12 @@ ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
         ApplicationRefusal.ROLE_ABSTENTION_WITHOUT_A_MISSING
     ),
     RoleRefusal.RULE_NOT_IN_THE_MEMORY: (ApplicationRefusal.ROLE_RULE_NOT_IN_THE_MEMORY),
+    RoleRefusal.RULE_NOT_SERVED_BY_THE_MEMORY: (
+        ApplicationRefusal.ROLE_RULE_NOT_SERVED_BY_THE_MEMORY
+    ),
+    RoleRefusal.CITATION_NOT_MINTED_BY_THE_MEMORY: (
+        ApplicationRefusal.ROLE_CITATION_NOT_MINTED_BY_THE_MEMORY
+    ),
     RoleRefusal.VERDICT_UNKNOWN: ApplicationRefusal.ROLE_VERDICT_UNKNOWN,
     RoleRefusal.UNVERIFIABLE_EVIDENCE_ACCEPTED: (
         ApplicationRefusal.ROLE_UNVERIFIABLE_EVIDENCE_ACCEPTED

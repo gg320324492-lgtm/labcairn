@@ -112,6 +112,18 @@ class RoleRefusal(StrEnum):
     ABSTENTION_WITHOUT_A_MISSING = "abstention_without_a_missing"
     #: The memory holds no rule under the id a card tries to cite.
     RULE_NOT_IN_THE_MEMORY = "rule_not_in_the_memory"
+    #: The memory holds the rule, and does not serve it: its source
+    #: material has been withdrawn from under it, is out of this reader's
+    #: reach, or nobody has judged it. **The rule is there and the memory
+    #: does not serve it** — a different situation from the memory
+    #: holding no rule under that id at all, and a caller that switches
+    #: on the reason has to be able to tell the two apart.
+    RULE_NOT_SERVED_BY_THE_MEMORY = "rule_not_served_by_the_memory"
+    #: A rule reference the card carries is a citation the memory did not
+    #: mint. **A statement the memory never held is not a citation**, and
+    #: a card that carried one would advise on material the memory does
+    #: not serve.
+    CITATION_NOT_MINTED_BY_THE_MEMORY = "citation_not_minted_by_the_memory"
     # -- the critique's own reasons (LC-P2-12 T03) -------------------------- #
     #: The verdict named is not one of the four the vocabulary closes.
     VERDICT_UNKNOWN = "verdict_unknown"

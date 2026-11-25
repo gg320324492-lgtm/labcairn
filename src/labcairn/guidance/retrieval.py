@@ -31,6 +31,13 @@ standing is not served — and it is not *disappeared* either:
 :func:`invalidated_rules` reports it, with the reason each dead source
 gives, because the record of what was withdrawn is itself a record.
 
+**And "does the memory still serve this rule?" is asked in one place.**
+:func:`serves_rule` answers it for one rule, and :func:`search_rules`
+answers it for the whole memory through the same expression
+(:func:`serving_sources`) — so a caller that holds a rule by id can ask
+the same question the search would answer, and no second definition of
+"serves" can grow somewhere else.
+
 **The rows are reached through the application layer.** The memory's rules
 come from :mod:`labcairn.application.guidance` and the chain's facts from
 :mod:`labcairn.application.chain`, so the retrieval reads no table of its
@@ -91,6 +98,12 @@ class SourceState:
     reachable: bool
     #: A judgement on that material says the change answered the comment.
     addressed: bool
+    #: The chain carries a judgement on that material at all.
+    #: **A source nobody judged is not a source judged unanswered**: the
+    #: first is unattested — nobody has said anything about it — and the
+    #: second is withdrawn from under the rule. The two die differently and
+    #: a refusal that named them the same would be wrong.
+    judged: bool
     #: ``comment`` or ``revision``: **which kind of case this source is.**
     #: **Not optional** — a source state that did not say would be a
     #: state about a case nobody could look up.
@@ -206,6 +219,7 @@ def _living_sources(
                     reachable=stands,
                     addressed=addressed,
                     kind="comment",
+                    judged=bool(states),
                 )
             )
             continue
@@ -215,7 +229,12 @@ def _living_sources(
             continue
         living.append(
             SourceState(
-                issue_key=key, found=False, reachable=False, addressed=False, kind="comment"
+                issue_key=key,
+                found=False,
+                reachable=False,
+                addressed=False,
+                kind="comment",
+                judged=False,
             )
         )
     return tuple(living)
@@ -243,6 +262,7 @@ def _revision_source_state(context: ApplicationContext, key: str) -> SourceState
         reachable=bool(reachable),
         addressed=True,
         kind="revision",
+        judged=False,
     )
 
 
@@ -304,6 +324,56 @@ def _rules_in_scope(
         if project_id in guidance_layer.read_guidance_rule_project_ids(context, rule=rule):
             scoped.append(rule)
     return tuple(scoped)
+
+
+def source_states(context: ApplicationContext, *, rule: GuidanceRule) -> tuple[SourceState, ...]:
+    """Every source of the rule, resolved against the chain as it stands now.
+
+    **The states before the question of serving them is asked.** A caller
+    that needs to say *why* a rule is not served reads them here: a
+    source's state says which of the ways it died it was.
+    """
+    return _living_sources(context, rule.sources)
+
+
+def serving_sources(context: ApplicationContext, *, rule: GuidanceRule) -> tuple[SourceState, ...]:
+    """The rule's sources that serve it, as the memory's own read has them.
+
+    **This is the expression :func:`search_rules` uses**, written once so
+    that a second answer to "does the memory serve this rule?" cannot
+    grow somewhere else: a source serves the rule when the material is
+    there, the reader may read it, and either a judgement says the
+    change answered the comment or the rule is still a candidate whose
+    cases nobody has judged yet.
+
+    **And the candidate's exemption is the retrieval layer's own.** A
+    proposal's cases have usually not been judged at all — nobody has
+    answered the comment yet — so requiring a judgement to show the
+    proposal would hide from the reviewer the very thing they are to
+    judge. A confirmed or disputed rule stands only on the sources that
+    carry such a judgement.
+
+    :param rule: the rule to resolve. The rule's own state is part of
+        the answer, because a candidate and a confirmed rule are asked
+        the same question and answer it differently.
+    """
+    sources = source_states(context, rule=rule)
+    return tuple(
+        source
+        for source in sources
+        if source.found and source.reachable and (source.addressed or rule.state == "candidate")
+    )
+
+
+def serves_rule(context: ApplicationContext, *, rule: GuidanceRule) -> bool:
+    """Does the memory still serve this rule?
+
+    **The question the search asks, asked of one rule.** A caller that
+    holds a rule by id asks here before it hands the rule on, and the
+    answer is the one :func:`search_rules` would give: one definition
+    of what the memory serves, not two that can disagree.
+    """
+    return bool(serving_sources(context, rule=rule))
 
 
 def search_rules(
@@ -372,12 +442,7 @@ def search_rules(
     hits: list[RuleHit] = []
     rules = _rules_in_scope(context, project_id=project_id)
     for rule in _resolvable_rules(rules, issue_type=issue_type, needle=needle, states=states):
-        sources = _living_sources(context, rule.sources)
-        standing = tuple(
-            source
-            for source in sources
-            if source.found and source.reachable and (source.addressed or rule.state == "candidate")
-        )
+        standing = serving_sources(context, rule=rule)
         if not standing:
             continue
         hits.append(RuleHit(rule=rule, sources=standing))
