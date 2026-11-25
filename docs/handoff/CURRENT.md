@@ -3523,3 +3523,41 @@ Expanding data access scope, write permission to original material, unapproved o
 - **The line numbers the ADR cites were stale.** The batch edited the
   modules ADR-0002 names, so six of its pointers moved; they name the lines
   as they are now.
+
+## 2026-11-25 - the batch is reviewed, and the review found thirteen findings
+
+- **The review ran against R1–R7** ([`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md))
+  and its record is
+  [`docs/acceptance/batch-12-review-2026-11-25.md`](../acceptance/batch-12-review-2026-11-25.md).
+  It names **thirteen findings**, all closed, each with a witness and a
+  mutation that turns it red.
+- **The two that mattered most were both about the same thing: a second
+  place to look.**
+  - The citation path's check was **narrower than ADR-0016 C10**: it
+    detected one way a rule dies, while the retrieval layer's answer
+    covers three, and the role run puts a citation's statement into the
+    excerpts that leave the machine. The retrieval layer now answers "does
+    the memory serve this rule?" in one place, the citation path asks it,
+    and the second, weaker definition is **deleted**.
+  - The enumeration's candidate rule — the mechanism that reads the tests
+    to decide who may witness which refusal — **had no witness of its own**.
+    A mechanism with no witness can be neutered while the tree stays green,
+    and the witness now names a real test whose file reaches the CLI and
+    which does not.
+- **Two findings came from the merge itself, and both were invisible from
+  the branches.** Revision 0001 was amended to carry the new event type, so
+  only a store built *afterwards* would accept it: measured, a store built
+  with the pre-amendment first migration and then upgraded to head still
+  refused `operation_denied`. Revision 0032 closes that. And the merge
+  broke three of the tree's own gates — the evaluation harness's partition,
+  three anchored pointers, and the tree's measured Chinese — which the
+  branches could not see, because each branch's tree was intact.
+- **One finding was hiding in plain sight.** The two role-run fixtures
+  confirmed a rule but never judged the change that rule cites, so the
+  memory reported the rule as invalidated and the run was citing a rule
+  the memory does not serve. The repair in the citation path made fifteen
+  tests red — which is how the thing showed.
+- **What the review did not cover, it says.** Three of the batch's slices
+  did not get a full R1–R7 pass, and the whole-suite run on the merged tree
+  was not completed. A slice read in part has not been reviewed, and the
+  record says so rather than dressing it up.
