@@ -51,9 +51,11 @@ from labcairn.application.model_suggestions import (
     MODEL_SUGGESTION_MODE_SUBSTITUTE,
     SUBSTITUTE_AUTHOR,
     SuggestionLoopConfig,
+    _entry_from_record,
     suggest_for_version,
     suggestion_approval_use,
 )
+from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.core.providers.protocol import ModelRequest
 from labcairn.papers.feedback import list_feedback_events, record_feedback
 from labcairn.security.permissions import Grant
@@ -621,3 +623,65 @@ def test_a_substitute_run_through_the_route_records_and_reads_back(
     assert body["stopped_reason"] is None
     opinions = _opinions(wired, token, commented)
     assert any(o["suggestion"] is not None for o in opinions)
+
+
+def test_a_stored_count_is_read_back_as_the_number_it_is() -> None:
+    """The record's counts come back as counts.
+
+    **The shape a run wrote is the shape the reader reads.** A stored
+    attempt count comes back as an integer and a stored duration as a
+    float, whether the store spelled them as numbers or as strings — a
+    record that crossed a hand-edited store can arrive spelled ``"3"``, and
+    that is a measurement rather than a mystery.
+    """
+    entry = _entry_from_record(
+        {
+            "feedback_id": "fb-1",
+            "source": "model-a",
+            "outcome": "answered",
+            "attempts": "3",
+            "elapsed_s": "1.5",
+            "tokens_estimated": 12,
+        },
+        mode=MODEL_SUGGESTION_MODE_REAL,
+    )
+    assert entry.attempts == 3
+    assert entry.elapsed_s == 1.5
+    assert entry.tokens_estimated == 12
+
+
+def test_a_damaged_count_is_refused_rather_than_read_as_zero() -> None:
+    """A count that does not spell a number is not a count of zero.
+
+    **The reader does not invent a number the record does not hold.** A
+    stored value that spells no number is refused, so a damaged record is
+    visible rather than quietly read as a run that tried nothing and
+    spent nothing. The repository's own negative control
+    (``tests/test_fake_provider_invariants.py``) watches for that fold.
+    """
+    with pytest.raises(ApplicationRefusedError):
+        _entry_from_record(
+            {"feedback_id": "fb-3", "attempts": "three"},
+            mode=MODEL_SUGGESTION_MODE_REAL,
+        )
+    with pytest.raises(ApplicationRefusedError):
+        _entry_from_record(
+            {"feedback_id": "fb-4", "elapsed_s": "a while"},
+            mode=MODEL_SUGGESTION_MODE_REAL,
+        )
+
+
+def test_a_record_that_carries_no_count_is_refused_rather_than_read_as_zero() -> None:
+    """A count the record does not carry is refused, not read as zero.
+
+    **A missing field and a zero are different facts.** The run writes
+    these three values itself and always writes them, so a record without
+    one was not written by this writer — and reading it as a zero would
+    say "it tried nothing" about a run whose attempt count was never
+    recorded. The refusal names the field, so the reader knows which one is
+    missing rather than seeing a run that looks as though it did nothing.
+    """
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _entry_from_record({"feedback_id": "fb-5"}, mode=MODEL_SUGGESTION_MODE_REAL)
+    message = str(raised.value)
+    assert "attempts" in message, f"the refusal must name the field that is missing: {message}"

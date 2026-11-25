@@ -543,25 +543,59 @@ def _measured_int(record: Mapping[str, object], field: str) -> int:
     own negative control watches for exactly that fold
     (`tests/test_fake_provider_invariants.py`), so this reads the value it
     was given and refuses a record that does not carry one.
+
+    **A number spelled as a string is still a number.** The record lives in
+    a JSON column, so a value that crossed a hand-edited or a
+    differently-written store can arrive spelled `"3"`, and that is a
+    measurement rather than a mystery. What is not a measurement is a value
+    that spells no number at all, and that is refused.
     """
     value = record.get(field)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if isinstance(value, bool):
         raise ApplicationRefusedError(
             ApplicationRefusal.ARGUMENTS_INVALID,
             f"the stored request record's {field!r} is not a measured count: {value!r}.",
         )
-    return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError as error:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the stored request record's {field!r} is not a measured count: {value!r}.",
+            ) from error
+    raise ApplicationRefusedError(
+        ApplicationRefusal.ARGUMENTS_INVALID,
+        f"the stored request record's {field!r} is not a measured count: {value!r}.",
+    )
 
 
 def _measured_seconds(record: Mapping[str, object], field: str) -> float:
     """One measured duration, read back — or refused. See :func:`_measured_int`."""
     value = record.get(field)
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool):
         raise ApplicationRefusedError(
             ApplicationRefusal.ARGUMENTS_INVALID,
             f"the stored request record's {field!r} is not a measured duration: {value!r}.",
         )
-    return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError as error:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the stored request record's {field!r} is not a measured duration: {value!r}.",
+            ) from error
+    raise ApplicationRefusedError(
+        ApplicationRefusal.ARGUMENTS_INVALID,
+        f"the stored request record's {field!r} is not a measured duration: {value!r}.",
+    )
 
 
 def _entry_from_record(record: Mapping[str, object], *, mode: str) -> SuggestionRequestEntry:
