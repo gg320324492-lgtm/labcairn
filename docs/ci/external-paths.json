@@ -1731,6 +1731,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-25",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/picture-probe-20261119",
       "expectation": "present",
       "kind": "material",
@@ -2216,6 +2227,18 @@
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P2-18-machinery.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/secrets/minimax-m31-flash-active.txt",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-providers-config.md",
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
       ]
     },
     {
