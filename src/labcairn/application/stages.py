@@ -181,23 +181,43 @@ def run_stage(
         asked and no approval was supplied, the approval does not cover
         this request, the approval cannot be spent at this moment, or the
         stage's work failed.
+
+    **A policy denial is recorded before it is refused.** The refusal is the
+    one this has always been, and it stays terminal — nothing retries it and
+    no prompt goes to the model — but it leaves an operation in state
+    ``denied`` carrying the reason the permission layer produced, so the
+    operator can see that a write was refused and why. Every other refusal
+    still leaves nothing at all.
     """
     moment = now if now is not None else datetime.now(UTC)
     resource = context.resource_in(request.root_id, request.resource_key)
-    authorisation = consent.evaluate(
+    verdict = consent.decide(
         context,
         capability=request.capability,
         arguments=request.arguments,
         resource=resource,
     )
+    if verdict.denied:
+        # The denial is recorded *before* the refusal is raised, and the refusal
+        # is the refusal this has always been. A policy denial that left no
+        # trace would be indistinguishable from a run that was never started,
+        # and the operator would have no way to see that a write was refused or
+        # why.
+        _record_denial(context, request, resource, verdict, now=moment)
+        raise consent.permission_denied(
+            verdict.decision,
+            capability=request.capability,
+            resource=resource,
+        )
+    authorisation = verdict.authorisation
     digest = _args_digest(context, request, resource, authorisation.digest_arguments())
 
     # -- the recovery pass, before anything is spent or planned --------------- #
     # A crash this process did not witness may have left an operation in flight.
     # That is answered first, because the answer decides whether this run may plan
     # anything: replaying over an unknown outcome plans a second operation for the
-    # same work. The policy verdict above still comes first — a denied request
-    # writes nothing, recovery included.
+    # same work. The policy verdict above still comes first — a denied request is
+    # recorded and refused, and the recovery pass does not run for it.
     abandoned = recovery.reconcile_abandoned(context)
     if abandoned:
         raise ApplicationRefusedError(
@@ -364,6 +384,59 @@ def read_steps(context: ApplicationContext) -> tuple[TaskStep, ...]:
         runs = list_runs(context.store.session, context.task_id)
     attempts = {run.run_id: run.attempt for run in runs}
     return tuple(TaskStep(stage=stage, attempt=attempts.get(stage.run_id, 1)) for stage in stages)
+
+
+def _record_denial(
+    context: ApplicationContext,
+    request: StageRequest,
+    resource: CanonicalPath,
+    verdict: consent.Verdict,
+    *,
+    now: datetime,
+) -> None:
+    """The denial, recorded as an operation in state ``denied``.
+
+    **The refusal and the record are one fact, and the record comes first.**
+    The operator has to be able to see that a write was refused and why; a run
+    stopped by policy and a run that was never started look the same
+    otherwise.
+
+    The run and the stage are created by the same calls the success path uses,
+    because the operation's row names both and neither is optional: an
+    operation that names no stage is a record of nothing.
+
+    And the reason is the permission layer's own word — a
+    :class:`~labcairn.security.policy.DecisionReason` — rather than a sentence
+    about it, so a reader can tell the default deny from a rule of theirs.
+
+    **The digest is computed before anything is written.** The operation's row
+    is bound to a digest of the arguments, and a row carrying a digest no
+    reader could reproduce would be a lie — so the run and the stage are
+    created only once the digest is in hand.
+    """
+    digest = _args_digest(context, request, resource, verdict.digest_arguments())
+    run = records.ensure_run(context, request.run_id, now=now)
+    stage = records.ensure_stage(context, run, request.stage_name, now=now)
+    operation = Operation(
+        operation_id=OperationId(new_id()),
+        task_id=context.task_id,
+        run_id=run.run_id,
+        stage_id=stage.stage_id,
+        state=OperationState.PLANNED,
+        capability=request.capability.value,
+        resource_key=resource.resolved_key,
+        depends_on=request.depends_on,
+        args_digest=digest,
+    )
+    records.deny_operation(
+        context,
+        operation,
+        stage,
+        reason=verdict.decision.reason.value,
+        matched_rule=verdict.decision.matched_rule,
+        matched_spelling=verdict.decision.matched_spelling,
+        now=now,
+    )
 
 
 def _args_digest(

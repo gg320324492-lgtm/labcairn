@@ -232,7 +232,8 @@
         "tests/test_capability_namespaces.py",
         "tests/test_material_adapters.py",
         "tests/test_analysis_report_build.py",
-        "tests/test_workspace_boundaries.py"
+        "tests/test_workspace_boundaries.py",
+        "tests/test_operation_states.py"
       ]
     ],
     "windows-latest": [
@@ -466,7 +467,8 @@
         "tests/test_runtime_contracts.py",
         "tests/test_fake_provider_isolation.py",
         "tests/test_gold_set_corpus.py",
-        "tests/test_refusal_witnesses.py"
+        "tests/test_refusal_witnesses.py",
+        "tests/test_operation_states.py"
       ]
     ]
   },
@@ -691,7 +693,8 @@
       "test_workbench_real_browser.py": 0.49,
       "test_workbench_serve_helper.py": 22.7,
       "test_workspace_boundaries.py": 0.01,
-      "test_workspace_path_length.py": 0.01
+      "test_workspace_path_length.py": 0.01,
+      "test_operation_states.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 5.17,
@@ -913,7 +916,8 @@
       "test_workbench_real_browser.py": 0.79,
       "test_workbench_serve_helper.py": 50.76,
       "test_workspace_boundaries.py": 1.27,
-      "test_workspace_path_length.py": 0.01
+      "test_workspace_path_length.py": 0.01,
+      "test_operation_states.py": 0.0
     }
   }
 }
