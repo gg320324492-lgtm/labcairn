@@ -24,13 +24,22 @@ manuscript, no comment body, no tracked-change text.  The tool hashes the
 copy and counts the outline; it does not read the copy as text, and it does
 not copy the copy anywhere.  The record's vocabulary is closed -- the tool
 builds the record itself, field by field, and a key it does not know is a
-key it refuses.
+key it refuses.  The two places where a word could go -- an operator's name
+and a copy's file name -- are held to a name's length and a name's number
+of words.
+
+**The grant is read, not claimed.**  The command line names the
+authorisation record in this repository, and the tool reads the grant out
+of it: the one whose ``scope`` covers the copy's path.  A scope typed on
+the command line would be the operator's claim about the grant.
 
 **Who signs.**  ``create`` writes the record with the checklist result
 *empty*.  The result -- the date, the operator and the per-item pass/fail --
-is the owner's, and ``sign`` is the act that fills it: it stamps the result
-with the digest of the copy that is registered, so a signature cannot drift
-onto a different copy (C-4's single-pass rule).
+is the owner's, and ``sign`` is the act that fills it.  ``sign`` measures
+the copy it is given -- it has to be the copy the record registers -- and
+refuses a record whose digest does not match it, so a signature cannot
+drift onto a different copy (C-4's single-pass rule) and cannot be given
+to bytes nobody looked at.
 
 **Three subcommands.**
 
@@ -59,7 +68,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -101,13 +110,21 @@ MATERIAL_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 #: A person's name, as the record spells it: a name, not a paragraph.
-PERSON_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9 ._-]{0,63}$")
+#:
+#: The length and the word count are what keep it a name. A name is short
+#: and has few words; a sentence from the manuscript has neither, and the
+#: record has to be a place a sentence cannot reach.
+PERSON_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9 ._-]{0,39}$")
+
+#: How many words a name or a file name may have. A name has at most a
+#: few; a sentence has as many as it needs.
+MAX_WORDS = 4
 
 #: A short token: a format name, a file format's spelling.
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
 
 #: A bare file name -- no directory, so the record holds no path twice.
-FILE_NAME_PATTERN = re.compile(r"^[^/\\]{1,128}$")
+FILE_NAME_PATTERN = re.compile(r"^[^/\\]{1,64}$")
 
 #: A record pointer: a repository-relative path, a grant id, a subject
 #: reference.  No traversal, no absolute path, no drive letter.
@@ -217,12 +234,31 @@ def _git(*arguments: str) -> str:
 
 @functools.lru_cache(maxsize=1)
 def repository_root() -> Path:
-    """The repository the current working directory belongs to.
+    """The repository this tool lives in.
 
-    Resolved once per process: the tool runs in one directory, and asking
-    git again for every check costs more than it buys.
+    Not the one the current working directory belongs to: the guard that
+    keeps the material out of the repository has to mean *this* repository
+    whatever directory the operator happened to run the tool from. The
+    script's own location says which repository that is.
+
+    Resolved once per process: the tool runs in one place, and asking git
+    again for every check costs more than it buys.
     """
-    return Path(_git("rev-parse", "--show-toplevel"))
+    here = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        cwd=here,
+    )
+    if result.returncode != 0:
+        raise RegistrationError(
+            f"{here} is not a repository; the tool has to be run from the repository it belongs to"
+        )
+    return here
 
 
 def authorised_roots() -> tuple[str, ...]:
@@ -245,6 +281,36 @@ def _is_inside(child: Path, parent: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    """Whether two paths name the same place.
+
+    Compared as paths and not as strings: ``E:\\trial-material`` and
+    ``E:/trial-material`` are one directory on Windows, and a record that
+    was written with one spelling has to pass a check that reads it with
+    the other.
+    """
+    try:
+        return left.resolve() == right.resolve()
+    except OSError:
+        return False
+
+
+def _is_authorised_root(root: str) -> bool:
+    """Whether a root is one of the authorised ones, however it is spelled."""
+    return any(_same_path(Path(root), Path(candidate)) for candidate in authorised_roots())
+
+
+def _registered_copy_path(storage: Any) -> Path | None:
+    """The path the record says the copy lives at, or None if it says nothing."""
+    if not isinstance(storage, dict):
+        return None
+    root = storage.get("root")
+    relative = storage.get("relative_path")
+    if not _nonempty_str(root) or not _nonempty_str(relative):
+        return None
+    return Path(root) / relative
 
 
 def _require_outside_repository(path: Path, what: str) -> None:
@@ -330,8 +396,13 @@ def _check_format_signature(path: Path, declared: str) -> None:
     signature = FORMAT_SIGNATURES.get(declared.lower())
     if signature is None:
         return
-    with path.open("rb") as handle:
-        head = handle.read(len(signature))
+    if not path.is_file():
+        raise RegistrationError(f"the copy is not a file: {path}")
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(len(signature))
+    except OSError as error:
+        raise RegistrationError(f"the copy cannot be read: {path} ({error})") from error
     if head != signature:
         raise RegistrationError(
             f"the copy is declared {declared!r} but its bytes do not start with that "
@@ -373,12 +444,128 @@ def signed_item_ids(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# The grant
+# ---------------------------------------------------------------------------
+
+#: The fields a grant has to carry to be one.
+GRANT_KEYS: frozenset[str] = frozenset(
+    {"grant_id", "scope", "subject_ref", "granted_by", "granted_at", "expires_at"}
+)
+
+#: The fields of the record's authorisation section, and the grant's own
+#: spelling of them.
+GRANT_FIELDS: tuple[tuple[str, str], ...] = (
+    ("grant_id", "grant_id"),
+    ("subject_ref", "subject_ref"),
+    ("scope", "scope"),
+    ("granted_by", "granted_by"),
+    ("granted_at", "granted_at"),
+    ("expires_at", "expires_at"),
+)
+
+
+def _json_blocks(text: str) -> list[Any]:
+    """The JSON blocks in a markdown file, parsed."""
+    blocks: list[Any] = []
+    for chunk in re.findall(r"```json[ \t]*\n(.*?)```", text, flags=re.DOTALL):
+        try:
+            blocks.append(json.loads(chunk))
+        except json.JSONDecodeError:
+            continue
+    return blocks
+
+
+def _walk_dicts(value: Any) -> Iterator[dict[str, Any]]:
+    """Every object inside a parsed document, at any depth."""
+    if isinstance(value, dict):
+        yield value
+        for item in value.values():
+            yield from _walk_dicts(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _walk_dicts(item)
+
+
+def grants_in(record_path: Path) -> list[dict[str, str]]:
+    """The grants a repository record carries, read from the record itself.
+
+    A grant is a JSON object that carries the six fields a grant has. The
+    records that hold one are markdown files with JSON blocks in them, so
+    every fenced JSON block is parsed and every object in it that looks
+    like a grant is collected.
+
+    **The point of reading them here.** A scope typed on the command line
+    is the operator's claim about the grant; a scope read out of the
+    authorisation record is the grant. The tool checks the copy against
+    the second one, so the check cannot be satisfied by a claim.
+    """
+    try:
+        text = record_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise RegistrationError(
+            f"the authorisation record cannot be read: {record_path} ({error})"
+        ) from error
+    found: list[dict[str, str]] = []
+    for block in _json_blocks(text):
+        for candidate in _walk_dicts(block):
+            if set(candidate) >= GRANT_KEYS:
+                found.append(
+                    {
+                        field: str(candidate[grant_field])
+                        for field, grant_field in GRANT_FIELDS
+                        if isinstance(candidate[grant_field], (str, int, float))
+                    }
+                )
+    return found
+
+
+def grant_covering(grants: list[dict[str, str]], relative_path: str) -> dict[str, str]:
+    """The one grant that covers the copy's path.
+
+    Exactly one has to cover it: none means the material is outside every
+    grant the authorisation record carries, and more than one means the
+    record does not say which grant the copy is registered under.
+    """
+    covering = [grant for grant in grants if scope_covers(grant.get("scope", ""), relative_path)]
+    if not covering:
+        scopes = ", ".join(sorted({grant.get("scope", "") for grant in grants})) or "none"
+        raise RegistrationError(
+            f"no grant in the authorisation record covers the copy's path "
+            f"{relative_path!r}; the grant(s) it carries cover {scopes}"
+        )
+    if len(covering) > 1:
+        ids = ", ".join(sorted(grant.get("grant_id", "?") for grant in covering))
+        raise RegistrationError(
+            f"{len(covering)} grants in the authorisation record cover the copy's "
+            f"path ({ids}); the record does not say which one the copy is registered "
+            f"under"
+        )
+    return covering[0]
+
+
+# ---------------------------------------------------------------------------
 # Values
 # ---------------------------------------------------------------------------
 
 
 def _nonempty_str(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
+
+
+def _has_few_words(value: str) -> bool:
+    """Whether a value reads as a label rather than as a sentence.
+
+    A name has a few words; a sentence from the manuscript has as many as
+    it needs. This is the check that keeps the two free-text-ish fields of
+    the record -- an operator's name and a copy's file name -- places a
+    sentence cannot reach.
+    """
+    return len(value.split()) <= MAX_WORDS
+
+
+def _is_person(value: Any) -> bool:
+    """Whether a value is a name the record can hold."""
+    return isinstance(value, str) and bool(PERSON_PATTERN.match(value)) and _has_few_words(value)
 
 
 def _is_int(value: Any) -> bool:
@@ -411,7 +598,10 @@ def _scope_pattern(scope: str) -> re.Pattern[str]:
     """The scope's glob as a pattern.
 
     ``**`` spans the rest of the path, ``*`` spans one segment, and
-    everything else is literal.
+    everything else is literal. The match ignores case where the
+    filesystem does: on Windows ``Pilot`` and ``pilot`` are one
+    directory, and a scope that refuses the other spelling would refuse a
+    copy that is inside it.
     """
     parts: list[str] = []
     for segment in scope.split("/"):
@@ -421,7 +611,8 @@ def _scope_pattern(scope: str) -> re.Pattern[str]:
             parts.append("[^/]*")
         else:
             parts.append(re.escape(segment))
-    return re.compile("^" + "/".join(parts) + "$")
+    flags = re.IGNORECASE if os.name == "nt" else 0
+    return re.compile("^" + "/".join(parts) + "$", flags)
 
 
 def scope_covers(scope: str, relative_path: str) -> bool:
@@ -564,7 +755,7 @@ def check_record(
         problem("registered_at", "missing, empty, or not a UTC ISO-8601 timestamp")
     if not _nonempty_str(record.get("registered_by")):
         problem("registered_by", "missing or empty")
-    elif not PERSON_PATTERN.match(record["registered_by"]):
+    elif not _is_person(record["registered_by"]):
         problem("registered_by", "is not a name the record can hold")
 
     _check_copy(record.get("copy"), problem)
@@ -594,6 +785,8 @@ def _check_copy(copy: Any, problem: Any) -> None:
         problem("copy.file_name", "missing or empty")
     elif not FILE_NAME_PATTERN.match(copy["file_name"]):
         problem("copy.file_name", "is not a bare file name")
+    elif not _has_few_words(Path(copy["file_name"]).stem):
+        problem("copy.file_name", "reads as a sentence rather than a name")
     size = copy.get("byte_size")
     if not _is_int(size) or size <= 0:
         problem("copy.byte_size", "missing, or not a positive whole number")
@@ -666,14 +859,11 @@ def _check_authorisation(
         problem("authorisation.record", "missing or empty")
     elif not REFERENCE_PATTERN.match(authorisation["record"]):
         problem("authorisation.record", "is not a repository-relative path")
-    elif repo_root is not None and not (repo_root / authorisation["record"]).exists():
-        problem(
-            "authorisation.record",
-            f"names a file that is not in the repository: {authorisation['record']}",
-        )
+    elif repo_root is not None:
+        _check_the_grant_it_cites(authorisation, repo_root, problem)
     if not _nonempty_str(authorisation.get("granted_by")):
         problem("authorisation.granted_by", "missing or empty")
-    elif not PERSON_PATTERN.match(authorisation["granted_by"]):
+    elif not _is_person(authorisation["granted_by"]):
         problem("authorisation.granted_by", "is not a name the record can hold")
     granted_at = authorisation.get("granted_at")
     expires_at = authorisation.get("expires_at")
@@ -690,6 +880,43 @@ def _check_authorisation(
     return {key: value for key, value in authorisation.items() if isinstance(value, str)}
 
 
+def _check_the_grant_it_cites(authorisation: dict[str, str], repo_root: Path, problem: Any) -> None:
+    """The grant the record names has to be the grant the record cites.
+
+    The record is a copy of what an authorisation record says. When the
+    authorisation record changes -- a scope narrowed, a grant withdrawn --
+    the registration that cites it is stale, and a stale registration is
+    one nobody notices until the material is sent somewhere it may not go.
+    """
+    relative = authorisation["record"]
+    path = repo_root / relative
+    if not path.is_file():
+        problem("authorisation.record", f"names a file that is not in the repository: {relative}")
+        return
+    try:
+        grants = grants_in(path)
+    except RegistrationError as error:
+        problem("authorisation.record", str(error))
+        return
+    grant_id = authorisation.get("grant_id", "")
+    matching = [grant for grant in grants if grant.get("grant_id") == grant_id]
+    if not matching:
+        problem(
+            "authorisation.grant_id",
+            f"names a grant that the record it cites does not carry: {grant_id}",
+        )
+        return
+    for field, _grant_field in GRANT_FIELDS:
+        if field == "grant_id":
+            continue
+        if authorisation.get(field) != matching[0].get(field):
+            problem(
+                f"authorisation.{field}",
+                f"is {authorisation.get(field)!r} but the grant in {relative} says "
+                f"{matching[0].get(field)!r}; the record is stale",
+            )
+
+
 def _check_storage(storage: Any, authorisation: dict[str, str], problem: Any) -> None:
     if not isinstance(storage, dict):
         problem("storage", "missing or not an object")
@@ -700,7 +927,7 @@ def _check_storage(storage: Any, authorisation: dict[str, str], problem: Any) ->
     root = storage.get("root")
     if not _nonempty_str(root):
         problem("storage.root", "missing or empty")
-    elif root not in authorised_roots():
+    elif not _is_authorised_root(root):
         problem(
             "storage.root",
             f"{root!r} is not one of the authorised roots ({', '.join(authorised_roots())})",
@@ -770,7 +997,7 @@ def _check_checklist(
         problem("checklist.result.date", "missing, empty, or not a YYYY-MM-DD date")
     if not _nonempty_str(result.get("operator")):
         problem("checklist.result.operator", "missing or empty")
-    elif not PERSON_PATTERN.match(result["operator"]):
+    elif not _is_person(result["operator"]):
         problem("checklist.result.operator", "is not a name the record can hold")
     items = result.get("items")
     if not isinstance(items, dict):
@@ -836,7 +1063,7 @@ def _require_material_id(material_id: str) -> None:
 
 
 def _require_person(value: str, what: str) -> None:
-    if not PERSON_PATTERN.match(value):
+    if not _is_person(value):
         raise RegistrationError(f"the {what} {value!r} is not a name the record can hold")
 
 
@@ -863,7 +1090,7 @@ def command_create(arguments: argparse.Namespace) -> int:
 
     roots = authorised_roots()
     storage_root = arguments.storage_root or roots[0]
-    if storage_root not in roots:
+    if not _is_authorised_root(storage_root):
         raise RegistrationError(
             f"the storage root {storage_root!r} is not one of the authorised roots "
             f"({', '.join(roots)})"
@@ -871,36 +1098,54 @@ def command_create(arguments: argparse.Namespace) -> int:
 
     copy_path = Path(arguments.copy)
     original_path = Path(arguments.original)
+    outline_path = Path(arguments.outline)
     _require_outside_repository(copy_path, "the copy")
     _require_outside_repository(original_path, "the original")
+    _require_outside_repository(outline_path, "the heading outline")
+    for path, what in (
+        (copy_path, "copy"),
+        (original_path, "original"),
+        (outline_path, "heading outline file"),
+    ):
+        if not path.exists():
+            raise RegistrationError(f"the {what} does not exist: {path}")
+        if not path.is_file():
+            raise RegistrationError(f"the {what} is not a file: {path}")
 
     root_path = Path(storage_root)
     relative_path = _relative_to_root(copy_path, root_path)
-
-    scope = arguments.grant_scope
-    _require_scope(scope)
-    if not scope_covers(scope, relative_path):
+    if not _is_inside(outline_path, root_path):
         raise RegistrationError(
-            f"the copy's path {relative_path!r} is not inside the scope the "
-            f"authorisation grants ({scope}); the copy has to live where the signed "
-            f"grant covers it, or the grant has to be re-signed"
+            f"the heading outline ({outline_path}) is not under the storage root "
+            f"{root_path}; the outline holds the copy's headings and belongs to "
+            f"the authorised environment"
         )
 
+    repo_root = repository_root()
+    grant_record = arguments.grant_record
+    _require_reference(grant_record, "authorisation record")
+    grant_path = repo_root / grant_record
+    if not grant_path.is_file():
+        raise RegistrationError(
+            f"the authorisation record is not a file in the repository: {grant_record}"
+        )
+    grant = grant_covering(grants_in(grant_path), relative_path)
+
     authorisation = {
-        "grant_id": arguments.grant_id,
-        "record": arguments.grant_record,
-        "subject_ref": arguments.grant_subject_ref,
-        "scope": scope,
-        "granted_by": arguments.granted_by,
-        "granted_at": arguments.granted_at,
-        "expires_at": arguments.expires_at,
+        "grant_id": grant["grant_id"],
+        "record": grant_record,
+        "subject_ref": grant["subject_ref"],
+        "scope": grant["scope"],
+        "granted_by": grant["granted_by"],
+        "granted_at": grant["granted_at"],
+        "expires_at": grant["expires_at"],
     }
     for field, value in authorisation.items():
         if not _nonempty_str(value):
             raise RegistrationError(f"the authorisation's {field} is missing or empty")
     _require_reference(authorisation["grant_id"], "grant id")
-    _require_reference(authorisation["record"], "authorisation record")
     _require_reference(authorisation["subject_ref"], "subject reference")
+    _require_scope(authorisation["scope"])
     _require_person(authorisation["granted_by"], "grantor")
 
     counts = {
@@ -913,9 +1158,7 @@ def command_create(arguments: argparse.Namespace) -> int:
     }
     _require_counts(counts)
 
-    _check_format_signature(copy_path, arguments.format)
-
-    heading_count, heading_digest = measure_outline(Path(arguments.outline))
+    heading_count, heading_digest = measure_outline(outline_path)
 
     record = build_record(
         material_id=arguments.material_id,
@@ -930,8 +1173,8 @@ def command_create(arguments: argparse.Namespace) -> int:
         heading_digest=heading_digest,
         authorisation=authorisation,
     )
+    _check_format_signature(copy_path, arguments.format)
 
-    repo_root = repository_root()
     out_path = (
         Path(arguments.out)
         if arguments.out
@@ -943,8 +1186,10 @@ def command_create(arguments: argparse.Namespace) -> int:
             f"({arguments.material_id}.json), and {out_path.name} is not"
         )
     _validate_out_path(out_path, repo_root)
-    if out_path.exists() and not arguments.force:
-        raise RegistrationError(f"{out_path} already exists; pass --force to replace it")
+    if out_path.exists():
+        if not arguments.force:
+            raise RegistrationError(f"{out_path} already exists; pass --force to replace it")
+        _require_no_signature(out_path, arguments.discard_signature)
 
     write_record(record, out_path)
 
@@ -968,6 +1213,31 @@ def command_create(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _require_no_signature(out_path: Path, discard: bool) -> None:
+    """Refuse to replace a record that carries the owner's signature.
+
+    A signature is the one thing in the record that is the owner's, and a
+    tool command that erases it silently is not a deliberate act. The
+    record has to be removed by hand for that to happen.
+    """
+    try:
+        existing = json.loads(out_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return
+    if not isinstance(existing, dict):
+        return
+    checklist = existing.get("checklist")
+    if not isinstance(checklist, dict) or checklist.get("result") is None:
+        return
+    if discard:
+        return
+    raise RegistrationError(
+        f"{out_path} carries the owner's signature (D-6); replacing it would "
+        f"discard that signature, and a tool command does not do that — remove "
+        f"the record yourself if you mean to"
+    )
+
+
 def _validate_out_path(out_path: Path, repo_root: Path) -> None:
     """Refuse to write a record anywhere but the registrations folder."""
     if not _is_inside(out_path, repo_root):
@@ -981,22 +1251,58 @@ def _validate_out_path(out_path: Path, repo_root: Path) -> None:
         )
 
 
+def _read_record(record_path: Path) -> Any:
+    """A record file, read. Anything unreadable is a refusal, not a crash."""
+    if not record_path.exists():
+        raise RegistrationError(f"the record does not exist: {record_path}")
+    try:
+        text = record_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise RegistrationError(f"the record cannot be read: {record_path} ({error})") from error
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise RegistrationError(f"the record is not valid JSON: {error}") from error
+
+
+def _require_the_registered_copy(record: Any, copy_path: Path) -> None:
+    """Refuse a copy that is not the one the record registers.
+
+    The record says where the copy lives. A check that measures some
+    other file cannot say whether the material sitting at the registered
+    path is the material that was approved -- which is the question the
+    import step asks.
+    """
+    if not isinstance(record, dict):
+        return
+    registered = _registered_copy_path(record.get("storage"))
+    if registered is None:
+        raise RegistrationError(
+            "the record does not say where its copy lives, so there is nothing "
+            "to measure the copy against"
+        )
+    if not _same_path(copy_path, registered):
+        raise RegistrationError(
+            f"the copy at {copy_path} is not the copy the record registers "
+            f"({registered}); the check is about the material at the registered path"
+        )
+
+
 def command_check(arguments: argparse.Namespace) -> int:
     """Check a record, and with ``--copy`` the copy's bytes."""
     repo_root = repository_root()
     record_path = Path(arguments.record)
-    if not record_path.exists():
-        raise RegistrationError(f"the record does not exist: {record_path}")
-    try:
-        record = json.loads(record_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise RegistrationError(f"the record is not valid JSON: {error}") from error
+    record = _read_record(record_path)
+
+    copy_path = Path(arguments.copy) if arguments.copy else None
+    if copy_path is not None:
+        _require_the_registered_copy(record, copy_path)
 
     problems = check_record(
         record,
         expected_stem=record_path.stem,
         repo_root=repo_root,
-        copy_path=Path(arguments.copy) if arguments.copy else None,
+        copy_path=copy_path,
         require_signed=arguments.require_signed,
     )
     if problems:
@@ -1016,18 +1322,29 @@ def command_sign(arguments: argparse.Namespace) -> int:
     """Fill the checklist result -- the owner's signature."""
     repo_root = repository_root()
     record_path = Path(arguments.record)
-    if not record_path.exists():
-        raise RegistrationError(f"the record does not exist: {record_path}")
-    try:
-        record = json.loads(record_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise RegistrationError(f"the record is not valid JSON: {error}") from error
+    record = _read_record(record_path)
     if not isinstance(record, dict):
         raise RegistrationError("the record is not a JSON object")
 
     _require_person(arguments.operator, "operator")
     if not _is_date(arguments.date):
         raise RegistrationError(f"the date {arguments.date!r} is not a YYYY-MM-DD date")
+
+    # **The signature is made against the material.** The copy is measured
+    # here, not taken on trust from the record: a signature that binds to a
+    # digest nobody re-measured is a signature on a memory.
+    copy_path = Path(arguments.copy)
+    _require_the_registered_copy(record, copy_path)
+    problems = check_record(
+        record,
+        expected_stem=record_path.stem,
+        repo_root=repo_root,
+        copy_path=copy_path,
+    )
+    if problems:
+        raise RegistrationError(
+            "the record does not hold against the material it names:\n  " + "\n  ".join(problems)
+        )
 
     checklist_path = repo_root / CHECKLIST_RELPATH
     if not checklist_path.exists():
@@ -1039,8 +1356,8 @@ def command_sign(arguments: argparse.Namespace) -> int:
         raise RegistrationError(f"the item result file does not exist: {items_path}")
     try:
         items = json.loads(items_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise RegistrationError(f"the item result file is not valid JSON: {error}") from error
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RegistrationError(f"the item result file cannot be read: {error}") from error
     if not isinstance(items, dict):
         raise RegistrationError("the item result file is not a JSON object of item ids and results")
 
@@ -1127,19 +1444,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--revision-marks", type=int, required=True, help="the copy's revision-mark count"
     )
     create.add_argument("--operator", required=True, help="who is registering the copy")
-    create.add_argument("--grant-id", required=True, help="the authorisation's grant id")
     create.add_argument(
-        "--grant-record", required=True, help="the authorisation's record, in the repository"
+        "--grant-record",
+        required=True,
+        help="the authorisation record in the repository that carries the grant",
     )
-    create.add_argument(
-        "--grant-subject-ref", required=True, help="the authorisation's subject reference"
-    )
-    create.add_argument("--grant-scope", required=True, help="the authorisation's scope")
-    create.add_argument("--granted-by", required=True, help="who granted the authorisation")
-    create.add_argument("--granted-at", required=True, help="when the authorisation was granted")
-    create.add_argument("--expires-at", required=True, help="when the authorisation expires")
     create.add_argument("--out", default=None, help="where to write the record")
     create.add_argument("--force", action="store_true", help="replace a record that already exists")
+    create.add_argument(
+        "--discard-signature",
+        action="store_true",
+        help="replace a record that carries the owner's signature, discarding it",
+    )
     create.set_defaults(handler=command_create)
 
     check = subcommands.add_parser("check", help="check a record, and with --copy its material")
@@ -1154,6 +1470,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sign = subcommands.add_parser("sign", help="fill the checklist result -- the owner's signature")
     sign.add_argument("record", help="the registration record to sign")
+    sign.add_argument(
+        "--copy",
+        required=True,
+        help="the copy the signature is made against; it is measured, not trusted",
+    )
     sign.add_argument("--operator", required=True, help="who signs")
     sign.add_argument("--date", required=True, help="the date of the signature, YYYY-MM-DD")
     sign.add_argument(

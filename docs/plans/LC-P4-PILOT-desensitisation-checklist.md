@@ -90,7 +90,7 @@ so there is nowhere for a sentence of the manuscript to go.
 | # | Item | Registered value | Field in the registration record |
 |---|---|---|---|
 | D-1 | Material id | The pilot's stable id for the copy (e.g. `pilot-paper-001`), used by every later record that points at the material | `material_id` |
-| D-2 | Source authorisation | A pointer to the owner's authorisation for using this paper (who authorised, what scope) — a path/record id, not a copy of the paper | `authorisation` (`grant_id`, `record`, `subject_ref`, `scope`, `granted_by`, `granted_at`, `expires_at`) |
+| D-2 | Source authorisation | A pointer to the owner's authorisation for using this paper (who authorised, what scope) — a path/record id, not a copy of the paper | `authorisation` (`grant_id`, `record`, `subject_ref`, `scope`, `granted_by`, `granted_at`, `expires_at`) — read out of the authorisation record the citation names, never typed |
 | D-3 | Metadata set | File format, page/word/figure/table counts, comment count, revision-mark count, heading outline digest — counts and digests only, no content | `copy.format` and `metadata` (the seven counts and the outline's digest) |
 | D-4 | Material fingerprint | sha256 of the desensitised copy, plus the digest of the original it was derived from (G0 §4 records the standing candidate's digest the same way) | `copy.sha256` and `copy.origin_sha256`, with each file's byte size |
 | D-5 | Storage path | The authorised-environment path (`E:/trial-material/…`) where the copy lives — a path only; the repository stores no bytes of the material | `storage.root` and `storage.relative_path` |
@@ -98,14 +98,17 @@ so there is nowhere for a sentence of the manuscript to go.
 
 **Who writes what.** The tool measures what can be measured — the copy's
 and the original's sha256, the heading outline's digest and its heading
-count — and writes down the counts and the authorisation the operator
-supplies. It leaves the checklist result **empty**: D-6 is the owner's to
-write, and the owner's signature is one act (`sign`, which reads the item
-ids out of this checklist, refuses a set that misses one or carries one
-this checklist does not have, and stamps the result with the digest of the
-copy that is registered — so a signature cannot drift onto another copy).
-Until that result is there, `check --require-signed` fails, and the import
-step (plan §9.2 step 2) must not run.
+count — and writes down the counts the operator supplies. **The grant is
+read out of the authorisation record the record cites**, not typed: the
+tool finds the grant in that file whose scope covers the copy and copies
+its fields, so the check cannot be satisfied by a claim. The tool leaves
+the checklist result **empty**: D-6 is the owner's to write, and the
+owner's signature is one act (`sign`, which measures the copy, reads the
+item ids out of this checklist, refuses a set that misses one or carries
+one this checklist does not have, and stamps the result with the digest of
+the copy that is registered — so a signature cannot drift onto another
+copy). Until that result is there, `check --require-signed` fails, and the
+import step (plan §9.2 step 2) must not run.
 
 **Which copy.** The record registers whichever copy the owner picks; the
 format decides nothing. G0 §4 names the standing candidate — the Phase 3
