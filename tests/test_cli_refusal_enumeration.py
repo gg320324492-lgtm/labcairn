@@ -24,11 +24,11 @@ This file is that enumeration. It:
 
 **The granularity is the test, not the file.** A witness is a whole test, and
 a test is a candidate only when *that test* reaches the CLI — it imports the
-CLI, it uses the CLI's own rig, or it says one of the CLI's refusal reasons.
-The file a test lives in is only the outer bound: **one import anywhere in a
-file used to make every test in that file a candidate**, and two candidates
-chasing one refusal leave that refusal with no witness at all — the gate goes
-red on a tree where nothing about the product changed.
+CLI, or it uses the CLI's own rig. The file a test lives in is only the outer
+bound: **one import anywhere in a file used to make every test in that file a
+candidate**, and two candidates chasing one refusal leave that refusal with no
+witness at all — the gate goes red on a tree where nothing about the product
+changed.
 
 **Two refusals can say the same sentence, and then the sentence cannot say
 which refusal a witness watches.** The configuration that cannot be read and
@@ -72,6 +72,8 @@ from __future__ import annotations
 import ast
 import builtins
 import re
+import sys
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -216,9 +218,21 @@ def _modules(package: Path) -> list[Path]:
     return sorted(package.rglob("*.py"))
 
 
+def _read(path: Path) -> str:
+    """The text of the file at *path*.
+
+    **The seam the mechanism's own witnesses are driven through.** The gate
+    reads the product's sources and the suite's, and a witness that checks
+    what the gate does with a source the tree does not hold writes the
+    source here and lets the gate read it. The seam is one function wide,
+    so that reading the source is the only thing a witness replaces.
+    """
+    return path.read_text(encoding="utf-8")
+
+
 def _parse(path: Path) -> ast.Module:
     """The syntax tree of the file at *path*."""
-    return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    return ast.parse(_read(path), filename=str(path))
 
 
 def _sources_text() -> str:
@@ -295,6 +309,61 @@ def _bindings(function: ast.FunctionDef) -> dict[str, ast.expr]:
     return bindings
 
 
+def _module_constants(tree: ast.Module) -> dict[str, ast.expr]:
+    """The names a module binds at its top level, and the expressions they hold.
+
+    **A constant at the module's top level is a message like any other.**
+    The product may hoist a refusal's words into one, and the words are the
+    same words; the rule that reads them must not depend on where the
+    product happened to write them.
+    """
+    bindings: dict[str, ast.expr] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    bindings[target.id] = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.value is not None
+        ):
+            bindings[node.target.id] = node.value
+    return bindings
+
+
+@dataclass(frozen=True, slots=True)
+class _Scope:
+    """The names a message can be written through.
+
+    **A message says the same words however it is written.** A refusal's
+    message may be a literal, an interpolated string, a call to a function
+    of the same module — or a *name*, bound in the enclosing function or at
+    the module's top level. The scope is where a name is looked up, so that
+    the rule for reading a message is one rule and not one for a literal and
+    another for a name.
+    """
+
+    functions: dict[str, ast.FunctionDef]
+    function_bindings: dict[str, ast.expr]
+    module_bindings: dict[str, ast.expr]
+
+    @property
+    def bindings(self) -> dict[str, ast.expr]:
+        """The names in scope, the enclosing function's own first."""
+        return {**self.module_bindings, **self.function_bindings}
+
+    def bound(self, name: str) -> ast.expr | None:
+        """The expression a name is bound to, if it is bound at all."""
+        if name in self.function_bindings:
+            return self.function_bindings[name]
+        return self.module_bindings.get(name)
+
+    def inside(self, function: ast.FunctionDef) -> _Scope:
+        """The scope of a function of the same module."""
+        return _Scope(self.functions, _bindings(function), self.module_bindings)
+
+
 def _value_text(node: ast.expr, bindings: dict[str, ast.expr]) -> str:
     """The source text of the value *node* names."""
     if isinstance(node, ast.Name) and node.id in bindings:
@@ -304,8 +373,9 @@ def _value_text(node: ast.expr, bindings: dict[str, ast.expr]) -> str:
 
 def _pieces(
     expression: ast.expr | None,
-    functions: dict[str, ast.FunctionDef],
+    scope: _Scope,
     seen: frozenset[str] = frozenset(),
+    named: frozenset[str] = frozenset(),
 ) -> tuple[str, ...]:
     """The literal runs a message is made of, with the values left out.
 
@@ -316,9 +386,13 @@ def _pieces(
     words with its own path in them — so a witness is a fragment of the
     template rather than of one rendering of it.
 
-    A message that is built by a function of the same module is resolved by
-    reading that function's return — the refusal's words are the words the
-    helper writes, and the helper is in the same file.
+    **A message is a word, however it is written.** It may be a literal, an
+    interpolated string, a name bound to one of those, or a call to a
+    function of the same module — and a name is read through the bindings
+    the values are read through, so that the rule for the word is one rule
+    and not two. A message the product hoisted into a constant says the
+    words it always said, and it stays in the watch set: **the syntax of a
+    message cannot decide whether it is watched.**
     """
     if expression is None:
         return ()
@@ -331,19 +405,26 @@ def _pieces(
         )
     if isinstance(expression, ast.Call):
         name = _called_name(expression)
-        function = functions.get(name)
+        function = scope.functions.get(name)
         if function is not None and name not in seen:
+            inner = scope.inside(function)
             for node in ast.walk(function):
                 if isinstance(node, ast.Return) and node.value is not None:
-                    return _pieces(node.value, functions, seen | {name})
+                    return _pieces(node.value, inner, seen | {name}, named)
+        return ()
+    if isinstance(expression, ast.Name):
+        bound = scope.bound(expression.id)
+        if bound is not None and expression.id not in named:
+            return _pieces(bound, scope, seen, named | {expression.id})
+        return ()
     return ()
 
 
 def _values(
     expression: ast.expr | None,
-    functions: dict[str, ast.FunctionDef],
-    bindings: dict[str, ast.expr],
+    scope: _Scope,
     seen: frozenset[str] = frozenset(),
+    named: frozenset[str] = frozenset(),
 ) -> tuple[str, ...]:
     """The values a message interpolates, as the product writes them.
 
@@ -352,22 +433,33 @@ def _values(
     say the same three words; what separates them is the path each of them
     names, and a witness that compares the configuration's path is the
     witness of the configuration's refusal and not of the policy's.
+
+    **The values are read through the same scope as the words**, so a
+    message the product hoisted into a constant is read whole: the words
+    it writes and the values it puts in them.
     """
     if expression is None:
         return ()
     if isinstance(expression, ast.JoinedStr):
         return tuple(
-            _value_text(value.value, bindings)
+            _value_text(value.value, scope.bindings)
             for value in expression.values
             if isinstance(value, ast.FormattedValue)
         )
     if isinstance(expression, ast.Call):
         name = _called_name(expression)
-        function = functions.get(name)
+        function = scope.functions.get(name)
         if function is not None and name not in seen:
+            inner = scope.inside(function)
             for node in ast.walk(function):
                 if isinstance(node, ast.Return) and node.value is not None:
-                    return _values(node.value, functions, _bindings(function), seen | {name})
+                    return _values(node.value, inner, seen | {name}, named)
+        return ()
+    if isinstance(expression, ast.Name):
+        bound = scope.bound(expression.id)
+        if bound is not None and expression.id not in named:
+            return _values(bound, scope, seen, named | {expression.id})
+        return ()
     return ()
 
 
@@ -428,34 +520,45 @@ def _refusals() -> list[Refusal]:
         tree = _parse(path)
         functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
         every_function = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
+        constants = _module_constants(tree)
         handled = _handler_failures(tree)
         for node in ast.walk(tree):
             if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
                 name = _called_name(node.exc)
                 if name in classes:
                     message = node.exc.args[0] if node.exc.args else None
+                    scope = _Scope(
+                        functions,
+                        _bindings_of(every_function, node.lineno),
+                        constants,
+                    )
                     found.append(
                         Refusal(
                             path,
                             node.lineno,
                             "raise",
-                            _pieces(message, functions),
+                            _pieces(message, scope),
                             _enclosing_function(every_function, node.lineno),
                             (),
-                            _values(message, functions, _bindings_of(every_function, node.lineno)),
+                            _values(message, scope),
                         )
                     )
             elif isinstance(node, ast.Call) and _called_name(node) == "_refuse":
                 message = node.args[1] if len(node.args) > 1 else None
+                scope = _Scope(
+                    functions,
+                    _bindings_of(every_function, node.lineno),
+                    constants,
+                )
                 found.append(
                     Refusal(
                         path,
                         node.lineno,
                         "_refuse",
-                        _pieces(message, functions),
+                        _pieces(message, scope),
                         _enclosing_function(every_function, node.lineno),
                         handled.get(id(node), ()),
-                        _values(message, functions, _bindings_of(every_function, node.lineno)),
+                        _values(message, scope),
                     )
                 )
     return sorted(found, key=lambda refusal: (str(refusal.path), refusal.line))
@@ -513,8 +616,16 @@ def _imports_the_cli(node: ast.AST) -> bool:
     return False
 
 
-def _asserts_a_reason(node: ast.AST, reasons: set[str]) -> bool:
-    """Whether *node* says one of the CLI's refusal reasons."""
+def _holds_a_reason(node: ast.AST, reasons: set[str]) -> bool:
+    """Whether *node* says one of the CLI's refusal reasons.
+
+    **The reasons are the CLI's vocabulary, and quoting them is not
+    reaching the CLI.** A test that holds a reason is not thereby a test
+    that ran the CLI, and the rule that decides candidacy does not ask
+    this. It is asked here, by the witness that shows what the rule cost:
+    a test that quotes a reason and reaches nothing is not a candidate,
+    and the witness says so by showing the reason is there.
+    """
     return any(
         isinstance(child, ast.Constant) and child.value in reasons for child in ast.walk(node)
     )
@@ -523,12 +634,16 @@ def _asserts_a_reason(node: ast.AST, reasons: set[str]) -> bool:
 def _witness_modules() -> list[Path]:
     """The test modules that watch the CLI's refusals.
 
-    **A module watches the CLI's refusals if it imports the CLI, or if it
-    says one of the CLI's own refusal reasons.** Both are read from the
-    product: the reasons are the CLI's, declared in
-    :mod:`labcairn.cli.models`. A module that neither imports the CLI nor
-    names its reasons is about something else, and the strings it asserts
-    are not witnesses of anything the CLI refuses.
+    **A module watches the CLI's refusals if it imports the CLI.** The
+    import is the outer bound: the scan reads the modules that import the
+    CLI, and a module that does not import it is not read.
+
+    **The outer bound is a bound, and it is known to be one.** A module
+    that reaches the CLI only through another module's rig is not read,
+    and the tests in it are not candidates — the limit of the file
+    granularity, recorded in ``docs/handoff/CURRENT.md``. Widening the
+    bound is a change to the set of candidates rather than to a filter,
+    and it is not made here.
 
     **The module is the outer bound, and the test decides within it.**
     :func:`_witnesses` asks each test whether it reaches the CLI, because
@@ -536,7 +651,6 @@ def _witness_modules() -> list[Path]:
     otherwise — and two candidates chasing one refusal leave that refusal
     with no witness at all.
     """
-    reasons = _cli_refusal_reasons()
     modules: list[Path] = []
     for path in sorted(TESTS_DIRECTORY.rglob("test_*.py")):
         if path.resolve() == Path(__file__).resolve():
@@ -544,7 +658,7 @@ def _witness_modules() -> list[Path]:
             # machinery's, not a product's.
             continue
         tree = _parse(path)
-        if _imports_the_cli(tree) or _asserts_a_reason(tree, reasons):
+        if _imports_the_cli(tree):
             modules.append(path)
     return modules
 
@@ -564,11 +678,10 @@ def _witnesses(module: ast.Module, path: Path) -> list[Witness]:
 
     **A test that does not reach the CLI is not a witness of it.** The
     module is only the outer bound: the test itself has to import the CLI,
-    to use the CLI's own rig, or to say one of the CLI's refusal reasons.
-    A test in the API's file that asserts the sentence the CLI's door also
-    writes is about the API's door, and it must not be counted as a second
-    candidate for the CLI's — two candidates chasing one refusal leave that
-    refusal with no witness at all.
+    or to use the CLI's own rig. A test in the API's file that asserts the
+    sentence the CLI's door also writes is about the API's door, and it must
+    not be counted as a second candidate for the CLI's — two candidates
+    chasing one refusal leave that refusal with no witness at all.
     """
     witnesses: list[Witness] = []
     for function in [node for node in ast.walk(module) if isinstance(node, ast.FunctionDef)]:
@@ -585,12 +698,10 @@ def _witnesses(module: ast.Module, path: Path) -> list[Witness]:
 # reading what reaches the CLI
 #
 # **A test is a candidate because it reaches the CLI, and the reach is read
-# out of the tree rather than asserted.** Three ways a test reaches it: it
-# imports the CLI itself; it says one of the CLI's own refusal reasons,
-# which is the CLI's vocabulary however the test came by it; and it uses a
-# name its module bound to the CLI — the rig the module reaches the CLI
-# through, whether that rig imports the CLI's package or runs the CLI's
-# program.
+# out of the tree rather than asserted.** Two ways a test reaches it: it
+# imports the CLI itself; and it uses a name its module bound to the CLI —
+# the rig the module reaches the CLI through, whether that rig imports the
+# CLI's package or runs the CLI's program.
 #
 # **The last is the rig, and the rig is followed.** A CLI test often says
 # nothing of the CLI's own: it calls a helper that runs the console script
@@ -598,6 +709,12 @@ def _witnesses(module: ast.Module, path: Path) -> list[Witness]:
 # test does too — and a helper that reaches the CLI is found by following
 # what the helper uses, name by name, until the CLI is reached or the names
 # run out.
+#
+# **A refusal reason is not a way of reaching the CLI.** The reasons are
+# vocabulary the CLI shares with the rest of the product, and the second
+# reader's measurement was a test that quoted one and reached nothing: it
+# was made a candidate, and the gate went red on a tree whose product had
+# not changed.
 # --------------------------------------------------------------------------- #
 
 
@@ -807,18 +924,23 @@ def _reaches_the_cli_in(
 def _witness_reaches_the_cli(function: ast.FunctionDef, module: str) -> bool:
     """Whether a test reaches the CLI.
 
-    **Three ways a test reaches it.** It imports the CLI itself; it says
-    one of the CLI's own refusal reasons, which is the CLI's vocabulary
-    however the test came by it; and it uses a name its module bound to the
-    CLI — the rig the module reaches the CLI through, and the fixture the
-    test takes.
+    **Two ways a test reaches it.** It imports the CLI itself; and it uses
+    a name its module bound to the CLI — the rig the module reaches the CLI
+    through, and the fixture the test takes.
+
+    **A reason the CLI gives its refusals is not a way of reaching it.**
+    The reasons are a vocabulary the CLI shares with the rest of the
+    product, and a test that quotes one is not thereby a test that ran the
+    CLI. The second reader's measurement was a test that named a reason
+    and reached nothing: it became a candidate, a refusal that interpolates
+    no value could not be told from it, and the gate went red on a tree
+    whose product had not changed. **A candidate is a test that reaches
+    the CLI, so only a test that reaches the CLI can be one.**
     """
     key = (module, function.name, function.lineno)
     if key in _TEST_REACHES:
         return _TEST_REACHES[key]
     reached = _imports_the_cli(function)
-    if not reached and _asserts_a_reason(function, _cli_refusal_reasons()):
-        reached = True
     if not reached:
         for used in _names(function):
             if _reaches_the_cli(used, module):
@@ -1549,4 +1671,397 @@ def test_the_granularity_is_the_test_and_not_the_file() -> None:
     assert quiet, f"no test in {module} stays away from the CLI"
     assert not any(_witness_reaches_the_cli(function, module) for function in quiet), (
         "a test that does not reach the CLI is a candidate anyway"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the mechanism's own witnesses
+#
+# **The gate is a mechanism that reads the tree, and a mechanism needs a
+# witness of its own.** Two rules decide what the gate watches: the rule
+# that reads a refusal's message, and the rule that decides who is a
+# candidate. Both were measured, both were broken, and each has a witness
+# below that drives the gate over the tree's own sources and goes red when
+# the rule is broken.
+#
+# **The witnesses drive the gate; they do not inspect it.** Each hands the
+# mechanism a source — the product's own file with a message hoisted into
+# a constant, the suite's own module with a test that reaches nothing — and
+# then asks the gate what it makes of it. Nothing here asserts what a
+# helper returns.
+# --------------------------------------------------------------------------- #
+
+
+#: The name a witness gives the constant it hoists a message into.
+_HOISTED_NAME: Final[str] = "_A_MESSAGE_THE_WITNESS_HOISTED"
+
+
+def _reader(overrides: dict[Path, str]) -> Callable[[Path], str]:
+    """A reader that returns the text *overrides* names, and the files otherwise.
+
+    **The gate is driven over sources, and this is how a witness drives it
+    over a source of its own.** Every file the gate does not name is read
+    as it is on disk.
+    """
+
+    def read(path: Path) -> str:
+        return overrides.get(path, path.read_text(encoding="utf-8"))
+
+    return read
+
+
+def _forget(module: str) -> None:
+    """Forget what was read about the test module *module*.
+
+    **A witness that reads a module differently has to have it read again.**
+    The mechanism reads each test module once, and the witness that hands
+    it another source has to have that source read instead of the one on
+    disk — otherwise the mechanism answers from the source it read first,
+    and the witness proves nothing.
+    """
+    _TREES.pop(module, None)
+    _BINDINGS.pop(module, None)
+    for pair in [key for key in _USES if key[0] == module]:
+        del _USES[pair]
+    for pair in [key for key in _HOLDS if key[0] == module]:
+        del _HOLDS[pair]
+    for pair in [key for key in _IMPORTS if key[0] == module]:
+        del _IMPORTS[pair]
+    for pair in [key for key in _REACHES if key[0] == module]:
+        del _REACHES[pair]
+    for test in [key for key in _TEST_REACHES if key[0] == module]:
+        del _TEST_REACHES[test]
+
+
+def _line_starts(text: str) -> list[int]:
+    """The byte offset each line of *text* begins at.
+
+    **Bytes, because the parser counts bytes.** A column offset is counted
+    from the start of its line in UTF-8 bytes, and a line's own bytes are
+    what the offset is counted in.
+    """
+    starts: list[int] = []
+    offset = 0
+    for line in text.split("\n"):
+        starts.append(offset)
+        offset += len(line.encode("utf-8")) + 1
+    return starts
+
+
+def _message_node(tree: ast.Module, line: int, kind: str) -> ast.expr | None:
+    """The message the refusal at *line* of *tree* writes.
+
+    **The refusal is found by where it is.** A ``raise`` carries its
+    message as the exception's first argument and a ``_refuse`` call as
+    its second, and the two shapes are told apart by the kind.
+    """
+    for node in ast.walk(tree):
+        if getattr(node, "lineno", None) != line:
+            continue
+        if kind == "raise" and isinstance(node, ast.Raise):
+            if isinstance(node.exc, ast.Call) and node.exc.args:
+                return node.exc.args[0]
+            return None
+        if (
+            kind == "_refuse"
+            and isinstance(node, ast.Call)
+            and _called_name(node) == "_refuse"
+            and len(node.args) > 1
+        ):
+            return node.args[1]
+    return None
+
+
+def _anchor_line(tree: ast.Module, line: int) -> int:
+    """The line of the top-level statement that holds *line*.
+
+    **The constant goes at the module's top level**, before the statement
+    that holds the refusal, so that it is a module's own binding and not a
+    function's.
+    """
+    for node in tree.body:
+        end = node.end_lineno or node.lineno
+        if node.lineno <= line <= end:
+            return node.lineno
+    raise AssertionError(f"line {line} of the module is in no top-level statement")
+
+
+def _hoisted_source(path: Path, line: int, kind: str, name: str) -> str:
+    """The source at *path* with the refusal at *line* written as a constant.
+
+    **The product's own file, with one message hoisted.** The message is
+    taken out of the call that writes it and put at the module's top level
+    under *name*, and the call is left naming it. The words are the same
+    words — which is the point: **a message written as a constant says
+    what it always said**, and the gate has to see that it does.
+    """
+    text = path.read_text(encoding="utf-8")
+    tree = ast.parse(text)
+    message = _message_node(tree, line, kind)
+    assert message is not None, f"{path}:{line} writes no message to hoist"
+    starts = _line_starts(text)
+    data = text.encode("utf-8")
+    start = starts[message.lineno - 1] + message.col_offset
+    end = starts[(message.end_lineno or message.lineno) - 1] + (message.end_col_offset or 0)
+    body = data[start:end].decode("utf-8")
+    anchor = starts[_anchor_line(tree, line) - 1]
+    constant = f"{name} = (\n{body}\n)\n"
+    replaced = data[:start] + name.encode("utf-8") + data[end:]
+    inserted = replaced[:anchor] + constant.encode("utf-8") + replaced[anchor:]
+    return inserted.decode("utf-8")
+
+
+def _a_watched_literal_refusal(
+    refusals: list[Refusal],
+    candidates: dict[int, list[int]],
+    named: dict[int, str],
+) -> tuple[int, Refusal] | None:
+    """The first refusal whose message is a literal and whose witness is its own.
+
+    **One candidate and no other**, so that taking the witness away leaves
+    the refusal with none — which is what the witnesses have to show. And a
+    message that is a literal, so that hoisting it into a constant says the
+    same words and the same values: a message that interpolates a value
+    would read differently once it was hoisted, and the witness would be
+    showing something else.
+    """
+    trees: dict[Path, ast.Module] = {}
+    for index, refusal in enumerate(refusals):
+        if refusal.kind != "_refuse" or not refusal.watches:
+            continue
+        if index not in named or len(candidates.get(index, [])) != 1:
+            continue
+        if refusal.path not in trees:
+            trees[refusal.path] = _parse(refusal.path)
+        node = _message_node(trees[refusal.path], refusal.line, refusal.kind)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return index, refusal
+    return None
+
+
+def _a_text_that_speaks_for(
+    refusal: Refusal,
+    refusals: list[Refusal],
+    groups: dict[tuple[str, ...], list[int]],
+    texts: tuple[str, ...],
+) -> str:
+    """The text of *texts* that speaks for *refusal* and for no other group.
+
+    **The same words the refusal's own witness quotes, and long enough to
+    be quoted at all.** A candidate quotes a *phrase*, and a text of one
+    word names no group — so a text that names the refusal and is too
+    short to be a phrase is not what the rule that admits a candidate
+    looks at. And a test that quoted a text of another group as well
+    would watch neither, and the witness would be showing a rule that was
+    never broken.
+    """
+    owned = _owned_phrases(refusals, groups)
+    for text in texts:
+        if len(_words(text)) < MINIMUM_WORDS:
+            continue
+        spoken_for = {
+            group
+            for group, phrases in owned.items()
+            if any(phrase in text or text in phrase for phrase in phrases)
+        }
+        if spoken_for == {refusal.pieces}:
+            return text
+    raise AssertionError(f"no text of {texts!r} speaks for {refusal.place}")
+
+
+@pytest.fixture
+def drive_over(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[[dict[Path, str]], None]]:
+    """Let a witness hand the mechanism the sources it wants read.
+
+    **The mechanism reads each test module once**, so a witness that hands
+    it another source has to have that source read instead of the one on
+    disk — and the module has to be read again afterwards, or the source
+    the witness wrote would be read by every test that follows.
+    """
+    driven: list[str] = []
+
+    def drive(overrides: dict[Path, str]) -> None:
+        monkeypatch.setattr(sys.modules[__name__], "_read", _reader(overrides))
+        for path in overrides:
+            driven.append(path.stem)
+            _forget(path.stem)
+
+    yield drive
+
+    for module in driven:
+        _forget(module)
+
+
+def test_a_refusal_whose_message_the_product_hoisted_is_still_watched(
+    drive_over: Callable[[dict[Path, str]], None],
+) -> None:
+    """A message the product wrote as a constant is still watched.
+
+    **What would make this red.** The rule that reads a refusal's message
+    resolves a literal, an interpolated string and a call to a function of
+    the same module — and, if it is broken, not a *name*. A refusal whose
+    message the product wrote as a module constant would then have no
+    words of its own, would leave the watch set, and would be watched by
+    nobody without anything saying so: **the gate would be green on a tree
+    whose refusal had stopped being watched**, and the witness of that
+    refusal could be taken away without anything turning red.
+
+    **The tree's own refusal is the one that is hoisted, and the tree's
+    own witness is the one that must keep watching it.** The source the
+    gate reads is the product's own file with one message written as a
+    constant, and the gate is driven over that source exactly as it is
+    driven over the tree's.
+    """
+    refusals = _refusals()
+    groups = _groups(refusals)
+    witnesses = _suite_witnesses()
+    candidates = _candidates(witnesses, refusals, groups)
+    named, _additional = _paired(refusals, witnesses, candidates, _recorded(refusals))
+    suite = _tests_in_the_suite()
+
+    assert not _unwatched_refusals(refusals, named, suite), (
+        "the tree the gate runs on already has a refusal nobody watches, so the "
+        "checks below would pass for the wrong reason"
+    )
+    target = _a_watched_literal_refusal(refusals, candidates, named)
+    assert target is not None, (
+        "the tree holds no refusal written as a literal with a witness of its own, "
+        "so this witness has no message to hoist"
+    )
+    index, refusal = target
+    place = named[index]
+
+    drive_over(
+        {refusal.path: _hoisted_source(refusal.path, refusal.line, refusal.kind, _HOISTED_NAME)}
+    )
+
+    after = _refusals()
+    after_groups = _groups(after)
+    after_candidates = _candidates(witnesses, after, after_groups)
+    after_named, _ = _paired(after, witnesses, after_candidates, _recorded(after))
+    after_suite = _tests_in_the_suite()
+
+    found = next(
+        (
+            other
+            for other_index, other in enumerate(after)
+            if other.path == refusal.path
+            and other.function == refusal.function
+            and other.words == refusal.words
+        ),
+        None,
+    )
+    assert found is not None, "the refusal is not in the enumeration once its message is hoisted"
+    assert found.pieces == refusal.pieces, (
+        "the message written as a constant does not read as the words it wrote before"
+    )
+    assert after_named.get(after.index(found)) == place, (
+        "the refusal whose message the product wrote as a constant is not watched "
+        "by the witness that watched it: the rule that reads a message does not "
+        "read a name"
+    )
+
+    without = {where: witness for where, witness in after_suite.items() if where != place}
+    unwatched = _unwatched_refusals(after, after_named, without)
+    assert any(
+        other.path == refusal.path
+        and other.function == refusal.function
+        and other.words == refusal.words
+        for other, _ in unwatched
+    ), (
+        "the refusal was still watched after its witness was taken out of the "
+        "suite, so a witness removed would pass the gate"
+    )
+
+
+def test_a_test_that_quotes_a_refusal_reason_and_reaches_nothing_is_not_a_candidate(
+    drive_over: Callable[[dict[Path, str]], None],
+) -> None:
+    """A reason quoted by a test that reaches nothing is not a candidate.
+
+    **What would make this red.** The rule that decides candidacy used to
+    take a test as reaching the CLI when the test said one of the CLI's
+    own refusal reasons. The reasons are vocabulary the CLI shares with
+    the rest of the product, so a test that quoted one and reached nothing
+    was made a candidate — and a refusal that interpolates no value cannot
+    be narrowed to one candidate, so the gate went red on a tree whose
+    product had not changed. The second reader measured it: a new test
+    that named a reason and quoted a refusal's words took that refusal's
+    witness away from it.
+
+    **The tree's own refusal is the one that would be disturbed, and the
+    tree's own witness is the one that must keep watching it.** The suite
+    the gate reads is the tree's own module with one test added: a test
+    that names a refusal reason and quotes the refusal's own words, and
+    reaches nothing at all.
+    """
+    refusals = _refusals()
+    groups = _groups(refusals)
+    witnesses = _suite_witnesses()
+    candidates = _candidates(witnesses, refusals, groups)
+    named, _additional = _paired(refusals, witnesses, candidates, _recorded(refusals))
+
+    target = _a_watched_literal_refusal(refusals, candidates, named)
+    assert target is not None, (
+        "the tree holds no refusal written as a literal with a witness of its own, "
+        "so this witness has no refusal to disturb"
+    )
+    index, refusal = target
+    place = named[index]
+    witness = witnesses[candidates[index][0]]
+    reasons = _cli_refusal_reasons()
+    reason = next((text for text in witness.texts if text in reasons), min(reasons))
+    quoted = _a_text_that_speaks_for(refusal, refusals, groups, witness.texts)
+
+    module_path = REPOSITORY_ROOT / place.split("::")[0]
+    module = module_path.stem
+    added = "test_a_reason_quoted_where_nothing_is_reached"
+    original = module_path.read_text(encoding="utf-8")
+    assert f"def {added}(" not in original, f"{module_path} already holds a test of that name"
+    addition = (
+        "\n\n"
+        f"def {added}() -> None:\n"
+        '    """A refusal reason and a refusal\'s words, where no CLI is reached."""\n'
+        f"    reason = {reason!r}\n"
+        f"    assert reason == {reason!r}\n"
+        f"    assert {quoted!r} == {quoted!r}\n"
+    )
+    drive_over({module_path: original + addition})
+
+    after = _refusals()
+    after_groups = _groups(after)
+    after_witnesses = _suite_witnesses()
+    after_candidates = _candidates(after_witnesses, after, after_groups)
+    after_named, _ = _paired(after, after_witnesses, after_candidates, _recorded(after))
+    after_suite = _tests_in_the_suite()
+
+    assert after_named == named, (
+        "a test that quotes a refusal reason and reaches nothing changed the "
+        "pairing: the rule that admits a candidate admits it on a proxy that "
+        "unrelated code can satisfy"
+    )
+    assert after_named.get(index) == place, (
+        "the refusal the added test would have disturbed is not watched by a "
+        "witness of its own any more"
+    )
+    assert place in after_suite, "the refusal's witness is not in the suite"
+
+    added_place = f"{module_path.relative_to(REPOSITORY_ROOT).as_posix()}::{added}"
+    assert all(candidate.place != added_place for candidate in after_witnesses), (
+        "the test that reaches nothing was made a witness: the rule admits a "
+        "candidate on a proxy that unrelated code can satisfy"
+    )
+
+    tree = _tree_of(module)
+    assert tree is not None, f"{module} is not readable"
+    function = next(
+        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == added
+    )
+    assert _holds_a_reason(function, reasons), (
+        "the added test does not say a refusal reason, so this witness's premise "
+        "is not the case the second reader measured"
+    )
+    assert not _witness_reaches_the_cli(function, module), (
+        "the added test reaches the CLI, so this witness's premise is not the "
+        "case the second reader measured"
     )
