@@ -115,6 +115,34 @@ signed that result, the import step must not run and no copy enters the
 pilot* — is satisfied for this copy. The part-E acceptance checks remain
 the pilot ticket's own.
 
+## Where each number came from
+
+Every number in this record was measured, and a number that cannot be
+traced to its reading is a number somebody typed. The readings, and what
+produced each of them:
+
+| Number | Produced by | Taken at |
+|---|---|---|
+| 96 insertions, 17 deletions, 85 format changes | the checker's item B-2 facts | the two digests named above |
+| 1,144 characters of revision text | the checker's item C-3 facts | the two digests named above |
+| 155 paragraphs | the checker's item A-4 facts | the two digests named above |
+| 22,442 characters of visible text | the checker's item B-3 facts (`visible_text_characters_copy`) | the two digests named above |
+| 198 revision marks, each with an author field | the redaction's own report (`author_fields_replaced=198`) | the copy's digest |
+| 111 and 2 marks by the two who marked the document | the same report, read against the original | the original's digest |
+| seven pictures, each decoding to the same pixels | a picture-by-picture comparison of the two documents' `word/media/*` parts | the two digests named above |
+
+**One of those readings was taken by a one-off script that is not in this
+repository**: the picture-by-picture pixel comparison. The character count
+is now reported by the checker itself, so anyone can read it again; the
+pixel comparison has no tool yet, so its reading is recorded here with the
+digests it was taken at rather than with a command that could be re-run.
+That is a gap in the tree, not in the record: a comparison a later reader
+cannot repeat is a measurement nobody can check.
+
+**All of them were measured on this machine, on 2026-11-25, against the
+digests named above.** A digest identifies bytes; a different copy has a
+different digest, and the numbers would be about that one.
+
 ## How the reading was taken
 
 ```

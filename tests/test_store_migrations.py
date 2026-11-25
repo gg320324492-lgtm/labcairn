@@ -887,3 +887,83 @@ def test_a_store_built_before_the_new_event_type_reaches_it_after_the_upgrade(
     finally:
         connection.close()
     assert count == 1, "the event the upgrade made possible was not written"
+
+
+def _insert_an_event(path: Path, event_id: str, seq: int) -> None:
+    """Write one event into a store, the way the store held them before.
+
+    ``task_created`` is a task-level event: it carries no run, no stage and
+    no transition, so it satisfies the vocabulary of any revision.
+    """
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO events (seq, event_id, task_id, type, schema_version, "
+            "occurred_at, document, payload) "
+            "VALUES (?, ?, 'task-1', 'task_created', 1, '2026-11-25T00:00:00Z', "
+            "'{}', '{}')",
+            (seq, event_id),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _event_rows(path: Path) -> list[tuple[int, int, str, str]]:
+    connection = sqlite3.connect(path)
+    try:
+        return list(
+            connection.execute(
+                "SELECT id, seq, event_id, type FROM events ORDER BY id"
+            ).fetchall()
+        )
+    finally:
+        connection.close()
+
+
+def _event_indexes(path: Path) -> set[str]:
+    connection = sqlite3.connect(path)
+    try:
+        return {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'events'"
+            ).fetchall()
+        }
+    finally:
+        connection.close()
+
+
+def test_the_rebuild_carries_the_rows_and_the_indexes(tmp_path: Path) -> None:
+    """Revision 0032 rebuilds the table, and a rebuild has to carry what was in it.
+
+    **The witness the other witness cannot give.** The one above inserts its
+    row *after* the upgrade, so a rebuild that lost every row would pass it.
+    Revision 0032 is a destructive operation on a user's store -- the 0.1.0
+    installer has been in users' hands since 2026-11-24 -- so what the
+    rebuild carries is the property to hold, and it has to be measured on a
+    store that held rows before the upgrade.
+
+    The rows come back **with their ids**, because the ids are the table's
+    own identity and a copy that renumbered them would break anything that
+    holds one.
+
+    Red by: the copy dropping a row, renumbering it, or the rebuild leaving
+    an index behind.
+    """
+    path = tmp_path / "carry.db"
+    alembic_command.upgrade(alembic_config(path), "0031")
+    for index in range(1, 4):
+        _insert_an_event(path, f"event-{index}", index)
+    before = _event_rows(path)
+    assert len(before) == 3, "the store did not take the rows before the upgrade"
+    indexes_before = _event_indexes(path)
+
+    alembic_command.upgrade(alembic_config(path), "head")
+
+    assert _event_rows(path) == before, "the rebuild did not carry the rows as they were"
+    indexes_after = _event_indexes(path)
+    assert indexes_after == indexes_before, (
+        "the rebuild changed the table's indexes: "
+        f"{sorted(indexes_before)} became {sorted(indexes_after)}"
+    )

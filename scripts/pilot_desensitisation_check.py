@@ -604,6 +604,10 @@ def judge(
             "heading_count_original": len(original.outline),
         }
     b3_facts["the_copy_carries_heading_styles"] = bool(copy.outline)
+    # The size of each visible text, so a record that quotes it can name the
+    # reading that produced it rather than carrying the number alone.
+    b3_facts["visible_text_characters_copy"] = len(copy.visible_text)
+    b3_facts["visible_text_characters_original"] = len(original.visible_text)
     items.append(
         Item(
             item="B-3",
