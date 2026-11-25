@@ -252,10 +252,28 @@ def test_the_artifact_digest_is_the_measured_installer_digest(repo_root: Path) -
     )
 
     # The unsettled version line is named rather than glossed over.
-    assert "0.0.3" in reason, (
-        "the record must name the installer's own version line, which still "
-        "reads 0.0.3 and is the owner's call to settle"
+    #
+    # **The version is read from the build's own record, not written into
+    # this test.** The installer's declared version is a fact about the
+    # artifact, and the artifact changes: a version bump makes the name
+    # `LabCairn Setup 0.1.0.exe` and the digest new, and a witness that
+    # spelled the old number out would go red on the very change it was
+    # written to allow. So the test reads the number the build measured and
+    # requires the record to name **that** number when it differs from the
+    # version the record calls itself -- which is the case the release
+    # record has to be honest about, and the case that disappears the
+    # moment the two agree.
+    declared = companion.get("artifact_declared_version")
+    assert isinstance(declared, str) and declared.strip(), (
+        f"the build record carries no declared artifact version: {declared!r}"
     )
+    if declared.strip().lstrip("v") != VERSION.lstrip("v"):
+        assert declared in reason, (
+            "the record must name the installer's own version line, which "
+            f"reads {declared!r} while the record calls itself {VERSION!r}: "
+            "the difference is the owner's to settle, and the record has to "
+            "say so rather than let a reader infer the names agree"
+        )
 
 
 def test_the_compatibility_columns_name_the_measured_surface(repo_root: Path) -> None:
