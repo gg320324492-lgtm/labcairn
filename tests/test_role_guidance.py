@@ -36,8 +36,11 @@ from store_support import env as _shared_env
 
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
-from labcairn.guidance.rules import propose_rule, record_counterexample
+from labcairn.db.models import EditActionRow
+from labcairn.guidance.retrieval import invalidated_rules, search_rules
+from labcairn.guidance.rules import confirm_rule, propose_rule, record_counterexample
 from labcairn.papers.feedback import FeedbackEvent, record_feedback, set_issue_key
+from labcairn.papers.responses import record_response
 from labcairn.roles.guidance import (
     CardClaim,
     Uncertainty,
@@ -57,10 +60,20 @@ MOMENT = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
 
 KEY = "iss-gold-a-r1"
 
+#: A second key, whose comment was judged **not** answered by its change.
+WITHDRAWN_KEY = "iss-gold-a-r3"
+
+#: A third key, whose comment was judged answered — a source a rule can stand on.
+ALIVE_KEY = "iss-gold-a-r4"
+
 RULE = (
     "When the claim rests on a comparison, the advisor asks for the baseline"
     " to be named in the same paragraph."
 )
+
+WITHDRAWN_RULE = "When a figure carries the claim, the advisor asks for the numbers in the caption."
+
+STANDING_RULE = "When a table carries the comparison, the advisor asks for the units in the header."
 
 
 @dataclass(frozen=True)
@@ -79,6 +92,32 @@ def _refusal(call: object) -> RoleRefusal:
     """The contract's refusal an expected error carries, so the test fails loudly."""
     assert isinstance(call, ApplicationRefusedError), f"expected a refusal, saw {call!r}"
     return RoleRefusal(call.reason.value.removeprefix("role_"))
+
+
+def _guidance_spec(context: ApplicationContext) -> AgentRoleSpec:
+    """Role B's contract, as both fixtures define it."""
+    return define_role_spec(
+        context,
+        role_id="guidance",
+        role_version=1,
+        objective="Turn the trajectory's candidates into a card a student can act on.",
+        input_schema="GuidanceCardInput",
+        output_schema="GuidanceCard",
+        allowed_capabilities=(CapabilityId.MODEL_REQUEST,),
+        forbidden_actions=FORBIDDEN_ACTIONS,
+        allowed_data_purposes=("guidance_review",),
+        provider_routing_policy="single-provider-per-call",
+        cost_budget=None,
+        token_budget=4000,
+        timeout_seconds=120,
+        retry_policy="no-retry",
+        fallback_policy="abstain",
+        abstain_conditions=("material_under_two_comments",),
+        escalation_conditions=("a_conflict_between_two_rules",),
+        prompt_template_version="guidance-card-v1",
+        model_config_ref="configs/model.json",
+        now=MOMENT,
+    )
 
 
 @pytest.fixture()
@@ -113,28 +152,7 @@ def guidance(env: StoreEnv, tmp_path: Path) -> Guidance:
         recorded_by="a-reader",
         now=MOMENT,
     )
-    spec = define_role_spec(
-        chain.context,
-        role_id="guidance",
-        role_version=1,
-        objective="Turn the trajectory's candidates into a card a student can act on.",
-        input_schema="GuidanceCardInput",
-        output_schema="GuidanceCard",
-        allowed_capabilities=(CapabilityId.MODEL_REQUEST,),
-        forbidden_actions=FORBIDDEN_ACTIONS,
-        allowed_data_purposes=("guidance_review",),
-        provider_routing_policy="single-provider-per-call",
-        cost_budget=None,
-        token_budget=4000,
-        timeout_seconds=120,
-        retry_policy="no-retry",
-        fallback_policy="abstain",
-        abstain_conditions=("material_under_two_comments",),
-        escalation_conditions=("a_conflict_between_two_rules",),
-        prompt_template_version="guidance-card-v1",
-        model_config_ref="configs/model.json",
-        now=MOMENT,
-    )
+    spec = _guidance_spec(chain.context)
     return Guidance(
         context=chain.context,
         chain=chain,
@@ -142,6 +160,104 @@ def guidance(env: StoreEnv, tmp_path: Path) -> Guidance:
         event=keyed,
         spec=spec,
         rule_id=rule.rule_id,
+    )
+
+
+@dataclass(frozen=True)
+class Withdrawn:
+    """Two commented sources, judged both ways, and the confirmed rules over them.
+
+    ``rule_id`` is a rule that stands **only** on the withdrawn source;
+    ``standing_rule_id`` names both sources and so still stands on the
+    answered one.
+    """
+
+    context: ApplicationContext
+    key: str
+    rule_id: str
+    standing_rule_id: str
+    spec: AgentRoleSpec
+
+
+@pytest.fixture()
+def withdrawn(env: StoreEnv, tmp_path: Path) -> Withdrawn:
+    """A chain whose comments were judged both ways, and the rules over them.
+
+    **The judgements are recorded from the start**, the way the retrieval
+    layer's own witness records them: the chain is append-only, and a
+    judgement is not rewritten in place. So the rules are proposed and
+    confirmed over sources the chain has already judged.
+    """
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir()
+    store = env.store()
+    chain = build_chain(store, workspace_root, comments=(a_comment("203"), a_comment("204")))
+    events = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=MOMENT,
+    )
+    assert len(events) == 2, "the fixture's manuscript carries two comments"
+    session = chain.context.store.session
+    for event, key, state in zip(
+        events, (WITHDRAWN_KEY, ALIVE_KEY), ("not_addressed", "addressed"), strict=True
+    ):
+        set_issue_key(chain.context, feedback_id=event.feedback_id, issue_key=key, now=MOMENT)
+        edit_action_id = f"edit-{key[-2:]}"
+        session.add(
+            EditActionRow(
+                edit_action_id=edit_action_id,
+                feedback_id=event.feedback_id,
+                version_edge_id=chain.edge_id,
+                actor_kind="student",
+                grade="observed",
+                created_at=MOMENT,
+            )
+        )
+        session.flush()
+        record_response(
+            chain.context,
+            response_link_id=f"resp-{key[-2:]}",
+            feedback_id=event.feedback_id,
+            edit_action_id=edit_action_id,
+            state=state,
+            grade="human_verified",
+            decided_by="user",
+            decided_at=MOMENT,
+            evidence_refs=(f"check:{key}",),
+            now=MOMENT,
+        )
+    withdrawn_rule = propose_rule(
+        chain.context,
+        issue_type="method_and_hypothesis",
+        statement=WITHDRAWN_RULE,
+        rule_context="A figure whose caption carries the numbers.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of the run, on the figure caption.",
+        sources=(WITHDRAWN_KEY,),
+        proposed_by="a-mentor",
+        now=MOMENT,
+    )
+    standing_rule = propose_rule(
+        chain.context,
+        issue_type="method_and_hypothesis",
+        statement=STANDING_RULE,
+        rule_context="A table whose comparison carries the claim.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of the run, on the results table.",
+        sources=(WITHDRAWN_KEY, ALIVE_KEY),
+        proposed_by="a-mentor",
+        now=MOMENT,
+    )
+    for rule in (withdrawn_rule, standing_rule):
+        confirm_rule(chain.context, rule_id=rule.rule_id, confirmed_by="the-advisor", now=MOMENT)
+    return Withdrawn(
+        context=chain.context,
+        key=WITHDRAWN_KEY,
+        rule_id=withdrawn_rule.rule_id,
+        standing_rule_id=standing_rule.rule_id,
+        spec=_guidance_spec(chain.context),
     )
 
 
@@ -440,6 +556,68 @@ def test_a_card_cites_a_rule_with_its_counterexamples(guidance: Guidance) -> Non
         rule_refs=(citation,),
     )
     assert card.rule_refs[0].counterexamples, "the cases travel with the advice"
+
+
+def test_a_card_cannot_cite_a_rule_whose_source_a_judgement_withdrew(
+    withdrawn: Withdrawn,
+) -> None:
+    """ADR-0016 C10: the citation path asks, and not only the retrieval layer.
+
+    **The rule is named directly**, so the retrieval layer is not in the
+    way: the caller hands in the id and the memory has stopped serving the
+    rule, because the judgement on its only source says the change did
+    not answer the comment. **A card cannot carry the citation**, because
+    the citation never exists — the card's assembly is refused before it
+    produces one.
+
+    **And the two layers agree**: the retrieval layer reports the same
+    rule as invalidated, over the same source, for the same reason — and
+    a rule that stands on one living source is still citable, and still
+    served, so neither layer refuses more than the contract says.
+    """
+    refused = _capture(lambda: cite_rule(withdrawn.context, rule_id=withdrawn.rule_id))
+    assert _refusal(refused) is RoleRefusal.RULE_NOT_IN_THE_MEMORY
+    assert withdrawn.rule_id in refused.detail
+    assert withdrawn.key in refused.detail
+    assert "source material has been withdrawn" in refused.detail
+
+    # **The card path is the one the contract names.** The only way a card
+    # gets a citation is through `cite_rule`, so a card that asks for this
+    # rule's citation is refused rather than produced.
+    refused_card = _refusal(
+        _capture(
+            lambda: build_card(
+                withdrawn.context,
+                spec=withdrawn.spec,
+                issue_type="method_and_hypothesis",
+                severity="major",
+                reason="the caption carries no numbers.",
+                evidence_refs=("chain:" + withdrawn.key,),
+                suggested_next_action="put the numbers in the caption.",
+                uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+                rule_refs=(cite_rule(withdrawn.context, rule_id=withdrawn.rule_id),),
+            )
+        )
+    )
+    assert refused_card is RoleRefusal.RULE_NOT_IN_THE_MEMORY
+
+    # **The retrieval layer reports the same rule, on the same source.**
+    gone = invalidated_rules(withdrawn.context)
+    assert [item.rule.rule_id for item in gone] == [withdrawn.rule_id]
+    assert [
+        (source.issue_key, source.found, source.reachable, source.addressed)
+        for source in gone[0].reasons
+    ] == [(withdrawn.key, True, True, False)]
+
+    # **And a rule that still stands on a living source is citable.** The
+    # rule names the withdrawn source and the answered one; the citation
+    # path refuses only the rule whose every source was taken away, and the
+    # retrieval layer serves this one on the source that stands.
+    standing = cite_rule(withdrawn.context, rule_id=withdrawn.standing_rule_id)
+    assert standing.rule_id == withdrawn.standing_rule_id
+    assert [hit.rule.rule_id for hit in search_rules(withdrawn.context)] == [
+        withdrawn.standing_rule_id
+    ]
 
 
 def test_insufficient_material_produces_a_named_abstention(guidance: Guidance) -> None:
