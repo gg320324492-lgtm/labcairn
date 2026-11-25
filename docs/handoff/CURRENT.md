@@ -3170,7 +3170,15 @@ Expanding data access scope, write permission to original material, unapproved o
     There is none, so **every run's cost is `Unknown(UNPRICED)` and a
     `max_cost_usd` ceiling fails closed from the start** — that ceiling
     can never be met. The records say so as current state; none of them
-    calls it a debt.
+    calls it a debt. **The owner has already decided how the pilot
+    handles it**, though: the authorisation record's §8 says the cost is
+    *"Priced when the provider's pricing allows"* and that the pilot
+    *"records price basis and date, or the same unknown, honestly"*. So
+    for this pilot the honest unknown is the chosen answer and the
+    missing table is not a blocker; what the ADR promised and the
+    authorisation chose differently is a **difference in design**, not an
+    oversight — and the ceiling's being unreachable is the fact worth
+    carrying.
   - **`doctor --assume-capability` writes no Event.** ADR-0002:388 says
     the override *"is logged as an `Event` so it is auditable."* The
     doctor path only reads: no store, no session, no event write.
