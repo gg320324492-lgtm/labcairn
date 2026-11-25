@@ -302,12 +302,8 @@ def test_a_model_proposal_is_refused_by_the_gate_and_the_reason_names_the_promot
         "the refusal must name the promotion that is missing, so the reader "
         f"knows what is absent rather than only that something is wrong: {reason}"
     )
-    assert "neither" in reason, (
-        f"the refusal must say the record is neither of the two: {reason}"
-    )
-    assert result.citable == (), (
-        "a refused proposal is not citable, and the gate must not list it"
-    )
+    assert "neither" in reason, f"the refusal must say the record is neither of the two: {reason}"
+    assert result.citable == (), "a refused proposal is not citable, and the gate must not list it"
 
 
 def test_a_fabricated_source_fails_the_gate(store: Store) -> None:
