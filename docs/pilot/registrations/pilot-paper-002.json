@@ -38,6 +38,31 @@
   "checklist": {
     "document": "docs/plans/LC-P4-PILOT-desensitisation-checklist.md",
     "applies_to_sha256": "04cc31be9f9876fef975e8d4e6b427bb4a063920288fe5c0b72e8e3244a6172d",
-    "result": null
+    "result": {
+      "date": "2026-11-25",
+      "operator": "owner",
+      "items": {
+        "A-1": "pass",
+        "A-2": "pass",
+        "A-3": "pass",
+        "A-4": "pass",
+        "A-5": "pass",
+        "A-6": "pass",
+        "A-7": "pass",
+        "B-1": "pass",
+        "B-2": "pass",
+        "B-3": "pass",
+        "B-4": "pass",
+        "C-1": "pass",
+        "C-2": "pass",
+        "C-3": "pass",
+        "C-4": "pass",
+        "D-1": "pass",
+        "D-2": "pass",
+        "D-3": "pass",
+        "D-4": "pass",
+        "D-5": "pass"
+      }
+    }
   }
 }

@@ -1,7 +1,7 @@
 # LC-P4-PILOT — desensitisation checklist for the pilot paper
 
 **Ticket:** LC-P4-PILOT (pilot preparation, prerequisite material)
-**Status:** `DRAFT — for owner confirmation before P4-PILOT opens`
+**Status:** `CONFIRMED — the owner signed item D-6 on 2026-11-25`
 
 **How to confirm.** The advisor (as data owner) works the checklist
 top to bottom on the desensitised copy and ticks every item A-1…A-7,
@@ -16,6 +16,18 @@ attached to the pilot ticket's material pointer record. **Until the owner
 has signed that result, the import step (plan §9.2 step 2) must not run
 and no copy enters the pilot.** The signature goes on the D-6 result; this
 document stays `DRAFT` until then.
+
+**The owner signed it on 2026-11-25**, on the copy registered as
+`pilot-paper-002` (sha256
+`04cc31be9f9876fef975e8d4e6b427bb4a063920288fe5c0b72e8e3244a6172d`):
+every item A-1…A-7, B-1…B-4, C-1…C-4 and D-1…D-5 is recorded as `pass`,
+and the result is bound to that digest — so it applies to that copy and to
+no other. The readings the signature rests on are in
+[`docs/acceptance/LC-P4-PILOT-desensitisation-measurement-2026-11-25.md`](../acceptance/LC-P4-PILOT-desensitisation-measurement-2026-11-25.md),
+and the copy that was signed is the one that keeps the advisor's revision
+trail. **The part-E acceptance checks are still the pilot ticket's own**,
+and the import step (plan §9.2 step 2) may now run against the signed
+copy.
 **Source plan:** [`PHASE_4-execution-plan.md`](PHASE_4-execution-plan.md) §9.1
 (pilot material) and §9.2 step 1–2 (import, digest check).
 **Boundary source:** [`LC-P4-G0-baseline-freeze.md`](LC-P4-G0-baseline-freeze.md)

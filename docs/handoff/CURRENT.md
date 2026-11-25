@@ -3414,10 +3414,12 @@ Expanding data access scope, write permission to original material, unapproved o
   blanking, the image-metadata blanking, the unmapped-author refusal) and
   the witness that watches each one went red, and the files' own tests were
   green again when the scripts were restored.
-- **What is the owner's.** Two things. The role labels are a reading and
-  not a fact: the two people who marked the document were replaced with
-  `advisor` and `student-1` from the number of marks each left (111 and
-  2), and if that is the other way round the map changes and the copy is
-  redone. And D-6 is unsigned, so the tool's `--require-signed` fails and
-  the checklist's own rule holds: *until the owner has signed that result,
-  the import step must not run and no copy enters the pilot.*
+- **What is the owner's, and what the owner settled.** The owner confirmed
+  the role labels on 2026-11-25 — the two people who marked the document
+  were replaced with `advisor` and `student-1` from the number of marks
+  each left (111 and 2) — and signed item D-6 the same day: every item
+  A-1…A-7, B-1…B-4, C-1…C-4 and D-1…D-5 is recorded as `pass`, the
+  signature names `owner`, and the result is bound to the copy's digest.
+  The tool's `--require-signed` mode passes on it, and the import step
+  (plan §9.2 step 2) may now run against that copy. The part-E
+  acceptance checks remain the pilot ticket's own.

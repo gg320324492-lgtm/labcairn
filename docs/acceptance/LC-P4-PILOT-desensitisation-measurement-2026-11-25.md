@@ -2,7 +2,7 @@
 
 **Ticket:** LC-P4-PILOT (pilot material, desensitisation gate)
 **Date:** 2026-11-25
-**Status:** `MEASURED — the copy was redone; nothing fails; the signature is still missing`
+**Status:** `MEASURED AND SIGNED — the owner signed item D-6 on 2026-11-25`
 
 **What was measured.** The checklist
 ([`LC-P4-PILOT-desensitisation-checklist.md`](../plans/LC-P4-PILOT-desensitisation-checklist.md))
@@ -101,14 +101,17 @@ pictures' metadata.
 **The role labels are a reading, not a fact.** The two people who marked
 the document are named in Word's people list; the redaction replaced them
 with `advisor` and `student-1`. The mapping was made from the number of
-marks each of them left — 111 and 2 — and it has not been confirmed by the
-owner. If the two are the other way round, the map changes and the copy is
-redone; the tool reads the map and refuses an author the map does not name.
+marks each of them left — 111 and 2 — and the owner confirmed it on
+2026-11-25.
 
-**D-6 is still unsigned.** The tool's `--require-signed` mode fails while
-item D-6 carries no signature, and the checklist says the same thing in
-its own words: *until the owner has signed that result, the import step
-must not run and no copy enters the pilot.*
+**D-6 is signed.** The owner signed the result on 2026-11-25: every item
+A-1…A-7, B-1…B-4, C-1…C-4 and D-1…D-5 is recorded as `pass`, the
+signature names `owner`, and the result is bound to the copy's digest, so
+it applies to that copy and to no other. The tool's `--require-signed`
+mode now passes on it, and the checklist's rule — *until the owner has
+signed that result, the import step must not run and no copy enters the
+pilot* — is satisfied for this copy. The part-E acceptance checks remain
+the pilot ticket's own.
 
 ## How the reading was taken
 
