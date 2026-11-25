@@ -44,6 +44,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import re
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -135,13 +136,7 @@ def _create_arguments(material: Material, out: Path, **overrides: str | None) ->
         "--comments": "18",
         "--revision-marks": "25",
         "--operator": "advisor",
-        "--grant-id": GRANT_ID,
         "--grant-record": GRANT_RECORD,
-        "--grant-subject-ref": GRANT_SUBJECT_REF,
-        "--grant-scope": GRANT_SCOPE,
-        "--granted-by": "owner",
-        "--granted-at": "2026-11-24T00:00:00+00:00",
-        "--expires-at": "2026-12-24T00:00:00+00:00",
         "--out": str(out),
     }
     arguments.update(overrides)
@@ -332,16 +327,21 @@ def test_check_fails_on_a_field_the_vocabulary_does_not_have(
 def test_check_fails_when_the_copy_is_not_where_the_record_says(
     material: Material, tmp_path: Path
 ) -> None:
-    """The record's own path is measured against the copy as well."""
+    """The check is about the material at the registered path, and nowhere else."""
     out = tmp_path / "records" / "pilot-paper-001.json"
     code, _, err = _create(material, out)
     assert code == 0, err
 
     other = tmp_path / "elsewhere.pdf"
+    other.write_bytes(material.copy.read_bytes())
+    code, _, err = _run("check", str(out), "--copy", str(other))
+    assert code == 2
+    assert "is not the copy the record registers" in err
+
     other.write_bytes(b"%PDF-1.7\nother bytes\n")
-    code, printed, err = _run("check", str(out), "--copy", str(other))
-    assert code == 1
-    assert "copy.sha256" in printed
+    code, _, err = _run("check", str(out), "--copy", str(other))
+    assert code == 2
+    assert "is not the copy the record registers" in err
 
 
 def test_check_requires_the_signature_when_it_is_asked(material: Material, tmp_path: Path) -> None:
@@ -409,15 +409,19 @@ def test_create_refuses_a_copy_outside_the_authorised_root(
 
 
 def test_create_refuses_a_copy_the_grant_does_not_cover(material: Material, tmp_path: Path) -> None:
-    """The registered copy has to be inside the scope the signed grant covers."""
+    """The registered copy has to be inside the scope the signed grant covers.
+
+    The scope is read out of the authorisation record the citation names,
+    so an operator cannot widen it on the command line.
+    """
+    outside = material.root / "somewhere-else" / "pilot-paper-001.pdf"
+    outside.parent.mkdir(parents=True, exist_ok=True)
+    outside.write_bytes(material.copy.read_bytes())
     out = tmp_path / "records" / "pilot-paper-001.json"
-    code, _, err = _create(
-        material,
-        out,
-        **{"--grant-scope": "pilot/LC-P4-PILOT/something-else/**"},
-    )
+    code, _, err = _create(material, out, **{"--copy": str(outside)})
     assert code == 2
-    assert "not inside the scope" in err
+    assert "no grant in the authorisation record covers" in err
+    assert GRANT_SCOPE in err
     assert not out.exists()
 
 
@@ -499,7 +503,16 @@ def test_sign_fills_the_result_and_binds_it_to_the_registered_copy(
     items = tmp_path / "items.json"
     items.write_text(json.dumps(_signed_items()), encoding="utf-8")
     code, printed, err = _run(
-        "sign", str(out), "--operator", "owner", "--date", "2026-11-26", "--items", str(items)
+        "sign",
+        str(out),
+        "--copy",
+        str(material.copy),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-26",
+        "--items",
+        str(items),
     )
     assert code == 0, err
 
@@ -526,12 +539,30 @@ def test_sign_refuses_to_replace_a_signature_silently(material: Material, tmp_pa
     items = tmp_path / "items.json"
     items.write_text(json.dumps(_signed_items()), encoding="utf-8")
     code, _, err = _run(
-        "sign", str(out), "--operator", "owner", "--date", "2026-11-26", "--items", str(items)
+        "sign",
+        str(out),
+        "--copy",
+        str(material.copy),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-26",
+        "--items",
+        str(items),
     )
     assert code == 0, err
 
     code, _, err = _run(
-        "sign", str(out), "--operator", "owner", "--date", "2026-11-27", "--items", str(items)
+        "sign",
+        str(out),
+        "--copy",
+        str(material.copy),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-27",
+        "--items",
+        str(items),
     )
     assert code == 2
     assert "already carries a checklist result" in err
@@ -546,6 +577,8 @@ def test_sign_refuses_to_replace_a_signature_silently(material: Material, tmp_pa
     code, _, err = _run(
         "sign",
         str(out),
+        "--copy",
+        str(material.copy),
         "--operator",
         "owner",
         "--date",
@@ -576,7 +609,16 @@ def test_sign_refuses_an_item_set_that_is_not_the_checklists(
     incomplete.pop(_item_ids()[0])
     items.write_text(json.dumps(incomplete), encoding="utf-8")
     code, _, err = _run(
-        "sign", str(out), "--operator", "owner", "--date", "2026-11-26", "--items", str(items)
+        "sign",
+        str(out),
+        "--copy",
+        str(material.copy),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-26",
+        "--items",
+        str(items),
     )
     assert code == 2
     assert "does not cover" in err
@@ -585,7 +627,16 @@ def test_sign_refuses_an_item_set_that_is_not_the_checklists(
     extra["A-99"] = "pass"
     items.write_text(json.dumps(extra), encoding="utf-8")
     code, _, err = _run(
-        "sign", str(out), "--operator", "owner", "--date", "2026-11-26", "--items", str(items)
+        "sign",
+        str(out),
+        "--copy",
+        str(material.copy),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-26",
+        "--items",
+        str(items),
     )
     assert code == 2
     assert "does not have" in err
@@ -594,10 +645,174 @@ def test_sign_refuses_an_item_set_that_is_not_the_checklists(
     wrong[_item_ids()[0]] = "maybe"
     items.write_text(json.dumps(wrong), encoding="utf-8")
     code, _, err = _run(
-        "sign", str(out), "--operator", "owner", "--date", "2026-11-26", "--items", str(items)
+        "sign",
+        str(out),
+        "--copy",
+        str(material.copy),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-26",
+        "--items",
+        str(items),
     )
     assert code == 2
     assert "pass" in err
+
+
+# ---------------------------------------------------------------------------
+# What the review found
+# ---------------------------------------------------------------------------
+
+
+def test_sign_refuses_when_the_material_drifted_after_the_registration(
+    material: Material, tmp_path: Path
+) -> None:
+    """A signature is made against the bytes, not against a memory of them.
+
+    The direction that matters is the material's: the copy changes on
+    disk after it was registered, and the signature has to notice.
+    """
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out)
+    assert code == 0, err
+
+    material.copy.write_bytes(b"%PDF-1.7\ndifferent bytes\n")
+
+    items = tmp_path / "items.json"
+    items.write_text(json.dumps(_signed_items()), encoding="utf-8")
+    code, _, err = _run(
+        "sign",
+        str(out),
+        "--copy",
+        str(material.copy),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-26",
+        "--items",
+        str(items),
+    )
+    assert code == 2
+    assert "copy.sha256" in err
+
+    record = _load(out)
+    checklist = record["checklist"]
+    assert isinstance(checklist, dict)
+    assert checklist["result"] is None, "a signature was written over drifted material"
+
+
+def test_create_refuses_to_replace_a_signed_record(material: Material, tmp_path: Path) -> None:
+    """A tool command does not erase the owner's signature."""
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out)
+    assert code == 0, err
+
+    items = tmp_path / "items.json"
+    items.write_text(json.dumps(_signed_items()), encoding="utf-8")
+    code, _, err = _run(
+        "sign",
+        str(out),
+        "--copy",
+        str(material.copy),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-26",
+        "--items",
+        str(items),
+    )
+    assert code == 0, err
+
+    code, _, err = _create(material, out, **{"--force": None})
+    assert code == 2
+    assert "carries the owner's signature" in err
+
+    record = _load(out)
+    checklist = record["checklist"]
+    assert isinstance(checklist, dict)
+    result = checklist["result"]
+    assert isinstance(result, dict)
+    assert result["date"] == "2026-11-26"
+
+
+def test_a_name_that_is_a_sentence_is_refused(material: Material, tmp_path: Path) -> None:
+    """The operator's name is a name; the record is not a place for a sentence."""
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out, **{"--operator": CONTENT_MARKER})
+    assert code == 2
+    assert "operator" in err
+    assert not out.exists()
+
+    code, _, err = _create(
+        material, out, **{"--operator": "the quick brown fox jumps over the lazy dog"}
+    )
+    assert code == 2
+    assert "operator" in err
+    assert not out.exists()
+
+
+def test_a_missing_copy_is_a_refusal_not_a_crash(material: Material, tmp_path: Path) -> None:
+    """Every failure is a one-line refusal; none of them is a traceback."""
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    missing = tmp_path / "not-here.pdf"
+    code, _, err = _create(material, out, **{"--copy": str(missing)})
+    assert code == 2
+    assert "does not exist" in err
+    assert "Traceback" not in err
+
+
+def test_an_outline_inside_the_repository_is_refused(material: Material, tmp_path: Path) -> None:
+    """The outline holds the copy's headings; it belongs to the authorised root."""
+    inside = REPO_ROOT / "docs" / "pilot" / "outline-in-repo.txt"
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out, **{"--outline": str(inside)})
+    assert code == 2
+    assert "inside the repository" in err
+    assert not out.exists()
+
+
+def test_a_root_spelled_differently_is_the_same_root(
+    material: Material, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One directory has one name, however it is spelled."""
+    spelled = str(material.root).replace("/", "\\")
+    monkeypatch.setenv(registration.MATERIAL_ROOTS_ENV, spelled)
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out)
+    assert code == 0, err
+    code, printed, err = _run("check", str(out))
+    assert code == 0, printed + err
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the case rule is the filesystem's")
+def test_the_scope_matches_the_way_the_filesystem_matches(
+    material: Material, tmp_path: Path
+) -> None:
+    """On Windows a directory is one directory however it is spelled."""
+    store = material.root / "PILOT" / "LC-P4-PILOT" / "desensitised-copy"
+    store.mkdir(parents=True, exist_ok=True)
+    copy = store / "pilot-paper-001.pdf"
+    copy.write_bytes(material.copy.read_bytes())
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out, **{"--copy": str(copy)})
+    assert code == 0, err
+
+
+def test_the_grant_comes_from_the_record_the_citation_names(
+    material: Material, tmp_path: Path
+) -> None:
+    """The scope in the record is the scope in the authorisation record."""
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out)
+    assert code == 0, err
+    record = _load(out)
+    authorisation = record["authorisation"]
+    assert isinstance(authorisation, dict)
+    text = (REPO_ROOT / GRANT_RECORD).read_text(encoding="utf-8")
+    assert authorisation["scope"] in text
+    assert authorisation["grant_id"] in text
+    assert authorisation["subject_ref"] in text
 
 
 # ---------------------------------------------------------------------------
@@ -637,8 +852,10 @@ def test_the_runbook_imports_a_registered_copy() -> None:
 
 def test_every_record_in_the_repository_holds() -> None:
     """Whatever the repository carries, the tool's own check accepts."""
-    if not REGISTRATIONS_DIR.exists():
-        return
+    assert REGISTRATIONS_DIR.is_dir(), (
+        "the folder the records live in is not in the tree, so the witness that "
+        "checks what is in it can never fail"
+    )
     records = sorted(REGISTRATIONS_DIR.glob("*.json"))
     for record_path in records:
         code, printed, err = _run("check", str(record_path))

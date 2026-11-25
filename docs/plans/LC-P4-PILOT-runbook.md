@@ -138,7 +138,11 @@ python scripts/pilot_material_registration.py check \
 
 `--require-signed` is the gate: an unsigned record fails the check, so the
 import does not run and no copy enters the pilot until the owner has
-signed the checklist result (D-6). The record is written and signed with
+signed the checklist result (D-6). **The `--copy` is the path the record
+registers** — the tool measures that file and refuses any other path, so
+the check answers the question that matters: is the material sitting at the
+registered path the material that was approved? The record is written and
+signed with
 [`scripts/pilot_material_registration.py`](../../scripts/pilot_material_registration.py);
 its format is in [`../pilot/README.md`](../pilot/README.md).
 
