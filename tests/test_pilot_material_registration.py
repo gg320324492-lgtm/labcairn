@@ -517,6 +517,52 @@ def test_sign_fills_the_result_and_binds_it_to_the_registered_copy(
     assert code == 0, printed + err
 
 
+def test_sign_refuses_to_replace_a_signature_silently(material: Material, tmp_path: Path) -> None:
+    """A signature is replaced deliberately, the way a record is replaced."""
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out)
+    assert code == 0, err
+
+    items = tmp_path / "items.json"
+    items.write_text(json.dumps(_signed_items()), encoding="utf-8")
+    code, _, err = _run(
+        "sign", str(out), "--operator", "owner", "--date", "2026-11-26", "--items", str(items)
+    )
+    assert code == 0, err
+
+    code, _, err = _run(
+        "sign", str(out), "--operator", "owner", "--date", "2026-11-27", "--items", str(items)
+    )
+    assert code == 2
+    assert "already carries a checklist result" in err
+
+    record = _load(out)
+    checklist = record["checklist"]
+    assert isinstance(checklist, dict)
+    result = checklist["result"]
+    assert isinstance(result, dict)
+    assert result["date"] == "2026-11-26"
+
+    code, _, err = _run(
+        "sign",
+        str(out),
+        "--operator",
+        "owner",
+        "--date",
+        "2026-11-27",
+        "--items",
+        str(items),
+        "--force",
+    )
+    assert code == 0, err
+    record = _load(out)
+    checklist = record["checklist"]
+    assert isinstance(checklist, dict)
+    result = checklist["result"]
+    assert isinstance(result, dict)
+    assert result["date"] == "2026-11-27"
+
+
 def test_sign_refuses_an_item_set_that_is_not_the_checklists(
     material: Material, tmp_path: Path
 ) -> None:

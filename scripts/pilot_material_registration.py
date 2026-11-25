@@ -1064,6 +1064,11 @@ def command_sign(arguments: argparse.Namespace) -> int:
     checklist = record.get("checklist")
     if not isinstance(checklist, dict):
         raise RegistrationError("the record has no checklist section to sign")
+    if checklist.get("result") is not None and not arguments.force:
+        raise RegistrationError(
+            f"{record_path} already carries a checklist result; a signature is "
+            f"replaced deliberately, so pass --force to sign it again"
+        )
     checklist["result"] = {
         "date": arguments.date,
         "operator": arguments.operator,
@@ -1153,6 +1158,11 @@ def build_parser() -> argparse.ArgumentParser:
     sign.add_argument("--date", required=True, help="the date of the signature, YYYY-MM-DD")
     sign.add_argument(
         "--items", required=True, help="a JSON file of item ids and pass/fail results"
+    )
+    sign.add_argument(
+        "--force",
+        action="store_true",
+        help="sign a record that already carries a result",
     )
     sign.set_defaults(handler=command_sign)
 

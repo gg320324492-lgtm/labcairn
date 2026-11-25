@@ -121,7 +121,9 @@ an item makes the signature cover it; it refuses a set that misses an item,
 one that carries an item the checklist does not have, and one that marks an
 item anything other than `pass` or `fail`. The result is stamped with the
 digest of the copy that is registered, so a signature cannot drift onto a
-different copy (C-4's single-pass rule).
+different copy (C-4's single-pass rule). A record that already carries a
+result is not signed again unless `--force` is passed — a signature is
+replaced deliberately, the way a record is.
 
 ## Measured, not carried forward
 
