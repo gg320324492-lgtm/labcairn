@@ -41,7 +41,7 @@ The checklist's part D is the list; this is where each item lands.
 | 4 | D-4 | `copy.sha256`, `copy.byte_size`, `copy.origin_sha256`, `copy.origin_byte_size` | The fingerprint of the desensitised copy and of the original it was derived from | **Measured by the tool**, from the bytes, at write time |
 | 5 | D-5 | `storage.root`, `storage.relative_path` | Where the copy lives, in the authorised environment | The copy's own path, relative to the root; the checker requires the root to be an authorised one and the path to stay inside it |
 | 6 | D-6 | `checklist` | The document the result applies to, the digest the result applies to (`applies_to_sha256`), and the result itself: `date`, `operator`, `items` (every checklist item, `pass` or `fail`) | **The owner's.** `create` writes it empty |
-| 7 | — | `record_type`, `record_version`, `registered_at`, `registered_by`, `copy.file_name`, `copy.format` | What the record is, when it was written, who wrote it, and what the copy is called | The tool writes the timestamp and reads the rest from the command line |
+| 7 | — | `record_type`, `record_version`, `registered_at`, `registered_by`, `copy.file_name`, `copy.format` | What the record is, when it was written, who wrote it, and what the copy is called | The tool's own constants, its own timestamp, the operator's name from the command line, the copy's own name and the declared format |
 
 `registered_at` is written by the tool and is never typed by hand.
 
