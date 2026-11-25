@@ -17,7 +17,12 @@
     "Pilot issue records (migration 0029): issues found in a trial round are recorded against the run and surfaced through the trajectory issue-key routes.",
     "Model-suggestion runs (migration 0027) and the recovery/quality API routes (window G): recovery approvals and round-level quality/evidence checks are reachable from the API surface.",
     "Workbench UI: the ingestion and quality report views, the pilot's issue record and the rule-sharing door are on the web workbench (windows of batches five and six).",
-    "Structured release records: scripts/release_record.py writes and checks the seven-element JSON record this file is one of (Phase 4 section 10)."
+    "Structured release records: scripts/release_record.py writes and checks the seven-element JSON record this file is one of (Phase 4 section 10).",
+    "The capability probe record is kept by the product: a probe's outcome for one (endpoint, model, protocol) is stored in the application-owned SQLite store (migration 0031) and read back by `doctor` and by the capability gate, so the gate reads the measurement the product keeps rather than what a caller handed over.",
+    "A capability probe asks for consent: the probe is handed the same outbound consent port any other transmission uses, and a probe without a consent decision never reaches the network.",
+    "The workbench addresses the workspace's own round: `GET /review/rounds` names the rounds the workspace holds, and the review desk and the delivery centre read it rather than a fixture.",
+    "The service answers its own surfaces: the suggest run's account is readable back through `GET /review/suggest/runs/{run_id}`, and `serve` supplies the store's event source so the stage timeline is readable on the service the runbook starts.",
+    "The pilot's material registration: a desensitised copy is registered as a structured record with the tool that measures its digests and a check that refuses a record whose digest does not match the copy; the owner's signature on the checklist's part D is the one thing left to it."
   ],
   "fixed": [
     "Dual-head migration hazard: migrations 0024-0030 keep the revision chain linear (each revision's down_revision points at exactly one predecessor; no branch heads), so alembic upgrade has one path and a frozen revision cannot import a later one's state.",
