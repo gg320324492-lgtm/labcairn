@@ -3149,11 +3149,22 @@ Expanding data access scope, write permission to original material, unapproved o
   - **`FailureKind` is missing four members** ADR-0002 names
     (`docs/adr/ADR-0002-model-and-tool-execution-boundary.md:332-356`):
     `MODEL_ARGUMENT_INVALID`, `MODEL_OUTPUT_MALFORMED`, `POLICY_DENIED`,
-    `OUT_OF_SCOPE`. `src/labcairn/providers/errors.py` has none of them,
-    and its own docstring says they are *"deliberately absent rather than
-    stubbed"* — but the ADR says the classification LabCairn persists
-    **is** that class, and it also fixes the semantics (`MODEL_ARGUMENT_
-    INVALID` retryable, `POLICY_DENIED` not).
+    `OUT_OF_SCOPE`. `src/labcairn/providers/errors.py` has none of them.
+    **This one is a design difference rather than an oversight, and the
+    fix is not to add them.** That module's own docstring gives two
+    reasons: the members *"cannot produce are deliberately absent rather
+    than stubbed"* — *"an enum member nothing can raise is a member that
+    will eventually be raised by accident"* — and each belongs to a layer
+    that has not been built (the tool loop, LC-P1-04's policy layer, the
+    stage allowlist). `POLICY_DENIED` in particular would break the
+    disjoint-namespaces rule ADR-0015 and ADR-0006 hold: the permission
+    layer has its own vocabulary (`ConsentRefusal`,
+    `ApprovalRefusal`, `PathRefusal` in
+    `src/labcairn/security/permissions.py`), and a provider-layer enum
+    carrying "policy denied" would put the two in one place. **What the
+    ADR describes is the whole classification; what the code implements is
+    the part it can raise.** Either the ADR should say so, or the
+    separation should be documented in it.
   - **Nine acceptance test names ADR-0002 calls *"binding"* are absent**
     (`:393`, `:415-431`). Three are naming drift — the behaviour is
     witnessed under another name (`test_budget_exhausted_is_terminal_
