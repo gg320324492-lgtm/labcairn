@@ -34,6 +34,19 @@ citation is built by :func:`cite_rule` from the memory's own read, so
 the cases against a rule travel with the advice and cannot be dropped
 by a caller who found them inconvenient.
 
+**And the citation asks whether the rule still stands** (ADR-0016 C10).
+:func:`cite_rule` hands out no citation of a rule whose every source a
+judgement has marked unanswered: the citation is the card's claim that
+the memory holds the rule, and a rule whose source material was
+withdrawn from under it is not a rule the memory serves. **The check
+lives at the citation, not at the card's assembly**, because the
+citation is the first read of the rule for a card — and in the role run
+the citation's statement is what the approved excerpts send, so a
+refusal at assembly would come after the withdrawn rule had already
+left the machine. **A source nobody has judged is not withdrawn**, and
+whether a rule may be served at all stays the retrieval layer's
+question, with its own read.
+
 **And a card carries an address of its own** (the owner's decision of
 2026-11-01). The chain's comments live in the DOCX's
 ``word/comments.xml`` part, and the ledger's own source anchors name the
@@ -58,6 +71,8 @@ from typing import Final
 from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError, role_refused
+from labcairn.guidance.models import GuidanceRule
+from labcairn.guidance.retrieval import LIVING_STATES
 from labcairn.guidance.rules import read_rule
 from labcairn.papers.labels import ISSUE_LABELS
 from labcairn.roles.models import AgentRoleSpec, RoleOutput
@@ -300,11 +315,57 @@ class GuidanceCard(RoleOutput):
     counterexamples_or_limits: tuple[str, ...] = ()
 
 
+def _sources_a_judgement_withdrew(
+    context: ApplicationContext, rule: GuidanceRule
+) -> tuple[str, ...]:
+    """The rule's sources whose material a judgement has taken away.
+
+    **The question is narrower than the retrieval layer's "does this
+    source live?", and it is not a second copy of it.** A source is
+    *withdrawn* when the chain holds judgements on it and **none of them
+    says the change answered the comment**: that is the death the
+    retrieval layer calls material withdrawn from under the rule, and
+    :data:`~labcairn.guidance.retrieval.LIVING_STATES` is imported from
+    that layer rather than restated, so what counts as an answer cannot
+    drift between the two.
+
+    **A source nobody has judged is not withdrawn** — it is unattested —
+    and this path does not refuse it. *May this rule be served* is the
+    retrieval layer's question, answered by its own read; this path only
+    keeps a card from citing material a judgement has taken away.
+
+    **A key the chain holds no comment under is left alone here.** A
+    revision's source is answered by the change itself, and telling the
+    two kinds of case apart is the retrieval layer's route. A source the
+    reader may not reach is likewise not this path's to judge: the chain
+    read drops it rather than showing it, and the retrieval layer is
+    where an unreachable source goes quiet.
+    """
+    withdrawn: list[str] = []
+    for key in rule.sources:
+        comments = chain_layer.read_comments(context, issue_keys=(key,))
+        if not comments:
+            continue
+        states = chain_layer.read_response_states(
+            context, feedback_ids=tuple(comment.feedback_id for comment in comments)
+        )
+        if states and not any(state in LIVING_STATES for state in states):
+            withdrawn.append(key)
+    return tuple(withdrawn)
+
+
 def cite_rule(context: ApplicationContext, *, rule_id: str) -> RuleCitation:
     """The rule as the memory holds it, with its counterexamples attached.
 
+    **And only while its source material still stands.** A rule whose
+    every source a judgement has marked unanswered has had its material
+    withdrawn from under it, and the memory serves no citation of it
+    (ADR-0016 C10) — a card that carried one would advise on material
+    the chain has taken away.
+
     :raises ApplicationRefusedError: the memory holds no rule under
-        that id.
+        that id, or every source the rule stands on has been judged
+        unanswered.
     """
     try:
         rule = read_rule(context, rule_id=rule_id)
@@ -314,6 +375,15 @@ def cite_rule(context: ApplicationContext, *, rule_id: str) -> RuleCitation:
             f"the memory holds no rule under {rule_id!r}, and a card cannot"
             " cite one it did not read",
         ) from refused
+    withdrawn = _sources_a_judgement_withdrew(context, rule)
+    if withdrawn and set(withdrawn) == set(rule.sources):
+        raise role_refused(
+            RoleRefusal.RULE_NOT_IN_THE_MEMORY,
+            f"the rule {rule.rule_id!r} stands on no source that still stands:"
+            f" the judgement on {sorted(set(withdrawn))!r} says the change did"
+            " not answer the comment, so the memory has no citation of it; a"
+            " card cannot cite a rule whose source material has been withdrawn",
+        )
     return RuleCitation(
         rule_id=rule.rule_id,
         version=rule.version,
