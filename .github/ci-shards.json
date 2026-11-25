@@ -230,7 +230,8 @@
         "tests/test_docx_fixture_corpus.py",
         "tests/test_analysis_report_build.py",
         "tests/test_cli_unknown_field_refusal.py",
-        "tests/test_provider_smoke_names.py"
+        "tests/test_provider_smoke_names.py",
+        "tests/test_shell_version_alignment.py"
       ]
     ],
     "windows-latest": [
@@ -462,7 +463,8 @@
         "tests/test_security_listing_canonical.py",
         "tests/test_analysis_manifest.py",
         "tests/test_material_version.py",
-        "tests/test_provider_capabilities.py"
+        "tests/test_provider_capabilities.py",
+        "tests/test_shell_version_alignment.py"
       ]
     ]
   },
@@ -657,6 +659,7 @@
       "test_service_launch.py": 63.0,
       "test_service_model_wiring.py": 8.35,
       "test_shell_ci.py": 0.1,
+      "test_shell_version_alignment.py": 0.0,
       "test_skill_approval.py": 1.25,
       "test_skill_contracts.py": 1.74,
       "test_skill_execution.py": 2.27,
@@ -877,6 +880,7 @@
       "test_service_launch.py": 151.56,
       "test_service_model_wiring.py": 80.93,
       "test_shell_ci.py": 0.68,
+      "test_shell_version_alignment.py": 0.0,
       "test_skill_approval.py": 2.0,
       "test_skill_contracts.py": 2.79,
       "test_skill_execution.py": 3.65,
