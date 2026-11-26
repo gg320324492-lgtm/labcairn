@@ -279,7 +279,7 @@ Everything here is a property to witness, not a checkbox to tick (§0 rule 5).
    (ADR-0023 "Contracts" entry 7, AC-7).
 7. **The service stays loopback-bound.** The shell passes `--host 127.0.0.1`
    and does not expose the port; `labcairn serve` itself refuses any other
-   bind address (`src/labcairn/cli/commands.py:3119` — `def _check_host(host: str, *, as_json: bool) -> None:`, `_check_host`, called at
+   bind address (`src/labcairn/cli/commands.py:3120` — `def _check_host(host: str, *, as_json: bool) -> None:`, `_check_host`, called at
    `src/labcairn/cli/commands.py:2573` — `_check_host(host, as_json=as_json)`). The session guard's three layers stay exactly where
    `docs/THREAT-MODEL.md` §3.2 puts them.
 8. **No secrets or corpus text in the tree.** No token value, no pilot corpus

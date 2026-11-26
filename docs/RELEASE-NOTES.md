@@ -901,10 +901,10 @@ than left for the next reader to find.**
    so the signed check fails and the import step must not run. Meanwhile the
    authorisation's grant already names the copy's address —
    `"subject_ref": "pilot/LC-P4-PILOT/desensitised-copy"`
-   (`docs/acceptance/LC-P4-PILOT-providers-config.md:193` — `"subject_ref": "pilot/LC-P4-PILOT/desensitised-copy",`) —
+   (`docs/acceptance/LC-P4-PILOT-providers-config.md:197` — `"subject_ref": "pilot/LC-P4-PILOT/desensitised-copy",`) —
    and the record that carries it calls that *"a shape, not a signed
    pointer"*
-   (`docs/acceptance/LC-P4-PILOT-providers-config.md:227` — `is a shape, not a signed pointer`).
+   (`docs/acceptance/LC-P4-PILOT-providers-config.md:232` — `is a shape, not a signed pointer`).
    **So the grant's scope reaches a copy that no registration record
    describes, and which copy it is remains the owner's to choose.**
    *Evidence:* the checklist's part D, the authorisation's §7, and the

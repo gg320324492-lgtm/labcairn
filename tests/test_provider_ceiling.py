@@ -30,6 +30,10 @@ from labcairn.providers.adapter import PydanticAiModelProvider
 from labcairn.providers.credentials import Credential, Protocol, ProviderSettings
 from labcairn.providers.usage_capture import RecordingUsageCapture
 
+#: The class this file belongs to, declared so that nothing outside the
+#: partition table has to say so.
+pytestmark = pytest.mark.unit
+
 #: An entry with no ceiling in it. Every configuration test starts from this.
 _BASE_ENTRY: dict[str, object] = {"protocol": "anthropic", "model": "a-model"}
 

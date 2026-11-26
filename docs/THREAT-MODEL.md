@@ -413,8 +413,8 @@ OpenAPI document at `/openapi.json` — is generated locally and is served.
 
 | Path | Destination | Evidence |
 |---|---|---|
-| Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:122` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:190` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
-| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:3156` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
+| Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:122` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:235` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
+| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:3157` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
 
 **There is no telemetry, no update check, no CDN fetch, no analytics, no
 font download.** `src/labcairn/sources/`, `src/labcairn/material/`,
@@ -436,12 +436,12 @@ Being the only one is the point.
 
 ### 3.4 The outbound disclosure policy
 
-`PHASE_1_OUTBOUND_POLICY` (`src/labcairn/providers/adapter.py:176` — `PHASE_1_OUTBOUND_POLICY: OutboundDisclosure = OutboundDisclosure()`) is an
+`PHASE_1_OUTBOUND_POLICY` (`src/labcairn/providers/adapter.py:177` — `PHASE_1_OUTBOUND_POLICY: OutboundDisclosure = OutboundDisclosure()`) is an
 `OutboundDisclosure` declaring, per exchange, **what the layer says it put on
 the wire**: the prompt, the tool names, whether excerpts were included.
 
 **`sends_document_excerpts` is `False` in Phase 1**
-(`src/labcairn/providers/adapter.py:152` — `sends_document_excerpts: bool = False`), and that is asserted rather than
+(`src/labcairn/providers/adapter.py:153` — `sends_document_excerpts: bool = False`), and that is asserted rather than
 assumed — `tests/test_provider_adapter.py:520` — `assert PHASE_1_OUTBOUND_POLICY.sends_document_excerpts is False`. Sending an excerpt is
 consented by an approval bound to a digest of the canonical arguments
 (`src/labcairn/security/capabilities.py:253-266`), and an outbound request is
@@ -486,7 +486,7 @@ mechanisms because each fails differently:
 - **`__repr__` / `__str__` hide the value** (`src/labcairn/providers/credentials.py:130-133`). This is
   the load-bearing one: an accidental `f"{cred}"`, a traceback, a pydantic
   validation error dump or a debugger transcript cannot print it.
-- **`__hash__` / `__eq__` use a salted fingerprint** (`src/labcairn/providers/credentials.py:135` — `return hash((Credential, self.fingerprint))`,
+- **`__hash__` / `__eq__` use a salted fingerprint** (`src/labcairn/providers/credentials.py:166` — `return hash((Credential, self.fingerprint))`,
   `135-148`), so a `Credential` in a set or a dict key does not hash the
   secret into anything persisted.
 - **`reveal()` is the only accessor** (`src/labcairn/providers/credentials.py:110-118`), and it exists

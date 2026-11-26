@@ -525,6 +525,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_provider_budget.py": ("unit", "typed-contracts"),
     "test_provider_capabilities.py": ("unit", "typed-contracts"),
     "test_provider_credentials.py": ("unit", "typed-contracts"),
+    "test_provider_ceiling.py": ("unit", "typed-contracts"),
     "test_provider_redaction.py": ("unit", "provider-redaction"),
     # The smoke script and the CI job that runs it must name the same
     # environment variables. The credential's name always matched, so the
