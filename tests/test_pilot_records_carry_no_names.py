@@ -45,7 +45,7 @@ import pytest
 #: closed what the records found. Every file that names the material.
 RECORDS: Final[tuple[Path, ...]] = (
     *sorted(Path("docs/acceptance").glob("LC-P4-PILOT-*.md")),
-    *sorted(Path("docs/acceptance").glob("batch-1[3-5]-review-*.md")),
+    *sorted(Path("docs/acceptance").glob("batch-*-review-*.md")),
 )
 
 #: A maximal run of Han characters, written as code points rather than as
