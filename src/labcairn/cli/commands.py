@@ -2939,6 +2939,7 @@ def _suggestion_transport(
             usage_capture=sniffer,
             redactor=credential_redactor(credential),
             timeout_s=settings.timeout_s,
+            max_output_tokens=settings.max_output_tokens,
             clock=lambda: 0.0,
             probe_cache=probe_cache if settings.probed else None,
             probe_key=probe_key(

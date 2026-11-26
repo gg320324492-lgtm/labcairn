@@ -78,6 +78,37 @@ DEFAULT_BASE_URLS: Mapping[Protocol, str] = {
 }
 
 
+def output_ceiling(value: object) -> int | None:
+    """The output ceiling a configuration names, or ``None``. Refused, not coerced.
+
+    The rule the provider layer holds for a token ceiling: **absent is absent**
+    (the provider's own default applies), and a value that is not a positive
+    integer is refused rather than rounded, truncated or string-parsed.
+
+    ``timeout_s`` is the opposite case and coerces, because a configuration file
+    that says ``"60"`` plainly means sixty seconds. A ceiling is not the same
+    kind of number: ``"4096"`` is a string where a number was wanted, and
+    ``4096.5`` is not a number of tokens at all. Either is an arithmetic or a
+    typing mistake that did not survive the trip, and either would otherwise
+    reach the wire as a statement different from the one the operator wrote.
+
+    ``bool`` is refused with the rest: ``True`` is an ``int`` in Python, and
+    would otherwise become a ceiling of one token.
+
+    Raised as a :class:`ValueError`, which is this layer's own vocabulary for a
+    number it will not accept -- the same refusal
+    :meth:`~labcairn.providers.cancel.CancellationToken.wait_for` makes for a
+    negative timeout.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"max_output_tokens must be an integer, got {value!r}")
+    if value <= 0:
+        raise ValueError(f"max_output_tokens must be positive, got {value!r}")
+    return value
+
+
 class MissingCredentialError(RuntimeError):
     """No credential could be found. Says where it looked, never what it found."""
 
@@ -161,6 +192,13 @@ class ProviderSettings:
     credential_file: Path | None = None
     #: Per-request timeout handed to the HTTP client.
     timeout_s: float = 60.0
+    #: Per-request output ceiling, in tokens, handed to the model call.
+    #: ``None`` leaves the provider's own ceiling in place; a positive integer
+    #: caps the answer and is what turns a truncated answer into a refusal
+    #: rather than a recorded one. Optional in the strongest sense: an entry
+    #: that does not name it behaves exactly as it did before the field
+    #: existed.
+    max_output_tokens: int | None = None
     #: Whether this provider's capabilities are **established** for this
     #: workspace. ``False`` is ADR-0002's ``probed: false`` override: the
     #: operator declares the provider unprobed, so a stored probe record is
@@ -174,6 +212,8 @@ class ProviderSettings:
             raise ValueError("provider settings need a model name")
         if self.timeout_s <= 0:
             raise ValueError(f"timeout_s must be positive, got {self.timeout_s!r}")
+        # Refuses rather than coerces; see :func:`output_ceiling`.
+        output_ceiling(self.max_output_tokens)
         if self.protocol is Protocol.OPENAI_COMPATIBLE and not self.base_url:
             raise ValueError(
                 "an OpenAI-compatible endpoint must name a base_url; there is no default "
@@ -222,6 +262,7 @@ class ProviderSettings:
             "credential_env",
             "credential_file",
             "timeout_s",
+            "max_output_tokens",
             "probed",
         }
         unknown = sorted(set(payload) - known)
@@ -242,6 +283,7 @@ class ProviderSettings:
             credential_env=_optional_str(payload.get("credential_env")),
             credential_file=Path(str(raw_file)) if isinstance(raw_file, str) and raw_file else None,
             timeout_s=_as_float(payload.get("timeout_s"), 60.0),
+            max_output_tokens=output_ceiling(payload.get("max_output_tokens")),
             probed=_as_bool(payload.get("probed"), True),
         )
 

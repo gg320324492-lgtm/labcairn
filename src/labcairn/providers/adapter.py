@@ -104,6 +104,7 @@ from labcairn.providers.budget import BudgetGuard, RunBudget
 from labcairn.providers.cancel import CancellationToken
 from labcairn.providers.capabilities import Capability, ProviderCapabilities
 from labcairn.providers.consent import OutboundConsent, WireAuthorizedConsent
+from labcairn.providers.credentials import output_ceiling
 from labcairn.providers.errors import (
     FailureKind,
     OutboundRefusedError,
@@ -395,6 +396,11 @@ class PydanticAiModelProvider:
         self._redactor = redactor if redactor is not None else Redactor()
         self._token = token if token is not None else CancellationToken()
         self._runner = runner if runner is not None else default_runner
+        # Refuses rather than coerces, and refuses here as well as in the
+        # configuration: this is the last place before the number becomes a
+        # wire argument, and a ceiling that is not positive must not reach the
+        # provider as one. See :func:`labcairn.providers.credentials.output_ceiling`.
+        output_ceiling(max_output_tokens)
         self._max_output_tokens = max_output_tokens
         self._reasoning_effort = reasoning_effort
         self._tool_schemas = dict(tool_schemas or {})

@@ -92,19 +92,64 @@ _WIRE_TOKEN_NAMES: Mapping[str, str] = {
     "completion_tokens": "output_tokens",
 }
 
+#: The Anthropic protocol reports the input tokens of a request in **three**
+#: fields, and only one of them is called ``input_tokens``: the tokens the
+#: provider counted outright. The prompt-cache portions arrive under their own
+#: names — ``cache_read_input_tokens`` (read from the cache) and
+#: ``cache_creation_input_tokens`` (written into it) — and the **total** input
+#: is the sum of the three.
+#:
+#: Measured on MiniMax's Anthropic-compatible endpoint on 2026-11-26: the same
+#: 1,699-character prompt was reported once as ``input_tokens`` 378 with
+#: ``cache_read_input_tokens`` 128, and again as ``input_tokens`` 122 with
+#: ``cache_read_input_tokens`` 384. Both readings are 506 tokens of input; only
+#: the split moved, because the second request found the prompt already
+#: cached. Reading ``input_tokens`` alone turns that into 378 and then into
+#: 122 — and, once the cache was warm, into the ``1`` the pilot recorded for a
+#: 1,699-character prompt. A ceiling written on that number under-reads the
+#: traffic that was sent by more than five hundred tokens per request.
+_ANTHROPIC_CACHED_INPUT_FIELDS: tuple[str, ...] = (
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+)
+
+
+def _with_cached_input(block: Mapping[str, object]) -> Mapping[str, object]:
+    """The block with the Anthropic prompt-cache portions folded into ``input_tokens``.
+
+    A block that reports no cache portions comes back unchanged, and so does a
+    block whose ``input_tokens`` is not a usable count — the parser's business,
+    not this one's, and a block it will refuse is better refused there than
+    repaired here.
+    """
+    counted = block.get("input_tokens")
+    if isinstance(counted, bool) or not isinstance(counted, int) or counted < 0:
+        return block
+    total = counted
+    for name in _ANTHROPIC_CACHED_INPUT_FIELDS:
+        portion = block.get(name)
+        if isinstance(portion, bool) or not isinstance(portion, int) or portion <= 0:
+            continue
+        total += portion
+    if total == counted:
+        return block
+    return {**block, "input_tokens": total}
+
 
 def _labcairn_usage_keys(block: Mapping[str, object]) -> Mapping[str, object]:
     """One ``usage`` block, in the parser's vocabulary.
 
     Identity for a block that already speaks LabCairn's names (the fake
-    provider's transcripts, an Anthropic body, a hand-fed test block); a
-    rename for a block that speaks OpenAI's. A block carrying neither is
-    passed through untouched — the parser reads only the two LabCairn names,
-    so such a block still reports ``Unknown(PROVIDER_OMITTED)`` rather than
-    anything invented.
+    provider's transcripts, an Anthropic body, a hand-fed test block) — with
+    the Anthropic prompt-cache portions folded into ``input_tokens``, so the
+    count that reaches the parser is the whole input and not the part of it
+    the provider happened to count outright. A rename for a block that speaks
+    OpenAI's. A block carrying neither is passed through untouched — the parser
+    reads only the two LabCairn names, so such a block still reports
+    ``Unknown(PROVIDER_OMITTED)`` rather than anything invented.
     """
     if "input_tokens" in block or "output_tokens" in block:
-        return block
+        return _with_cached_input(block)
     return {
         target: block[source] for source, target in _WIRE_TOKEN_NAMES.items() if source in block
     }
