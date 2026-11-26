@@ -76,11 +76,11 @@ and `tests/test_api.py`'s contract witness passes with it.
 
 | Number | Where it came from |
 | --- | --- |
-| 6 witnesses pass | `python -m pytest tests/test_source_removal_event.py -q`, basetemp `E:/labcairn-local/tmp/format-w1`; final confirmation run `…/restored-w1` (6 passed, 25 with the migration file) |
-| 19 migration witnesses pass | `python -m pytest tests/test_store_migrations.py -q`, basetemp `E:/labcairn-local/tmp/migrations-w2` |
-| 165 pass, 1 fail (vocabulary group) | `tests/test_event_payload_vocabulary.py tests/test_runtime_contracts.py tests/test_store_events.py tests/test_feedback_event_stream.py`, basetemp `E:/labcairn-local/tmp/vocab-w1`; log `E:/labcairn-local/tmp/vocab-w1.log` |
-| 139 pass, 1 fail, 1 skip (neighbouring files) | `tests/test_source_removal.py tests/test_application_ingestion.py tests/test_api.py`, basetemp `E:/labcairn-local/tmp/neighbours-w1` |
-| 18 pass (CLI parameters) | `tests/test_cli_parameters.py`, basetemp `E:/labcairn-local/tmp/cli-w1` — **read §6 before using this one** |
+| 6 witnesses pass | `python -m pytest tests/test_source_removal_event.py -q`, basetemp under `E:/labcairn-local/tmp/` (one directory of its own per run) (6 passed, 25 with the migration file) |
+| 19 migration witnesses pass | `python -m pytest tests/test_store_migrations.py -q`, basetemp under `E:/labcairn-local/tmp/` |
+| 165 pass, 1 fail (vocabulary group) | `tests/test_event_payload_vocabulary.py tests/test_runtime_contracts.py tests/test_store_events.py tests/test_feedback_event_stream.py`, basetemp and log under `E:/labcairn-local/tmp/` |
+| 139 pass, 1 fail, 1 skip (neighbouring files) | `tests/test_source_removal.py tests/test_application_ingestion.py tests/test_api.py`, basetemp under `E:/labcairn-local/tmp/` |
+| 18 pass (CLI parameters) | `tests/test_cli_parameters.py`, basetemp under `E:/labcairn-local/tmp/` — **read §6 before using this one** |
 | 575 files formatted, all checks pass | `ruff check .`, `ruff format --check .` |
 | 501 source files, no issues | `mypy --strict` (`files = ["src", "conftest.py", "tests"]`), `MYPYPATH` set to this worktree's `src` |
 
