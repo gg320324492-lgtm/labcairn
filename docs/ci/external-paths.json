@@ -1,6 +1,6 @@
 {
   "schema": "labcairn-external-path-ledger/v1",
-  "read_at": "2026-11-18",
+  "read_at": "2026-11-26",
   "root": "E:/labcairn-local",
   "what_this_is": "Every path under E:/labcairn-local that a tracked file names, and what each one is expected to be: present, renamed (with the path that replaced it), or absent. The rule it encodes: a rename is not a defect, a bare pointer to the old name is. The half that needs the packs runs on a development machine; the half that only needs the tree runs in CI.",
   "apparatus": [
@@ -1767,6 +1767,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/phase4-pilot-evidence",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-capability-probe-2026-11-25",
       "expectation": "present",
       "kind": "material",
@@ -1829,7 +1840,9 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
-        "docs/acceptance/LC-P4-PILOT-import-2026-11-25.md"
+        "docs/acceptance/LC-P4-PILOT-first-round-2026-11-26.md",
+        "docs/acceptance/LC-P4-PILOT-import-2026-11-25.md",
+        "docs/acceptance/LC-P4-PILOT-source-removal-2026-11-26.md"
       ]
     },
     {
@@ -2673,6 +2686,17 @@
       "sites": [
         "docs/THREAT-MODEL.md",
         "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/labcairn.db.backup.before-source-removal-2026-11-26",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-source-removal-2026-11-26.md"
       ]
     },
     {
