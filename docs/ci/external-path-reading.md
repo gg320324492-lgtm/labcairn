@@ -173,3 +173,21 @@ on all five, but the report is a claim and the disk is the measurement.
 - **It does not run on a runner.** The existence half needs the machine
   the packs are on; §4 says which half is which, and the witness skips
   the other rather than failing it.
+
+## 7. The ledger was rebuilt on 2026-11-26
+
+**This reading is a snapshot; the ledger is not.** Two records written on
+2026-11-26 named paths this reading had never seen — the evidence
+directory the handoff points at, and the database copy the source-removal
+record read its before-column from — and the witness failed on both:
+*named by a record and is not in the ledger*.
+
+The ledger was rebuilt with
+`python scripts/build_external_path_ledger.py --read-at 2026-11-26 --write`,
+which found both on the disk and entered them as expected to be present.
+Its `read_at` is therefore **2026-11-26**, while this reading's two
+moments stay 2026-11-18: the reading says what was read then, and the
+ledger says when it was last read. **A path's expectation is a judgement
+and a refresh does not re-make it** — the tool keeps an existing
+judgement, and takes a new one from the disk only for a path nobody has
+judged yet.
