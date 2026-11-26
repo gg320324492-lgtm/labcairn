@@ -46,6 +46,7 @@ reads them and the interpreter does not.
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import json
 import socket
@@ -83,6 +84,8 @@ if TYPE_CHECKING:
         ServiceStarting,
         SourceRootFinding,
         SourcesIngested,
+        SuggestionAsked,
+        SuggestionOutcome,
     )
     from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
     from labcairn.core.ids import TaskId
@@ -95,6 +98,7 @@ if TYPE_CHECKING:
     from labcairn.providers.probe import ProbeCache, ProbeKey, ProbeRecord
     from labcairn.security.paths import CanonicalPath
     from labcairn.security.permissions import Grant
+    from labcairn.sources.source import Source
 
 #: The exit code a refusal carries.
 #:
@@ -157,6 +161,31 @@ MODEL_SUGGESTIONS_REQUIRED: Final[tuple[str, ...]] = (
     "granted_by",
     "granted_at",
 )
+
+#: The purpose a suggestion's transmit is granted for.
+#:
+#: **One of :data:`labcairn.security.permissions.PURPOSES`, and the one the
+#: workspace's authorisation record is written with.** The consent layer
+#: matches a grant's purpose against the use's, so a second spelling would
+#: be a grant no gate could match — and the word is already fixed by the
+#: closed set.
+SUGGEST_PURPOSE: Final[str] = "transmit"
+
+#: How much of one source's material a suggestion may ask about.
+#:
+#: **A bound, and a declared one.** A source is as large as the file it
+#: came from, and a request that carried all of it would cost what the
+#: file costs and would answer about what the model could not read. So the
+#: excerpt is cut here, and the outcome says whether it was cut — a reader
+#: who was not told would read the answer as an answer about the whole.
+SUGGEST_EXCERPT_CHARACTERS: Final[int] = 24_000
+
+#: How long an approval asked for by ``suggest`` stays answerable.
+#:
+#: **The same span ``task approval-request`` asks for by default.** The
+#: answer is a person's, and a person answering within half an hour is
+#: answering the question they were asked.
+SUGGEST_APPROVAL_MINUTES: Final[int] = 30
 
 #: The verdicts a person may return about a guidance rule.
 #:
@@ -3939,3 +3968,501 @@ def _the_judgement_part_or_declined(
             as_json=as_json,
         )
     return payload
+
+
+# --------------------------------------------------------------------------- #
+# suggest
+# --------------------------------------------------------------------------- #
+
+
+@app.command("suggest")
+def suggest(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The source to ask about.")],
+    question: Annotated[
+        str,
+        typer.Option(
+            "--question",
+            help="The one question to ask about the material. It is asked once.",
+        ),
+    ],
+    approval: Annotated[
+        str | None,
+        typer.Option(
+            "--approval",
+            help=(
+                "A granted approval to spend. Without one, the command asks first and "
+                "prints the pending approval to grant -- the ask spends nothing."
+            ),
+        ),
+    ] = None,
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Ask one question about one source's material, and write down what came back.
+
+    **This is not the advisor loop, and it does not pretend to be.**
+    ``roles run`` judges comments, and it refuses a chain that holds none --
+    *a judgement about a comment that is not there is invented*. That refusal
+    is the product's own and it is right there. This command asks a different
+    question: it reads the material of one source and asks one question about
+    it. **It judges nothing.** What comes back is a model's answer, written
+    into the workspace, and it is nobody's evidence.
+
+    **Two steps, and the first one spends nothing.** Without ``--approval``
+    the command writes the question down, asks for consent and prints the
+    pending approval to grant: no request is sent, no exchange is recorded
+    and no money is spent. With it, the command spends that approval and
+    sends **exactly one** request.
+
+    **The transmit check runs before the approval is spent.** That order is
+    the layer's own -- :func:`labcairn.application.model_request.request_model`
+    checks the destination before it consumes the consent -- and this command
+    spends nothing of its own ahead of it. A request refused for want of a
+    grant therefore leaves the approval unspent, and the person can fix the
+    grant and try again.
+
+    **The credential is not named anywhere.** The call is recorded under a
+    fingerprint, and neither the machine-readable form nor the written answer
+    has a field a key could occupy.
+    """
+    from labcairn.cli import render
+    from labcairn.cli.models import (
+        CLI_REFUSAL_INVALID_ARGUMENTS,
+        SuggestionAsked,
+        emit_model,
+    )
+    from labcairn.cli.workspace import application_context, locate
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    if not question.strip():
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            "the question is empty: there is nothing to ask, and a request that "
+            "carries no question would spend an approval on silence.",
+            as_json=as_json,
+        )
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            outcome = _the_suggestion(
+                context,
+                source_id=source,
+                question=question.strip(),
+                approval_id=approval,
+                as_json=as_json,
+            )
+    if as_json:
+        emit_model(outcome)
+    elif isinstance(outcome, SuggestionAsked):
+        _console().print(render.render_suggestion_asked(outcome))
+    else:
+        _console().print(render.render_suggestion(outcome))
+
+
+@dataclass(frozen=True, slots=True)
+class _ProviderWiring:
+    """The provider the workspace names, its record and the transport to it.
+
+    **Three things that arrive together or not at all.** The record is the
+    owner's authorisation, the settings are the provider's own
+    configuration, and the transport is the gated way to reach it. A
+    workspace that has one and not the others has no provider to ask.
+    """
+
+    record: Mapping[str, str]
+    settings: ProviderSettings
+    transport: _TransportSeam
+
+
+@dataclass(frozen=True, slots=True)
+class _SuggestionWiring:
+    """Who the suggestion asks, where the material may go, and under what grant.
+
+    **The workspace's own answer, and nothing invented here.** The provider,
+    the model, the destination and the subject come from the authorisation
+    record the owner signed; the grants are the rows the consent layer
+    reads. A wiring that answered any of these questions itself would be a
+    second gate wearing the first one's name.
+    """
+
+    provider: str
+    model: str
+    destination: str
+    subject_ref: str
+    transport: _TransportSeam
+    grants: tuple[Grant, ...]
+
+
+def _the_suggestion(
+    context: ApplicationContext,
+    *,
+    source_id: str,
+    question: str,
+    approval_id: str | None,
+    as_json: bool,
+) -> SuggestionAsked | SuggestionOutcome:
+    """The suggestion: asked, or answered.
+
+    **The material is read the way the product reads it.** The ledger holds
+    the text the ingestion extracted, one address at a time, and that is
+    what this command asks about -- not the file re-read, and not a
+    rendering of it. A material that was never ingested has no text, and a
+    question about nothing is not a question.
+
+    **The approval binds the question and not only the material.** The use
+    carries the excerpt that would leave and the digest of the question, so
+    an approval granted for this question does not authorise another one.
+
+    **Exactly one request, or none.** The ask mints a pending approval and
+    returns it; the run spends a granted one through
+    :func:`labcairn.application.model_request.request_model`, which is the
+    only path this command has to the wire.
+    """
+    from labcairn.application import inspect_source, list_source_addresses
+    from labcairn.application.approvals import ApprovalUse
+    from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
+
+    view = inspect_source(context, source_id)
+    source = view.source
+    resource = context.resource_for(source.relative_path)
+    excerpt, material_characters = _the_excerpt(list_source_addresses(context, source_id))
+    wiring = _the_suggestion_wiring(context, as_json=as_json)
+    prompt = _the_prompt(question, source.source_id, excerpt)
+    digest = _the_question_digest(question, source.content_sha256, excerpt)
+    use = ApprovalUse(
+        capability=CapabilityId.MODEL_REQUEST,
+        arguments=ModelRequestArgs(
+            provider=wiring.provider,
+            model=wiring.model,
+            path=resource.declared_key,
+            excerpts=(excerpt,),
+            purpose=SUGGEST_PURPOSE,
+        ).model_dump(),
+        root_id=resource.root_id,
+        resource_key=resource.declared_key,
+        depends_on=(digest,),
+    )
+    if approval_id is None:
+        return _the_ask(
+            context,
+            use=use,
+            source=source,
+            question=question,
+            digest=digest,
+            excerpt=excerpt,
+            material_characters=material_characters,
+            material_key=resource.resolved_key,
+            wiring=wiring,
+        )
+    return _the_answer(
+        context,
+        use=use,
+        source=source,
+        question=question,
+        digest=digest,
+        wiring=wiring,
+        approval_id=approval_id,
+        prompt=prompt,
+        material_ref=resource.resolved_key,
+    )
+
+
+def _the_ask(
+    context: ApplicationContext,
+    *,
+    use: ApprovalUse,
+    source: Source,
+    question: str,
+    digest: str,
+    excerpt: str,
+    material_characters: int,
+    material_key: str,
+    wiring: _SuggestionWiring,
+) -> SuggestionAsked:
+    """The ask: the question written down, and the consent it will be spent under.
+
+    **Nothing is spent here.** The approval is minted *pending*, no request
+    is sent, no exchange is recorded and no money changes hands. What the
+    operator has at the end is a question and an approval id, and the
+    approval is granted by a person -- ``labcairn task approval-grant`` --
+    and spent by a second call to this command.
+
+    **The binding names the canonical file, not the path on disk.** What the
+    consent promises about is the *canonical* file -- the one the workspace
+    will actually open -- so the key it carries is the one the source root
+    spells it by. The spend re-hashes that file and refuses the request if
+    it moved, which is what makes the consent a consent about a document and
+    not about an abstraction.
+    """
+    from datetime import timedelta
+
+    from labcairn.application.approvals import ApprovalRequest, request_approval
+    from labcairn.cli.models import SuggestionAsked
+    from labcairn.security.approval import SourceBinding
+
+    asked = request_approval(
+        context,
+        ApprovalRequest(
+            use=use,
+            expires_at=datetime.now(UTC) + timedelta(minutes=SUGGEST_APPROVAL_MINUTES),
+            stage_name="suggest",
+            bound_sources=(
+                SourceBinding(
+                    resource_key=material_key,
+                    expected_hash=source.content_sha256,
+                ),
+            ),
+        ),
+    )
+    return SuggestionAsked(
+        source_id=source.source_id,
+        provider=wiring.provider,
+        model=wiring.model,
+        destination=wiring.destination,
+        subject_ref=wiring.subject_ref,
+        approval_id=str(asked.approval.approval_id),
+        question=question,
+        question_sha256=digest,
+        material_sha256=source.content_sha256,
+        material_characters=material_characters,
+        excerpt_characters=len(excerpt),
+        truncated=len(excerpt) < material_characters,
+        expires_at=asked.approval.expires_at.isoformat(),
+    )
+
+
+def _the_answer(
+    context: ApplicationContext,
+    *,
+    use: ApprovalUse,
+    source: Source,
+    question: str,
+    digest: str,
+    wiring: _SuggestionWiring,
+    approval_id: str,
+    prompt: str,
+    material_ref: str,
+) -> SuggestionOutcome:
+    """The answer: one request, under the gates, and what came back.
+
+    **The spend is the layer's, and the layer's order is the property.**
+    :func:`labcairn.application.model_request.request_model` runs the
+    transmit check first and consumes the approval only if the material may
+    go -- so a request refused for want of a grant leaves the approval
+    unspent, and this command spends nothing of its own ahead of it.
+
+    **One request, or none.** The provider invocation is reached only
+    after every gate has permitted, and it is reached once.
+    """
+    from labcairn.application.model_request import request_model
+    from labcairn.cli.models import SuggestionOutcome
+    from labcairn.core.ids import ApprovalId
+    from labcairn.workspace.outputs import TaskOutputArea
+
+    answer = request_model(
+        context,
+        ApprovalId(uuid.UUID(approval_id)),
+        list(wiring.grants),
+        use=use,
+        subject_ref=wiring.subject_ref,
+        destination=wiring.destination,
+        material_ref=material_ref,
+        purpose=SUGGEST_PURPOSE,
+        at=datetime.now(UTC),
+        send=lambda: _the_loop_invocation(wiring.transport, prompt),
+    )
+    written = TaskOutputArea(context.workspace).write(
+        f"suggestions/{approval_id}.md",
+        _the_answer_bytes(question, source.source_id, answer.answer),
+    )
+    return SuggestionOutcome(
+        source_id=source.source_id,
+        provider=wiring.provider,
+        model=wiring.model,
+        destination=wiring.destination,
+        approval_id=approval_id,
+        question_sha256=digest,
+        material_sha256=source.content_sha256,
+        answer=answer.answer,
+        answer_sha256=hashlib.sha256(answer.answer.encode("utf-8")).hexdigest(),
+        answer_characters=len(answer.answer),
+        answer_path=written.absolute_path.relative_to(context.workspace.selected_root).as_posix(),
+        answer_bytes=written.size_bytes,
+        exchange_event_id=answer.exchange_event_id,
+    )
+
+
+def _the_answer_bytes(question: str, source_id: str, answer: str) -> bytes:
+    """The answer, as the file that holds it.
+
+    **The question is written above the answer.** The file is what a reader
+    opens later, and a file that carried only an answer would not say what
+    it was an answer to. **The material is not in it** -- the file names the
+    source and its digest, and the material stays where it is.
+    """
+    document = (
+        "# A suggestion about one source's material\n\n"
+        f"- source: {source_id}\n"
+        f"- question: {question}\n\n"
+        "## The answer\n\n"
+        f"{answer}\n"
+    )
+    return document.encode("utf-8")
+
+
+def _the_excerpt(addresses: Sequence[SourceAddress]) -> tuple[str, int]:
+    """The material's text, and how much of it there is.
+
+    **The ledger's own text, in the ledger's own order.** The addresses are
+    what the ingestion stored, so the excerpt is what the product believes
+    the material says rather than a second reading of the file.
+
+    **The bound is declared, and the outcome says whether it bit.** A reader
+    who is told the excerpt was cut knows the answer is about the part that
+    was sent; a reader who is not told would read it as an answer about the
+    whole.
+    """
+    text = "\n\n".join(address.text for address in addresses if address.text.strip())
+    return text[:SUGGEST_EXCERPT_CHARACTERS], len(text)
+
+
+def _the_prompt(question: str, source_id: str, excerpt: str) -> str:
+    """The one question, as it will be asked.
+
+    **The question comes first and the material second.** A model answers
+    the question it was asked, and the material is what it answers about;
+    the order is what makes the request a question rather than a summary.
+    """
+    return (
+        "Answer the question below about the material that follows it.\n\n"
+        f"Question: {question}\n\n"
+        f"Material (source {source_id}):\n\n"
+        f"{excerpt}"
+    )
+
+
+def _the_question_digest(question: str, material_sha256: str, excerpt: str) -> str:
+    """A digest of everything the request depends on.
+
+    **It goes into the approval's dependency list**, so the approval binds
+    the *question* and not only the material. A different question, or a
+    material that changed under the approval, produces a different digest,
+    and the spend is refused because the approval does not cover this
+    question.
+    """
+    payload = {
+        "question": question,
+        "material_sha256": material_sha256,
+        "excerpt": excerpt,
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _the_suggestion_wiring(context: ApplicationContext, *, as_json: bool) -> _SuggestionWiring:
+    """Who may be asked, where the material may go, and under what grant.
+
+    **The workspace's own wiring, and the same one the real-model path
+    uses.** The authorisation record under ``model_suggestions`` in
+    ``providers.json`` names the provider, the destination and the subject;
+    the provider entry names the model; and the grant the record describes
+    is registered as a row, so the transmit gate checks it by the same
+    machinery every other transmit use is checked by.
+
+    **A workspace that names no provider is refused, not guessed at.** There
+    is no default provider and no default destination: a request that left
+    the machine without the owner's record saying where it may go would be
+    the one thing this product is not allowed to do.
+    """
+    from labcairn.application.approvals import access_grants, register_access_grant
+    from labcairn.cli.models import CLI_REFUSAL_NO_PROVIDER
+
+    provider_wiring, why = _the_provider_wiring(context)
+    if provider_wiring is None:
+        _refuse(
+            CLI_REFUSAL_NO_PROVIDER,
+            f"the workspace names no provider to ask: {why}.",
+            as_json=as_json,
+        )
+    record = provider_wiring.record
+    grant = _suggestion_grant(record)
+    if grant is not None:
+        register_access_grant(context, grant)
+    grants = tuple(
+        candidate
+        for candidate in access_grants(context)
+        if candidate.permission == "external_transmit"
+        and candidate.purpose == SUGGEST_PURPOSE
+        and candidate.subject_ref == record["subject_ref"]
+    )
+    return _SuggestionWiring(
+        provider=record["provider"],
+        model=provider_wiring.settings.model,
+        destination=record["destination"],
+        subject_ref=record["subject_ref"],
+        transport=provider_wiring.transport,
+        grants=grants,
+    )
+
+
+def _the_provider_wiring(
+    context: ApplicationContext,
+) -> tuple[_ProviderWiring | None, str | None]:
+    """The workspace's provider, its record and its transport.
+
+    **Or the reason there is none.** The two come back together because a
+    refusal that cannot say what is missing is a refusal nobody can act
+    on: the file that is not there, the record that is not in it, the
+    provider it names and the credential that provider needs are four
+    different things to go and do.
+
+    **Nothing is raised here.** The caller turns the reason into a refusal
+    and ends the command, which is the CLI's own vocabulary for the
+    conditions the layer has no operation for.
+    """
+    from labcairn.application.probe_records import SqliteProbeCache
+    from labcairn.providers.credentials import load_credential, load_providers_config
+
+    path = context.workspace.selected_root / PROVIDERS_FILE_NAME
+    if not path.is_file():
+        return None, (
+            f"the workspace has no {PROVIDERS_FILE_NAME}, so it names no provider, no "
+            "model and no destination for a request to go to"
+        )
+    record = _model_suggestions_record(path)
+    if record is None:
+        return None, (
+            f"the workspace's {PROVIDERS_FILE_NAME} carries no authorisation record, "
+            "so it names no provider, no model and no destination"
+        )
+    try:
+        config = load_providers_config(path)
+    except (ValueError, OSError):
+        return None, (
+            f"the workspace's {PROVIDERS_FILE_NAME} could not be read, so it names no "
+            "provider and no destination"
+        )
+    settings = config.get(record["provider"])
+    if settings is None:
+        return None, (
+            f"the workspace's authorisation names the provider {record['provider']!r}, "
+            "which the file does not configure"
+        )
+    try:
+        credential = load_credential(settings)
+    except Exception:
+        return None, (
+            f"the workspace's provider {record['provider']!r} has no credential to reach it with"
+        )
+    transport = _suggestion_transport(
+        settings, credential, probe_cache=SqliteProbeCache(context.store.session)
+    )
+    if transport is None:
+        return None, (
+            f"the workspace's provider {record['provider']!r} could not be wired, so "
+            "there is nothing to ask"
+        )
+    return _ProviderWiring(record=record, settings=settings, transport=transport), None

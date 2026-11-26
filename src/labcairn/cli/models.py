@@ -1,4 +1,4 @@
-"""The machine-readable forms, and the two models the layer does not have.
+"""The machine-readable forms, and the models the layer does not have.
 
 **Most of the CLI's JSON is the layer's own model, untouched.**
 ``task status`` prints the layer's :class:`~labcairn.application.tasks.TaskState`,
@@ -10,12 +10,15 @@ prints an array of its
 pydantic's, produced by the same call the API will make, so the two surfaces
 serve the same bytes without anybody transcribing one into the other.
 
-**Three commands have no layer operation, and their models are the CLI's.**
+**Some commands have no layer operation, and their models are the CLI's.**
 ``init`` and ``doctor`` describe a *workspace* — a directory, a database, a
 policy, a provider — and ``serve`` describes a *service* — an address, an
 origin, a token's path — and the application layer has no operation that
 reports either, because a task is the layer's unit and a workspace and a
-service are not tasks. The models below are therefore the CLI's, and the
+service are not tasks. ``suggest`` is the fourth: the layer's own route to a
+model is ``roles run``, which judges comments and refuses material that
+carries none, so the layer has no operation that asks one question about one
+source's material. The models below are therefore the CLI's, and the
 local API will need equivalents of its own or a layer operation that answers
 the same questions. That is recorded here rather than hidden, because a second
 surface that invented a second spelling of the same facts is exactly what
@@ -58,10 +61,12 @@ _JSON_SEPARATORS = (",", ":")
 #: from :meth:`labcairn.application.ApplicationRefusedError.to_payload` without
 #: being renamed. These are for the conditions the layer has no operation for:
 #: a workspace that is not there, a workspace that is already one, a task the
-#: operator did not name, an argument the CLI will not act on, and a
-#: workspace the CLI cannot use. The shape is the same two fields, so a
-#: caller reads one refusal format whichever surface produced it.
+#: operator did not name, an argument the CLI will not act on, a workspace the
+#: CLI cannot use, and a workspace that names no provider to ask. The shape is
+#: the same two fields, so a caller reads one refusal format whichever surface
+#: produced it.
 CLI_REFUSAL_INVALID_ARGUMENTS = "invalid_arguments"
+CLI_REFUSAL_NO_PROVIDER = "no_provider"
 CLI_REFUSAL_NO_TASK_SELECTED = "task_not_selected"
 CLI_REFUSAL_WORKSPACE_EXISTS = "workspace_exists"
 CLI_REFUSAL_WORKSPACE_NOT_INITIALISED = "workspace_not_initialised"
@@ -137,6 +142,7 @@ def emit_refusal(reason: str, message: str, *, as_json: bool) -> None:
 __all__ = [
     "CLI_REFUSAL_INVALID_ARGUMENTS",
     "CLI_REFUSAL_MATERIAL_INCOMPLETE",
+    "CLI_REFUSAL_NO_PROVIDER",
     "CLI_REFUSAL_NO_TASK_SELECTED",
     "CLI_REFUSAL_WORKSPACE_EXISTS",
     "CLI_REFUSAL_WORKSPACE_NOT_INITIALISED",
@@ -409,6 +415,71 @@ class ServiceStarting(Result):
     static_dir: str | None = None
 
 
+class SuggestionAsked(Result):
+    """What ``suggest`` asks for, before anything is spent.
+
+    **Nothing has been spent, and this says so.** The approval named here is
+    *pending*: the operation is recorded as awaiting approval, no exchange
+    was recorded, no request was sent, and no money was spent. A second
+    call with ``--approval`` is what spends it.
+
+    **The question is the operator's own words, and it is printed; the
+    material is not.** A person grants an approval for *this* question about
+    *this* material, so the question is here to be read. The material is
+    named by its digest and by how much of it was asked about, and
+    ``truncated`` says whether that was all of it — a reader who is told
+    the material was cut knows that the answer is about the part that was
+    sent and not about the whole.
+    """
+
+    source_id: str
+    provider: str
+    model: str
+    destination: str
+    subject_ref: str
+    approval_id: str
+    question: str
+    question_sha256: str
+    material_sha256: str
+    material_characters: int
+    excerpt_characters: int
+    truncated: bool
+    expires_at: str
+
+
+class SuggestionOutcome(Result):
+    """What came back from one question about one source's material.
+
+    **The answer is here, and the material is not.** The answer is what the
+    operator asked for, so it is in the machine-readable form; the material
+    it came from is named by its digest, because the material belongs to the
+    workspace and not to the form the answer is printed in.
+
+    **The answer was written into the workspace, and this says where.** The
+    path is workspace-relative and the digest is the file's own, so a reader
+    can check the bytes the record names. The exchange event is the store's
+    record of the call: what was sent is a digest and a count there, never
+    text.
+
+    **The credential is not here either.** The call is recorded under a
+    fingerprint, and there is no field in this model a key could occupy.
+    """
+
+    source_id: str
+    provider: str
+    model: str
+    destination: str
+    approval_id: str
+    question_sha256: str
+    material_sha256: str
+    answer: str
+    answer_sha256: str
+    answer_characters: int
+    answer_path: str
+    answer_bytes: int
+    exchange_event_id: str
+
+
 class TaskReconciliation(Result):
     """What a probe answered about one operation a crash abandoned.
 
@@ -438,6 +509,8 @@ __all__ = [
     "ProviderFinding",
     "ServiceStarting",
     "SourceRootFinding",
+    "SuggestionAsked",
+    "SuggestionOutcome",
     "TaskReconciliation",
     "WorkspaceFinding",
     "WorkspaceInitialised",
