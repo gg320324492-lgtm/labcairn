@@ -3633,3 +3633,53 @@ Expanding data access scope, write permission to original material, unapproved o
   injects it, so the product gains no switch (`0e3b06b`). Six mutations
   were tried against those repairs; each turned the witness that watches it
   red.
+
+## 2026-11-26 - the pilot's first real request, and three windows that answer what it found
+
+- **The pilot's copy is imported and the first real request went through.**
+  The signed copy came into the pilot workspace through the product's own
+  command, its digest matched the registered one, and the counts were
+  re-measured on the imported file. Three permitted requests went through
+  the consent gate, each with its own approval, each consumed; one was
+  refused for being outside the grant's scope — and **the refusal cost
+  nothing**, because the transmit check runs before the approval is spent.
+  The records carry digests, counts and shapes; no byte of the manuscript
+  is in them.
+- **Three windows answered what that request found.**
+  - **The provider's configuration has an output ceiling**, and the usage
+    reading is made right. The pilot's `Known(1)` was not a provider's
+    misreport but the Anthropic protocol's shape: the input arrives in
+    three fields, and `input_tokens` is only the part counted outright —
+    the cache portions arrive elsewhere, so a cached prompt reads as one
+    token. The same prompt measured 378 + 128 cache tokens on one call and
+    122 + 384 on another; **both were 506 tokens**, differently shared. The
+    capture now reads the whole input, and a reading that is not a
+    measurement is `Unknown` rather than a number.
+  - **The loop counts what the provider reported.** The estimate is a
+    fallback for the sides the provider did not report, and everywhere it is
+    read the run record, the request entries and the wire say which is
+    which. A character count under-read the tokens by 1.25× to 6.75× and
+    the ratio is not constant, so it was never a safe ceiling.
+  - **The import is idempotent and a source can be taken back.** A source's
+    identity is **where the material is**, not what it holds, so a material
+    moved and ingested again is a second source rather than a moved one —
+    and the row the old path left behind is what the new command removes.
+    The row goes and the evidence stays (the extracted text is keyed by
+    content hash), a manuscript's version follows the bytes, and a source
+    the ledger does not hold is refused rather than pretended away.
+- **The CI runs found what the local machine could not**, three rounds
+  running:
+  - the **external-path ledger** did not answer for the paths the pilot's
+    new records name;
+  - a witness asserted that a root spelled with the other platform's
+    separator is the same root — true on Windows, false on POSIX, where a
+    backslash is an ordinary character in a name. It is now marked as the
+    Windows half it is, and the platform-neutral half (a trailing
+    separator) is witnessed on its own;
+  - two new test files were in **neither the shard table nor the
+    evaluation partition**, which is the state of a test nobody runs;
+  - and a **deck's fingerprint moved with the clock**: a zip entry carries
+    the moment it was written, so two decks built from the same parts a
+    second apart are different bytes — and the property that file witnesses
+    (re-ingesting the same deck is the same rows) had therefore never been
+    witnessed at all. The deck's parts now carry a fixed timestamp.
