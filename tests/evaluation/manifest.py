@@ -641,6 +641,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # that left no event, and a stage that stayed blocked after its approval
     # had been consumed and its request answered.
     "test_task_stage_closure.py": ("integration", "state-transitions"),
+    # What a source's removal leaves behind: the text and the address stay,
+    # the version follows the bytes, and the disclosures that went were the
+    # removed row's own.
+    "test_source_removal.py": ("integration", "state-transitions"),
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),

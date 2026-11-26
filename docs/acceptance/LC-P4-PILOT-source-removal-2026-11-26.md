@@ -137,7 +137,7 @@ immediately before the command ran (§8).
 | `sources` | 198 | 197 | the stale row left |
 | `source_texts` | 76577 | 76577 | unchanged |
 | `source_anchors` | 2 | 2 | unchanged |
-| `source_problems` | 113 | 113 | unchanged |
+| `source_problems` | 113 | 113 | unchanged — the row that left carried no disclosure of its own (§9.7) |
 | `paper_versions` | 106 | 106 | unchanged |
 | `paper_projects` | 10 | 10 | unchanged |
 | `tasks` | 2 | 2 | unchanged |
@@ -150,6 +150,17 @@ Set differences, not only counts: **one** source id is gone from
 `source_texts`, `source_anchors` and `source_problems` were lost or
 added; **no** paper version was lost or added; **one** version changed the
 row it names; and **no** version changed the digest it records.
+
+**The `source_problems` row is a shape, not a rule.** It says "unchanged"
+because the row that left carried **no disclosure of its own** — the
+command itself reported `removed_problem_count: 0`. It does not say that
+the count never moves: a source that carries disclosures of its own takes
+**its own** with it, and the count moves by exactly that much. That was
+measured afterwards, on a ledger built to hold the shape: a source with
+two disclosures of its own and one belonging to another went **4 → 2**,
+with `removed_problem_count` of 2, and the other source's disclosure
+stayed. The measurement is in
+[`LC-P4-PILOT-source-removal-witness-2026-11-26.md`](LC-P4-PILOT-source-removal-witness-2026-11-26.md).
 
 ## 5. The evidence stays
 
@@ -299,6 +310,12 @@ happened.
    the version is re-pointed before the row is deleted, and why the
    refusal in §6 exists at all.
 
+   **And it has been exercised since.** On a ledger built to hold the
+   shape, the address rows stayed, the address still resolves to the
+   text, and the evidence record that cites the address survived the
+   removal. The measurement is in
+   [`LC-P4-PILOT-source-removal-witness-2026-11-26.md`](LC-P4-PILOT-source-removal-witness-2026-11-26.md).
+
 3. **A source id in `source_anchors` has nothing keeping it honest.**
    `source_anchors.source_id` is a plain column with an index and no
    foreign key. If a row that held addresses were taken back, the address
@@ -306,6 +323,15 @@ happened.
    does not hold. Nothing in this run had that shape, so nothing in this
    run shows what happens — the path is untested here, and it is
    reported as untested rather than as safe.
+
+   **And now it has been measured, and the answer is a dangling id.**
+   On the same ledger, the address rows stayed and their `source_id` named
+   a source the ledger no longer holds. **A dangling id, not a lost row**:
+   the address still resolves to the text, and the id it carries points
+   at nothing. That is the shape the schema above predicts, now measured
+   rather than argued, and it is a fact about the product — not a defect
+   this record claims to have found and closed. The measurement is in
+   [`LC-P4-PILOT-source-removal-witness-2026-11-26.md`](LC-P4-PILOT-source-removal-witness-2026-11-26.md).
 
 4. **The two refusals left no trace either.** Neither wrote an event and
    neither changed a row (§6). That is the right behaviour for a refusal
@@ -326,6 +352,17 @@ happened.
    them; the two refusals refused and changed nothing. The observations
    above are about what the removal *does not record* and what it did not
    *exercise*, not about what it did to the ledger.
+
+7. **The `source_problems` count does not stay still by rule.** It did
+   stay still here, and §4 said so, and the reason is in the row that
+   left rather than in the rule: the removed source carried **no
+   disclosure of its own**, and the command reported
+   `removed_problem_count: 0`. A source that carries disclosures of its
+   own takes **its own** with it — measured at **4 → 2** on a ledger built
+   to hold the shape — and another source's disclosure stays. **The rule
+   is "a disclosure belongs to the source it was found on", and the count
+   moves by exactly the disclosures that left.** The measurement is in
+   [`LC-P4-PILOT-source-removal-witness-2026-11-26.md`](LC-P4-PILOT-source-removal-witness-2026-11-26.md).
 
 ## 10. Evidence
 
