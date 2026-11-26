@@ -175,6 +175,9 @@ run, not for the file.
 Every field filled, with the values the signed authorisation record names.
 **This is the file one real request went through on 2026-11-25**
 (`LC-P4-PILOT-real-request-2026-11-25.md`); its digest is recorded there.
+**One field was added to it on 2026-11-26:** that run had nowhere to put an
+output ceiling, so the ceiling was added where the transport was assembled and
+the digest recorded there is of the file without it.
 
 ```json
 {
@@ -184,7 +187,8 @@ Every field filled, with the values the signed authorisation record names.
       "model": "MiniMax-M3.1-Flash",
       "base_url": "https://api.minimax.cn/anthropic",
       "credential_file": "E:/labcairn-local/secrets/minimax-m31-flash-active.txt",
-      "timeout_s": 60
+      "timeout_s": 60,
+      "max_output_tokens": 6089
     }
   },
   "model_suggestions": {
@@ -207,6 +211,7 @@ Every field filled, with the values the signed authorisation record names.
 | `protocol`, `model`, `base_url` | The signed record §1: MiniMax, `MiniMax-M3.1-Flash`, `https://api.minimax.cn/anthropic`, protocol `anthropic` |
 | `credential_file` | The operator's single-line key file, outside the repository. The LC-P2-18 run wrote this one after probing it `ok`. **Corrected 2026-11-25, by measurement:** the older `minimax-key.txt` that LC-P2-18 calls *retired* holds **the same key** — the providers layer's credential fingerprint is identical for the two — so what was retired is a file name, not a secret. The three-line file `minimax-m31-flash.txt` is the different key, and the one LC-P2-18 did not probe. The file named above is the right one to name, and the reason is not that the other is broken but that this one is the current one |
 | `timeout_s` | The signed record §5: 60 seconds |
+| `max_output_tokens` | The provider's own reported output tokens for the pilot's round A — **6,089** (`LC-P4-PILOT-real-request-2026-11-25.md` §8.4) — which is the ceiling that run was completed under, added here on 2026-11-26 because the file had nowhere to put one. **A ceiling, not a constant:** three readings of that one prompt ranged over 2,231 → 6,089, so the figure is the largest of them and a ceiling written from a single reading is a bet. Optional; an entry that does not name it runs under the provider's own default |
 | `provider` | The key of the provider entry above |
 | `destination` | The endpoint the grant permits transmitting to |
 | `subject_ref`, `scope` | The material the grant covers: the desensitised pilot copy. **This is the field the pilot's own copy must fill once the desensitisation checklist is signed** — see §7 |

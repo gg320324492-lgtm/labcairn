@@ -461,6 +461,15 @@ PROVIDERS_FILE_NAME = "providers.json"
 #: claim is a measurement (ADR-0018 §D5), and a measurement still has
 #: nowhere to sit in this format. It is the *refusal* of a claim, and the
 #: closedness this witness protects is not affected by it.
+#:
+#: ``max_output_tokens`` joined the set on 2026-11-26, and it is here for the
+#: same reason: the pilot's first real request found the product with nowhere
+#: to put an output ceiling, so the answer ran under the provider's own
+#: default and was refused as truncated. **It is not a price and not a
+#: capability claim**: it is a ceiling the operator states, in the unit the
+#: provider counts in, and it says nothing about what the provider can do —
+#: the opposite of a claim, like ``probed`` above. A ceiling is a *bound*, and
+#: a bound is not a measurement.
 SETTINGS_KEYS: frozenset[str] = frozenset(
     {
         "protocol",
@@ -469,6 +478,7 @@ SETTINGS_KEYS: frozenset[str] = frozenset(
         "credential_env",
         "credential_file",
         "timeout_s",
+        "max_output_tokens",
         "probed",
     }
 )
@@ -670,7 +680,7 @@ def test_the_settings_schema_has_nowhere_to_put_a_price_or_a_capability_claim(
 ) -> None:
     """The format itself cannot carry a price or a capability claim.
 
-    **The key set is closed, and it is exactly these seven.** An entry carrying
+    **The key set is closed, and it is exactly these eight.** An entry carrying
     anything else is *refused* rather than ignored, so the schema has no room
     for a price or a capability claim in the first place — which is what makes
     *"no price and no capability claim is written into the tree"* a property
