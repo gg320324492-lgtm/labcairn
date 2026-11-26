@@ -412,7 +412,7 @@ def test_the_vocabulary_constraint_lists_exactly_the_frozen_enum(env: StoreEnv) 
     ``models.py`` builds these constraints from :class:`EventType` at import
     time, so a new event type reaches the database automatically. This asserts
     the generated SQL really does contain every member and no non-member — the
-    link between "the contract has 31 types" and "the table accepts 31 types",
+    link between "the contract has 32 types" and "the table accepts 32 types",
     which is the property a reader of the migration alone could not verify.
     """
     session = env.session
@@ -423,8 +423,8 @@ def test_the_vocabulary_constraint_lists_exactly_the_frozen_enum(env: StoreEnv) 
     for value in members:
         assert f"'{value}'" in ddl, f"{value} is missing from the events constraints"
     assert "'task_vaporised'" not in ddl
-    # 31 members, each named in more than one constraint.
-    assert len(members) == 31
+    # 32 members, each named in more than one constraint.
+    assert len(members) == 32
 
 
 def _minimal_payload(schema: type[LabCairnModel]) -> dict[str, object]:

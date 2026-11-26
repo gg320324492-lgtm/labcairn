@@ -285,6 +285,7 @@ export type EventType =
   | 'response_recorded'
   | 'followup_assessed'
   | 'model_exchanged'
+  | 'refusal_recorded'
 
 export type EvidenceCreator = 'rule' | 'user' | 'model_proposal'
 

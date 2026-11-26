@@ -90,6 +90,14 @@ class EventType(StrEnum):
     # back, and under which consent, and it carries no transition.
     MODEL_EXCHANGED = "model_exchanged"
 
+    #: A refusal on a task path, recorded where the task lives. **A refusal
+    #: only the operator who was watching can see is a refusal the product
+    #: does not record** — the exit code and the message live and die with
+    #: the process. This carries no transition because a refused request
+    #: changed no state; what it carries is the reason, the message and the
+    #: ask, so the log can answer "what was refused, and for what".
+    REFUSAL_RECORDED = "refusal_recorded"
+
 
 #: Event types that carry neither run_id nor the operation context.
 TASK_LEVEL_EVENTS: frozenset[EventType] = frozenset(
@@ -122,6 +130,11 @@ ANNOTATION_EVENTS: frozenset[EventType] = frozenset(
         # LC-P2-01: the model-call path's exchange record. A call that
         # happened is a fact about the task, whatever the attempt around it.
         EventType.MODEL_EXCHANGED,
+        # The refusal record. A refusal happens to a task, not inside an
+        # attempt: the request may have been refused before any Run existed,
+        # and inventing a Run for it would be the trace that could be
+        # mistaken for a partial success.
+        EventType.REFUSAL_RECORDED,
         EventType.EDIT_ACTION_RECORDED,
         EventType.RESPONSE_RECORDED,
         EventType.FOLLOWUP_ASSESSED,
@@ -284,6 +297,36 @@ class OperationDeniedPayload(LabCairnModel):
 
 
 register_payload_schema(EventType.OPERATION_DENIED, OperationDeniedPayload)
+
+
+class RefusalRecordedPayload(LabCairnModel):
+    """What a ``refusal_recorded`` event carries beyond the fact of it.
+
+    Three fields, because a reader needs three different things and a message
+    alone answers none of them without being parsed:
+
+    * ``reason`` is the layer's own closed code — the word a machine branches
+      on, the same word ``ApplicationRefusedError.to_payload`` gives a
+      surface. Prose cannot be told apart from any other prose, and "was
+      this the missing grant or the missing chain?" is answered by the code
+      and only by the code;
+    * ``message`` is what the person was told, kept because the code names the
+      class of refusal and the message names the instance;
+    * ``asked_for`` is the request, as the values the caller supplied that
+      identify it — the operation and the arguments the refusal was about.
+      It is a mapping of strings rather than the caller's live objects so that
+      what the log holds is a record, not a reference to a process.
+
+    No material text belongs here. The ask is named by ids, keys and counts,
+    the same rule the rest of the log follows.
+    """
+
+    reason: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    asked_for: Mapping[str, str] = Field(default_factory=dict)
+
+
+register_payload_schema(EventType.REFUSAL_RECORDED, RefusalRecordedPayload)
 
 
 class Event(LabCairnModel):

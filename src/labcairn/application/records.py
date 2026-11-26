@@ -9,22 +9,30 @@ them are stated once rather than repeated in each operation:
   ``operation_intent`` may name an operation whose row does not exist yet.
 * **a transition event carries the states it moved between**, so the event log
   can say what happened without the rows being read.
-* **nothing is written on a refusal — except a policy denial, and only on the
-  path that writes.** A refused operation leaves no trace that could be
-  mistaken for a partial success. **The path that records a denial is the one
-  that writes**: the stage layer asks the policy for a verdict
+* **no refusal writes a state row that could look like a partial success —
+  and every refusal is a fact the log holds.** A refused operation leaves no
+  run in ``running``, no stage in ``entered`` and no operation in
+  ``intent``; those are the trace that could be mistaken for work that
+  started. **The path that records a denial is the one that writes**: the
+  stage layer asks the policy for a verdict
   (:func:`labcairn.application.consent.decide`), and a ``DENY`` there is
   recorded as an operation in state ``denied`` — carrying the reason the
-  permission layer produced — and *then* refused, because a refusal nobody can
-  see is a refusal the operator cannot act on, and a row whose state says
-  ``denied`` is not a trace that could be mistaken for a partial success.
-  Every other path asks the policy through
-  :func:`labcairn.application.consent.evaluate`, which raises
-  ``PERMISSION_DENIED`` and writes nothing — and that is the right shape
-  rather than a gap: a request for approval that the policy refuses never got
-  as far as a write, so there is no run, no stage and no operation for a
-  denial to belong to, and inventing them would be the very trace that could
-  be mistaken for a partial success.
+  permission layer produced — and *then* refused, because a refusal nobody
+  can see is a refusal the operator cannot act on, and a row whose state
+  says ``denied`` is not a trace that could be mistaken for a partial
+  success.
+  A refusal with no operation to belong to is recorded by
+  :func:`record_refusal` as a **Task-level event**, which carries no run,
+  stage, operation or transition: it says the task asked for something and
+  the product said no, and it cannot be read as an attempt. The pilot
+  measured the gap this closes — ``roles run`` refused with exit code 3 and
+  a message, and the task's log held no entry for it. Every other path asks
+  the policy through :func:`labcairn.application.consent.evaluate`, which
+  raises ``PERMISSION_DENIED`` and writes no *state* row — and that is the
+  right shape: a request for approval that the policy refuses never got as
+  far as a write, so there is no run, no stage and no operation for a
+  denial to belong to, and inventing them would be the very trace that
+  could be mistaken for a partial success.
 * **a denial's whole trace is one transaction.** The run, the stage, the
   operation and the events that describe them are written by one unit of
   work, so they commit together or not at all: a denial whose
@@ -49,11 +57,19 @@ differently.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 
 from labcairn.application.context import ApplicationContext, store_refusals
-from labcairn.core.ids import OperationId, RunId, StageId, new_id
-from labcairn.db.repository import UnitOfWork, list_runs, list_stages
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.core.ids import ApprovalId, OperationId, RunId, StageId, new_id
+from labcairn.db.repository import (
+    UnitOfWork,
+    list_approvals,
+    list_operations,
+    list_runs,
+    list_stages,
+)
 from labcairn.reports.receipt import ArtifactReceipt
 from labcairn.runtime.event import EventTransition, EventType
 from labcairn.runtime.lifecycle import Run, RunStatus, Stage, StageStatus
@@ -245,6 +261,27 @@ def _finished(stage: Stage, status: StageStatus, output_hashes: tuple[str, ...])
     )
 
 
+def _the_finish_moment(run: Run, now: datetime) -> datetime:
+    """When a run finished, as the Run model will accept it.
+
+    **Wall clock is not monotonic**, and the event module says so: a
+    caller-supplied ``now`` can be earlier than the moment the run was
+    started with — the ask and the spend are two calls, and a clock that
+    moved between them, or a test that fixes one moment and lets the other
+    read the wall clock, both produce that order. The Run model refuses a
+    finish that precedes its start, and it is right to: a row that says a
+    run ended before it began records nothing.
+
+    So the row carries the later of the two moments. The run's duration
+    then reads as zero rather than negative, and the event's ``occurred_at``
+    still says when the closure ran — which is the informational use that
+    field has always had.
+    """
+    if run.started_at is None or now >= run.started_at:
+        return now
+    return run.started_at
+
+
 def complete_operation(
     context: ApplicationContext,
     operation: Operation,
@@ -254,6 +291,7 @@ def complete_operation(
     run_id: RunId | None,
     output_hashes: tuple[str, ...],
     now: datetime,
+    run_to_finish: Run | None = None,
 ) -> tuple[Operation, Stage]:
     """The operation confirmed, the stage completed and the artefacts recorded.
 
@@ -262,9 +300,28 @@ def complete_operation(
     would leave an operation claiming to have landed with no artefact
     describing what it produced — which is exactly the reconciliation
     ADR-0003 C3 exists to avoid.
+
+    ``run_to_finish`` closes the Run in the same transaction. **A stage that
+    completed and a run left ``running`` is the gap this parameter exists to
+    remove**: when the approval a stage was waiting on has been consumed and
+    its request answered, the stage is complete *and* the run that held it
+    is finished, or the log says a run is still going after its last stage
+    said it was done. The Run's own transition is written after the
+    operation's and the stage's, in the order they happened.
     """
     confirmed = operation.model_copy(update={"state": OperationState.CONFIRMED})
     completed = _finished(stage, StageStatus.COMPLETED, output_hashes)
+    finished: Run | None = None
+    run_from_state: RunStatus | None = None
+    if run_to_finish is not None:
+        finished = Run.model_validate(
+            {
+                **run_to_finish.model_dump(),
+                "status": RunStatus.FINISHED,
+                "finished_at": _the_finish_moment(run_to_finish, now),
+            }
+        )
+        run_from_state = run_to_finish.status
     with context.store.unit(context.task_id) as work:
         work.emit(
             EventType.OPERATION_CONFIRMED,
@@ -291,9 +348,158 @@ def complete_operation(
             work.put_artifact(receipt, run_id=run_id)
         if artifacts:
             work.emit(EventType.ARTIFACT_RECORDED, occurred_at=now)
+        if finished is not None and run_from_state is not None:
+            work.emit(
+                EventType.RUN_FINISHED,
+                run_id=finished.run_id,
+                transition=EventTransition(
+                    from_state=run_from_state.value,
+                    to_state=RunStatus.FINISHED.value,
+                ),
+                occurred_at=now,
+            )
         work.put_operation(confirmed)
         work.put_stage(completed)
+        if finished is not None:
+            work.put_run(finished)
     return confirmed, completed
+
+
+def complete_consumed_approval(
+    context: ApplicationContext,
+    *,
+    approval_id: ApprovalId,
+    now: datetime,
+) -> tuple[Operation, Stage]:
+    """Close the operation, the stage and the run a consumed approval authorised.
+
+    **The gap this closes was measured on the pilot workspace.** A model
+    request under the consent gate wrote ``run_started``, ``stage_entered``,
+    ``operation_awaiting_approval``, ``approval_requested``, ``stage_blocked``,
+    ``approval_granted``, ``approval_consumed``, ``operation_intent`` and
+    ``model_exchanged`` — and then stopped. No ``stage_completed``, no
+    ``run_finished``: the stage still read ``blocked`` although its approval
+    was spent and its request answered, and the run still read ``running``
+    after its work was done. A state row that disagrees with the log beside
+    it is a bookkeeping gap, not a crash: nothing failed, nothing was left
+    half-written, and the product simply stopped saying what happened.
+
+    **The lookup is by the approval, because the approval is what the caller
+    holds.** The path that spends consent has the ticket's ``approval_id``;
+    the operation, its stage and its run are the rows the ask created, and
+    reading them back keeps this function from taking four identifiers a
+    caller could pair wrongly.
+
+    **Idempotent on the closed shape.** A retry that finds the operation
+    confirmed, the stage completed and the run finished returns those rows
+    and writes nothing — a closure that ran twice is not two closures. Any
+    other combination is refused rather than guessed at, because a stage
+    completed over an operation that never got its intent is a record of
+    something that did not happen.
+
+    :raises ApplicationRefusedError: the store holds no approval under this
+        id, the approval was never consumed, or the rows it names are missing
+        or in a state the closure does not describe.
+    """
+    with store_refusals():
+        approvals = list_approvals(context.store.session, context.task_id)
+        operations = list_operations(context.store.session, context.task_id)
+        stages = list_stages(context.store.session, context.task_id)
+        runs = list_runs(context.store.session, context.task_id)
+
+    approval = next((row for row in approvals if row.approval_id == approval_id), None)
+    if approval is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.OPERATION_NOT_FOUND,
+            f"the store holds no approval {approval_id}, and a closure without the "
+            "consent it closes would be a closure over nothing",
+        )
+    if approval.state is not ApprovalState.CONSUMED:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.OPERATION_NOT_FOUND,
+            f"the approval {approval_id} is {approval.state.value}, not consumed, and "
+            "only a consumed approval has a request whose stage can be completed",
+        )
+    operation = next((row for row in operations if row.operation_id == approval.operation_id), None)
+    if operation is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.OPERATION_NOT_FOUND,
+            f"the approval {approval_id} names operation {approval.operation_id}, "
+            "which the store does not hold",
+        )
+    stage = next((row for row in stages if row.stage_id == operation.stage_id), None)
+    run = next((row for row in runs if row.run_id == operation.run_id), None)
+    if stage is None or run is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.OPERATION_NOT_FOUND,
+            f"operation {operation.operation_id} names stage {operation.stage_id} and "
+            f"run {operation.run_id}, and the store does not hold both",
+        )
+
+    if (
+        operation.state is OperationState.CONFIRMED
+        and stage.status is StageStatus.COMPLETED
+        and run.status is RunStatus.FINISHED
+    ):
+        return operation, stage
+    if operation.state is not OperationState.AUTHORIZED:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.OPERATION_NOT_FOUND,
+            f"operation {operation.operation_id} is {operation.state.value}, and only "
+            "an authorised operation has a stage to complete",
+        )
+    return complete_operation(
+        context,
+        operation,
+        stage,
+        (),
+        run_id=run.run_id,
+        output_hashes=stage.output_hashes,
+        now=now,
+        run_to_finish=run,
+    )
+
+
+def record_refusal(
+    context: ApplicationContext,
+    *,
+    reason: str,
+    message: str,
+    asked_for: Mapping[str, str],
+    now: datetime,
+) -> None:
+    """Record a refusal on the task's own event log, then let the caller refuse.
+
+    **Before this function, a refusal was visible only to whoever watched it
+    happen.** The pilot measured it: ``roles run`` refused with exit code 3
+    and the message ``role_comment_not_in_the_chain``, and the task's event
+    log for that day — seventeen events, seq 57 to 73 — held no entry for
+    it. An exit code and a stderr line live and die with the process; a
+    person reading the log the next morning cannot tell that anything was
+    asked for and anything said no.
+
+    The event is **Task-level**: it carries no run, no stage, no operation
+    and no transition, because a refused request changed nothing. Inventing
+    an attempt for it would be the trace that could be mistaken for a
+    partial success — the same rule
+    :func:`record_denial` follows for a policy denial, which is the one
+    refusal that already had a row to belong to.
+
+    ``reason`` and ``message`` are the refusal's own two fields — the closed
+    code a machine branches on and the message a person reads — and
+    ``asked_for`` names the request by ids, keys and counts, never by the
+    material's text.
+    """
+    with context.store.unit(context.task_id) as work:
+        work.emit(
+            EventType.REFUSAL_RECORDED,
+            payload={
+                "reason": reason,
+                "message": message,
+                "asked_for": dict(asked_for),
+            },
+            occurred_at=now,
+        )
 
 
 def fail_operation(
@@ -554,6 +760,7 @@ def move_approval(
 
 __all__ = [
     "block_stage",
+    "complete_consumed_approval",
     "complete_operation",
     "ensure_run",
     "ensure_stage",
@@ -562,4 +769,5 @@ __all__ = [
     "move_operation",
     "plan_approval",
     "record_denial",
+    "record_refusal",
 ]
