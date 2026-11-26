@@ -1,6 +1,57 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-26 (night) - the two bookkeeping gaps are closed, the shard costs are measured again, and the pull request is ready
+
+- **The pilot's copy went through one whole round on the product's own
+  surfaces.** Inventory → an anchored claim → the consent gate → one real
+  model request → attestation → two report revisions → twelve exported
+  files, every id, digest, count and timing measured. **The two halves
+  that could not run are recorded as facts**: the advisor loop (the copy
+  carries no comments, so `roles run` refuses it) and the CLI (it has no
+  route to a model request at all on a document without comments — the
+  request went through the Python surface, and the record says so rather
+  than implying a command sent it).
+- **The pilot's stale source row was taken back by the product's own
+  command**, and the counts before and after were read back from a copy of
+  the database taken immediately before the command rather than remembered.
+- **The two places the product's own bookkeeping stopped are closed.** A
+  refusal on a task path now writes a `refusal_recorded` event carrying
+  the reason, the message and the ask — task-level, naming no run, stage,
+  operation or transition, so a refusal cannot be read as an attempt. And
+  when the approval a stage was parked on has been consumed and its
+  request answered, the operation is confirmed, the stage completed and
+  the run finished, in one transaction, in that order: **the stage no
+  longer reads `blocked` and the run no longer reads `running` after the
+  call returned.** Migration `0033` sits on the single head with a witness
+  for each direction, and the checked-in TypeScript contract was
+  regenerated for the new enum member.
+- **The shard costs were measured again, twice, from the runner** — the
+  seventh and eighth rounds — because a development machine gives a
+  different answer and not only a different total but a different *order*.
+  **That re-measurement caught a sentence that had been wrong for eleven
+  days**: the workflow's shard narration says which file the wait is set
+  by, the floor moved on 2026-11-15, and the sentence went on naming the
+  old file with the old cost and the old ratio. Nothing was red, because
+  the witness that checked the printed figures read the cost of
+  `test_cli.py` — the floor of an earlier tree — and the floor sentence
+  names a different file, so the two never met. **A new witness reads
+  that sentence against the table** (the file it names must be the
+  heaviest the table records, the figure must be that file's measured
+  cost, the Windows figures beside it must be the partition the table
+  produces), and both mutations were checked to turn it red.
+- **Pull request #224 is ready.** Nine rounds, each answered; round nine
+  is green on every check, and the pull request is clean and mergeable.
+  **It waits for the owner** — the project's rule is that the pull request
+  is the owner's to merge.
+- **Still open.** The pilot's suggestion loop has not run and cannot on a
+  copy without comments. The CLI still has no model request of its own,
+  which the owner has decided to change. The two gaps the round found that
+  this batch did not close — the read that wrote an event, and the orphan
+  source row — are recorded, not fixed. The pilot workspace has not been
+  replayed against the new tree.
+
+
 ## 2026-11-26 (later) - one whole round on the pilot copy, the stale row taken back, and a fallback estimate that can no longer read as a measurement
 
 - **The pilot's copy went through one whole round on the product's own
