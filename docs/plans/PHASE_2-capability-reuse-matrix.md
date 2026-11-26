@@ -60,7 +60,7 @@ hard parts are.
 
 | | |
 |---|---|
-| **Where** | `src/labcairn/runtime/event.py:39-77` (`EventType`), `src/labcairn/db/models.py:592` — `__tablename__ = "events"` (`events`) |
+| **Where** | `src/labcairn/runtime/event.py:39-77` (`EventType`), `src/labcairn/db/models.py:593` — `__tablename__ = "events"` (`events`) |
 | **Watched by** | `tests/test_event_payload_vocabulary.py`, `tests/test_store_events.py` |
 | **Verdict** | **reuse, with one addition (see §3.1)** |
 
@@ -458,7 +458,7 @@ the same refusal discipline for pages it cannot read.
    three the design names as its technical hurdles: a DOCX OOXML reader
    (§3.2, §3.4), a version graph (§4.1), and a response-link model.
 3. **Two vocabulary slots exist and are empty** — `model_proposal` (§3.3) and
-   `OUTBOUND_CONSENT_REQUESTED` (`src/labcairn/runtime/event.py:76` — `OUTBOUND_CONSENT_REQUESTED = "outbound_consent_requested"`, declared and never
+   `OUTBOUND_CONSENT_REQUESTED` (`src/labcairn/runtime/event.py:77` — `OUTBOUND_CONSENT_REQUESTED = "outbound_consent_requested"`, declared and never
    emitted). The design's ADR `model-proposal-and-human-confirmation` and the
    Phase 1 carried limitation "ADR-0006's outbound-consent bridge is not
    built — both modules exist, nothing joins them" are the same fact seen

@@ -525,7 +525,14 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_provider_budget.py": ("unit", "typed-contracts"),
     "test_provider_capabilities.py": ("unit", "typed-contracts"),
     "test_provider_credentials.py": ("unit", "typed-contracts"),
+    "test_provider_ceiling.py": ("unit", "typed-contracts"),
     "test_provider_redaction.py": ("unit", "provider-redaction"),
+    # The smoke script and the CI job that runs it must name the same
+    # environment variables. The credential's name always matched, so the
+    # other three could disagree without a red run -- and on CI the
+    # protocol fell back to its default and the model was empty, so the
+    # job failed pointing at a variable the operator never set.
+    "test_provider_smoke_names.py": ("unit", "typed-contracts"),
     # The protocol's fifth class. The file also carries the offline witnesses
     # for its own skip predicate, which is how a class that spends money is
     # kept honest on a run that does not: the rules that decide whether it runs
@@ -559,6 +566,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # the layer's operation behind the same guard, and the CLI's command
     # reaches the same operation -- one serialization, two surfaces.
     "test_role_run_entry.py": ("integration", "api-auth"),
+    # Batch 8, window I: the judgement's vocabulary. A part carrying a field
+    # the role does not take is refused by name -- the API already refuses it,
+    # and the CLI's own docstring promised that it would too. The vocabulary
+    # itself is a typed contract: the layer's dataclasses own it, and both
+    # surfaces' spellings are compared against them.
+    "test_cli_unknown_field_refusal.py": ("integration", "typed-contracts"),
     # LC-P3-03: the loop binds the pieces; its refusals are negative.
     "test_revision_loop.py": ("integration", "approvals"),
     "test_revision_loop_refusals.py": ("negative", "path-traversal"),
@@ -619,6 +632,19 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_store_atomicity.py": ("negative", "crash-between-write-and-confirm"),
     "test_store_concurrency.py": ("integration", "event-append"),
     "test_store_events.py": ("integration", "event-append"),
+    # The operation's state machine, and the one state the tree used to
+    # define and never write: a policy denial now leaves an operation in
+    # state ``denied`` and the event that describes it, in one transaction,
+    # while a refusal for any other reason still leaves nothing at all.
+    "test_operation_states.py": ("integration", "state-transitions"),
+    # The two places the product's own bookkeeping used to stop: a refusal
+    # that left no event, and a stage that stayed blocked after its approval
+    # had been consumed and its request answered.
+    "test_task_stage_closure.py": ("integration", "state-transitions"),
+    # What a source's removal leaves behind: the text and the address stay,
+    # the version follows the bytes, and the disclosures that went were the
+    # removed row's own.
+    "test_source_removal.py": ("integration", "state-transitions"),
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),
@@ -629,11 +655,24 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # Whether CI runs the shell's Node witnesses, which `norecursedirs` puts
     # outside pytest's sight and the witness ledger outside its count.
     "test_shell_ci.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The shell's version line against the workbench's. The installer's own
+    # file name and product version are written from `shell/package.json`,
+    # and the version that manifest carried on 2026-11-25 was the Phase 3
+    # lineage's `0.0.3` while the workbench read `0.1.0` -- so the installer
+    # carrying v0.1.0's product code called itself `LabCairn Setup 0.0.3.exe`.
+    # Its clause is the repository gates, because it watches two of the
+    # repository's own files against one another.
+    "test_shell_version_alignment.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_baseline_document.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_docx_fixture_corpus.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_no_reference_leakage.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The quickstart's command list and the README's against each other. The
+    # README's own list was watched -- by the walk script's table and by
+    # ``test_readme_accuracy.py`` -- and the quickstart's was not, so a
+    # command that changed in one page and not the other left the tree green.
+    "test_quickstart_commands.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_repo_root_guard.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_scaffolding.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_status_consistency.py": (REPOSITORY_CLASS, "repository-gate"),
@@ -654,6 +693,29 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # and its witnesses run against a temporary database, not the
     # repository's own.
     "test_pilot_feedback_ingest.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §9.1, part D). The registration record for the
+    # pilot's desensitised copy: the tool measures the digests, the record
+    # holds every part the checklist lists, it holds no content of the
+    # copy, a digest that does not match the copy fails the check, and the
+    # tool refuses a copy inside the repository, outside the authorised
+    # root or outside the signed grant's scope. Its clause is the
+    # repository gates, because it watches the repository's own tool and
+    # the repository's own records.
+    "test_pilot_material_registration.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §9.1). The checklist's own measurement: the tool
+    # computes the readings the checklist asks for, reports a verdict per
+    # item, and leaves an item whose evidence a machine cannot read open
+    # rather than passing it. Its clause is the repository gates, because
+    # it watches the repository's own tool and the records it reads.
+    "test_pilot_desensitisation_check.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Phase 4 (P4-PILOT §9.1). The redaction that keeps the revision trail
+    # and takes the identity out: the properties are blanked, the markup's
+    # author fields carry role labels, a picture's metadata is blanked
+    # without touching a pixel, and an author the map does not name is
+    # refused rather than kept. Its clause is the repository gates, because
+    # it watches the repository's own tool.
+    "test_pilot_redaction.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_pixel_comparison.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------
@@ -707,9 +769,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_release_record.py": (REPOSITORY_CLASS, "repository-gate"),
     # The first runnable version's record itself, measured: the seven
     # elements present, the commit an ancestor of HEAD, the timestamp a real
-    # UTC measurement, the version matching the file name, the absent
-    # artifact stated with its reason, the default version number and date
-    # announced as pending owner confirmation, and the tool's own check
+    # UTC measurement, the version matching the file name, the artifact
+    # digest the installer build measured from real bytes and checked
+    # against the build's own companion record, the version number and date
+    # announced as confirmed by the owner, and the tool's own check
     # accepting the record.
     "test_first_release_record.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_release_workflow.py": (REPOSITORY_CLASS, "repository-gate"),

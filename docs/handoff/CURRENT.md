@@ -1,6 +1,92 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-26 (night) - the two bookkeeping gaps are closed, the shard costs are measured again, and the pull request is ready
+
+- **The pilot's copy went through one whole round on the product's own
+  surfaces.** Inventory → an anchored claim → the consent gate → one real
+  model request → attestation → two report revisions → twelve exported
+  files, every id, digest, count and timing measured. **The two halves
+  that could not run are recorded as facts**: the advisor loop (the copy
+  carries no comments, so `roles run` refuses it) and the CLI (it has no
+  route to a model request at all on a document without comments — the
+  request went through the Python surface, and the record says so rather
+  than implying a command sent it).
+- **The pilot's stale source row was taken back by the product's own
+  command**, and the counts before and after were read back from a copy of
+  the database taken immediately before the command rather than remembered.
+- **The two places the product's own bookkeeping stopped are closed.** A
+  refusal on a task path now writes a `refusal_recorded` event carrying
+  the reason, the message and the ask — task-level, naming no run, stage,
+  operation or transition, so a refusal cannot be read as an attempt. And
+  when the approval a stage was parked on has been consumed and its
+  request answered, the operation is confirmed, the stage completed and
+  the run finished, in one transaction, in that order: **the stage no
+  longer reads `blocked` and the run no longer reads `running` after the
+  call returned.** Migration `0033` sits on the single head with a witness
+  for each direction, and the checked-in TypeScript contract was
+  regenerated for the new enum member.
+- **The shard costs were measured again, twice, from the runner** — the
+  seventh and eighth rounds — because a development machine gives a
+  different answer and not only a different total but a different *order*.
+  **That re-measurement caught a sentence that had been wrong for eleven
+  days**: the workflow's shard narration says which file the wait is set
+  by, the floor moved on 2026-11-15, and the sentence went on naming the
+  old file with the old cost and the old ratio. Nothing was red, because
+  the witness that checked the printed figures read the cost of
+  `test_cli.py` — the floor of an earlier tree — and the floor sentence
+  names a different file, so the two never met. **A new witness reads
+  that sentence against the table** (the file it names must be the
+  heaviest the table records, the figure must be that file's measured
+  cost, the Windows figures beside it must be the partition the table
+  produces), and both mutations were checked to turn it red.
+- **Pull request #224 is ready.** Nine rounds, each answered; round nine
+  is green on every check, and the pull request is clean and mergeable.
+  **It waits for the owner** — the project's rule is that the pull request
+  is the owner's to merge.
+- **Still open.** The pilot's suggestion loop has not run and cannot on a
+  copy without comments. The CLI still has no model request of its own,
+  which the owner has decided to change. The two gaps the round found that
+  this batch did not close — the read that wrote an event, and the orphan
+  source row — are recorded, not fixed. The pilot workspace has not been
+  replayed against the new tree.
+
+
+## 2026-11-26 (later) - one whole round on the pilot copy, the stale row taken back, and a fallback estimate that can no longer read as a measurement
+
+- **The pilot's copy went through one whole round on the product's own
+  surfaces.** Inventory → an anchored claim → the consent gate → one real
+  model request → attestation → two report revisions → twelve exported
+  files (six per revision). Every id, digest, count and timing in
+  [`LC-P4-PILOT-first-round-2026-11-26.md`](../acceptance/LC-P4-PILOT-first-round-2026-11-26.md)
+  was measured on the workspace, and the record says where each step
+  stopped. **The advisor's half of the round could not run, and the record
+  says that too**: the copy carries no comments, so `roles run` refuses it,
+  and the CLI has no route to a model request at all. That is a fact about
+  the product as it stands, not a defect of the round.
+- **The pilot's stale source row was taken back by the product's own
+  command.** `sources remove` was run on the workspace, and the row naming
+  a path that is no longer on the disk is gone; the text stayed, the
+  version followed the bytes, and both refusals refused and changed
+  nothing. The counts before and after were read back from a copy of the
+  database taken immediately before the command, not remembered. Two gaps
+  are recorded plainly: **the removal writes no event of its own, and the
+  anchor path is untested.**
+- **A fallback estimate can no longer read as a measurement.** The provider
+  run ledger already refused to decide on an unmeasurable total, and the
+  budget already halted on it; the hole was one layer in, where a zero
+  fallback over an unreported side made the spend read `MEASURED`. It now
+  raises instead. The loop's estimate-only budget and the wire's lost
+  provenance are still open and belong to other work.
+- **The fifth CI round's two failures were one failure, and the tree had
+  already answered it.** Both platforms' shard 3 failed on the same
+  witness: the handoff named the evidence directory and the ledger did
+  not answer for it. The ledger has been rebuilt — the directory and the
+  database copy the removal record names are both on disk, both are
+  expected to be present, and the ledger's reading is now dated
+  2026-11-26.
+
+
 ## 2026-11-22 - Phase 3 closes: the trial ran, the review passed, the strip defect is fixed, and the exit decision is signed
 
 - **The LC-P3-08 trial ran on 2026-11-21/22** on the owner's machine, the
@@ -2826,6 +2912,9 @@ Three facts about the rest of it are worth having before the code is written, be
   extract in the wrong order and nothing would record it. ADR-0008 constraint 7
   is unmet, and this is the honest reason the two-column work stopped at
   refusal rather than proceeding to reconstruction.
+  Re-checked on 2026-11-25: still true — `src/labcairn/material/pdf.py`
+  contains no rotation handling (no `rotation`, `/Rotate`, or `upright`
+  reference), and no test exercises a rotated fixture. The limitation stands.
 - **LC-P1-08:** the two-column detector is bracketed against single-column
   fixtures, not calibrated against two-column ones — there is no two-column
   paper in the repository to calibrate against, and the two-column CC-licensed
@@ -2839,6 +2928,12 @@ Three facts about the rest of it are worth having before the code is written, be
   because those real single-column pages sit in the same place. The residual
   is stated in ADR-0008 and in the adapter's docstring and pinned by a test of
   its own.
+  Re-checked on 2026-11-25: still true as recorded. The threshold lives in
+  `src/labcairn/material/pdf.py` (`_two_column_evidence`, 30% rival share,
+  80pt cluster separation), the band statement is in the module docstring,
+  and `tests/test_material_pdf.py` pins the disclosures. No two-column
+  CC-licensed fixture has entered the repository since, so the band remains
+  bracketed, not calibrated.
 - **LC-P1-08, discharged by LC-P1-09 and by LC-P1-11:** anchors were validated only in their
   **positive** direction — no code consumed a locator and returned content, so
   nothing showed that a wrong locator misses. `locate_anchor` now does exactly
@@ -2848,16 +2943,33 @@ Three facts about the rest of it are worth having before the code is written, be
   every citation against the material and acts on the answer, so an address
   that does not resolve is **refused** and the report cites **nothing** in its
   place — not the nearest page and not the last page.
+  Re-checked on 2026-11-25: the negative direction is still witnessed —
+  `tests/test_evidence_index.py` (`test_an_address_that_does_not_exist_is_unresolvable_not_resolved`,
+  `test_material_that_cannot_be_addressed_is_unaddressable`) and
+  `tests/test_analysis_report_checks.py:920`
+  (`test_a_citation_to_an_address_that_does_not_resolve_is_refused`,
+  asserting `check == "links"`).
 - **LC-P1-08:** `UNPARSEABLE` is a mixed bucket — a container that would not
   open, and a page deliberately not read. Both are honestly "not citable, here
   is why", but only the disclosure separates them.
+  Re-checked on 2026-11-25 and narrowed: the vocabulary now separates the
+  cases. Ingest splits a scan (`pdf_no_text_layer` → `UNREADABLE_NO_OCR`,
+  `src/labcairn/material/ingest.py:78`) from an unopenable container
+  (`_UNOPENABLE`, `ingest.py:58`); `SourceReadability` makes
+  `UNPARSEABLE` and `UNREADABLE_NO_OCR` distinct members with a
+  paired-disclosure invariant (`src/labcairn/sources/source.py:248`); and the
+  split is witnessed on the stored readability rather than a problem code
+  (`tests/test_material_pdf.py:133`, `:151`). What remains true of the
+  original point: the separation lives in the enum member and the disclosure
+  text, not in a machine-readable reason code on the row, and a two-column
+  refusal still shares `UNPARSEABLE` with the broken container.
 - **G1:** ~~`ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first.~~ **Closed**: `consume()` now asks the registry and refuses with `capability_unregistered` (`src/labcairn/security/approval.py:215-222`); `tests/test_security_approval.py` and `tests/test_recovery_approvals.py` are the witnesses.
-- **G1:** path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.
-- **G1:** ADR-0006's outbound-consent bridge is not built. Both modules exist.
-- **G1:** structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.
+- **G1:** ~~path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.~~ **Closed 2026-11-02**: `tests/test_security_paths.py` grew a `@requires_posix` branch (`e53db78`) — case-sensitive names, `:` as an ordinary character, trailing-dot/spaces non-aliasing, backslash not a namespace separator, `..` applied after a link is followed — each asserted as a witness in its own right, and the ADS probe (`test_security_paths.py:385`) skips honestly where a filesystem has no streams. The branch runs on the Ubuntu shards.
+- **G1:** ~~ADR-0006's outbound-consent bridge is not built. Both modules exist.~~ **Closed 2026-11-02** (ADR-0006 records it): the bridge landed as LC-P1-03/04's cross-cutting debt payoff — `src/labcairn/application/outbound.py` resolves `OUTBOUND_MODEL_REQUEST` through `consent` and the approval ledger, the disjointness witness moved into `tests/test_outbound_consent_bridge.py`, and the acceptance record is `docs/acceptance/LC-P1-03-outbound-bridge.md`.
+- **G1:** ~~structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.~~ **Updated 2026-11-25**: the capability is now measured against one endpoint/model/protocol, on record in `docs/acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md`: `structured_output_prompted` moved to **ok** (a schema-validating JSON object comes back), while `structured_output_native` is still unsupported — pydantic-ai's profile still refuses it before a request is sent, so the prompted channel is the one a caller may budget against. The measurement binds to the endpoint fingerprint; a different endpoint invalidates it.
 - **G2:** ~~`ArtifactLedger` is in memory. LC-P1-07's ledger does not survive a restart; the store does.~~ **Closed 2026-11-02**: `SqliteArtifactLedgerStore` writes the ledger to `artifact_ledger_entries` (migration 0022) and a new instance on the same database reads it back; the [acceptance record](../acceptance/LC-P1-06-artifact-ledger.md) lists the witnesses and the one measurement still owed to a runner (the shard cost).
-- **Cross-gate:** the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness.
-- **Cross-gate:** the README capability-claim detector has known holes. It is a floor, not a truth-checker.
+- **Cross-gate:** ~~the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness.~~ **Closed 2026-11-02**: `5f6a730` made the guard a parser (`tests/test_no_reference_leakage.py::_gitleaks_allowlist_offenders` walks all four allowlist shapes — top-level `[[allowlists]]`/`[allowlist]`, `[rules.allowlist]`, `[[rules.allowlists]]`, inline tables — across multi-line arrays), with `test_gitleaks_guard_sees_every_allowlist_shape` parametrising the shapes the old line-matcher passed and a fallback line rule still catching unenumerated shapes.
+- **Cross-gate:** ~~the README capability-claim detector has known holes. It is a floor, not a truth-checker.~~ **Closed 2026-11-02**: `5f6a730` also taught the detector the recorded hole forms — passive voice, "is capable of", "handles", "can", "has a built-in", "comes with", and the Chinese modals listed in `_RECORDED_HOLE_CLAIMS` (`tests/test_readme_accuracy.py`) — each pinned by `test_claim_detector_catches_forms_recorded_as_open_holes` (`tests/test_readme_accuracy.py:921`, the demonstration recorded in `docs/acceptance/LC-P2-25-guard-of-the-guards.md`), and the qualifier-laundering shapes are pinned by the clause-scope rule's own tests.
 - **Cross-gate:** ~~copyright ownership is unresolved and there is no `LICENSE` file~~. **Closed 2026-11-06**: the owner confirmed the holder and authority to grant MIT; `LICENSE` carries `Copyright (c) 2026 Tonghe Du`, and the placeholder is deleted.
 
 ## Merge authority
@@ -2896,3 +3008,773 @@ Expanding data access scope, write permission to original material, unapproved o
   `PENDING`, and the three §12 decisions are `TBD`. The pilot's real trial
   fills them; nothing here claims a gate result. Witnessed by
   `tests/test_pilot_runbook.py`.
+
+## 2026-11-25 - the seven Phase 4 batches land as PR #223, and the v0.1.0 record is re-anchored
+
+- **The seven batches are on `main`.** Phase 4 arrived as seven parallel
+  batches — the workbench UI, the CAP line (the application and release
+  loop, the real-model service, cancel/retry/recovery, the quality and
+  evidence round checks), the MS line (the paper revision trajectory, PPT
+  decks, meeting text), the rule-sharing door, the pilot's issue record and
+  the pilot-preparation papers — and pull request #223 merged them into
+  `main` as `fc73386` (2026-11-24T16:37:38Z). The seventeen required checks
+  were green on that merge (the required set read from GitHub on 2026-11-18
+  at `ac362d2cb5536d05372cf02b49a499036efd2952`).
+- **Plan §12's three decisions are filled, and the authorisation is
+  signed.** The three items the plan left open before the work orders could
+  be cut — how a distilled multi-source rule is case-validated, the
+  retention, withdrawal and sharing boundary for audio, PPT and paper
+  material, and the target date for Phase 4's first runnable version and the
+  first trial — were decided by the owner on 2026-11-24 and recorded as D-1,
+  D-2 and D-3 in
+  [`LC-P4-PILOT-owner-decisions.md`](../plans/LC-P4-PILOT-owner-decisions.md).
+  The real-model authorisation record they gate was signed the same day
+  (`owner / 2026-11-24`, §9 of
+  [`LC-P4-PILOT-model-authorisation-draft.md`](../plans/LC-P4-PILOT-model-authorisation-draft.md)),
+  so its status is `AUTHORISED` and a real request runs only inside the
+  provider, material, budget, timeout and stop boundaries that record
+  states; the desensitisation checklist and the feedback-form template stay
+  `DRAFT`.
+- **The v0.1.0 release record is re-anchored.**
+  [`docs/releases/v0.1.0.json`](../releases/v0.1.0.json) now names
+  `fc73386` on `main` where it named the seventh batch's branch head, and
+  its API column carries the count measured at that commit — 58 route
+  decorators in `src/labcairn/api/routes.py`, the same number the app's
+  OpenAPI document carries as operations over 57 paths — where the record
+  had said 60. The record's other stale claims were corrected against the
+  tree: the authorisation record is signed rather than a draft, and the
+  rollback names `16df3db` as the commit `main` carried before the batch
+  merge.
+- **The release notes describe this tree.**
+  [`docs/RELEASE-NOTES.md`](../RELEASE-NOTES.md) names the commit it
+  describes, and carries a v0.1.0 section that cites the Phase 4 baseline's
+  identities as
+  [`LC-P4-G0-baseline-freeze.md`](../plans/LC-P4-G0-baseline-freeze.md) §3
+  records them — the code baseline, the 0.0.3 installer lineage and the
+  reference hosts.
+
+## 2026-11-25 - the review of PR #223 finds six live gaps, and nine windows close them
+
+- **The review ran against the standing checklist.** The seven Phase 4
+  batches were reviewed against
+  [`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md)
+  (R1–R6, the list the 2026-11-14 rounds produced). Six gaps were found, and
+  all six were real — the checklist's own rule that a review is the gate was
+  not decoration.
+- **Three were guards with no witness.** The CLI's role-run wiring had **no**
+  witness at all, and the one arm that could supply the probed capabilities
+  sat behind a `hasattr` guard on an attribute the only test double did not
+  carry — so that arm never executed on CI. A misspelled attribute name
+  would have made every real role run refuse with `model_schema_unprobed`
+  while the tree stayed green. Three runtime `NameError`s were waiting in
+  that unreachable branch (`RoleRunBackend` and `ModelRequest` imported only
+  under `TYPE_CHECKING`, and `typing.cast` evaluates its first argument at
+  runtime): the tree was green because the branch could not run, not because
+  it was correct. The suggestion loop's `REVIEW_MODEL_TIMEOUT` refusal was
+  **declared and never raised** by anything in `src/`, and its only witness
+  raised it by hand. The pilot-issue category guard was unreachable through
+  the public surface, because the request layer rejected the same input with
+  a 422 first.
+- **Two were records that were not measurements.** The release record's API
+  column claimed "60 endpoints"; the tree has 58, and the number had been
+  hand-edited from 55 when the anchor was moved. The shard table's costs
+  were measured before the Phase 4 batches and carried **61 of 216 test files
+  at 0.0 seconds** — a cost of zero is not a measurement, and the balance
+  check adds it to its shard's load. Re-measuring from PR #223's own CI run
+  exposed a defect in the tool: pytest prints two shapes of summary line,
+  and the parser anchored on the word "warnings", so a shard that raised
+  none was not read — and the remainder it would have carried is what the
+  fast files share, so 44 of them were left at zero. The parser now reads
+  the seconds from the line's trailing banner, every file carries a measured
+  cost, and the three documents that print the figures carry the new anchor.
+- **One was external wording pasted into the tree.** Six tracked files
+  quoted the Chinese execution plan verbatim, which the checklist's R4
+  forbids in absolute terms — and the same diff re-pinned the CJK ceiling
+  registry so the new Chinese would pass, two of the pins arriving in a
+  later commit than the text they authorised. Every quotation now carries an
+  English paraphrase with the section it lives in and the date it was read.
+  The checklist gained a seventh item for the class the review found: **a
+  witness that constructs the thing it watches cannot notice its absence**.
+- **What the windows delivered.** Nine parallel windows: the release record
+  and the notes, the pilot papers' signatures, the workbench's own entry
+  point for reducing motion, a real Windows installer built and measured
+  from the merged tree (354,229,356 B, sha256 `32bca391…`, unsigned, with
+  the frozen backend and the copy the installer carries measuring the same
+  tree digest), the role-run wiring's witness, the timeout's real
+  classification, the issue vocabulary's witness at the layer, the plan's
+  wording carried as paraphrase, and one owner for a judgement's field
+  vocabulary with the CLI's unknown-field refusal implemented against it.
+- **What is still open, and who owns it.** The installer's own file name and
+  product version line still read **0.0.3**, because the shell's package
+  manifest was not bumped for this release; the bytes carry this tree's
+  product code and the name does not yet say so, and that version line is
+  the owner's call. The shard table's newest test file
+  (`tests/test_cli_unknown_field_refusal.py`) carries a 0.0 cost until a
+  runner measures it, so **the costs must be re-measured from the batch's
+  own CI run before the batch ships**. The four Phase 4 exit gates are still
+  open: their evidence slots are filled by the real trial, and the
+  desensitisation checklist and the feedback-form template are still
+  unsigned, so what they gate stays shut.
+- **The workbench is bound to a fixture round, and the service cannot yet
+  tell it which round that is.** The review desk reads its project and
+  version from the fixture (`web/src/views/ReviewDeskView.tsx:62-63`) and
+  the delivery centre from its own (`web/src/views/deliveryRound.ts:14-17`),
+  and the service has **no route that names the workspace's current paper
+  round**: `list_paper_projects` exists in the application layer
+  (`src/labcairn/application/trajectory.py:287`) and no route exposes it.
+  Plan §6.4's first, second, third, sixth and seventh conditions are
+  therefore implemented against a sample round and do not yet hold on the
+  pilot paper. **This is the next piece of work after this batch**: a route
+  that lists the workspace's rounds, and the workbench reading it rather
+  than the fixture. The `deliveryRound.ts` comment says the single place to
+  change is "one place" -- there is one, and it holds a fixture today.
+- **Two further gaps the same review found, neither a regression.** The
+  suggestion's *evidence* has no field to live in: `ReviewSuggestionData`
+  and `ReviewOpinion` (`src/labcairn/application/review.py:106-163`) carry
+  no citation, and plan §6.2's "the advice and the evidence it rests on"
+  has nowhere to be shown. And the runbook's step 3 needs `approval_ids`
+  with no step that produces them -- `POST /approvals/{approval_id}/grant`
+  and the CLI's `task approval-request` / `task approval-grant` exist, but
+  the runbook never names them.
+- **One real request went out under the signed authorisation, and it
+  found the pilot workspace's configuration is wrong.**
+  [`LC-P4-PILOT-real-request-2026-11-25.md`](../acceptance/LC-P4-PILOT-real-request-2026-11-25.md)
+  records it: model `MiniMax-M3.1-Flash`, protocol `anthropic`, the
+  endpoint the signed record names (its fingerprint is the same one
+  LC-P3-06 measured), one request, 23,251 ms wall clock, 2,603 tokens,
+  priced `Unknown(UNPRICED)` as the precedent carried. **The material
+  sent was synthetic, on purpose**: the desensitisation checklist is
+  unsigned, so the owner's own material was not sent, and the record says
+  so. The machine format the authorisation is expressed in is now written
+  down in [`LC-P4-PILOT-providers-config.md`](../acceptance/LC-P4-PILOT-providers-config.md),
+  with a complete example.
+  **Two things the owner must fix, both recorded there.** The pilot
+  workspace's own `providers.json` names the `openai_compatible` route at
+  `https://api.minimax.cn/v1` with a 120-second timeout, where the signed
+  record names the `anthropic` protocol at `https://api.minimax.cn/anthropic`
+  with 60 seconds -- and it carries **no `model_suggestions` grant at
+  all**, where the signed record names eight values and the authorisation
+  gate refuses the whole thing unless every one of them is filled. So the
+  suggestion loop against that workspace is not merely misrouted, it is
+  unauthorised. **Corrected 2026-11-25, by measurement:** the credential
+  that workspace names is *not* the problem -- the providers layer's
+  fingerprint shows the older `minimax-key.txt` and the current
+  `minimax-m31-flash-active.txt` hold the **same key**, so what LC-P2-18
+  called *retired* is a file name rather than a secret, and the run used
+  that key successfully. What has to change is the route, the protocol,
+  the timeout and the eight grant fields; no key has to be re-issued.
+  Separately, the provider reported **2,510 output tokens for a
+  372-character answer**, so a token ceiling written from "answers of a
+  few hundred characters" would be written from the wrong number; the run
+  did not measure where those tokens went.
+- **The suggestion run's own record cannot be read back.** Gate G2-3 asks
+  for the suggest run's record -- mode, model id, request count, tokens,
+  durations, stop reason, approvals spent per opinion -- and the run
+  writes it: the row is `model_suggestion_runs` (`src/labcairn/db/models.py:3892`,
+  migration 0027) and the application layer's own shape for it is
+  `ModelSuggestionRunData` (`src/labcairn/application/model_suggestions.py:438`).
+  **No route serves it and no application function reads it back**, so the
+  evidence G2-3 asks for cannot be collected after a real run, and the
+  gate's collector has to record the slot as `UNKNOWN` with that reason.
+  This is the same shape as the missing paper-round route above: the
+  product writes the fact and the service cannot say it back.
+- **The v0.1.0 installer was drilled on this machine.**
+  [`LC-P3-05-v010-install-drill-2026-11-25.md`](../acceptance/LC-P3-05-v010-install-drill-2026-11-25.md)
+  records the run: seventeen evidence runs, three installers (the v0.1.0
+  build and two earlier lineages), a machine-wide listing before and
+  after with **no difference** between them, and the userData tree
+  restored **byte for byte** (141 files, none missing, none extra, none
+  different). The record does not close a gate: the tick-sheet's
+  HUMAN-CHECK rows that need a person are listed in its §7, and one of
+  them -- **B9, whether the workbench renders in the window rather than
+  the diagnostic page, with a screenshot** -- is still `[OPEN]` and was
+  not attempted. The Phase 3 drill's §3.3 finding therefore stands
+  unresolved, and this drill neither confirms nor contradicts it. The
+  drill ran **without elevation**, unlike the 2026-11-20 one, and its
+  backup script's HKCU-export path was never exercised, so the record
+  does not claim that path works.
+- **The same shape, a third time: `labcairn serve` does not answer
+  `GET /events`.** The application layer has the abstraction
+  (`create_app` takes an `event_source=`, `src/labcairn/api/app.py:250`)
+  and the host does not supply one: `src/labcairn/cli/commands.py`'s
+  `serve` never passes it, so `create_app` falls back to
+  `UnwiredEventSource` (`src/labcairn/api/app.py:314`), which refuses in
+  the layer's own vocabulary — `not_implemented`, HTTP 403. The
+  collector's record carries that answer as it came
+  (`docs/acceptance/P4-G1-G4-system-capability-record.json`, `GET /events`
+  → `refused`, 403, `not_implemented`). **The stage timeline the runbook
+  asks for cannot be read on the service the runbook starts**: step 4
+  (`docs/plans/LC-P4-PILOT-runbook.md:242`) and the measures section
+  (`:472`) both name `GET /events`, and `web/src/api/events.ts` reads
+  that route. Only the tests pass an event source.
+  **This one is worth stating as its own class, because two witnesses
+  straddle it and neither catches it.** The runbook witness checks that
+  every route the runbook names is *declared*; `GET /events` **is**
+  declared, so that witness is green. The collector's witness checks
+  that the routes it calls are answered — and it is answered, with a
+  refusal. **A route that is declared is not a route the service
+  answers**: a host that does not wire a piece answers 403 for it, and
+  both witnesses look the other way.
+- **The anthropic endpoint's capabilities were measured, and the product
+  now keeps the measurement.**
+  [`LC-P4-PILOT-capability-probe-2026-11-25.md`](../acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md)
+  records it: `tool_calls` ok, `usage_reporting` ok,
+  `structured_output_prompted` **ok**, `structured_output_native`
+  unsupported, against the endpoint whose fingerprint is the same one the
+  LC-P3-06 and LC-P2-18 runs measured. **One capability moved** --
+  `structured_output_prompted` was carried as unsupported since
+  2026-10-28 (the probe raised a `KeyError` that day) and answers `ok`
+  now.
+  **Corrected 2026-11-25, after the tenth batch.** The record first said
+  the product persists no probe record, and that was true when it was
+  written: the only implementation of `ProbeCache` was `InMemoryProbeCache`
+  and `doctor --probe` probed live without writing anything down. **It
+  does now.** ADR-0002's promise is made real -- a probe record in the
+  application-owned SQLite store (migration `0031_probe_records.py`,
+  `src/labcairn/application/probe_records.py`), keyed on
+  `(endpoint_fingerprint, model, protocol)` and invalidated by a change to
+  any of the three -- and **verified on this machine on this endpoint**:
+  `doctor --probe` stores what it observed, plain `doctor` then reports
+  `probed, read back from the record of <timestamp>`, the capability gate
+  reads the stored record through the same cache the suggestion and role
+  loops use, and a provider declared `probed: false` reports every
+  capability `unverified` without reading the record or spending money
+  even with `--probe`.
+  **What is still open:** ADR-0006's *"a capability probe is not
+  consent... a probe therefore requires consent too"* is **not** closed
+  by this batch -- the probe still issues its request without asking
+  anyone. The tenth batch made the measurement durable; it did not make
+  it consented, and the two are separate questions.
+- **The pilot workspace's configuration now matches the signed
+  authorisation.** `E:/labcairn-local/pilot-ws/providers.json` was
+  replaced with the configuration in
+  [`LC-P4-PILOT-providers-config.md`](../acceptance/LC-P4-PILOT-providers-config.md)
+  §6 -- the same bytes the one real request went through -- and the
+  authorisation gate now accepts it: the eight `model_suggestions` fields
+  are filled, where before the workspace carried no grant at all and the
+  gate refused the whole thing. `doctor` on that workspace reports
+  `anthropic / MiniMax-M3.1-Flash (declared, not probed)`. **The
+  backup of the previous file sits beside it**
+  (`providers.json.backup-20260725`), outside the repository. What is
+  still missing is the material: `subject_ref` and `scope` point at
+  `pilot/LC-P4-PILOT/desensitised-copy`, and no registered excerpt
+  exists because the desensitisation checklist is unsigned.
+- **Six ADRs promise things the code does not do, and only one of the
+  six is recorded anywhere as outstanding.** A sweep of all 22 ADRs
+  (0002–0023) against the tree found these. The sweep's false positives
+  were checked individually: fifteen "missing" test paths turned out to be
+  upstream repositories' paths (`tests/sdk/...` is openhands-sdk,
+  `tests/test_paperqa.py` is PaperQA2), and ADR-0003/0004/0005/0007/
+  0010/0011/0012/0013/0014/0015/0017/0019/0023 are fully implemented.
+  **What is not:**
+  - **`FailureKind` is missing four members** ADR-0002 names
+    (`docs/adr/ADR-0002-model-and-tool-execution-boundary.md:332-356`):
+    `MODEL_ARGUMENT_INVALID`, `MODEL_OUTPUT_MALFORMED`, `POLICY_DENIED`,
+    `OUT_OF_SCOPE`. `src/labcairn/providers/errors.py` has none of them.
+    **This one is a design difference rather than an oversight, and the
+    fix is not to add them.** That module's own docstring gives two
+    reasons: the members *"cannot produce are deliberately absent rather
+    than stubbed"* — *"an enum member nothing can raise is a member that
+    will eventually be raised by accident"* — and each belongs to a layer
+    that has not been built (the tool loop, LC-P1-04's policy layer, the
+    stage allowlist). `POLICY_DENIED` in particular would break the
+    disjoint-namespaces rule ADR-0015 and ADR-0006 hold: the permission
+    layer has its own vocabulary (`ConsentRefusal` in
+    `src/labcairn/security/permissions.py`, `ApprovalRefusal` in
+    `src/labcairn/runtime/operation.py`), and a provider-layer enum
+    carrying "policy denied" would put the two in one place. **What the
+    ADR describes is the whole classification; what the code implements is
+    the part it can raise.** Either the ADR should say so, or the
+    separation should be documented in it.
+  - **Eleven acceptance test names ADR-0002 calls *"binding"* are absent**
+    (`:393`, `:395-431`). The section names 23; ten are present. Two of
+    the absent ones are **upstream's** — `test_usage_unknown_provider`
+    and `test_conversation_error_classifies_sensitive_detail_without_
+    serializing_it` — and the ADR itself annotates them with upstream
+    paths and line numbers, so they are not LabCairn's to have.
+    **Of the eleven, four are naming drift** — the behaviour is witnessed
+    under another name, and the witness's own docstring says which
+    clause it carries:
+    `test_usage_reporting_capability_unverified_blocks_token_ceiling`
+    (witnessed as `test_..._before_the_request`),
+    `test_budget_exhausted_is_terminal_and_non_retryable` (witnessed by
+    a docstring that opens *"ADR-0002: `BUDGET_EXHAUSTED` is terminal,
+    non-retryable, `user_action="settings"`"*),
+    `test_third_party_error_detail_never_persisted` (witnessed by a
+    docstring that says there is no `detail` field to omit, which is the
+    stronger claim), and
+    `test_operation_and_state_transition_commit_atomically` (witnessed by
+    a docstring that says *"This is the exact scenario ADR-0003 C3 is
+    written about"*).
+    **Seven are real gaps**, and two of them have no behaviour to witness
+    at all: `test_event_records_are_frozen_and_forbid_extra_fields` (the
+    behaviour exists — `src/labcairn/runtime/event.py` says
+    `extra="forbid"` — but nothing witnesses it) and
+    `test_no_pydantic_ai_type_in_persisted_schema` (**the guard itself
+    does not exist** — nothing walks the persisted schema for pydantic-ai
+    types). The other five are the two failure-classification tests
+    above, `test_denied_operation_is_not_retried_under_injection_pressure`,
+    `test_llm_message_projection_is_derived_and_discardable` and
+    `test_fake_provider_e2e_full_task_without_network`.
+  - **There is no price table.** ADR-0002:389 promises one, *"Priced
+    from a LabCairn-owned price table; entries are user-extendable."*
+    There is none, so **every run's cost is `Unknown(UNPRICED)` and a
+    `max_cost_usd` ceiling fails closed from the start** — that ceiling
+    can never be met. The records say so as current state; none of them
+    calls it a debt. **The owner has already decided how the pilot
+    handles it**, though: the authorisation record's §8 says the cost is
+    *"Priced when the provider's pricing allows"* and that the pilot
+    *"records price basis and date, or the same unknown, honestly"*. So
+    for this pilot the honest unknown is the chosen answer and the
+    missing table is not a blocker; what the ADR promised and the
+    authorisation chose differently is a **difference in design**, not an
+    oversight — and the ceiling's being unreachable is the fact worth
+    carrying.
+  - **`doctor --assume-capability` writes no Event.** ADR-0002:388 says
+    the override *"is logged as an `Event` so it is auditable."* The
+    doctor path only reads: no store, no session, no event write.
+  - **`OperationFailure` does not match the ADR's shape** — the module is
+    `src/labcairn/runtime/operation.py` (singular), the class is
+    `ProviderFailure`, and the record has **no `operation_id`**, so a
+    failure cannot point back to the operation that produced it.
+  - **A capability probe requires no consent** (ADR-0006:81-83: *"A
+    capability probe is not consent... A probe therefore requires consent
+    too"*). `src/labcairn/providers/probe.py` mentions consent nowhere and
+    `PydanticAiProbe._send` issues the request itself, bypassing
+    `provider.send()`'s gate. **This one is recorded as not done**
+    (ADR-0006:127-131), so it is public rather than hidden. **The tenth
+    batch made the measurement durable without making it consented** --
+    a probe record now exists in the store and the gate reads it -- and
+    that makes the consent question sharper rather than answered: a stored
+    record says an endpoint was asked once, with no one having approved
+    the asking.
+  - **The seven real gaps differ in what closing them costs**, which is
+    worth knowing before any of them is scheduled. Two are a missing
+    witness over behaviour that already exists: the event record's
+    frozen-and-forbid-extra-fields properties (`src/labcairn/runtime/
+    event.py` says `extra="forbid"`; nothing watches it), and the guard
+    against a pydantic-ai type in the persisted schema (the guard itself
+    would be a short walk over the model columns). Two need behaviour
+    built: the message projection is derived and discardable, and a fake
+    provider running a whole task without network (the fake provider's
+    *isolation* is already witnessed six ways — no network library, no
+    socket, no outbound request, no real model layer, no key, no
+    environment — but no test runs a whole task through it). Two depend on
+    the failure-classification question above and inherit its design
+    tension, and one (`test_denied_operation_is_not_retried_under_
+    injection_pressure`) needs the denial path end to end.
+  - **Two ADRs under-report what is delivered.** ADR-0016 and ADR-0018
+    mark their contract tables *"to be written"*, while the contracts
+    exist (`src/labcairn/roles/refusals.py`,
+    `src/labcairn/evidence/gate.py`, `src/labcairn/application/guidance.py`,
+    `src/labcairn/roles/guidance.py`). The drift is in the direction that
+    costs the next reader work.
+- **A refusal enumeration lost a pairing when a window imported the CLI
+  into a test file.** The enumeration's witnesses are the test *modules*
+  that import the CLI or name one of its refusal reasons
+  (`tests/test_cli_refusal_enumeration.py::_witness_modules`), so one
+  import anywhere in a file makes every test in it a candidate. A window's
+  new test in `tests/test_api.py` imported the CLI, and that file already
+  held a test watching the same refusal, so two candidates chased one
+  refusal and neither was named. **The rule is at file granularity where
+  it should be at test granularity**, and the next window that imports the
+  CLI into a test file can lose a pairing the same way. The record now
+  says which witness is the witness — but the granularity is worth fixing
+  properly.
+- **A witness was written that had never been run.** The probe record's
+  own witness (`tests/test_provider_bounded_rehearsal.py::
+  test_the_run_gates_on_the_record_the_store_keeps`) asserted one request
+  where the case's own shape is two — the prompt and one per excerpt — so
+  it was red from the day it was written. It sat in the tree through two
+  merges because **the full suite had not been run on the tree that
+  carried it**. It now counts from the case's shape rather than a
+  literal. The lesson is the project's own: a witness nobody ran is a
+  claim, not a witness.
+- **The eleventh batch closed four standing gaps and made the probe
+  answerable.**
+  - **The workbench addresses the workspace's own round.**
+    `GET /review/rounds` names the rounds the workspace holds, and the
+    review desk and the delivery centre read it instead of a fixture
+    (`web/src/views/rounds.ts`); the fixture is now the fallback that
+    declares itself.
+  - **The suggest run's account is readable back.**
+    `GET /review/suggest/runs/{run_id}` returns the run's own record, so
+    gate G2-3's evidence — mode, model id, request count, tokens,
+    durations, stop reason — can be collected after a real run.
+  - **The service answers the event stream.**
+    `serve` supplies the store's event source, so the stage timeline
+    runbook step 4 asks for is readable on the service the runbook
+    starts; before this the route was declared and refused with 403.
+  - **A probe needs consent.** `PydanticAiProbe` is handed an
+    `OutboundConsent` and asks before every request, so a probe without a
+    consent decision never reaches the network. The approval a probe is
+    spent on binds to the probe's own prompt and a synthetic resource
+    under the task's area; because the ledger is single-use, one probe
+    (three requests) takes three approvals, and `doctor --probe` now says
+    which one is missing and which command to run.
+  - **The material registration is possible.** Part D of the
+    desensitisation checklist now has a shape a copy can be registered
+    against — a structured record under `docs/pilot/registrations/`, a tool
+    that measures the digests itself, and a check that refuses a record
+    whose digest does not match its copy. **The owner's signature on D-6
+    is still the one thing this batch deliberately did not do**, and the
+    authorisation's `subject_ref` and `scope` point at a copy that is not
+    registered until that signature exists.
+- **The shard costs no longer describe this tree, and the batch's CI run
+  must re-measure them.** The table's anchor is `1aacd3b` (the tree the
+  seventh batch merged), and **55 files under `src/` and `tests/` have
+  changed since** — the eleventh batch alone added 43 test files, three of
+  which carry a 0.0 cost because no runner has measured them. The
+  re-measurement is the project's own command against the batch's own run
+  (`python .github/remeasure_shards.py <run-id> --measured-at <commit>`),
+  and the numbers must come from a runner: **a development machine gives a
+  different answer, not only a different total but a different order**,
+  which is why the partition is one per platform. The three documents that
+  print the figures — `.github/CI.md`, `.github/workflows/python.yml` and
+  `docs/plans/LC-P1-13-evaluation-ci.md` — carry the anchor and the totals
+  and have to be carried with the re-measurement.
+- **Three contracts from ADR-0016 are still owed, and the tables now say
+  so.** Both ADR-0016 and ADR-0018 marked twenty-six contracts "to be
+  written"; twenty-five were built years ago with witnesses, and the
+  tables now say where each one is and which test holds it. What is left
+  is three things, each named in its row:
+  - **C3** — the evidence gate refuses a model proposal with no rule and
+    no attestation, and its reason names the missing promotion
+    (`src/labcairn/evidence/gate.py:194`). **This one is now witnessed**
+    (`tests/test_evidence_gate.py::test_a_model_proposal_is_refused_by_the_
+    gate_and_the_reason_names_the_promotion`): the nearest witness before
+    it covered a `planned` record made by a *rule*, not by a model.
+  - **C5** — a field the model cannot fill is `UNKNOWN` and no other
+    field is affected. **The owner settled this on 2026-11-25: the
+    contract is retired in favour of C4**, which is what the tree does —
+    there is no per-field degradation, because the decoding layer
+    (`src/labcairn/application/model_request.py:155`) validates the whole
+    schema and refuses the whole answer. The row now records that the
+    per-field degradation was considered and not adopted: a field that
+    cannot be filled is a reason to refuse the answer, not a hole to be
+    written around.
+  - **C10's citation path** — the defence against citing a rule whose
+    source is withdrawn is in *retrieval* (`search_rules` does not serve
+    a dead rule's), and the witness
+    (`tests/test_guidance_retrieval.py:213`) holds that. The citation
+    path (`src/labcairn/roles/guidance.py:303`) reads a rule by id
+    without asking whether its source still lives, so a caller naming a
+    dead rule directly would still cite it, and that path has no witness.
+
+## 2026-11-25 - the pilot's copy is registered, and the checklist is measured
+
+- **The copy is registered.** `docs/pilot/registrations/pilot-paper-001.json`
+  holds the registered copy's digest, the original it was derived from, the
+  metadata counts, the authorisation read out of the record that carries the
+  grant, and the storage path in the authorised environment. It holds no byte
+  of the material, no sentence of the manuscript and no comment body. The
+  checklist's part D is empty: the owner's signature is what fills it. The
+  record's `registered_by` says who ran the registration (`claude-code`), and
+  the owner is where the owner belongs — in `authorisation.granted_by`, read
+  out of the authorisation record, and in the signature that is still missing.
+- **Half the checklist is now a tool, and the tool says what it cannot
+  decide.** `scripts/pilot_desensitisation_check.py` reads the copy and the
+  original, computes the readings the checklist asks for, and reports every
+  item with a verdict. An item whose evidence a machine cannot read stays
+  `undecided` and is marked as needing a person — a byline, an affiliation
+  sentence, a numbering's continuity. Nothing turns an unread reading into a
+  pass, and `--require-signed` fails while D-6 is unsigned, so the gate the
+  checklist describes is a gate that is shut rather than a sentence that is
+  written.
+- **The measurement says four items fail: A-1, A-6, B-2 and C-2.** The
+  copy's visible text is the original's character for character (22,442
+  characters, 155 paragraphs, no paragraph differing in position). The
+  original carries 96 insertions and 17 deletions; the copy carries none of
+  either, and all 85 of the format changes. The `Author` and
+  `Last Modified By` properties are non-empty and are the original's, the
+  four custom properties are the original's, and the two revision author
+  fields are still names rather than role labels. **So the desensitisation
+  that was done accepted the revision trail and removed nothing else.**
+- **The owner chose to redo it, and the redone copy fails nothing.**
+  `scripts/pilot_redaction.py` redacts from the **original**, so the trail
+  stays and the identity goes: the built-in properties are blanked, every
+  custom property's value is blanked (that is where a WPS user id and a
+  Grammarly document id live), all 198 revision marks' author fields and
+  Word's two-person list carry role labels, and the paths inside two of the
+  seven pictures' own metadata are blanked in place at the same length.
+  The redone copy is registered as `pilot-paper-002` (sha256
+  `04cc31be9f9876fef975e8d4e6b427bb4a063920288fe5c0b72e8e3244a6172d`),
+  and the measurements on it are **14 pass, 7 undecided, 0 fail**: the
+  revision counts match the original's exactly, both author fields are
+  role labels, and **every one of the seven pictures decodes to the same
+  pixels as the original's** — the two whose metadata changed differ in
+  bytes and not in a pixel. The seven undecided are the ones whose
+  evidence is a person's reading, including D-6, the signature. The
+  readings are in
+  `docs/acceptance/LC-P4-PILOT-desensitisation-measurement-2026-11-25.md`.
+- **Two things went wrong on the way and are worth the record.** The first
+  redaction blanked a picture's pixels: a picture's data holds two
+  backslashes by chance often enough that a loose "looks like a path" test
+  damaged two of the seven pictures, and those copies would not decode.
+  The test is now narrow — a path names a folder or runs through several
+  segments — and the path is only looked for inside the ranges the
+  picture's own directory points at. The second: the paths in this paper's
+  pictures are not in an ASCII-typed TIFF label but in a BYTE-typed one.
+  Both failures are witnessed now (`tests/test_pilot_redaction.py`): a
+  picture's bytes that merely look like a path are left alone, and the
+  path inside a label is blanked.
+- **The tool's witnesses were checked to bite.** Fourteen tests in
+  `tests/test_pilot_desensitisation_check.py` and nine in
+  `tests/test_pilot_redaction.py`, eleven mutations between them: the
+  item's verdict was broken (the property verdict, the revision equality,
+  the role-label test, the comment count, the digest match, the property
+  blanking, the image-metadata blanking, the unmapped-author refusal) and
+  the witness that watches each one went red, and the files' own tests were
+  green again when the scripts were restored.
+- **What is the owner's, and what the owner settled.** The owner confirmed
+  the role labels on 2026-11-25 — the two people who marked the document
+  were replaced with `advisor` and `student-1` from the number of marks
+  each left (111 and 2) — and signed item D-6 the same day: every item
+  A-1…A-7, B-1…B-4, C-1…C-4 and D-1…D-5 is recorded as `pass`, the
+  signature names `owner`, and the result is bound to the copy's digest.
+  The tool's `--require-signed` mode passes on it, and the import step
+  (plan §9.2 step 2) may now run against that copy. The part-E
+  acceptance checks remain the pilot ticket's own.
+
+## 2026-11-25 - the twelfth batch lands in `main`, and the review finds a migration that did not reach the stores that already existed
+
+- **The four windows are merged locally, nothing pushed.** The citation
+  path's liveness check (`cite_rule`), the refusal enumeration's per-test
+  granularity, Phase 4's gates in the release notes and the review
+  dossier, and the denied write's trace are all on `main` now. No branch
+  was pushed and no pull request was opened; the owner keeps that call.
+- **The review found a gap the windows' own witnesses could not see.** The
+  denied write's event type was added to the **closed vocabulary of event
+  types**, and that vocabulary lives in the *first* migration, as four
+  CHECK constraints on the `events` table — so the change was made to
+  revision 0001 itself, on the ground its own comment gives: *the product
+  never migrates an existing workspace, so there is no deployed schema this
+  changes underneath.*
+- **That ground does not hold for every store there is.** Alembic's upgrade
+  path exists, the repository witnesses it, and the 0.1.0 installer has
+  been in users' hands since 2026-11-24. **Measured on 2026-11-25:** a store
+  built with the pre-amendment first migration and then upgraded to head
+  still **refused** `operation_denied`, because alembic does not run the
+  first migration again; a store built from scratch accepted it. The gap
+  was invisible to every witness in the batch, because they all build
+  their stores from scratch.
+- **Revision 0032 closes it.** It rebuilds the `events` table with the
+  vocabulary the models already carry — the four sets are written out in
+  the revision because a frozen migration may not import the live package,
+  the same reason 0001 carries its own copies — and the downgrade puts the
+  pre-amendment vocabulary back. The revision has a witness of its own
+  (`tests/test_store_migrations.py::test_a_store_built_before_the_new_event_
+  type_reaches_it_after_the_upgrade`): it starts from the older shape, by
+  downgrading, and holds that a raw write of the new event type is refused
+  there and accepted after the upgrade. Mutating the upgrade so that it
+  rebuilds with the older vocabulary turns that witness red.
+- **What the merge means for the other three windows.** Their witnesses
+  are green on `main` (231 passed over the files they touched), and the
+  shard table carries the new test file — `tests/test_operation_states.py`
+  — with a cost of `0.0`, which is not a measurement and waits for the
+  runner.
+
+## 2026-11-25 - the merged tree's own gates, which read the tree, were three of the things the merge broke
+
+- **A witness that reads the tree breaks when the tree moves.** The
+  merge landed four windows, three new test files and two new tools, and
+  three of the repository's own gates did not follow:
+  - the **evaluation harness's partition** did not know the three new test
+    files, so the partition was not complete and two of its checks could
+    not say what they meant. The three are filed now — the two pilot tools
+    under the repository gates, the operation-state witness under the
+    state transitions — and the operation-state file declares the class it
+    belongs to, because a protocol-class file that declares nothing is a
+    file nothing outside the partition table has to place.
+  - **three anchored pointers drifted**: the checklist document grew by a
+    paragraph, and two modules the batch edited moved their lines. The
+    pointers carry a line and the words on it, and the words are what say
+    where the line is now.
+  - the **tree carries no more Chinese than was measured**, and the two new
+    scripts broke that by naming the Chinese words their patterns match.
+    The words are written as escapes now: the patterns still match them —
+    checked — and the files carry no characters of their own.
+- **What this says about the batch.** Every witness the batch brought
+  passed, and none of them would have said any of this: a witness that
+  reads the tree is only as current as the tree it reads. The three gates
+  that caught it are themselves witnesses that read the tree, which is the
+  shape the project already relies on — and the reason the merge was
+  reviewed on the merged tree rather than on the branches, where each
+  window's own tree was intact.
+
+## 2026-11-25 - the ADR's two rows and two diagrams now say what the tree does
+
+- **The denial window's ADR note was checked against the tree, not taken.**
+  It said the affected row is ADR-0002's
+  `test_policy_denial_is_not_classified_as_provider_or_model_error`, and
+  that the row should move from *"Not carried"* to *"Carried"*. **The row
+  stays where it is, and the reason is the tree's:** the row promises three
+  things — a `FailureKind.POLICY_DENIED` in the provider layer, `retryable
+  = False` with no retry prompt, and the operation recorded as
+  `OperationOutcome.DENIED` — and the tree now does the middle one and the
+  last one *in the state's spelling*: the denial leaves an operation row in
+  state `denied` with the reason the permission layer produced, and the
+  event that describes it, in one transaction, before the refusal is
+  raised. The provider layer's `FailureKind` still has no `POLICY_DENIED`,
+  and putting it there would carry the permission layer's vocabulary
+  inside the provider's, which ADR-0006's and ADR-0015's disjoint-namespaces
+  rule forbids; and there is no `OperationOutcome` type at all. So the row's
+  two columns are corrected to say that, and the accounting's counts do not
+  move. The witness that watches the accounting
+  (`tests/test_event_payload_vocabulary.py::test_the_binding_names_are_carried_
+  or_declared_outstanding`) is what says a row declaring a name outstanding
+  that has since acquired a witness is a failure — and the tree has no
+  witness under that name, so the row is honest where it stands.
+- **ADR-0003's vocabulary and diagram carry the new type.** C1's closed
+  vocabulary lists `operation_denied` now, and C2's operation state machine
+  has the edge the tree has: a policy denial is asked for from `PLANNED`,
+  before the operation is authorised, so it lands in `DENIED` — a terminal
+  state — without ever reaching `AUTHORIZED`. The diagram kept every
+  branch it had; the first redraw dropped the `(approval_denied)` branch and
+  was redone.
+- **The line numbers the ADR cites were stale.** The batch edited the
+  modules ADR-0002 names, so six of its pointers moved; they name the lines
+  as they are now.
+
+## 2026-11-25 - the batch is reviewed, and the review found fourteen findings
+
+- **The review ran against R1–R7** ([`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md))
+  and its record is
+  [`docs/acceptance/batch-12-review-2026-11-25.md`](../acceptance/batch-12-review-2026-11-25.md).
+  It names **fourteen findings**, all closed, each with a witness and a
+  mutation that turns it red.
+- **The two that mattered most were both about the same thing: a second
+  place to look.**
+  - The citation path's check was **narrower than ADR-0016 C10**: it
+    detected one way a rule dies, while the retrieval layer's answer
+    covers three, and the role run puts a citation's statement into the
+    excerpts that leave the machine. The retrieval layer now answers "does
+    the memory serve this rule?" in one place, the citation path asks it,
+    and the second, weaker definition is **deleted**.
+  - The enumeration's candidate rule — the mechanism that reads the tests
+    to decide who may witness which refusal — **had no witness of its own**.
+    A mechanism with no witness can be neutered while the tree stays green,
+    and the witness now names a real test whose file reaches the CLI and
+    which does not.
+- **Two findings came from the merge itself, and both were invisible from
+  the branches.** Revision 0001 was amended to carry the new event type, so
+  only a store built *afterwards* would accept it: measured, a store built
+  with the pre-amendment first migration and then upgraded to head still
+  refused `operation_denied`. Revision 0032 closes that. And the merge
+  broke three of the tree's own gates — the evaluation harness's partition,
+  three anchored pointers, and the tree's measured Chinese — which the
+  branches could not see, because each branch's tree was intact.
+- **One finding was hiding in plain sight.** The two role-run fixtures
+  confirmed a rule but never judged the change that rule cites, so the
+  memory reported the rule as invalidated and the run was citing a rule
+  the memory does not serve. The repair in the citation path made fifteen
+  tests red — which is how the thing showed.
+- **What the review did not cover, it says.** Three of the batch's slices
+  did not get a full R1–R7 pass, and the whole-suite run on the merged tree
+  was not completed. A slice read in part has not been reviewed, and the
+  record says so rather than dressing it up.
+
+## 2026-11-25 - a second reader finds the gate can be neutered, and that a denial's trace is three transactions
+
+- **The first review found fourteen; a reader with no stake in the design
+  found more.** Its record is in
+  [`docs/acceptance/batch-12-review-2026-11-25.md`](../acceptance/batch-12-review-2026-11-25.md),
+  in the table under *"The second reader's findings"*. Two of them are
+  substantive:
+  - **the enumeration's gate can be neutered.** `_pieces` resolves a
+    refusal's message when it is a literal, an f-string or a call to a
+    function of the same module — and **not a name**, while `_value_text`
+    does follow bindings. Hoisting a message to a module constant takes the
+    refusal out of the watch set, and **deleting its witness as well leaves
+    the gate green**; the control — message inline, witness deleted — is
+    red. A rule that reads the tests has a blind spot of the shape of its
+    own parser.
+  - **a denial's trace is three transactions, not one.** `_record_denial`
+    calls `ensure_run`, then `ensure_stage`, then `deny_operation`, each in
+    its own unit of work; measured with the event write failing, the store
+    keeps a `running` run and an `entered` stage and no operation — a trace
+    that could be mistaken for a partial success, which the records module's
+    own comment says a refusal must not leave.
+- **The owner settled two things.** A policy denial is recorded **on the
+  path that writes** — so ADR-0002's wording is what changes, not the code,
+  because a request for approval that the policy refuses never got as far
+  as a write. And the measurement record's mention of the advisor's folder
+  stays: it is a descriptive label, not material.
+- **The checklist itself has gaps the review exposed.** Six, recorded in the
+  same file: none of R1–R7 asks what a gate *decides to look at*, none
+  covers an admission rule that is too wide, none asks whether a schema
+  rebuild preserves the data, and none asks whether the transaction
+  boundary a record claims matches the transactions the code opens.
+- **Both substantive findings of the second round are closed.** The
+  enumeration's gate now reads a message through one scope — the literal,
+  the f-string, the module's own function **and the name it is bound to** —
+  so hoisting a message to a module constant no longer takes its refusal
+  out of the watch set, and a candidacy rule that admitted a test for
+  *saying* a refusal reason is gone, because unrelated code can satisfy
+  that proxy (`182ab60`). And a policy denial's **whole trace is now one
+  transaction**: the run, the stage, the operation and the three events are
+  written inside one unit of work, so a denial whose event cannot be
+  written leaves nothing at all rather than a running run and an entered
+  stage — the fault is injected the way `tests/test_store_atomicity.py`
+  injects it, so the product gains no switch (`0e3b06b`). Six mutations
+  were tried against those repairs; each turned the witness that watches it
+  red.
+
+## 2026-11-26 - the pilot's first real request, and three windows that answer what it found
+
+- **The pilot's copy is imported and the first real request went through.**
+  The signed copy came into the pilot workspace through the product's own
+  command, its digest matched the registered one, and the counts were
+  re-measured on the imported file. Three permitted requests went through
+  the consent gate, each with its own approval, each consumed; one was
+  refused for being outside the grant's scope — and **the refusal cost
+  nothing**, because the transmit check runs before the approval is spent.
+  The records carry digests, counts and shapes; no byte of the manuscript
+  is in them.
+- **Three windows answered what that request found.**
+  - **The provider's configuration has an output ceiling**, and the usage
+    reading is made right. The pilot's `Known(1)` was not a provider's
+    misreport but the Anthropic protocol's shape: the input arrives in
+    three fields, and `input_tokens` is only the part counted outright —
+    the cache portions arrive elsewhere, so a cached prompt reads as one
+    token. The same prompt measured 378 + 128 cache tokens on one call and
+    122 + 384 on another; **both were 506 tokens**, differently shared. The
+    capture now reads the whole input, and a reading that is not a
+    measurement is `Unknown` rather than a number.
+
+    *Those two readings are anchored where a reader can check them*: they
+    were taken on the pilot workspace's copy of the signed material
+    (sha256 `04cc31be9f9876fef975e8d4e6b427bb4a063920288fe5c0b72e8e3244a6172d`,
+    registered as `pilot-paper-002`), during the requests recorded in
+    [`docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`](../acceptance/LC-P4-PILOT-real-request-2026-11-25.md)
+    §8; the raw evidence is outside this repository, under
+    `E:/labcairn-local/phase4-pilot-evidence/`, which the external-path
+    ledger answers for.
+  - **The loop counts what the provider reported.** The estimate is a
+    fallback for the sides the provider did not report, and everywhere it is
+    read the run record, the request entries and the wire say which is
+    which. A character count under-read the tokens by 1.25× to 6.75× and
+    the ratio is not constant, so it was never a safe ceiling.
+  - **The import is idempotent and a source can be taken back.** A source's
+    identity is **where the material is**, not what it holds, so a material
+    moved and ingested again is a second source rather than a moved one —
+    and the row the old path left behind is what the new command removes.
+    The row goes and the evidence stays (the extracted text is keyed by
+    content hash), a manuscript's version follows the bytes, and a source
+    the ledger does not hold is refused rather than pretended away.
+- **The CI runs found what the local machine could not**, three rounds
+  running:
+  - the **external-path ledger** did not answer for the paths the pilot's
+    new records name;
+  - a witness asserted that a root spelled with the other platform's
+    separator is the same root — true on Windows, false on POSIX, where a
+    backslash is an ordinary character in a name. It is now marked as the
+    Windows half it is, and the platform-neutral half (a trailing
+    separator) is witnessed on its own;
+  - two new test files were in **neither the shard table nor the
+    evaluation partition**, which is the state of a test nobody runs;
+  - and a **deck's fingerprint moved with the clock**: a zip entry carries
+    the moment it was written, so two decks built from the same parts a
+    second apart are different bytes — and the property that file witnesses
+    (re-ingesting the same deck is the same rows) had therefore never been
+    witnessed at all. The deck's parts now carry a fixed timestamp.

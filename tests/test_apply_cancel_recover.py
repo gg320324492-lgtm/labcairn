@@ -6,8 +6,10 @@ Four witnesses, all against real files and real consents:
   granted and before the publication effect runs leaves the grant GRANTED
   and unspent, publishes nothing, and re-runs cleanly (idempotently: no
   duplicate deliveries).
-* **timeout** — the model-suggestion path's timeout is its own refusal, and
-  it is retryable: the record carries the reason, and asking again succeeds.
+* **timeout** — the model-suggestion path's timeout is a classified failure
+  and not a refusal: the run row names it ``timeout``, marks it retryable,
+  and the bounded retries are followed by the labelled substitute. Nothing
+  was decided, so asking again succeeds.
 * **locked source** — a source another process holds locked is refused as
   ``source_locked`` before any consent is spent, and the round retries once
   the lock is gone.
@@ -23,6 +25,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 from binding_support import (
@@ -35,8 +38,15 @@ from binding_support import (
 from store_support import StoreEnv
 from store_support import env as _shared_env
 
-from labcairn.application.approvals import grant_approval
+from labcairn.application.approvals import ApprovalRequest, grant_approval, request_approval
 from labcairn.application.context import ApplicationContext
+from labcairn.application.model_suggestions import (
+    MODEL_SUGGESTION_MODE_REAL,
+    SUBSTITUTE_AUTHOR,
+    SuggestionLoopConfig,
+    suggest_for_version,
+    suggestion_approval_use,
+)
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.revision_loop import (
     PUBLICATION_STAGE_NAME,
@@ -48,6 +58,7 @@ from labcairn.application.revision_loop import (
     resolve_interrupted_publication,
     stage_copy,
 )
+from labcairn.core.providers.protocol import ModelRequest
 from labcairn.db.repository import list_approvals, list_artifacts
 from labcairn.papers.binding import (
     CANCEL_POINT_BEFORE_CLEAN_PUBLICATION,
@@ -57,7 +68,10 @@ from labcairn.papers.binding import (
     ReviewVerdict,
     apply_approved_edits,
 )
+from labcairn.papers.feedback import list_feedback_events, record_feedback
+from labcairn.providers.errors import ProviderTimeoutError
 from labcairn.runtime.operation import ApprovalState
+from labcairn.security.permissions import Grant
 
 pytestmark = pytest.mark.integration
 
@@ -284,10 +298,34 @@ def test_a_locked_source_refuses_the_round_before_any_consent_is_spent(
     # reading, which is exactly what the binding's hash check does. Deny the
     # file's read bit instead -- the same "no one may read this" the drill
     # matrix uses -- because the runner is unprivileged and its own chmod
-    # binds. Windows: hold a real byte-range lock.
+    # binds. The premise is verified rather than assumed: a privileged
+    # process reads the file regardless of the mode, and the witness says so
+    # by skipping instead of failing for a reason the product is not
+    # responsible for. Windows: hold a real byte-range lock.
     posix = os.name != "nt"
     if posix:
+        # **The premise is checked, not assumed.** Denying the read bit only
+        # binds an unprivileged process: root holds ``CAP_DAC_OVERRIDE`` and
+        # reads the file anyway, so the round would publish and the witness
+        # would fail for a reason that has nothing to do with the property
+        # under test. Reading the file here and skipping when it still opens
+        # turns "the environment cannot express this case" into a stated
+        # fact rather than a failure that reads as a product defect.
         source_path.chmod(source_path.stat().st_mode & ~0o444)
+        still_readable = False
+        try:
+            with source_path.open("rb") as probe:
+                probe.read(1)
+            still_readable = True
+        except OSError:
+            still_readable = False
+        if still_readable:
+            source_path.chmod(source_path.stat().st_mode | 0o444)
+            pytest.skip(
+                "this process can read a file whose read bit was denied "
+                "(a privileged user); the unreadable-source case cannot be "
+                "expressed here"
+            )
         handle = -1
     else:
         handle = os.open(source_path, os.O_RDWR)
@@ -560,69 +598,261 @@ def test_a_resolved_interrupted_publication_replays_to_one_complete_row(
 
 
 # --------------------------------------------------------------------------- #
-# model-suggestion timeout: the retryable refusal
+# model-suggestion timeout: a classified failure, retried, then substituted
 # --------------------------------------------------------------------------- #
 
+#: The destination the timed-out run's transmit grant names.
+TIMEOUT_DESTINATION = "api.test-provider.example"
 
-def test_a_suggestion_timeout_is_refused_by_name_and_the_record_stays_clean(
+#: The provider name the timed-out run's approvals and requests share.
+TIMEOUT_PROVIDER = "test-provider"
+
+
+class RaisingTransport:
+    """A transport whose call never comes back.
+
+    **The product's own timeout, not an invention for the witness.** The
+    adapters raise
+    :class:`~labcairn.providers.errors.ProviderTimeoutError` when the
+    provider did not answer inside its window, so that is the exception the
+    real path meets, and the classification the witness reads off the record
+    is the one that exception earns. The standard spelling is raised here
+    too, because a transport is a seam and a seam may raise either.
+    """
+
+    model_id = "gpt-timeout-model"
+
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+        self.requests: list[ModelRequest] = []
+
+    def send(self, request: ModelRequest) -> str:
+        self.requests.append(request)
+        raise self.error
+
+
+class AnsweringTransport:
+    """A transport that answers, for the retry a timeout makes safe."""
+
+    model_id = "gpt-timeout-model"
+
+    def __init__(self, answer: str = "The passage, answered at last.") -> None:
+        self.answer = answer
+        self.requests: list[ModelRequest] = []
+
+    def send(self, request: ModelRequest) -> str:
+        self.requests.append(request)
+        return self.answer
+
+
+def _timeout_grant(fixture: BindingFixture) -> Grant:
+    """The material-purpose transmit grant the timed-out run is judged against."""
+    return Grant(
+        grant_id=f"grant-timeout-{fixture.project_id}",
+        subject_ref=fixture.project_id,
+        permission="external_transmit",
+        purpose="transmit",
+        scope=f"{fixture.project_id}/**",
+        destination=TIMEOUT_DESTINATION,
+        granted_by="Prof. Lin",
+        granted_at=MOMENT,
+        expires_at=None,
+        state="active",
+        withdrawn_at=None,
+        withdrawn_by=None,
+        withdrawal_reason=None,
+    )
+
+
+def _timeout_approvals(fixture: BindingFixture, model_id: str) -> dict[str, Any]:
+    """Ask and grant one approval per locatable opinion.
+
+    Derived through the one derivation the loop spends against — the same
+    :func:`~labcairn.application.model_suggestions.suggestion_approval_use`
+    — so the question the fixture answered and the request the loop makes
+    are the same request, digest and all.
+    """
+    approvals: dict[str, Any] = {}
+    events = list_feedback_events(
+        fixture.context, project_id=fixture.project_id, version_id=fixture.version_id
+    )
+    for event in events:
+        if not event.comment_text.strip():
+            continue
+        if event.anchor_text is None or not event.anchor_text.strip():
+            continue
+        asked = request_approval(
+            fixture.context,
+            ApprovalRequest(
+                use=suggestion_approval_use(
+                    fixture.context, event, provider=TIMEOUT_PROVIDER, model=model_id
+                ),
+                expires_at=MOMENT.replace(year=MOMENT.year + 1),
+            ),
+        )
+        grant_approval(fixture.context, asked.approval.approval_id, now=MOMENT)
+        approvals[event.feedback_id] = asked.approval.approval_id
+    fixture.context.store.session.commit()
+    return approvals
+
+
+def test_a_model_timeout_is_a_named_retryable_failure_and_asking_again_is_safe(
     fixture: BindingFixture,
 ) -> None:
-    """The suggestion path's timeout is its own refusal, and retrying is safe.
+    """The suggestion path's timeout is a classified failure, and the record says so.
 
-    ``ReviewModelTimeout`` is the apply path's name for "the model did not
-    answer within its window" — a refusal whose remedy is to ask again,
-    because nothing was recorded and nothing was published. The witness
-    drives the real suggestion seam with a source that raises the timeout,
-    and asserts the refusal's reason, the unchanged record, and a retry that
-    succeeds with the same material.
+    **The witness drives the product's own path.** The transport raises
+    :class:`~labcairn.providers.errors.ProviderTimeoutError` — the exception
+    the adapters raise when the provider did not answer inside its window —
+    so the classification under test is the one a real timeout earns, and not
+    one the witness made up and handed to the code under test.
+
+    The record is the claim: the per-call entry on the run row names the
+    failure ``timeout``, marks it retryable, and counts the bounded retries
+    the run spent. **A timeout is not a refusal**: the run finishes, the
+    substitute answers in its place, and the substitute is labelled twice —
+    on the run row and on the suggestion row — so the timed-out model's
+    silence can never be read as its answer.
+
+    Nothing was decided, so asking again is safe: the second run lands its
+    answer over the same material.
     """
-    from labcairn.editing.drafts import ApprovedEdit
-    from labcairn.papers.binding import open_binding
-
-    def timing_out_suggester(event: object) -> ApprovedEdit:
-        raise ApplicationRefusedError(
-            ApplicationRefusal.REVIEW_MODEL_TIMEOUT,
-            "the suggestion source did not answer within its window; the "
-            "material is unchanged and no decision was recorded, so the "
-            "request may be retried",
-        )
-
-    with pytest.raises(ApplicationRefusedError) as refused:
-        open_binding(
-            fixture.context,
-            project_id=fixture.project_id,
-            version_id=fixture.version_id,
-            source_root_id=fixture.source_root_id,
-            source_key=fixture.source_key,
-            suggest=timing_out_suggester,
-            now=MOMENT,
-        )
-    assert refused.value.reason is ApplicationRefusal.REVIEW_MODEL_TIMEOUT
-
-    # The timeout recorded nothing: no suggestion rows, no decisions, and the
-    # source is exactly the bytes it was. A retry asks again over the same
-    # material, and the second answer lands as the first would have.
     from sqlalchemy import select
 
-    from labcairn.db.models import ReviewDecisionRow, ReviewSuggestionRow
+    from labcairn.db.models import ModelSuggestionRunRow, ReviewDecisionRow, ReviewSuggestionRow
 
-    session = fixture.context.store.session
-    assert session.scalars(select(ReviewSuggestionRow)).all() == []
-    assert session.scalars(select(ReviewDecisionRow)).all() == []
-
-    def answering_suggester(event: object) -> ApprovedEdit | None:
-        return None  # the retry's own answer is exercised by the binding's witnesses
-
-    reopened = open_binding(
+    record_feedback(
         fixture.context,
         project_id=fixture.project_id,
         version_id=fixture.version_id,
-        source_root_id=fixture.source_root_id,
-        source_key=fixture.source_key,
-        suggest=answering_suggester,
         now=MOMENT,
     )
-    assert reopened.loop.import_receipt.original_sha256
+    fixture.context.store.session.commit()
+
+    transport = RaisingTransport(ProviderTimeoutError(60.0))
+    run = suggest_for_version(
+        fixture.context,
+        run_id="run-timeout-1",
+        project_id=fixture.project_id,
+        version_id=fixture.version_id,
+        mode=MODEL_SUGGESTION_MODE_REAL,
+        provider=TIMEOUT_PROVIDER,
+        transport=transport,
+        approvals=_timeout_approvals(fixture, transport.model_id),
+        grants=[_timeout_grant(fixture)],
+        destination=TIMEOUT_DESTINATION,
+        config=SuggestionLoopConfig(retry_attempts=2),
+    )
+
+    # The failure is classified as the timeout it was, and it is retryable.
+    session = fixture.context.store.session
+    row = session.scalars(
+        select(ModelSuggestionRunRow).where(ModelSuggestionRunRow.run_id == "run-timeout-1")
+    ).one()
+    timed_out = [entry for entry in row.requests_json if entry["source"] == transport.model_id]
+    assert timed_out, "the run recorded the calls that timed out"
+    failed = [entry for entry in timed_out if entry["outcome"] == "failed"]
+    assert len(failed) == 3, "one entry per attempt"
+    assert {entry["detail"] for entry in failed} == {"timeout"}, (
+        "the record names the failure it was: a timeout, not an unnamed transient"
+    )
+    assert {entry["retryable"] for entry in failed} == {True}
+    assert "exhausted" in {entry["outcome"] for entry in timed_out}, (
+        "the record says the retries were spent"
+    )
+
+    # The retries are bounded: three attempts spent, then the run gave the
+    # opinion to the substitute rather than asking again.
+    assert len(transport.requests) == 3, "two retries and no more"
+    assert run.model_id == SUBSTITUTE_AUTHOR, "the run row names the model that answered"
+
+    # The substitute is labelled on the suggestion row too: the timed-out
+    # model contributed no suggestion at all.
+    suggestions = session.scalars(select(ReviewSuggestionRow)).all()
+    assert suggestions, "the substitute answered"
+    assert {suggestion.author for suggestion in suggestions} == {SUBSTITUTE_AUTHOR}
+
+    # Nothing was decided.
+    assert session.scalars(select(ReviewDecisionRow)).all() == []
+
+    # Asking again is safe: the second run lands its answer over the same
+    # material, because the timeout recorded nothing that would forbid it.
+    answering = AnsweringTransport()
+    retried = suggest_for_version(
+        fixture.context,
+        run_id="run-timeout-2",
+        project_id=fixture.project_id,
+        version_id=fixture.version_id,
+        mode=MODEL_SUGGESTION_MODE_REAL,
+        provider=TIMEOUT_PROVIDER,
+        transport=answering,
+        approvals=_timeout_approvals(fixture, answering.model_id),
+        grants=[_timeout_grant(fixture)],
+        destination=TIMEOUT_DESTINATION,
+    )
+    assert retried.suggestions_recorded >= 1, "the retry landed its answer"
+    assert retried.model_id == answering.model_id, "the retry names the model that answered"
+
+
+def test_the_refusal_vocabulary_names_no_model_timeout() -> None:
+    """A name nothing raises is a promise the layer does not keep.
+
+    The suggestion path's timeout is a provider failure — retryable, named
+    ``timeout`` on the run row — and the refusal vocabulary holds what the
+    application layer refuses. **A member named for a timeout would promise
+    a refusal the path does not have**, and the promise would stay invisible
+    until the moment somebody needed to read it.
+    """
+    named = [member for member in ApplicationRefusal if "timeout" in member.value]
+    assert not named, (
+        "the refusal vocabulary names a timeout, and nothing in the product raises it: "
+        f"{[member.value for member in named]}"
+    )
+
+
+def test_a_standard_timeout_error_is_named_a_timeout_too(fixture: BindingFixture) -> None:
+    """The standard spelling of a timeout is a timeout, and is named as one.
+
+    ``TimeoutError`` is what a call that ran out of time raises, and what
+    the adapters catch before they translate it. **A timeout recorded as an
+    unnamed transient is a timeout the record cannot talk about**, and the
+    operator is left guessing between a slow provider and a broken one.
+    """
+    from sqlalchemy import select
+
+    from labcairn.db.models import ModelSuggestionRunRow
+
+    record_feedback(
+        fixture.context,
+        project_id=fixture.project_id,
+        version_id=fixture.version_id,
+        now=MOMENT,
+    )
+    fixture.context.store.session.commit()
+
+    transport = RaisingTransport(TimeoutError("the provider did not answer"))
+    suggest_for_version(
+        fixture.context,
+        run_id="run-timeout-3",
+        project_id=fixture.project_id,
+        version_id=fixture.version_id,
+        mode=MODEL_SUGGESTION_MODE_REAL,
+        provider=TIMEOUT_PROVIDER,
+        transport=transport,
+        approvals=_timeout_approvals(fixture, transport.model_id),
+        grants=[_timeout_grant(fixture)],
+        destination=TIMEOUT_DESTINATION,
+        config=SuggestionLoopConfig(retry_attempts=0),
+    )
+
+    session = fixture.context.store.session
+    row = session.scalars(
+        select(ModelSuggestionRunRow).where(ModelSuggestionRunRow.run_id == "run-timeout-3")
+    ).one()
+    failed = [entry for entry in row.requests_json if entry["outcome"] == "failed"]
+    assert failed, "the run recorded the call that timed out"
+    assert {entry["detail"] for entry in failed} == {"timeout"}
+    assert {entry["retryable"] for entry in failed} == {True}
 
 
 # --------------------------------------------------------------------------- #

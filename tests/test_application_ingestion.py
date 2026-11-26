@@ -58,6 +58,7 @@ from labcairn.application import (
     ingest_material,
     list_sources,
 )
+from labcairn.application.material_ingestion import remove_source
 from labcairn.core.ids import SourceId, TaskId
 from labcairn.db.repository import count_events, events_after, load_task
 from labcairn.db.repository import list_sources as store_list_sources
@@ -618,3 +619,336 @@ def test_a_task_the_store_does_not_hold_is_refused(env: StoreEnv, workspace_root
         ingest_material(missing, now=_MOMENT)
 
     assert caught.value.reason is ApplicationRefusal.TASK_NOT_FOUND
+
+
+# --------------------------------------------------------------------------- #
+# taking a source back
+# --------------------------------------------------------------------------- #
+
+
+def _rows(session: Session, table: str) -> list[dict[str, Any]]:
+    """Every row of a table, as a dictionary."""
+    result = session.execute(sql_text(f"SELECT * FROM {table}"))
+    return [dict(row) for row in result.mappings().all()]
+
+
+def _the_source_ids(env: StoreEnv) -> tuple[str, ...]:
+    """The ids of the sources the ledger holds."""
+    return tuple(row["source_id"] for row in _rows(env.session, "sources"))
+
+
+def test_a_material_that_is_moved_and_ingested_again_is_a_second_source(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A moved material is a **second** source, and the old row is left behind.
+
+    **What would make this red.** A ledger that keyed a source by its
+    *content* would move the one row when the material was ingested at its
+    new path, and the count below would be one rather than two. The key is
+    the location, and the location changed -- so the row the old path left
+    behind is a row nobody has taken back yet. That is the situation the
+    pilot's import ran into, and it is why the removal exists.
+    """
+    materials = workspace_root / "materials"
+    (materials / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+
+    first = ingest_material(context, now=_MOMENT)
+    assert len(first.source_ids) == 1
+    text_before = _count(env.session, "source_texts")
+    assert text_before > 0
+
+    # The material is **moved**, not copied: the same bytes at a new path.
+    (materials / "one.csv").unlink()
+    (materials / "moved").mkdir()
+    (materials / "moved" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+
+    second = ingest_material(context, now=_MOMENT + timedelta(days=1))
+
+    assert len(second.source_ids) == 1
+    assert set(second.source_ids).isdisjoint(first.source_ids)
+    rows = _rows(env.session, "sources")
+    assert len(rows) == 2
+    # One material, two locations: the digest is the same on both rows.
+    assert {row["content_sha256"] for row in rows} == {rows[0]["content_sha256"]}
+    # And the text was extracted once: the text store is keyed by the digest,
+    # not by the location, so the second ingestion read the material and
+    # wrote no text -- the disclosures are the ones the location owns, and
+    # each location has its own.
+    assert _count(env.session, "source_texts") == text_before
+    assert all(item.text_rows > 0 for item in second.files)
+
+
+def test_the_removal_takes_the_stale_row_and_leaves_the_material_in_place(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The row the old path left behind goes; the row the new path made stays.
+
+    **What would make this red.** A removal that deleted by the *digest*
+    rather than by the id would take the surviving row as well, and the
+    ledger would hold no source for a file that is still in the workspace --
+    the material would be gone from the inventory while the bytes sit there.
+    A source is a location, and the removal takes back one location.
+
+    The root-relative coordinate is asserted too, because that is what the
+    grant's scope is matched against: the material the grant covers must
+    keep the key the grant names.
+    """
+    materials = workspace_root / "materials"
+    (materials / "pilot-paper-002").mkdir()
+    (materials / "pilot-paper-002" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+
+    stale = ingest_material(context, now=_MOMENT).source_ids[0]
+
+    # The material moves to where the grant's scope reaches it.
+    (materials / "pilot-paper-002" / "one.csv").unlink()
+    (materials / "pilot-paper-002").rmdir()
+    (materials / "pilot" / "LC-P4-PILOT" / "desensitised-copy").mkdir(parents=True)
+    (materials / "pilot" / "LC-P4-PILOT" / "desensitised-copy" / "one.csv").write_text(
+        "a,b\n1,2\n", encoding="utf-8"
+    )
+    kept = ingest_material(context, now=_MOMENT + timedelta(days=1)).source_ids[0]
+
+    assert kept != stale
+    assert len(_the_source_ids(env)) == 2
+    # The coordinate the grant's scope is matched against, before anything is
+    # taken back: two locations, two keys, and the material the grant covers
+    # under the key the grant names.
+    assert {view.resource_key for view in list_sources(context)} == {
+        "pilot-paper-002/one.csv",
+        "pilot/LC-P4-PILOT/desensitised-copy/one.csv",
+    }
+
+    removed = remove_source(context, stale)
+
+    assert removed.source_id == stale
+    assert removed.relative_path == "materials/pilot-paper-002/one.csv"
+    assert removed.content_sha256
+    assert _the_source_ids(env) == (kept,)
+    # The material that took its place is still inventoried, under the key
+    # the grant's scope names.
+    views = list_sources(context)
+    assert [view.resource_key for view in views] == ["pilot/LC-P4-PILOT/desensitised-copy/one.csv"]
+
+
+def test_the_removal_refuses_a_source_the_ledger_does_not_hold(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A source that is not there is refused, not pretended away.
+
+    **What would make this red.** A removal that reported success for a
+    source the ledger does not hold would tell an operator the material was
+    taken back when nothing happened -- and the row they wanted gone would
+    still be there, naming a path that is not there. The refusal says which
+    id was not found, and the ledger is left exactly as it was.
+    """
+    (workspace_root / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+    ingest_material(context, now=_MOMENT)
+    before = _the_source_ids(env)
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        remove_source(context, "src-0000000000000000")
+
+    assert caught.value.reason is ApplicationRefusal.SOURCE_NOT_FOUND
+    assert "src-0000000000000000" in caught.value.detail
+    assert _the_source_ids(env) == before
+
+
+def test_the_removal_is_refused_by_the_policy_and_writes_nothing(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A policy that denies the inventory denies the removal too.
+
+    **What would make this red.** A removal that wrote the row before it
+    asked the policy would leave the material gone and the denial after the
+    fact -- which is worse than a removal that did not happen at all. The
+    refusal comes first, so the ledger still holds the source and the task
+    still holds it.
+    """
+    (workspace_root / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+    source_id = ingest_material(context, now=_MOMENT).source_ids[0]
+    denying = PermissionPolicy.from_rules(
+        [
+            Rule(
+                effect=Permission.DENY,
+                pattern="**",
+                capabilities=frozenset({CapabilityId.SOURCE_INVENTORY.value}),
+            )
+        ]
+    )
+    denied = ApplicationContext(
+        workspace=context.workspace,
+        store=context.store,
+        policy=denying,
+        ledger=context.ledger,
+    )
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        remove_source(denied, source_id)
+
+    assert caught.value.reason is ApplicationRefusal.PERMISSION_DENIED
+    assert _the_source_ids(env) == (source_id,)
+    assert _held(env, context.task_id) == (source_id,)
+
+
+def test_the_removal_releases_the_task_and_the_log_says_so(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A task that held the material lets it go, and the log records that.
+
+    **What would make this red.** A removal that deleted the row and left
+    the binding would leave a task that claims material the ledger does not
+    hold -- and the layer refuses that when it lists a task's sources, so
+    the task would be broken by an operation that reported success. The
+    binding is written through the store's own writer, so the change is
+    recorded with the event that describes it.
+    """
+    (workspace_root / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+    source_id = ingest_material(context, now=_MOMENT).source_ids[0]
+    assert _held(env, context.task_id) == (source_id,)
+    revisions_before = _revisions(env.session, context.task_id)
+
+    removed = remove_source(context, source_id)
+
+    assert removed.released_task_ids == (str(context.task_id),)
+    assert _held(env, context.task_id) == ()
+    assert _revisions(env.session, context.task_id) == revisions_before + 1
+
+
+def test_the_removal_leaves_the_text_and_takes_the_disclosures(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The evidence stays; the disclosure about *that file at that path* goes.
+
+    **What would make this red.** A removal that took the extracted text
+    with it would delete the records that rest on those addresses -- ADR-0009
+    is explicit that a file which is deleted does not take its text with it.
+    A removal that left the disclosure behind would leave a row naming a
+    source the ledger no longer holds.
+    """
+    materials = workspace_root / "materials"
+    (materials / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    (materials / "broken.pdf").write_bytes(b"%PDF-1.4 this is not a pdf at all")
+    context = _context(env, workspace_root, _inventory_only())
+    ingested = ingest_material(context, now=_MOMENT)
+    by_name = {item.source.relative_path.rsplit("/", 1)[-1]: item for item in ingested.files}
+    source_id = by_name["one.csv"].source.source_id
+    text_before = _count(env.session, "source_texts")
+    problems_before = _count(env.session, "source_problems")
+    own_problems = sum(
+        1 for row in _rows(env.session, "source_problems") if row["source_id"] == source_id
+    )
+    assert text_before > 0
+    assert own_problems > 0
+    assert problems_before > own_problems
+
+    removed = remove_source(context, source_id)
+
+    # The text is keyed by the content hash, so it outlives the file.
+    assert _count(env.session, "source_texts") == text_before
+    # The disclosures were about that file at that path, so they went with
+    # it -- and the other file's disclosures stayed where they were.
+    assert removed.removed_problem_count == own_problems
+    assert _count(env.session, "source_problems") == problems_before - own_problems
+
+
+def _a_paper_version_naming(session: Session, source_id: str, digest: str) -> None:
+    """A paper project, and a version recorded against the material.
+
+    The rows are written directly: what is under test is the removal's
+    answer to a version that names the file, not the version graph's own
+    machinery for making one.
+    """
+    session.execute(
+        sql_text(
+            "INSERT INTO paper_projects "
+            "(project_id, workspace_id, subject_pseudonym, consent_ref, created_at) "
+            "VALUES ('proj-1', 'ws-1', 'subject', NULL, :created)"
+        ),
+        {"created": _MOMENT.isoformat()},
+    )
+    session.execute(
+        sql_text(
+            "INSERT INTO paper_versions "
+            "(version_id, project_id, source_id, source_content_sha256, "
+            "version_label_raw, stage_candidate, status, created_at) "
+            "VALUES ('ver-1', 'proj-1', :source_id, :digest, 'one.csv', "
+            "'unknown', 'unresolved', :created)"
+        ),
+        {
+            "source_id": source_id,
+            "digest": digest,
+            "created": _MOMENT.isoformat(),
+        },
+    )
+    session.commit()
+
+
+def test_a_paper_version_follows_the_material_it_was_made_from(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A version that named the material follows the bytes, and stays.
+
+    **What would make this red.** A version's identity is the bytes it was
+    made from -- the version graph's own model says that *two files with the
+    same bytes are one version*. So when the material is at another location
+    and the ledger holds a row for it there, the version follows the bytes
+    to that row: it is still the same version, and the hash it recorded
+    still matches the row it names. A removal that let the schema's cascade
+    take the version's row instead would lose a manuscript's revision
+    history over a file that had only moved.
+    """
+    materials = workspace_root / "materials"
+    (materials / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+    stale = ingest_material(context, now=_MOMENT).source_ids[0]
+
+    # The material moves: the same bytes at another location.
+    (materials / "one.csv").unlink()
+    (materials / "moved").mkdir()
+    (materials / "moved" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    kept = ingest_material(context, now=_MOMENT + timedelta(days=1)).source_ids[0]
+    digest = _rows(env.session, "sources")[0]["content_sha256"]
+    _a_paper_version_naming(env.session, stale, digest)
+
+    removed = remove_source(context, stale)
+
+    assert removed.repointed_version_ids == ("ver-1",)
+    assert removed.repointed_to_source_id == kept
+    # The version is still there, and it names the material where it lives.
+    version = _rows(env.session, "paper_versions")[0]
+    assert version["version_id"] == "ver-1"
+    assert version["source_id"] == kept
+    assert version["source_content_sha256"] == digest
+    assert _the_source_ids(env) == (kept,)
+
+
+def test_a_paper_version_whose_material_is_nowhere_else_keeps_the_material(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A version with no file is not a version, so the material stays.
+
+    **What would make this red.** The schema cascades: take the file out of
+    the ledger and the version's row goes with it. There is no other row
+    holding the same bytes, so there is nowhere for the version to follow
+    them to. A removal that let that happen would take a manuscript's
+    revision history with it without being asked to, so the refusal comes
+    first and the material stays.
+    """
+    (workspace_root / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+    source_id = ingest_material(context, now=_MOMENT).source_ids[0]
+    digest = _rows(env.session, "sources")[0]["content_sha256"]
+    _a_paper_version_naming(env.session, source_id, digest)
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        remove_source(context, source_id)
+
+    assert caught.value.reason is ApplicationRefusal.PAPER_CONTRACT_REFUSED
+    assert "ver-1" in caught.value.detail
+    assert _the_source_ids(env) == (source_id,)
+    assert _rows(env.session, "paper_versions")[0]["source_id"] == source_id

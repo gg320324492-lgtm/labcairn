@@ -1010,6 +1010,7 @@ export class FakeApi {
     opinions_skipped: 0,
     started_at: '2026-11-24T09:00:00+00:00',
     finished_at: '2026-11-24T09:00:01+00:00',
+    duration_seconds: 1,
   }
 
   /** The deliverables export the fake answers with. */

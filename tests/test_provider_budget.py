@@ -37,6 +37,7 @@ from pathlib import Path
 
 import pytest
 
+from labcairn.core.providers.protocol import UsageReport
 from labcairn.core.providers.usage import Known, Unknown, UnknownReason
 from labcairn.providers.budget import (
     BudgetDecision,
@@ -58,7 +59,9 @@ from labcairn.providers.ledger import (
     COST_SCALE,
     LedgerSnapshot,
     RunLedger,
+    TokenOrigin,
     micros_to_usd,
+    spend_from_report,
     usage_reporting_is_usable,
     usd_to_micros,
 )
@@ -524,3 +527,256 @@ def test_usage_reporting_is_usable_is_false_for_every_unproven_case() -> None:
         )
         is False
     )
+
+
+# --------------------------------------------------------------------------- #
+# what the provider reported, and what we counted
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.unit
+def test_a_reported_side_is_counted_as_reported_and_the_estimate_is_not_added() -> None:
+    """The provider's report is the figure; the estimate does not join it.
+
+    The pilot measured why the distinction matters: the same answer length
+    was reported as 1.25 to 3.65 output tokens per character, and 6.75
+    across both rounds
+    (``docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`` §8.4), so a
+    figure counted from characters is not a measurement and must never
+    stand in for one that exists.
+
+    **What makes this red:** a spend that added the estimate on top of a
+    side the provider had already reported. The total would be the two
+    added together, and the budget would be charged twice for one call.
+    """
+    report = UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    spend = spend_from_report(report, estimated_input=425, estimated_output=417)
+    assert spend.measured == 6595
+    assert spend.estimated == 0
+    assert spend.total == 6595
+    assert spend.origin is TokenOrigin.MEASURED
+
+
+@pytest.mark.unit
+def test_the_estimate_covers_only_the_side_the_provider_left_unreported() -> None:
+    """A half-reported response is mixed, and the gap is the estimate's.
+
+    **What makes this red:** a spend that dropped the unreported side
+    instead of falling back to the estimate for it. The total would be the
+    measured half alone, and the budget would under-count what the
+    provider spent.
+    """
+    report = UsageReport(
+        input_tokens=Known(506),
+        output_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+    )
+    spend = spend_from_report(report, estimated_input=425, estimated_output=417)
+    assert spend.measured == 506
+    assert spend.estimated == 417
+    assert spend.total == 923
+    assert spend.origin is TokenOrigin.MIXED
+
+
+@pytest.mark.unit
+def test_a_response_that_reported_nothing_is_an_estimate_and_says_so() -> None:
+    """No report at all: the spend is the estimate, and it is marked as one.
+
+    **What makes this red:** a spend that called a counted estimate a
+    measurement. The origin would read ``measured`` for tokens nobody
+    measured, and a reader would take the figure for a report.
+    """
+    spend = spend_from_report(None, estimated_input=425, estimated_output=417)
+    assert spend.measured == 0
+    assert spend.estimated == 842
+    assert spend.total == 842
+    assert spend.origin is TokenOrigin.ESTIMATED
+
+
+@pytest.mark.unit
+def test_the_total_is_never_smaller_than_either_figure() -> None:
+    """A ceiling that reads the total is never under-counted.
+
+    The owner's rule: when the provider's report says more than the
+    estimate, the budget has to see the larger number.
+
+    **What makes this red:** a total that took the estimate over the
+    report, or dropped a side of it. The ceiling would be checked against
+    a number smaller than what the provider charged.
+    """
+    report = UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    spend = spend_from_report(report, estimated_input=425, estimated_output=417)
+    assert spend.total >= 6089, "the provider's own output figure"
+    assert spend.total >= 425 + 417, "the character count of the same call"
+
+    half = spend_from_report(
+        UsageReport(
+            input_tokens=Known(506),
+            output_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+        ),
+        estimated_input=425,
+        estimated_output=417,
+    )
+    assert half.total >= 506, "the provider's own input figure"
+
+
+# --- an unmeasured side stays distinguishable from a measurement -------------
+
+
+@pytest.mark.unit
+def test_an_unreported_side_with_a_zero_estimate_is_refused_not_read_as_measured() -> None:
+    """A zero fallback would make an unreported side read as the provider's figure.
+
+    ``UsageReport(input=Known(506), output=Unknown)`` with an output estimate
+    of zero is the case: ``measured=506``, ``estimated=0``, and
+    :attr:`TokenSpend.origin` would say ``MEASURED`` over a side the provider
+    left unreported — the estimate presented as a measurement, which is the
+    one direction :class:`TokenOrigin` exists to prevent, and the reason the
+    estimate must never be added in as though it were the report.
+
+    **What makes this red:** the guard removed, so the call returns a spend
+    whose ``origin`` is ``MEASURED`` and whose ``total`` is 506 — a number
+    that silently omits everything the provider spent on the output.
+    """
+    report = UsageReport(
+        input_tokens=Known(506),
+        output_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+    )
+    with pytest.raises(ValueError, match="would read as measured"):
+        spend_from_report(report, estimated_input=425, estimated_output=0)
+
+
+@pytest.mark.unit
+def test_a_report_that_reported_nothing_and_no_estimate_is_refused() -> None:
+    """``measured=0, estimated=0`` over a call that reported nothing is the upstream zero.
+
+    ADR-0002's ``RequestUsage()``: every counter zero, indistinguishable from
+    a genuinely free request. The spend must refuse rather than read
+    ``MEASURED(0)`` for a call that measured nothing.
+
+    **What makes this red:** the guard removed, so
+    ``spend_from_report(None, 0, 0)`` returns ``TokenSpend(measured=0,
+    estimated=0)`` whose ``origin`` is ``MEASURED``.
+    """
+    with pytest.raises(ValueError, match="would read as measured"):
+        spend_from_report(None, estimated_input=0, estimated_output=0)
+
+
+@pytest.mark.unit
+def test_a_negative_estimate_is_refused() -> None:
+    """An estimate is a count, and a count below zero is not one.
+
+    **What makes this red:** negative estimates accepted, so the total can
+    come out smaller than the measured part and a ceiling sees less than the
+    provider reported.
+    """
+    with pytest.raises(ValueError, match="cannot be negative"):
+        spend_from_report(None, estimated_input=-1, estimated_output=10)
+    with pytest.raises(ValueError, match="cannot be negative"):
+        spend_from_report(None, estimated_input=10, estimated_output=-1)
+
+
+@pytest.mark.unit
+def test_a_failed_call_with_no_answer_is_still_an_estimate_not_a_measured_zero() -> None:
+    """The failure path's shape must stay accepted: input counted, output never produced.
+
+    ``model_suggestions`` records a call that raised before an answer existed
+    as ``spend_from_report(None, estimated_input=prompt_count,
+    estimated_output=0)``. The zero there means "there was no output to
+    count", not "the output was measured": the spend must say ``ESTIMATED``,
+    not refuse.
+
+    **What makes this red:** the zero-estimate guard written per side rather
+    than over the spend, which refuses this zero output estimate and breaks
+    the failure path the application already uses.
+    """
+    spend = spend_from_report(None, estimated_input=425, estimated_output=0)
+    assert spend.measured == 0
+    assert spend.estimated == 425
+    assert spend.origin is TokenOrigin.ESTIMATED
+    assert spend.total == 425
+
+
+@pytest.mark.unit
+def test_no_spend_that_used_a_fallback_can_read_as_measured() -> None:
+    """Over every report shape and estimate pair, ``MEASURED`` means really measured.
+
+    This is the postcondition :func:`spend_from_report` owes its callers: if
+    the provider left any side unreported, the spend either refuses or does
+    not claim ``MEASURED``. The zero-estimate guard is what makes the
+    postcondition hold, and this checks it across the shapes rather than at
+    the one example.
+
+    **What makes this red:** any accepted combination where a side is
+    ``Unknown`` and the spend's ``origin`` is ``MEASURED`` — the fallback
+    carried as though it had been measured.
+    """
+    reports: list[UsageReport | None] = [
+        None,
+        UsageReport(input_tokens=Known(50), output_tokens=Known(30)),
+        UsageReport(
+            input_tokens=Known(50),
+            output_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+        ),
+        UsageReport(
+            input_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+            output_tokens=Known(30),
+        ),
+        UsageReport(
+            input_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+            output_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+        ),
+    ]
+    for report in reports:
+        unreported = (
+            report is None
+            or not isinstance(report.input_tokens, Known)
+            or not isinstance(report.output_tokens, Known)
+        )
+        for estimated_input in (0, 1, 425):
+            for estimated_output in (0, 1, 417):
+                try:
+                    spend = spend_from_report(
+                        report,
+                        estimated_input=estimated_input,
+                        estimated_output=estimated_output,
+                    )
+                except ValueError:
+                    # Refusing is the other honest answer; the accepted shapes
+                    # are held by the tests above and below.
+                    continue
+                if unreported:
+                    assert spend.origin is not TokenOrigin.MEASURED, (
+                        report,
+                        estimated_input,
+                        estimated_output,
+                    )
+
+
+@pytest.mark.unit
+def test_a_run_with_one_measured_side_and_one_unmeasured_reports_unknown_and_halts() -> None:
+    """The run total is ``Unknown`` once either side is, and the ceiling halts.
+
+    The accumulator is where the two sides meet: ``record_usage`` merges each
+    side separately, so a ``Known`` input beside an ``Unknown`` output cannot
+    be totalled into ``Known(input)``. A budget set to bound the run must then
+    raise rather than compare a number it does not have — ADR-0002's
+    ``test_usage_merge_is_not_sum_when_any_unknown`` at the run's own scale.
+
+    **What makes this red:** ``LedgerSnapshot.total_tokens`` returning the
+    measured side instead of ``merge`` — the run reads ``Known(4)``, the
+    ceiling is checked against 4, and the unmeasured output is counted as
+    free. The budget's undecidable arm removed turns the second half red.
+    """
+    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE, priced=True)
+    ledger.record_usage(
+        input_tokens=Known(4),
+        output_tokens=Unknown(reason=UnknownReason.PROVIDER_OMITTED),
+    )
+    snapshot = ledger.snapshot()
+    assert snapshot.total_tokens == Unknown(reason=UnknownReason.PROVIDER_OMITTED)
+
+    guard = BudgetGuard(RunBudget(max_total_tokens=Known(1000)), capabilities=_OK_USAGE)
+    assert guard.evaluate(snapshot) is BudgetDecision.UNDECIDABLE
+    with pytest.raises(BudgetEnforcementUnavailableError) as raised:
+        guard.require(snapshot)
+    assert raised.value.ceiling == "max_total_tokens"

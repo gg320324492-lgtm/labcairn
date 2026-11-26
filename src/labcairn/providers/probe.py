@@ -76,9 +76,51 @@ What a probe never sends
 Every prompt in this module is a **fixed literal** with no interpolation of
 caller data: no user text, no document excerpt, no tool schema from the run.
 That is a testable property (``test_probe_requests_carry_no_user_material``) and
-it is what makes probing safe to do automatically: the outbound disclosure
-policy in :mod:`labcairn.providers.adapter` is about the run, and a probe never
-touches it.
+it is what the outbound disclosure policy in
+:mod:`labcairn.providers.adapter` is not about — that policy is about the run,
+and a probe never touches it.
+
+**A probe that carries no user material is still an outbound request.** What
+leaves is the probe's own words, and words leaving a machine cost money and
+say something to whoever is on the other end. So the probe is asked for
+consent like any other request, and the section below says how.
+
+A probe is not consent
+----------------------
+ADR-0006 §Decision, statement 3:
+
+    *"A capability probe is not consent. Probing a model sends requests. A
+    probe therefore requires consent too — in the same way, and for the same
+    reason, as any other outbound request."*
+
+**So a probe goes through the same gate.** :class:`PydanticAiProbe` is handed
+an :class:`~labcairn.providers.consent.OutboundConsent` port at construction,
+exactly as
+:class:`~labcairn.providers.adapter.PydanticAiModelProvider` is, and calls
+:meth:`~labcairn.providers.consent.OutboundConsent.require` before every
+request it makes. A probe with no decision behind it never reaches the
+transport, and the refusal is the provider layer's own
+:class:`~labcairn.providers.errors.OutboundRefusedError` — the same vocabulary
+an ungranted run request is refused with.
+
+**The port is a required argument, not a default.** A defaulted port is a
+defaulted permission: ``consent=None`` would mean the probe sends without a
+decision, which is the defect ADR-0006 describes. A caller that has no
+approval to hand over has no probe to run.
+
+**What the approval binds to.** A probe transmits its own prompt and nothing
+else, so its use is an ordinary ``model.request`` use whose *material* is that
+prompt. The application layer spells the use out
+(:func:`labcairn.application.outbound.probe_use`): the capability is
+``model.request``, the excerpts are the probe's own text, the purpose says it
+is a capability probe, and the resource is a synthetic key in the task's own
+area, because a probe addresses no source file and must not borrow one.
+
+**One request, one approval.** The ledger's grants are single-use — the
+approval a request names is spent on it — and a probe makes one request per
+capability it asks about. A probe of three capabilities therefore needs three
+approvals, and :func:`probe_requests` is the provider layer's statement of
+which requests those are.
 """
 
 from __future__ import annotations
@@ -89,9 +131,9 @@ import json
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, NamedTuple, Protocol, runtime_checkable
 
-from labcairn.core.providers.protocol import canonical_json
+from labcairn.core.providers.protocol import ModelRequest, canonical_json
 from labcairn.core.providers.usage import Known
 from labcairn.providers.capabilities import (
     ALL_CAPABILITIES,
@@ -99,6 +141,8 @@ from labcairn.providers.capabilities import (
     CapabilityOutcome,
     ProviderCapabilities,
 )
+from labcairn.providers.consent import OutboundConsent
+from labcairn.providers.errors import OutboundRefusedError
 from labcairn.providers.usage_capture import NullUsageCapture, UsageCapture
 
 #: The tool the probe offers. Namespaced so it can never collide with a real
@@ -145,6 +189,49 @@ PROBE_PROMPTED_TEMPLATE: str = (
     "Always respond with a single JSON object and nothing else. The object must "
     "validate against this JSON schema: {schema}"
 )
+
+
+class ProbeRequest(NamedTuple):
+    """One request a probe makes: the capability it answers, and its text.
+
+    **The text is what leaves the box**, and it is a fixed literal — no user
+    material is in it. That is what makes a probe's consent a consent to send
+    *this* text, and not a consent to send anything to this endpoint.
+    """
+
+    capability: Capability
+    text: str
+
+
+def probe_requests(capabilities: frozenset[Capability]) -> tuple[ProbeRequest, ...]:
+    """The requests a probe of these capabilities makes, in the order it makes them.
+
+    **One entry per request, not one per distinct text.** The two
+    structured-output probes send the same instruction in different channels —
+    ``output_mode="native"`` and ``output_mode="prompted"`` — and both entries
+    are here because both are requests. The consent is spent per request, so a
+    probe of three capabilities needs three approvals even though it sends two
+    different texts.
+
+    This is the provider layer's statement of what a probe transmits. The
+    application layer builds one approval per entry from it
+    (:func:`labcairn.application.outbound.probe_use`), and the probe spends
+    them one per request it makes.
+
+    :param capabilities: what to probe. Empty means every capability, which is
+        what :meth:`PydanticAiProbe.probe` does with an empty set.
+    """
+    wanted = capabilities or frozenset(ALL_CAPABILITIES)
+    requests: list[ProbeRequest] = []
+    if Capability.TOOL_CALLS in wanted:
+        requests.append(ProbeRequest(Capability.TOOL_CALLS, PROBE_INSTRUCTION))
+    if Capability.STRUCTURED_OUTPUT_NATIVE in wanted:
+        requests.append(ProbeRequest(Capability.STRUCTURED_OUTPUT_NATIVE, PROBE_STRUCTURED_PROMPT))
+    if Capability.STRUCTURED_OUTPUT_PROMPTED in wanted:
+        requests.append(
+            ProbeRequest(Capability.STRUCTURED_OUTPUT_PROMPTED, PROBE_STRUCTURED_PROMPT)
+        )
+    return tuple(requests)
 
 
 def endpoint_fingerprint(*, base_url: str | None, model: str, protocol: str) -> str:
@@ -222,13 +309,48 @@ class CapabilityProbe(Protocol):
         ...
 
 
+class ProbeKey(NamedTuple):
+    """``(endpoint, model, protocol)`` -- the key a probe record is filed under.
+
+    ADR-0002 §Contracts: probe results "are cached per ``(endpoint, model,
+    protocol)``" and "are invalidated by a protocol or endpoint change". The
+    three parts are one key, and they are a tuple so that a caller cannot pass
+    them in the wrong order without the type saying so. **The endpoint is the
+    fingerprint**, never the URL -- see :func:`endpoint_fingerprint` for why.
+    """
+
+    endpoint_fingerprint: str
+    model: str
+    protocol: str
+
+
+def probe_key(*, base_url: str | None, model: str, protocol: str) -> ProbeKey:
+    """The key a probe of this endpoint is filed under.
+
+    One call, so the fingerprint a report shows and the key a record is stored
+    under cannot be computed two different ways.
+    """
+    return ProbeKey(
+        endpoint_fingerprint=endpoint_fingerprint(
+            base_url=base_url, model=model, protocol=protocol
+        ),
+        model=model,
+        protocol=protocol,
+    )
+
+
 @runtime_checkable
 class ProbeCache(Protocol):
     """Where a record is kept between runs.
 
-    In-memory here. ADR-0002 specifies SQLite, and SQLite tables belong to
-    LC-P1-05 — so this is a Protocol with an in-memory implementation and the
-    same key shape, and LC-P1-05 adds a persistent one without touching a probe.
+    **Two implementations, one key shape.** ADR-0002 specifies SQLite, and
+    SQLite tables belong to LC-P1-05 — so this is a Protocol with an
+    in-memory implementation and the same key shape, and the persistent one
+    was added later **without touching a probe**:
+    :class:`labcairn.application.probe_records.SqliteProbeCache` keeps a
+    record per ``(endpoint, model, protocol)`` in the store, and the two are
+    interchangeable because they answer the same two questions with the same
+    key.
     """
 
     def get(
@@ -295,6 +417,12 @@ class PydanticAiProbe:
     token ceiling refuses to start. That is the correct default, not a
     degradation: the alternative is budgeting against zeros.
 
+    ``consent`` is the outbound consent port, and it is **required**: ADR-0006
+    statement 3 says a probe is not consent, so a probe is asked the same
+    question any other outbound request is asked, immediately before its
+    request goes out. A probe constructed without a port cannot be built, and a
+    probe whose port refuses never reaches the transport.
+
     Cancellation is honoured between probes, so an operator stopping a run also
     stops an in-progress probe session.
     """
@@ -302,6 +430,7 @@ class PydanticAiProbe:
     __slots__ = (
         "_captured_usage",
         "_clock",
+        "_consent",
         "_model",
         "_model_name",
         "_runner",
@@ -313,12 +442,14 @@ class PydanticAiProbe:
         self,
         *,
         model: ProbeModel,
+        consent: OutboundConsent,
         usage_capture: UsageCapture | None = None,
         clock: Callable[[], datetime],
         runner: AsyncRunner = _default_runner,
         model_name: str | None = None,
     ) -> None:
         self._model = model
+        self._consent = consent
         self._usage_capture = usage_capture if usage_capture is not None else NullUsageCapture()
         self._runner = runner
         self._clock = clock
@@ -423,6 +554,12 @@ class PydanticAiProbe:
                 prompt=PROBE_INSTRUCTION,
                 tool_names={PROBE_TOOL_NAME: PROBE_TOOL_SCHEMA},
             )
+        except OutboundRefusedError:
+            # A refusal is not a probe result. Reported as "unsupported" it would
+            # say the endpoint cannot do tool calls, when the truth is that it
+            # was never asked: the consent gate refused before the request was
+            # built, and the session stops here.
+            raise
         except Exception as exc:
             # Exception *class name* only. The message of a failed probe can echo
             # a rejected credential back, so it is never read here at all.
@@ -477,6 +614,9 @@ class PydanticAiProbe:
                 structured_schema=PROBE_STRUCTURED_SCHEMA,
                 native=native,
             )
+        except OutboundRefusedError:
+            # A refusal is not a probe result — see `_probe_tool_calls`.
+            raise
         except Exception as exc:
             # `UserError` from pydantic-ai's prepare_request lands here: a
             # profile said no before anything was sent. Recorded as UNSUPPORTED
@@ -508,14 +648,26 @@ class PydanticAiProbe:
         structured_schema: Mapping[str, object] | None = None,
         native: bool = False,
     ) -> Any:
-        """Issue one request. The only place a probe touches the network."""
-        from pydantic_ai.messages import ModelRequest, SystemPromptPart, UserPromptPart
+        """Issue one request. The only place a probe touches the network.
+
+        **The consent gate is here, before the request is built.** ADR-0006
+        statement 3: a probe sends requests, so a probe needs consent too, in
+        the same way as any other outbound request. The port is asked with the
+        provider's own request shape — the text that will leave and the tools
+        offered with it — and a refusal raises
+        :class:`~labcairn.providers.errors.OutboundRefusedError` before the
+        transport is reached.
+        """
+        from pydantic_ai.messages import ModelRequest as PydanticAiModelRequest
+        from pydantic_ai.messages import SystemPromptPart, UserPromptPart
         from pydantic_ai.models import ModelRequestParameters
         from pydantic_ai.output import OutputObjectDefinition
         from pydantic_ai.tools import ToolDefinition
 
+        self._consent.require(ModelRequest(prompt=prompt, tools=tuple(tool_names or ())))
+
         messages = [
-            ModelRequest(
+            PydanticAiModelRequest(
                 parts=[
                     SystemPromptPart(content=prompt),
                     UserPromptPart(content=prompt),

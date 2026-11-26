@@ -67,6 +67,7 @@ from labcairn.db.models import EditActionRow
 from labcairn.db.repository import list_approvals
 from labcairn.guidance.rules import confirm_rule, propose_rule, record_counterexample
 from labcairn.papers.feedback import record_feedback, set_issue_key
+from labcairn.papers.responses import record_response
 from labcairn.providers.capabilities import (
     ALL_CAPABILITIES,
     Capability,
@@ -137,7 +138,14 @@ class Loop:
 
 @pytest.fixture()
 def loop(env: StoreEnv, tmp_path: Path) -> Loop:
-    """A chain with a keyed comment and its edit, and a confirmed rule with a case against it."""
+    """A chain with a keyed comment, its edit, and the judgement that answered it.
+
+    **The rule's source was judged answered.** The memory serves a rule
+    whose source carries a judgement saying the change answered the
+    comment, and a rule over material nobody judged stands on nothing.
+    So the fixture records that judgement, and the rule below stands on
+    material that was answered.
+    """
     workspace_root = tmp_path / "workspace"
     workspace_root.mkdir()
     store = env.store()
@@ -161,6 +169,18 @@ def loop(env: StoreEnv, tmp_path: Path) -> Loop:
         )
     )
     session.flush()
+    record_response(
+        chain.context,
+        response_link_id="resp-a1",
+        feedback_id=event.feedback_id,
+        edit_action_id="edit-201",
+        state="addressed",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=MOMENT,
+        evidence_refs=(f"check:{KEY}",),
+        now=MOMENT,
+    )
     rule = propose_rule(
         chain.context,
         issue_type="method_and_hypothesis",

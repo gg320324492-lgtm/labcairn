@@ -2664,6 +2664,82 @@ def test_the_remeasurement_reads_the_numbers_out_of_the_logs(
         )
 
 
+def test_the_remeasurement_reads_a_shard_summary_that_carries_no_warning(
+    repo_root: Path, tmp_path: Path
+) -> None:
+    """A shard that raised no warning is still read.
+
+    **The bug this watches.** pytest prints two shapes of summary line:
+    ``4 passed, 1116 warnings in 134.12s (0:02:14)`` and ``4 passed in
+    1205.32s (0:20:05)``. **A parser that anchors on the word "warnings"
+    reads the first and silently drops the second** — and the drop is not
+    local. The remainder (the shard's reported time minus the visible
+    files' time) is what the files absent from the durations section share,
+    so a shard whose summary is not read takes the fast files' share with
+    it: every fast file lands on 0.0 seconds, and the partition is then
+    balanced against a table that measures nothing for them.
+
+    **What went red.** The real measurement of 2026-11-25 read 1701s of
+    reported time from six Ubuntu shards whose durations section accounted
+    for 3471s — the reported total was *smaller* than the measured one,
+    which is impossible for a subset, and the 44 files in no durations
+    section were given 0 seconds each. Four of the six shards had printed
+    no "warnings" word at all.
+
+    **How this watches it.** The same tool is run twice over the same
+    mini-checkout: once with a log whose summary carries a warning, and
+    once with a log whose summary carries none. Both runs must produce the
+    same costs. A parser that reads only the warning-bearing form fails the
+    second run — the residual becomes negative, is clamped to zero, and the
+    file absent from the log lands on 0.0 instead of its share.
+    """
+    warning_free = UBUNTU_JOB_LOG.replace("9 passed, 1116 warnings in 13.00s", "9 passed in 13.00s")
+    assert warning_free != UBUNTU_JOB_LOG, (
+        "the fixture must differ from the warning-bearing log in the very "
+        "thing this witnesses: the word 'warnings' in the summary line"
+    )
+
+    costs: list[dict[str, dict[str, float]]] = []
+    for name, body in (
+        ("with-warning", UBUNTU_JOB_LOG),
+        ("without-warning", warning_free),
+    ):
+        checkout = _write_mini_checkout(repo_root, tmp_path / name)
+        logs = _write_job_logs(
+            tmp_path / f"logs-{name}",
+            {
+                "python-quality-ubuntu-latest-0": body,
+                "python-quality-windows-latest-0": WINDOWS_JOB_LOG,
+            },
+        )
+        proc = _run_remeasure(checkout, logs, MEASURED_AT)
+        assert proc.returncode == 0, f"the tool failed on the {name} log: {proc.stderr}"
+        table = checkout / ".github" / "ci-shards.json"
+        document: dict[str, Any] = json.loads(table.read_text(encoding="utf-8"))
+        costs.append(document["costs"])
+
+    assert costs[0] == costs[1], (
+        "a shard summary that carries no 'warnings' word was read differently "
+        f"from one that does: {costs[0]} against {costs[1]}. The summary line's "
+        "shape is not a property of the measurement."
+    )
+
+    # The specific number: the two files absent from the log share the
+    # residual (13.00 - 5.00 = 8.00), weighted by their ``def test_`` counts
+    # -- gamma 1 and delta 3 -- so gamma lands on 8.00 * 1/4 = 2.00.
+    ubuntu = costs[1]["ubuntu-latest"]
+    assert ubuntu["test_gamma.py"] == pytest.approx(2.00), (
+        "the file absent from the log was given "
+        f"{ubuntu['test_gamma.py']} seconds instead of its share of the "
+        "residual; a summary line that was not read takes the fast files' "
+        "share with it"
+    )
+    assert ubuntu["test_gamma.py"] > 0.0, (
+        "the file absent from the log landed on zero seconds, which is what "
+        "a dropped summary line looks like"
+    )
+
+
 def test_the_remeasurement_refuses_to_write_a_table_it_could_not_measure(
     repo_root: Path, tmp_path: Path
 ) -> None:
@@ -5172,3 +5248,96 @@ def test_the_reading_witness_fails_for_each_way_the_leg_count_can_be_wrong(
     lost["unprotected_jobs"] = [name for name in lost["unprotected_jobs"] if name != "evaluation"]
     with pytest.raises(AssertionError, match="does not classify them"):
         _check_reading_record(repo_root, edited(lost))
+
+
+#: The sentence that says which file the wait is set by, and what it costs.
+#: The `[\s#]*` between the name and "at" is the workflow's own comment
+#: prefix: the sentence wraps across two comment lines, and the second one
+#: begins with `#`.
+FLOOR_SENTENCE: Final[re.Pattern[str]] = re.compile(
+    r"the single file `(?P<name>[^`]+)`[\s#]*at (?P<cost>\d+(?:\.\d+)?) s"
+)
+
+#: The Windows side of the same sentence: the shards, their size, the ratio.
+#: The multiplication sign is written as an escape: the workflow's comment
+#: carries U+00D7, and a source file does not want an ambiguous character
+#: spelled out.
+WINDOWS_SENTENCE: Final[re.Pattern[str]] = re.compile(
+    r"balance on Windows \((?P<each>\d+(?:\.\d+)?) s \u00d7 (?P<count>\d+), "
+    r"ratio (?P<ratio>\d+(?:\.\d+)?)\)"
+)
+
+
+def test_the_floor_the_narration_names_is_the_floor_the_table_measures(
+    repo_root: Path,
+) -> None:
+    """The floor the workflow names is the floor the table measures.
+
+    **Why this is watched, and what it caught.** The narration above the
+    shard matrix says which file the wait is set by -- *"on Ubuntu the floor
+    is shard 0 alone, the single file `X` at N s"* -- and that is the
+    sentence a maintainer reads when deciding how many shards to run. **It
+    was wrong for eleven days.** The floor moved to
+    ``test_drill_rewrite_interrupted.py`` on 2026-11-15, when the six-shard
+    arrangement was put in place, and the sentence went on naming
+    ``test_drill_interrupted_writes.py`` at 604.0 s. Nothing was red: the
+    witness above checks the cost of ``test_cli.py`` -- the floor of an
+    earlier tree -- and this sentence names a different file, so the two
+    never met.
+
+    **What it asserts.** The file the sentence names is the heaviest file
+    the table records for the platform the sentence names, the figure it
+    prints is that file's measured cost, and the Windows figures beside it
+    -- the six shards, their size and their ratio -- are the partition the
+    table produces.
+
+    **What it does not assert.** That the partition is balanced. The Ubuntu
+    ratio is 2.398 and cannot be below 1.6, because one file is longer than
+    the limit allows; that is the table's business and the drift witness's.
+    """
+    text = (repo_root / COST_NARRATION_WORKFLOW).read_text(encoding="utf-8")
+    document = _shard_document(repo_root)
+    costs = document["costs"]
+
+    sentence = FLOOR_SENTENCE.search(text)
+    assert sentence is not None, (
+        "the workflow's shard narration names no floor file and no cost, so "
+        "the sentence a reader reads to judge the wait states nothing that "
+        "can be checked against the table"
+    )
+    name = Path(sentence.group("name")).name
+    printed = float(sentence.group("cost"))
+
+    ubuntu = costs["ubuntu-latest"]
+    heaviest = max(ubuntu, key=lambda key: ubuntu[key])
+    assert name == heaviest, (
+        f"the narration calls {name} the floor, and the table's heaviest "
+        f"ubuntu-latest file is {heaviest} at {ubuntu[heaviest]:.1f}s"
+    )
+    assert f"{ubuntu[name]:.1f}" == f"{printed:.1f}", (
+        f"the narration prints {printed} s for {name}, and the table records {ubuntu[name]:.1f}s"
+    )
+
+    windows = costs["windows-latest"]
+    loads = [
+        sum(windows.get(Path(file).name, 0.0) for file in shard)
+        for shard in _shards(repo_root, "windows-latest")
+    ]
+    windows_sentence = WINDOWS_SENTENCE.search(text)
+    assert windows_sentence is not None, (
+        "the workflow's shard narration states no Windows balance, so the "
+        "figure beside the floor cannot be checked"
+    )
+    assert f"{max(loads):.1f}" == f"{float(windows_sentence.group('each')):.1f}", (
+        f"the narration prints {windows_sentence.group('each')} s for a "
+        f"Windows shard, and the table's slowest is {max(loads):.1f}s"
+    )
+    assert int(windows_sentence.group("count")) == len(loads), (
+        f"the narration counts {windows_sentence.group('count')} Windows "
+        f"shards, and the table partitions into {len(loads)}"
+    )
+    ratio = max(loads) / min(loads)
+    assert f"{ratio:.3f}" == windows_sentence.group("ratio"), (
+        f"the narration prints a ratio of {windows_sentence.group('ratio')} and "
+        f"the table's partition has one of {ratio:.3f}"
+    )

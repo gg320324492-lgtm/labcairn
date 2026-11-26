@@ -219,6 +219,14 @@ EXPECTED_TABLES = frozenset(
         # unified feedback form records the subjective experience; this
         # table is the system-side record the form's line points at.
         "pilot_issues",
+        # ADR-0002 §Contracts. The capability probe's record: one row per
+        # ``(endpoint, model, protocol)``, carrying the outcome of each
+        # capability, the one-liner that explains it, the capabilities a
+        # request was issued for, and when the probe ran. Without it a probe
+        # result was a thing a document could record and the product could
+        # not -- ``doctor`` reported every capability as unverified however
+        # many times the endpoint had actually been asked.
+        "probe_records",
     }
 )
 
@@ -507,6 +515,35 @@ def test_migration_files_are_discovered_by_alembic() -> None:
     assert on_disk == reachable, f"on disk {sorted(on_disk)} vs reachable {sorted(reachable)}"
 
 
+def test_the_chain_has_exactly_one_head() -> None:
+    """One head, no branching.
+
+    **A second ``down_revision`` pointing at an existing revision forks the
+    chain**, and alembic then refuses to say what "head" means. That failure
+    is not a red test: it is a refused upgrade on a machine that deploys,
+    which is the worst place to discover it.
+
+    **The tip's parent is a real revision and is not the tip.** A revision
+    that names a parent that does not exist, or names itself, is caught
+    here rather than by the first deployment that tries to build it.
+
+    The numbers are not hard-coded: a future revision legitimately changes
+    the head, and this test is about the shape of the chain rather than
+    about which revision is currently at the top of it.
+    """
+    scripts = ScriptDirectory(str(MIGRATIONS_DIR))
+    heads = scripts.get_heads()
+    assert len(heads) == 1, f"the chain has {len(heads)} heads: {sorted(heads)}"
+
+    head = scripts.get_revision(heads[0])
+    assert head.down_revision is not None, "the tip of the chain must have a parent"
+    assert head.down_revision != head.revision, "a revision cannot be its own parent"
+    reachable = {r.revision for r in scripts.walk_revisions()}
+    assert head.down_revision in reachable, (
+        f"the tip's parent {head.down_revision} is not among {sorted(reachable)}"
+    )
+
+
 def test_the_schema_records_its_owner_scope(env: StoreEnv) -> None:
     """``tasks.owner_id`` is NOT NULL: Phase 1's single-user scope is structural."""
     session = env.session
@@ -782,3 +819,219 @@ def test_a_position_row_downgrades_to_what_it_was_called_before(tmp_path: Path) 
     assert upgraded[status_ix] == "unknown"
     assert upgraded[_LEGACY_COLUMNS.index("anchor_start")] is None
     assert upgraded[_LEGACY_COLUMNS.index("anchor_end")] is None
+
+
+# ---------------------------------------------------------------------------
+# The event vocabulary a store that predates it must still be able to reach
+# ---------------------------------------------------------------------------
+
+
+def _insert_a_denied_event(path: Path, event_id: str) -> None:
+    """Write one ``operation_denied`` event the way a raw writer would.
+
+    The foreign keys are deferred and SQLite does not check them unless it is
+    asked to, so the row only has to satisfy the table's CHECK constraints --
+    which is exactly what the vocabulary is.
+    """
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO events (seq, event_id, task_id, run_id, stage_id, "
+            "operation_id, type, from_state, to_state, schema_version, "
+            "occurred_at, document, payload) "
+            "VALUES (1, ?, 'task-1', 'run-1', 'stage-1', 'op-1', "
+            "'operation_denied', 'intent', 'denied', 1, '2026-11-25T00:00:00Z', "
+            "'{}', '{}')",
+            (event_id,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_a_store_built_before_the_new_event_type_reaches_it_after_the_upgrade(
+    tmp_path: Path,
+) -> None:
+    """The vocabulary has to reach a store that was built before it carried it.
+
+    Revision 0001 was amended to carry ``operation_denied``, on the ground
+    that the product never migrates an existing workspace. That ground does
+    not hold for every store: alembic's upgrade path exists, the repository
+    witnesses it, and the 0.1.0 installer has been in users' hands since
+    2026-11-24. A store built before the amendment keeps the constraints it
+    was built with, because alembic does not run the first migration again.
+
+    So revision 0032 rebuilds the table for those stores. This witnesses the
+    rebuild by making the older shape the thing it starts from: the
+    downgrade puts the pre-amendment vocabulary back, and the upgrade has to
+    carry the type into it.
+
+    Red by: the upgrade leaving the type out of the vocabulary, which the
+    refusal below would then not raise.
+    """
+    path = tmp_path / "vocabulary.db"
+    upgrade_to_head(path)
+
+    alembic_command.downgrade(alembic_config(path), "0031")
+    with pytest.raises(sqlite3.IntegrityError, match="ck_events_type_is_closed_vocabulary"):
+        _insert_a_denied_event(path, "denied-before")
+
+    alembic_command.upgrade(alembic_config(path), "head")
+    _insert_a_denied_event(path, "denied-after")
+
+    connection = sqlite3.connect(path)
+    try:
+        count = connection.execute(
+            "SELECT count(*) FROM events WHERE type = 'operation_denied'"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    assert count == 1, "the event the upgrade made possible was not written"
+
+
+def _insert_an_event(path: Path, event_id: str, seq: int) -> None:
+    """Write one event into a store, the way the store held them before.
+
+    ``task_created`` is a task-level event: it carries no run, no stage and
+    no transition, so it satisfies the vocabulary of any revision.
+    """
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO events (seq, event_id, task_id, type, schema_version, "
+            "occurred_at, document, payload) "
+            "VALUES (?, ?, 'task-1', 'task_created', 1, '2026-11-25T00:00:00Z', "
+            "'{}', '{}')",
+            (seq, event_id),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _event_rows(path: Path) -> list[tuple[int, int, str, str]]:
+    connection = sqlite3.connect(path)
+    try:
+        return list(
+            connection.execute("SELECT id, seq, event_id, type FROM events ORDER BY id").fetchall()
+        )
+    finally:
+        connection.close()
+
+
+def _event_indexes(path: Path) -> set[str]:
+    connection = sqlite3.connect(path)
+    try:
+        return {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'events'"
+            ).fetchall()
+        }
+    finally:
+        connection.close()
+
+
+def test_the_rebuild_carries_the_rows_and_the_indexes(tmp_path: Path) -> None:
+    """Revision 0032 rebuilds the table, and a rebuild has to carry what was in it.
+
+    **The witness the other witness cannot give.** The one above inserts its
+    row *after* the upgrade, so a rebuild that lost every row would pass it.
+    Revision 0032 is a destructive operation on a user's store -- the 0.1.0
+    installer has been in users' hands since 2026-11-24 -- so what the
+    rebuild carries is the property to hold, and it has to be measured on a
+    store that held rows before the upgrade.
+
+    The rows come back **with their ids**, because the ids are the table's
+    own identity and a copy that renumbered them would break anything that
+    holds one.
+
+    Red by: the copy dropping a row, renumbering it, or the rebuild leaving
+    an index behind.
+    """
+    path = tmp_path / "carry.db"
+    alembic_command.upgrade(alembic_config(path), "0031")
+    for index in range(1, 4):
+        _insert_an_event(path, f"event-{index}", index)
+    before = _event_rows(path)
+    assert len(before) == 3, "the store did not take the rows before the upgrade"
+    indexes_before = _event_indexes(path)
+
+    alembic_command.upgrade(alembic_config(path), "head")
+
+    assert _event_rows(path) == before, "the rebuild did not carry the rows as they were"
+    indexes_after = _event_indexes(path)
+    assert indexes_after == indexes_before, (
+        "the rebuild changed the table's indexes: "
+        f"{sorted(indexes_before)} became {sorted(indexes_after)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The refusal vocabulary a store at the previous head must still reach
+# ---------------------------------------------------------------------------
+
+
+def _insert_a_refusal_event(path: Path, event_id: str) -> None:
+    """Write one ``refusal_recorded`` event the way a raw writer would.
+
+    The row names no Run, no Stage, no Operation and no transition, because
+    the vocabulary says a refusal is an annotation about the task rather
+    than an attempt inside a run -- so the four CHECK constraints are all
+    exercised by the same insert.
+    """
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO events (seq, event_id, task_id, run_id, stage_id, "
+            "operation_id, type, from_state, to_state, schema_version, "
+            "occurred_at, document, payload) "
+            "VALUES (1, ?, 'task-1', NULL, NULL, NULL, "
+            "'refusal_recorded', NULL, NULL, 1, '2026-11-26T00:00:00Z', "
+            "'{}', '{}')",
+            (event_id,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_a_store_at_the_previous_head_reaches_the_refusal_event_after_the_upgrade(
+    tmp_path: Path,
+) -> None:
+    """The refusal type has to reach a store that was built before it.
+
+    A store created at 0032 keeps the four vocabulary constraints it was
+    built with, because alembic does not run an earlier revision again. So
+    revision 0033 rebuilds the events table for those stores, and this
+    witnesses both halves of the shape: the downgrade puts the 0032
+    vocabulary back, and the upgrade carries ``refusal_recorded`` into it.
+
+    The inserted row is also the constraint witness. It carries no
+    ``run_id``, no ``operation_id`` and no transition, so it proves the new
+    type is in the three "must not" sets as well as in the closed list --
+    a vocabulary that listed the type but left it in the run-scoped or
+    transition sets would refuse the very event the product writes.
+
+    Red by: the upgrade leaving the type out of the vocabulary (the insert
+    after the upgrade would raise), or the downgrade leaving it in (the
+    insert before the upgrade would not raise).
+    """
+    path = tmp_path / "refusal-vocabulary.db"
+    upgrade_to_head(path)
+
+    alembic_command.downgrade(alembic_config(path), "0032")
+    with pytest.raises(sqlite3.IntegrityError, match="ck_events_type_is_closed_vocabulary"):
+        _insert_a_refusal_event(path, "refused-before")
+
+    alembic_command.upgrade(alembic_config(path), "head")
+    _insert_a_refusal_event(path, "refused-after")
+
+    connection = sqlite3.connect(path)
+    try:
+        count = connection.execute(
+            "SELECT count(*) FROM events WHERE type = 'refusal_recorded'"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    assert count == 1, "the refusal event did not land in the store after the upgrade"

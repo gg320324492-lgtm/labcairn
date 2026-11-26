@@ -25,8 +25,11 @@ code and documents already stand behind it. **The answer fields are filled from 
    column names — the authorisation record, the checklist's boundary
    section, or a release record under `docs/releases/` — and the field
    here records the pointer, not a second copy of the decision.
-3. A decision still `TBD — owner to fill` keeps its blocked flows blocked; none remain. Nothing downstream may start on the assumption of an
-   answer.
+3. A decision still `TBD — owner to fill` keeps its blocked flows blocked;
+   none is still `TBD` — all three were decided on 2026-11-24 and signed
+   below. Nothing downstream may start on the assumption of an answer: a
+   flow whose decision is recorded here may start against the recorded
+   answer, and a flow whose decision is not recorded here may not.
 
 ## Decision 1 — How distilled multi-source rules are case-validated
 
@@ -74,10 +77,22 @@ The owner signs each decision individually. A decision is **decided**
 when its field carries the owner's answer, the pointer to where that
 answer landed, and a signature with a date — not before. Until then the
 status is `TBD — owner to fill`, and the blocked flows named above stay
-blocked.
+blocked. **All three crossed that line on 2026-11-24**: every answer
+field above carries the owner's answer, every "answer lands" row names
+where that answer went, and the table below carries the owner's
+signature and date. No decision in this form is `TBD` any more, so the
+flows these decisions gated are no longer blocked by the decision — the
+rule confirm/publish flow, the pilot's material pointer record, the
+release record for the first runnable version and the trial's dated
+session plan. **A flow closed by another prerequisite stays closed on
+that account**: the desensitisation checklist and the feedback-form
+template are still unsigned, and what they gate is still shut. The gate
+itself is unchanged: a decision that is not recorded here keeps its flow
+blocked, and a step that depends on one refuses rather than assume an
+answer.
 
 | Decision | Filled by | Signature / date |
 |---|---|---|
-| D-1 — rule case-validation | | |
-| D-2 — material retention/withdrawal/sharing | | |
-| D-3 — first runnable version and trial date | | |
+| D-1 — rule case-validation | owner | owner / 2026-11-24 |
+| D-2 — material retention/withdrawal/sharing | owner | owner / 2026-11-24 |
+| D-3 — first runnable version and trial date | owner | owner / 2026-11-24 |

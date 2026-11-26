@@ -26,7 +26,7 @@ from labcairn.application.artifacts import ArtifactView
 from labcairn.application.sources import SourceView
 from labcairn.application.stages import StageRun, TaskPlan
 from labcairn.application.tasks import TaskState
-from labcairn.cli.models import DoctorReport, WorkspaceInitialised
+from labcairn.cli.models import DoctorReport, ProviderFinding, WorkspaceInitialised
 from labcairn.runtime.lifecycle import Task
 
 
@@ -96,8 +96,7 @@ def render_doctor(model: DoctorReport) -> RenderableType:
     for provider in model.providers:
         table.add_row(
             f"provider {provider.name}",
-            f"{provider.protocol} / {provider.model}"
-            + ("" if provider.probed else " (declared, not probed)"),
+            f"{provider.protocol} / {provider.model}" + _probe_note(provider),
         )
         for capability in provider.capabilities:
             assumed = " [assumed]" if capability.assumed else ""
@@ -117,6 +116,40 @@ def render_doctor(model: DoctorReport) -> RenderableType:
         table.add_row("api token", session.token)
 
     return Panel(table, title="doctor", expand=False)
+
+
+def _probe_note(provider: ProviderFinding) -> str:
+    """Where a provider's capability reading came from, in a few words.
+
+    **The three are different claims and the note says which.** A provider
+    that has never been asked is "(declared, not probed)"; one this run asked
+    is "(probed now)"; one whose reading the store already held is "(probed,
+    read back from the record of <when>)". A reader who is told only
+    "probed" cannot tell a reading taken minutes ago from one taken months
+    ago, and those two support different conclusions.
+
+    **A provider the configuration declares unprobed says so.** ADR-0002's
+    ``probed: false`` override: the operator has told the workspace to treat
+    this provider as not measured, and the report names that as the reason
+    rather than leaving a bare "not probed" that could be read as an
+    oversight.
+
+    **A record that could not be kept says so.** The probe happened and cost
+    money whatever the store did with it, so the note carries the reason the
+    product is not holding the reading.
+    """
+    if provider.probed_override:
+        note = " (declared unprobed by configuration)"
+    elif provider.probe_source == "live":
+        note = " (probed now)"
+    elif provider.probe_source == "stored":
+        stamp = f" of {provider.observed_at}" if provider.observed_at else ""
+        note = f" (probed, read back from the record{stamp})"
+    else:
+        note = " (declared, not probed)"
+    if provider.probe_error:
+        note += f" — {provider.probe_error}"
+    return note
 
 
 def render_task(model: Task, output_area: Path) -> RenderableType:

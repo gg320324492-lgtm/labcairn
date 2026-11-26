@@ -403,10 +403,10 @@ carry the same sentence and are corrected with it.
 
 **Why not on pull requests.** The harness runs the same test files the
 twelve shard jobs already run. Its cost on an Ubuntu runner over the five
-offline classes is 3104.0 s (about 52 minutes) — the
+offline classes is 3946.3 s (about 66 minutes) — the
 runner-measured per-file costs in `.github/ci-shards.json`, anchored at
-`2bf0ce097d8fcd572c4cc9c5a0aad4b6d652baee`. On a pull request it would add
-about thirty-four minutes to the wall clock and become the new bottleneck.
+`193f244b4fce7f4d6f19d596164f7d77a1b6a453`. On a pull request it would add
+about forty minutes to the wall clock and become the new bottleneck.
 A schedule produces the report without touching that clock.
 
 **Why exactly five classes.** A Phase 1 blocker is held only when every one

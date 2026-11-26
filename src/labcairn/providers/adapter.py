@@ -104,6 +104,7 @@ from labcairn.providers.budget import BudgetGuard, RunBudget
 from labcairn.providers.cancel import CancellationToken
 from labcairn.providers.capabilities import Capability, ProviderCapabilities
 from labcairn.providers.consent import OutboundConsent, WireAuthorizedConsent
+from labcairn.providers.credentials import output_ceiling
 from labcairn.providers.errors import (
     FailureKind,
     OutboundRefusedError,
@@ -116,6 +117,7 @@ from labcairn.providers.errors import (
     classify_exception,
 )
 from labcairn.providers.ledger import LedgerSnapshot, RunLedger
+from labcairn.providers.probe import ProbeCache, ProbeKey
 from labcairn.providers.redaction import Redactor
 from labcairn.providers.usage_capture import NullUsageCapture, UsageCapture
 
@@ -373,6 +375,8 @@ class PydanticAiModelProvider:
         ledger: RunLedger | None = None,
         budget: RunBudget | None = None,
         capabilities: ProviderCapabilities | None = None,
+        probe_cache: ProbeCache | None = None,
+        probe_key: ProbeKey | None = None,
         required_capabilities: frozenset[Capability] | None = None,
         token: CancellationToken | None = None,
         redactor: Redactor | None = None,
@@ -392,21 +396,25 @@ class PydanticAiModelProvider:
         self._redactor = redactor if redactor is not None else Redactor()
         self._token = token if token is not None else CancellationToken()
         self._runner = runner if runner is not None else default_runner
+        # Refuses rather than coerces, and refuses here as well as in the
+        # configuration: this is the last place before the number becomes a
+        # wire argument, and a ceiling that is not positive must not reach the
+        # provider as one. See :func:`labcairn.providers.credentials.output_ceiling`.
+        output_ceiling(max_output_tokens)
         self._max_output_tokens = max_output_tokens
         self._reasoning_effort = reasoning_effort
         self._tool_schemas = dict(tool_schemas or {})
         self._name = f"{provider_label}:{model.model_name}"
         self._label = model.model_name
         self._required = required_capabilities
-        self._capabilities = capabilities
+        resolved = _resolve_capabilities(capabilities, probe_cache=probe_cache, probe_key=probe_key)
+        self._capabilities = resolved
         self._outbound = outbound
         self._timeout_s = timeout_s
         self._budget = BudgetGuard(
-            budget if budget is not None else RunBudget.unbounded(), capabilities=capabilities
+            budget if budget is not None else RunBudget.unbounded(), capabilities=resolved
         )
-        self._ledger = (
-            ledger if ledger is not None else _new_ledger(clock, capabilities, priced=priced)
-        )
+        self._ledger = ledger if ledger is not None else _new_ledger(clock, resolved, priced=priced)
         self._exchanges: list[ExchangeRecord] = []
         self._step = 0
 
@@ -624,6 +632,45 @@ class PydanticAiModelProvider:
             raise ProviderTimeoutError(
                 self._timeout_s if self._timeout_s is not None else 0.0
             ) from exc
+
+
+def _resolve_capabilities(
+    capabilities: ProviderCapabilities | None,
+    *,
+    probe_cache: ProbeCache | None,
+    probe_key: ProbeKey | None,
+) -> ProviderCapabilities | None:
+    """The reading the gate will use: the stored one when there is one.
+
+    **A stored record wins over what the caller passed.** The point of
+    keeping a probe record is that the gate reads it: a provider whose
+    endpoint has a record is gated by *that record* rather than by whatever a
+    caller happened to hand over, because the record is the thing a request
+    was actually issued against. A caller that passes nothing gets the stored
+    reading; a caller that passes something gets it only when the store has
+    nothing to say about this key.
+
+    **The record is read once, here, at assembly.** The gate is a pre-flight
+    that runs before every request, and a store read on every request would
+    make the gate a database hit per call. Reading it when the provider is
+    built means the reading a run gates on is the reading that was current
+    when the run started, and a later probe is a later run's business.
+
+    **A record for a different key is not a record for this one.** The key is
+    ``(endpoint, model, protocol)``, so a probe of a different endpoint, a
+    different model or a different protocol does not answer for this one —
+    which is ADR-0002's "invalidated by a protocol or endpoint change".
+    """
+    if probe_cache is None or probe_key is None:
+        return capabilities
+    record = probe_cache.get(
+        endpoint_fingerprint=probe_key.endpoint_fingerprint,
+        model=probe_key.model,
+        protocol=probe_key.protocol,
+    )
+    if record is None:
+        return capabilities
+    return record.to_provider_capabilities()
 
 
 def _new_ledger(

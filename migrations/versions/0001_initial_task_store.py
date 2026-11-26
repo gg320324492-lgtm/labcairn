@@ -47,13 +47,21 @@ depends_on: str | Sequence[str] | None = None
 # product never migrates an existing workspace (``labcairn init`` creates the
 # database at head and refuses to overwrite one), so there is no deployed
 # schema this changes underneath.
+#
+# **And the vocabulary moved here again for ``operation_denied``.** A policy
+# denial is now recorded as an operation in state ``denied``, so the event
+# vocabulary carries the type that describes it: it is Run-scoped, it names
+# both a Stage and an Operation, and it describes a change, so it belongs in
+# three of the four lists and in the closed list itself. The same amendment
+# applies and the same reason: the models generate the bodies from the enum,
+# and the parity test holds the two renderings together.
 
 _RUN_ID_MATCHES_EVENT_TYPE = (
     "((type IN ('approval_consumed', 'approval_denied', "
     "'approval_expired', 'approval_granted', "
     "'approval_requested', 'checkpoint_created', "
     "'operation_attempted', 'operation_awaiting_approval', "
-    "'operation_confirmed', 'operation_failed', "
+    "'operation_confirmed', 'operation_denied', 'operation_failed', "
     "'operation_intent', 'operation_reconciled', "
     "'operation_uncertain', 'run_finished', "
     "'run_paused', 'run_resumed', 'run_started', "
@@ -70,7 +78,7 @@ _TRANSITION_MATCHES_EVENT_TYPE = (
     "'approval_expired', 'approval_granted', "
     "'approval_requested', 'operation_attempted', "
     "'operation_awaiting_approval', 'operation_confirmed', "
-    "'operation_failed', 'operation_intent', "
+    "'operation_denied', 'operation_failed', 'operation_intent', "
     "'operation_reconciled', 'operation_uncertain', "
     "'run_finished', 'run_paused', 'run_resumed', "
     "'run_started', 'stage_blocked', 'stage_completed', "
@@ -86,8 +94,9 @@ _TRANSITION_MATCHES_EVENT_TYPE = (
 _OPERATION_CONTEXT_MATCHES_EVENT_TYPE = (
     "((type IN ('operation_attempted', "
     "'operation_awaiting_approval', 'operation_confirmed', "
-    "'operation_failed', 'operation_intent', "
-    "'operation_reconciled', 'operation_uncertain')) AND stage_id IS NOT NULL AND ope"
+    "'operation_denied', 'operation_failed', "
+    "'operation_intent', 'operation_reconciled', "
+    "'operation_uncertain')) AND stage_id IS NOT NULL AND ope"
     "ration_id IS NOT NULL) OR ((type IN ('approval_consumed', "
     "'approval_denied', 'approval_expired', "
     "'approval_granted', 'approval_requested', "
@@ -109,7 +118,7 @@ _TYPE_IS_CLOSED_VOCABULARY = (
     "'feedback_recorded', 'followup_assessed', 'model_exchanged', "
     "'operation_attempted', "
     "'operation_awaiting_approval', 'operation_confirmed', "
-    "'operation_failed', 'operation_intent', "
+    "'operation_denied', 'operation_failed', 'operation_intent', "
     "'operation_reconciled', 'operation_uncertain', "
     "'outbound_consent_requested', 'response_recorded', "
     "'run_finished', 'run_paused', 'run_resumed', "

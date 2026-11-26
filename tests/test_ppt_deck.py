@@ -229,15 +229,30 @@ def build_deck_bytes(*, with_chart: bool = False) -> bytes:
     )
 
     buffer = io.BytesIO()
+    parts = (
+        ("[Content_Types].xml", content_types),
+        ("ppt/presentation.xml", presentation),
+        ("ppt/_rels/presentation.xml.rels", presentation_rels),
+        ("ppt/slides/slide1.xml", _slide_xml(first_shapes)),
+        ("ppt/slides/slide2.xml", _slide_xml(second_shapes)),
+        ("ppt/slides/_rels/slide1.xml.rels", slide1_rels),
+        ("ppt/notesSlides/notesSlide1.xml", notes),
+        (MEDIA_TARGET, b"\x89PNG\r\n\x1a\nnot-really-a-png"),
+    )
     with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr("[Content_Types].xml", content_types)
-        archive.writestr("ppt/presentation.xml", presentation)
-        archive.writestr("ppt/_rels/presentation.xml.rels", presentation_rels)
-        archive.writestr("ppt/slides/slide1.xml", _slide_xml(first_shapes))
-        archive.writestr("ppt/slides/slide2.xml", _slide_xml(second_shapes))
-        archive.writestr("ppt/slides/_rels/slide1.xml.rels", slide1_rels)
-        archive.writestr("ppt/notesSlides/notesSlide1.xml", notes)
-        archive.writestr(MEDIA_TARGET, b"\x89PNG\r\n\x1a\nnot-really-a-png")
+        for name, content in parts:
+            # **The bytes must be the same every time.** A zip entry carries
+            # the moment it was written, so two decks built from the same
+            # parts a second apart are different bytes -- and the deck's
+            # fingerprint is a digest of its bytes. The property this file
+            # witnesses ("re-ingesting the same deck is the same rows")
+            # therefore needs a deck whose bytes do not move, and on a
+            # runner that runs a shard for ten minutes, "a second apart" is
+            # the normal case rather than the exception.
+            entry = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            entry.external_attr = 0o600 << 16
+            archive.writestr(entry, content)
     return buffer.getvalue()
 
 

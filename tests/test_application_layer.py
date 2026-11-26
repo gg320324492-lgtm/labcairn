@@ -413,6 +413,14 @@ _ALLOWED_STORE_READERS = frozenset(
         # conditional UPDATE on the row. It is recorded here because a
         # module that reaches the store must be named.
         "labcairn.application.issues",
+        # ADR-0002's probe record. The store-backed implementation of the
+        # provider layer's ``ProbeCache``: one row per
+        # ``(endpoint, model, protocol)``, holding what a probe observed of
+        # one endpoint. It reaches the store for its own table and for
+        # nothing else -- no task state, no event, no approval -- so it is
+        # recorded here because a module that reaches the store must be
+        # named.
+        "labcairn.application.probe_records",
         # Phase 4 (P4-CAP §7.4). The round's quality checks read the closed
         # manifest, the opinions, the stored suggestions and the drafts'
         # digests, and report per-check facts; they write nothing. It is
@@ -851,15 +859,35 @@ def test_a_denied_policy_means_the_work_never_runs(env: StoreEnv, workspace_root
     assert ran == []
 
 
-def test_a_denied_policy_writes_nothing(env: StoreEnv, workspace_root: Path) -> None:
-    """A refusal leaves no trace that could look like a partial success."""
+def test_a_denied_policy_records_the_denial_and_attempts_nothing(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A policy denial leaves a record of itself, and nothing else.
+
+    The denial is written as an operation in state ``denied`` with the event
+    that describes it, so the operator can see that a write was refused and
+    why. What it does not leave is anything that could be mistaken for a
+    partial success: no attempt was begun, no effect was confirmed, and the
+    stage did not complete — the record says the effect never happened.
+
+    **The refusal vocabulary is not a catch-all.** Every other refusal still
+    writes nothing at all, and that is the witness in
+    ``tests/test_operation_states.py``.
+    """
     context = _make_context(env, workspace_root, _deny_all())
     before = count_events(env.session, context.task_id)
     _assert_refused(
         lambda: run_stage(context, _stage_request(), _work),
         ApplicationRefusal.PERMISSION_DENIED,
     )
-    assert count_events(env.session, context.task_id) == before
+    written = events_after(env.session, context.task_id, after_seq=before)
+    assert [event.type for event in written] == [
+        EventType.RUN_STARTED,
+        EventType.STAGE_ENTERED,
+        EventType.OPERATION_DENIED,
+    ]
+    operations = list_operations(env.session, context.task_id)
+    assert [operation.state for operation in operations] == [OperationState.DENIED]
 
 
 def test_a_policy_that_asks_is_a_question_not_a_denial(env: StoreEnv, workspace_root: Path) -> None:

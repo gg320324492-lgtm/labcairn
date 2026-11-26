@@ -56,6 +56,7 @@ from pathlib import Path
 
 import pytest
 
+from labcairn.core.providers.protocol import ModelRequest
 from labcairn.providers.capabilities import ALL_CAPABILITIES
 from labcairn.providers.credentials import Protocol, ProviderSettings
 
@@ -74,6 +75,24 @@ SMOKE_RECORD_ENV = "LABCAIRN_PROVIDER_SMOKE_RECORD"
 #: to the base URL — so an Anthropic-compatible gateway is configured by giving
 #: the gateway's own prefix, not a ``/v1`` suffix.
 SMOKE_DEFAULT_PROTOCOL = Protocol.ANTHROPIC
+
+
+class _TheOwnersOwnRun:
+    """The consent the live smoke procedure runs under.
+
+    **The procedure is outside the workspace's approval ledger.** The smoke is
+    run by the owner, with a credential they supplied for the purpose, and the
+    running of the command *is* the decision: ADR-0006 statement 3 asks that a
+    probe be consented to, and here the consent is the owner's act of running
+    it.
+
+    **It is not a second gate.** The probe asks this port before every request
+    it makes, exactly as it does in the product, and a port that said no would
+    stop the request before it was built.
+    """
+
+    def require(self, request: ModelRequest) -> None:
+        """Allow the request: the owner asked for this run."""
 
 
 def live_settings(environ: Mapping[str, str]) -> ProviderSettings | None:
@@ -138,7 +157,7 @@ def test_real_provider_smoke_records_capabilities_and_usage() -> None:
     settings = live_settings(os.environ)
     assert settings is not None, "the skipif and the body must agree"
 
-    result = smoke_test(settings, environ=os.environ)
+    result = smoke_test(settings, environ=os.environ, consent=_TheOwnersOwnRun())
 
     outcomes = result["outcomes"]
     assert isinstance(outcomes, dict)

@@ -51,10 +51,14 @@ from labcairn.application.model_suggestions import (
     MODEL_SUGGESTION_MODE_SUBSTITUTE,
     SUBSTITUTE_AUTHOR,
     SuggestionLoopConfig,
+    _entry_from_record,
+    read_suggestion_run,
     suggest_for_version,
     suggestion_approval_use,
 )
-from labcairn.core.providers.protocol import ModelRequest
+from labcairn.application.refusal import ApplicationRefusedError
+from labcairn.core.providers.protocol import ModelRequest, UsageReport
+from labcairn.core.providers.usage import Known, Unknown, UnknownReason
 from labcairn.papers.feedback import list_feedback_events, record_feedback
 from labcairn.security.permissions import Grant
 
@@ -106,6 +110,30 @@ class CapturingTransport:
             return "The method estimates the parameter theta."
         index = min(self.calls - 1, len(self._answers) - 1)
         return self._answers[index]
+
+
+class _ReportingTransport(CapturingTransport):
+    """A transport that also reports what the provider spent.
+
+    The seam a real adapter presents: the answer, and the provider's own
+    usage report for the call it just made. ``usage`` is what the provider
+    reports on every call, and leaving it ``None`` makes the transport
+    report nothing at all — the case the fallback estimate exists for.
+    """
+
+    def __init__(
+        self,
+        *,
+        usage: UsageReport | None = None,
+        model_id: str = "gpt-test-model",
+        answers: list[str] | None = None,
+    ) -> None:
+        super().__init__(model_id=model_id, answers=answers)
+        self._usage = usage
+
+    def last_usage(self) -> UsageReport | None:
+        """The provider's own report for the call just made."""
+        return self._usage
 
 
 class _HTTPStatusError(Exception):
@@ -406,6 +434,167 @@ def test_the_token_budget_stops_the_walk_and_names_the_stop(
 
 
 # --------------------------------------------------------------------------- #
+# what the provider reported, and what was counted
+# --------------------------------------------------------------------------- #
+
+
+def test_the_token_ceiling_is_checked_against_the_provider_s_own_report(
+    commented: BindingFixture,
+) -> None:
+    """A ceiling the provider's report crosses stops the walk; the estimate would not.
+
+    The pilot measured the gap this closes. A 1,666-character answer was
+    reported as 6,089 output tokens — 3.65 tokens per character — and the
+    factor moved between 1.25 and 6.75 across the round's own calls
+    (``docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`` §8.4), so a
+    ceiling written from characters is written from a number that moves by
+    nearly a factor of three. A ceiling of 1,000 tokens is crossed by the
+    provider's report and not by the character count.
+
+    **What makes this red:** a loop that counts the estimate instead of the
+    report. The transport reports 6,089 output tokens, the character count
+    for the same answer is a few hundred, and the run must stop on the
+    report.
+    """
+    transport = _ReportingTransport(
+        usage=UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    )
+    run = _run_real(
+        commented,
+        transport,
+        run_id="run-usage-report",
+        config=SuggestionLoopConfig(max_tokens=1000),
+    )
+    assert run.stopped_reason == "token_budget"
+    assert run.suggestions_recorded == 1
+    assert run.opinions_skipped == 1
+    assert run.tokens_measured == 6595
+    assert run.tokens_estimated == 6595, "the run's token figure is the provider's report"
+    assert run.token_origin == "measured"
+
+
+def test_a_run_whose_provider_reported_nothing_is_recorded_as_an_estimate(
+    commented: BindingFixture,
+) -> None:
+    """A transport that reports nothing leaves the run's tokens an estimate.
+
+    **What makes this red:** a run that called its estimate a measurement.
+    The origin would read ``measured`` for tokens nobody measured, and a
+    reader would take the figure for a report.
+    """
+    transport = CapturingTransport()
+    run = _run_real(commented, transport, run_id="run-usage-estimated")
+    assert run.tokens_measured == 0
+    assert run.tokens_estimated > 0
+    assert run.token_origin == "estimated"
+
+
+def test_the_run_records_the_provider_s_report_and_not_the_estimate(
+    commented: BindingFixture,
+) -> None:
+    """The estimate is a fallback: it is not added on top of a measurement.
+
+    **What makes this red:** a spend that counted the estimate for a side
+    the provider had already reported. The total would be the report and
+    the estimate added together, and the run would be charged twice for
+    one call.
+    """
+    transport = _ReportingTransport(
+        usage=UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    )
+    run = _run_real(commented, transport, run_id="run-usage-measured")
+    assert run.requests_made == len(transport.requests)
+    assert run.tokens_measured == 6595 * run.requests_made
+    assert run.tokens_estimated == run.tokens_measured, (
+        "the estimate was not used: the provider reported every side"
+    )
+    assert run.token_origin == "measured"
+
+
+def test_a_half_reported_response_is_recorded_as_mixed(
+    commented: BindingFixture,
+) -> None:
+    """The provider reported the input and not the output: the run is mixed.
+
+    **What makes this red:** a spend that dropped the unreported side
+    instead of falling back to the estimate for it, or one that called the
+    whole run ``measured`` when half of it was counted by LabCairn.
+    """
+    transport = _ReportingTransport(
+        usage=UsageReport(
+            input_tokens=Known(506),
+            output_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+        )
+    )
+    run = _run_real(commented, transport, run_id="run-usage-mixed")
+    assert run.token_origin == "mixed"
+    assert run.tokens_measured == 506 * run.requests_made
+    assert run.tokens_estimated > run.tokens_measured, (
+        "the estimated part is counted beside the measured one"
+    )
+
+
+def test_each_request_entry_says_which_of_its_tokens_were_measured(
+    commented: BindingFixture,
+) -> None:
+    """The entries carry the split, not only the run.
+
+    **What makes this red:** an entry that recorded the total alone. A
+    reader of one request would see a figure and could not tell whether
+    the provider reported it.
+    """
+    transport = _ReportingTransport(
+        usage=UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    )
+    run = _run_real(commented, transport, run_id="run-usage-entries")
+    assert run.requests
+    for entry in run.requests:
+        assert entry.tokens_measured == 6595
+        assert entry.tokens_estimated == 6595
+
+
+def test_the_row_keeps_the_split_between_what_was_measured_and_what_was_counted(
+    commented: BindingFixture,
+) -> None:
+    """The persisted entry carries the split, so a read-back can rebuild it.
+
+    **What makes this red:** an entry written without the measured part.
+    The read-back would rebuild the run as an estimate, and a run the
+    provider had measured would be recorded as a count of characters.
+    """
+    transport = _ReportingTransport(
+        usage=UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    )
+    _run_real(commented, transport, run_id="run-usage-row")
+
+    from labcairn.db.models import ModelSuggestionRunRow
+
+    row = commented.context.store.session.get(ModelSuggestionRunRow, "run-usage-row")
+    assert row is not None
+    assert row.requests_json
+    for record in row.requests_json:
+        assert record["tokens_measured"] == 6595
+        assert record["tokens_estimated"] == 6595
+
+
+def test_a_run_read_back_says_what_was_measured(commented: BindingFixture) -> None:
+    """The read-back run carries the split it was written with.
+
+    **What makes this red:** a read-back that dropped the measured part.
+    The record would read as an estimate after the fact, and the run's own
+    account would differ from the one the reader is shown.
+    """
+    transport = _ReportingTransport(
+        usage=UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    )
+    run = _run_real(commented, transport, run_id="run-usage-readback")
+    read = read_suggestion_run(commented.context, "run-usage-readback")
+    assert read.tokens_measured == run.tokens_measured
+    assert read.tokens_estimated == run.tokens_estimated
+    assert read.token_origin == run.token_origin
+
+
+# --------------------------------------------------------------------------- #
 # failure classification, retry and fallback
 # --------------------------------------------------------------------------- #
 
@@ -621,3 +810,65 @@ def test_a_substitute_run_through_the_route_records_and_reads_back(
     assert body["stopped_reason"] is None
     opinions = _opinions(wired, token, commented)
     assert any(o["suggestion"] is not None for o in opinions)
+
+
+def test_a_stored_count_is_read_back_as_the_number_it_is() -> None:
+    """The record's counts come back as counts.
+
+    **The shape a run wrote is the shape the reader reads.** A stored
+    attempt count comes back as an integer and a stored duration as a
+    float, whether the store spelled them as numbers or as strings — a
+    record that crossed a hand-edited store can arrive spelled ``"3"``, and
+    that is a measurement rather than a mystery.
+    """
+    entry = _entry_from_record(
+        {
+            "feedback_id": "fb-1",
+            "source": "model-a",
+            "outcome": "answered",
+            "attempts": "3",
+            "elapsed_s": "1.5",
+            "tokens_estimated": 12,
+        },
+        mode=MODEL_SUGGESTION_MODE_REAL,
+    )
+    assert entry.attempts == 3
+    assert entry.elapsed_s == 1.5
+    assert entry.tokens_estimated == 12
+
+
+def test_a_damaged_count_is_refused_rather_than_read_as_zero() -> None:
+    """A count that does not spell a number is not a count of zero.
+
+    **The reader does not invent a number the record does not hold.** A
+    stored value that spells no number is refused, so a damaged record is
+    visible rather than quietly read as a run that tried nothing and
+    spent nothing. The repository's own negative control
+    (``tests/test_fake_provider_invariants.py``) watches for that fold.
+    """
+    with pytest.raises(ApplicationRefusedError):
+        _entry_from_record(
+            {"feedback_id": "fb-3", "attempts": "three"},
+            mode=MODEL_SUGGESTION_MODE_REAL,
+        )
+    with pytest.raises(ApplicationRefusedError):
+        _entry_from_record(
+            {"feedback_id": "fb-4", "elapsed_s": "a while"},
+            mode=MODEL_SUGGESTION_MODE_REAL,
+        )
+
+
+def test_a_record_that_carries_no_count_is_refused_rather_than_read_as_zero() -> None:
+    """A count the record does not carry is refused, not read as zero.
+
+    **A missing field and a zero are different facts.** The run writes
+    these three values itself and always writes them, so a record without
+    one was not written by this writer — and reading it as a zero would
+    say "it tried nothing" about a run whose attempt count was never
+    recorded. The refusal names the field, so the reader knows which one is
+    missing rather than seeing a run that looks as though it did nothing.
+    """
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _entry_from_record({"feedback_id": "fb-5"}, mode=MODEL_SUGGESTION_MODE_REAL)
+    message = str(raised.value)
+    assert "attempts" in message, f"the refusal must name the field that is missing: {message}"

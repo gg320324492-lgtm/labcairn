@@ -15,8 +15,8 @@ Three operations, each as small as the record allows:
   ``minor``, ``suggestion``) and type (``function``, ``interface``,
   ``performance``, ``model``, ``documentation``). **A tag outside either
   is a tag nobody can group the trial's findings by**, so the check is the
-  layer's and not the wire's -- the CLI records issues too, and the CLI
-  has no request-body validation to lean on.
+  layer's and not the wire's -- the pilot's feedback-ingest tool records
+  past the wire, and it has no request-body validation to lean on.
 * :func:`list_issues` -- the project's issues, filtered by what the trial
   team asks for (status, severity). **A filter is a read, not a write**,
   and the listing narrows rather than refuses: an empty answer is a fact
@@ -67,10 +67,12 @@ __all__ = [
 ]
 
 
-#: Severity's closed vocabulary: §9.4's 阻断/严重/一般/建议.
+#: Severity's closed vocabulary: §9.4's four grades, from the one that
+#: stops a wider trial to the one that is a suggestion.
 PILOT_ISSUE_SEVERITIES: tuple[str, ...] = ("blocker", "serious", "minor", "suggestion")
 
-#: Type's closed vocabulary: §9.4's 功能/界面/性能/模型/文档.
+#: Type's closed vocabulary: §9.4's five kinds, from what the product does
+#: to what the trial writes down about it.
 PILOT_ISSUE_CATEGORIES: tuple[str, ...] = (
     "function",
     "interface",
@@ -239,6 +241,10 @@ def record_issue(
     **The vocabularies are closed at the write.** §9.4's severity and
     type are the two tags the trial groups its findings by, and a word
     outside either is refused here, by name, before the store is asked.
+    The wire refuses the same words first with a 422, for a caller that
+    sent them as a request body; this refusal is for the caller that
+    reached past the wire -- the pilot's feedback-ingest tool -- and it
+    is the same rule, applied where the mistake is made.
 
     :raises ApplicationRefusedError: the project does not exist, the named
         version or opinion does not exist or belongs to another project,

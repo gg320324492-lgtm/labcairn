@@ -1,8 +1,8 @@
 # LabCairn — Release notes
-**Anchors:** 1 — every converted pointer below carries the words it cites.  
+**Anchors:** 17 — every converted pointer below carries the words it cites.  
 **Version:** 0.1.0 (`pyproject.toml`) · **Status:** unreleased — no tag has
-been cut · **The tree this describes:** `main` at
-`e13b967`, 2026-11-02
+been cut · **The tree this describes:** the commit `50615ea` on `main`,
+2026-11-25
 
 **Items below dated 2026-11-03 are measured on the branch that has not
 landed** (`docs/debt-closures` at `bb8f8f6`, pull request #146 open). Their
@@ -38,6 +38,131 @@ added, fixed, known limits, rollback) — written and checked by
 here explains; the records state, and the tool verifies them.
 
 ---
+
+## v0.1.0 — the first runnable Phase 4 version
+
+**What this version is.** v0.1.0 is the first version of LabCairn that the
+pilot can run. It is the Phase 4 tree as merged: a local-first research
+workspace in which one paper goes from ingestion through claims extraction,
+staged analysis, report and figure generation to revision and restart
+recovery, with the multi-source index (the paper revision trajectory, PPT
+decks and meeting text), the pilot's issue record, the rule-sharing door
+and the real-model service wiring in place. **A Windows per-user installer
+was built from that tree and measured**: 354,236,364 bytes, sha256
+`dc29e794…`, unsigned, with the frozen backend tree and the copy the
+installer carries measuring the same digest — so the installer carries
+that freeze byte for byte. The structured record carries the digest and
+the build's own companion record
+([`v0.1.0-artifact.json`](releases/v0.1.0-artifact.json)) carries the
+commands, the toolchain and the evidence
+([`docs/releases/v0.1.0.json`](releases/v0.1.0.json), written and checked
+by [`scripts/release_record.py`](../scripts/release_record.py)). **The
+installer's own file name and product version line read `0.1.0`**, the
+version the workbench declares, and a witness
+([`tests/test_shell_version_alignment.py`](../tests/test_shell_version_alignment.py))
+holds the shell's manifest, the workbench's three version declarations and
+the packaging configuration's own override in step with each other. The
+bytes carry this tree's product code and the name says so.
+
+**What the tree also carries, measured on this machine.** The
+installer was drilled: install, launch, upgrade from two earlier
+lineages, content proof, and the reverse direction, with the machine-wide
+listing before and after showing **no difference** and the userData tree
+restored byte for byte
+([`LC-P3-05-v010-install-drill-2026-11-25.md`](acceptance/LC-P3-05-v010-install-drill-2026-11-25.md)).
+One real request went out under the signed authorisation — the model, the
+protocol and the endpoint the record names, one request, the counts and
+durations measured
+([`LC-P4-PILOT-real-request-2026-11-25.md`](acceptance/LC-P4-PILOT-real-request-2026-11-25.md)),
+and the endpoint's four capabilities were probed
+([`LC-P4-PILOT-capability-probe-2026-11-25.md`](acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md)).
+The machine format that authorisation is expressed in — the workspace's
+`providers.json` — is written down with a complete example
+([`LC-P4-PILOT-providers-config.md`](acceptance/LC-P4-PILOT-providers-config.md)),
+and the machine-answerable half of the four exit gates' evidence is
+collected by a tool that runs the read-only routes and writes a
+self-checking record
+([`P4-G1-G4-system-capability-record.json`](acceptance/P4-G1-G4-system-capability-record.json)).
+
+**The tree it is cut from.** `main` at `50615ea` — the merge of pull request
+#223 (whose seventeen required checks were all green when it landed, the
+required set read from GitHub on 2026-11-18 at
+`ac362d2cb5536d05372cf02b49a499036efd2952`) and the work that followed it.
+Every number this section quotes was measured on this tree or on the tree
+the release names, and which is which is said: the 58 API endpoints
+counted in `src/labcairn/api/routes.py` at the commit this release names
+(**this** tree carries 60 — the work that followed added the rounds route
+and the suggest run's account), the migration chain the store reads, and
+the commit that rolls the release back. **The installer's
+own bytes were built from `4ddfa43`**, the commit that aligned the shell's
+version with the workbench's. `shell/` is byte-identical between that
+commit and this one, so the installer this version ships is the one this
+version's shell would build — **but `src/` has moved on since**: the
+work that followed changed twenty-one files under it, and the frozen
+backend the installer carries is the earlier tree's. The digest below is
+the earlier tree's, measured from the bytes that were produced, and it is
+what a reader can verify; a rebuild from this tree would produce
+different bytes and needs its own measurement.
+
+**The baseline it inherits.** Phase 4's baseline is frozen in
+[`LC-P4-G0-baseline-freeze.md`](plans/LC-P4-G0-baseline-freeze.md) §3, and
+v0.1.0 cites those identities as that document records them:
+
+- **Code baseline:** the Phase 3 exit commit lineage — `main` at the merge
+  of PR #221 (`a8a822f…`), which carries the exit decision `15c7a18…`, the
+  strip fix `ce1f2f0…` and the final sweep `cf26a4e…`.
+- **Baseline installer lineage:** 0.0.3
+  (`681607c7de0a2963016ff461e8999cef4fda369fa27b896475b70f6466874588`,
+  354,088,228 B, built from `ce1f2f0…`; install / HKCU registration /
+  `shell-env` materialisation / uninstall smoke passed 2026-11-22).
+- **Reference hosts:** WPS Office 12.1.0.29690 and Microsoft Office 2019
+  (16.0.17932.21140) on Windows 11 Pro (10.0.26300), machine
+  `DESKTOP-BJJHSDF` — the dual-host pair every deliverable reopen is
+  measured against.
+- **Web/Python suite baseline:** 142 web workbench tests and the Phase 4
+  Python target tests green at the baseline commit (per the Phase 4 plan's §2
+  baseline statement, re-measured on this tree before each work package
+  lands).
+
+**What v0.1.0 does not establish.** The pilot's exit gate is still open: no
+real trial has run, every verdict in the P4-G1..G4 exit skeleton is still
+`PENDING`, and no participant has used the product. v0.1.0 is releasable;
+it is not yet proven in front of a participant.
+
+**Four things this release does not do, found while measuring it.** These
+are stated here rather than left to the next reader to find:
+
+- **The workbench addresses a sample round, not the workspace's own.** The
+  review desk reads its project and version from a fixture and the delivery
+  centre from its own, and the service has **no route that names the
+  workspace's current paper round** — `list_paper_projects` exists in the
+  application layer and no route exposes it. Plan §6.4's first, second,
+  third, sixth and seventh conditions are therefore implemented against a
+  sample round and do not yet hold on the pilot paper.
+- **The suggestion run's own record cannot be read back.** The run writes it
+  (`model_suggestion_runs`), and the application layer has its own shape for
+  it, but no route serves it and no function reads it — so gate G2-3's
+  evidence cannot be collected after a real run.
+- **The service does not answer `GET /events`.** `serve` never passes an
+  event source, so the app falls back to the source that refuses in the
+  layer's own vocabulary (HTTP 403, `not_implemented`). The stage timeline
+  the runbook asks for cannot be read on the service the runbook starts.
+- **A capability probe requires no consent.** ADR-0006 says a probe needs
+  consent as any outbound request does; `probe.py` mentions consent nowhere
+  and issues the request itself. The ADR records this as not done.
+
+> **Dated snapshot — true when measured, superseded since.** The four bullets
+> above were measured on the tree this section names (`50615ea`), and **each
+> of the four was closed by the eleventh batch**: the service now names the
+> workspace's own round (`GET /review/rounds`), the suggestion run's account
+> is served (`GET /review/suggest/runs/{run_id}`), `serve` hands the app an
+> event source, and a capability probe goes through the same consent gate as
+> any other outbound request. **What each of them does not yet establish is
+> in §3**, and §3 is where Phase 4's own limits are stated.
+
+The other three gaps the sweep found are named in
+[`docs/handoff/CURRENT.md`](handoff/CURRENT.md), which carries the full
+list and what each one would take.
 
 ## 1. What this release is
 
@@ -230,7 +355,7 @@ rather than inventing an empty log.
 one bound workspace plus four mutating consent routes; none selects a
 workspace. The CLI can.~~
 
-**Closed by `37591c7`.** `POST /task/select` (`src/labcairn/api/routes.py:369` — `@router.post("/task/select", response_model=Health, tags=["task"])`)
+**Closed by `37591c7`.** `POST /task/select` (`src/labcairn/api/routes.py:373` — `@router.post("/task/select", response_model=Health, tags=["task"])`)
 moves the workspace's `current_task` through a host-supplied port; the task is
 validated through the application layer before anything is written, and the
 route needs the session token like every other change. The CLI and the page are
@@ -690,6 +815,100 @@ than left for the next reader to find.**
    2026-11-06. The placeholder was deleted in the same commit as the root
    `LICENSE` was added. This paragraph is a historical note, not the
    current licensing statement; §4 is current.
+5. **The pilot's exit gate is open, and the evidence it takes has never been
+   collected.** All **18** of the exit skeleton's slots — `P4-G1`'s four,
+   `P4-G2`'s five, `P4-G3`'s four and `P4-G4`'s five — carry `PENDING`, and
+   **no participant has used the product and no real trial has run.** Seven
+   of the eighteen are marked *Real trial only*
+   (`docs/acceptance/P4-G1-G4-record-skeleton.md:210` — `Real trial only`),
+   and **no tool can decide those** — they are what the trial itself produces.
+   What the gates do carry is a capability record, and **it was collected
+   against a synthetic workspace** — *"A synthetic workspace, made to
+   exercise the collector. It holds a task and nothing else: no paper, no
+   closed binding, no rule. It is not the pilot paper's workspace, and the
+   pilot's confirmation of every capability below is still outstanding."*
+   (`docs/acceptance/P4-G1-G4-system-capability-record.json:22` — `A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule.`).
+   **That record is evidence about the product; it is not evidence about the
+   pilot.**
+
+   **Three of the reasons those slots carry have since gone.** The skeleton
+   records, for `G1-1`, that *"the service refused the read of GET /events
+   with not_implemented (403)"*; for `G2-1`, that *"no route lists the
+   workspace's paper projects"*; and for `G2-3`, that *"no read-only route
+   publishes a suggestion run's account"*. All three were true when the
+   record was collected; **none of them is true of this tree.** `GET /events`
+   is answered
+   (`src/labcairn/api/routes.py:845` — `@router.get("/events", response_model=EventStreamPage, tags=["events"])`),
+   `serve` hands the app an event source
+   (`src/labcairn/cli/commands.py:2714` — `event_source=StoreEventSource(),`),
+   the workspace's rounds are named
+   (`src/labcairn/api/routes.py:1183` — `@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])`),
+   and the suggestion run's account is served
+   (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`).
+   **The slots stay `PENDING` because the trial has not run and the workspace
+   the record was taken in held no material — not because the service still
+   refuses.** A slot whose reason has expired must not be read as a defect
+   still open in the code, and the reasons the other slots carry are facts
+   about a synthetic workspace: no closed binding, no rule, no applied round.
+   *Evidence:* the skeleton's `PENDING` column, and the record it names.
+6. **The workbench addresses the workspace's own round only since this
+   batch, and the pilot paper has not been through it.** The service now
+   names the rounds a workspace holds, and the review desk and the delivery
+   centre ask it rather than naming a round themselves. **What has not
+   happened is a pilot paper going through them.** The centre's apply still
+   carries the sample binding's own material and consent-window arguments
+   (`web/src/views/deliveryRound.ts:31` — `The sample round, with the arguments the sample binding was built with.`);
+   the fixture remains as a declared fallback for when the service does not
+   answer
+   (`web/src/views/deliveryRound.ts:22` — `**The fixture stays, and it is a fallback.** When the service does not`);
+   and the only workspace any of this was exercised against is the synthetic
+   one that holds *"no paper, no closed binding, no rule"*.
+   *Evidence:* the workbench's own round reader, and the capability record.
+7. **The suggestion run's own account and the event stream became readable
+   only in this batch.** Both were service gaps the eleventh batch's
+   measurement found, and both are closed in this tree: the run's record is
+   served by `GET /review/suggest/runs/{run_id}`
+   (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`),
+   and `serve` hands the app an event source
+   (`src/labcairn/cli/commands.py:2714` — `event_source=StoreEventSource(),`).
+   **What has not happened is a real run whose account was read back, or an
+   event stream read during a trial** — the capability record that first
+   asked for them was collected on the synthetic workspace, and no
+   participant has used the product.
+   *Evidence:* the two routes, and the record that asked for them.
+8. **A capability probe needs consent only since this batch, and the consent
+   a probe spends is a synthetic resource under the task's area, not the
+   material.** A probe now goes through the same consent gate as any other
+   outbound request, and the approval binds the probe's own text
+   (`src/labcairn/providers/probe.py:198` — `material is in it. That is what makes a probe's consent a consent to send`).
+   **What it binds to is a key of the probe's own** — `probes/capability`
+   (`src/labcairn/application/outbound.py:108` — `PROBE_RESOURCE_KEY: str = "probes/capability"`),
+   under the task area `workspace`
+   (`src/labcairn/application/context.py:70` — `TASK_AREA_ROOT = "workspace"`) —
+   **so no consent has been spent on the pilot material and none has been
+   asked for.** A rule that wants to say something about probing can name
+   that key; a rule about one source file cannot reach a probe of an
+   endpoint, which is the point of the synthetic key.
+   *Evidence:* the probe's consent path, and the use its approval is spent on.
+9. **The material registration exists, and the owner's signature on part D
+   is still owed — so the grant the authorisation names covers a copy that is
+   not registered.** The tool is there
+   (`scripts/pilot_material_registration.py`), and the record it writes would
+   name the copy, the operator and the digest. **But
+   `docs/pilot/registrations/` holds no record**, and the checklist's result
+   cell is *"the owner's, and empty until the owner writes it"*
+   (`docs/plans/LC-P4-PILOT-desensitisation-checklist.md:121` — `the owner's, and empty until the owner writes it`),
+   so the signed check fails and the import step must not run. Meanwhile the
+   authorisation's grant already names the copy's address —
+   `"subject_ref": "pilot/LC-P4-PILOT/desensitised-copy"`
+   (`docs/acceptance/LC-P4-PILOT-providers-config.md:197` — `"subject_ref": "pilot/LC-P4-PILOT/desensitised-copy",`) —
+   and the record that carries it calls that *"a shape, not a signed
+   pointer"*
+   (`docs/acceptance/LC-P4-PILOT-providers-config.md:232` — `is a shape, not a signed pointer`).
+   **So the grant's scope reaches a copy that no registration record
+   describes, and which copy it is remains the owner's to choose.**
+   *Evidence:* the checklist's part D, the authorisation's §7, and the
+   registrations folder.
 
 ---
 

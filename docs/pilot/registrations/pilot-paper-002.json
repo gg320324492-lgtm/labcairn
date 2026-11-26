@@ -1,0 +1,68 @@
+{
+  "record_type": "pilot-material-registration",
+  "record_version": 1,
+  "material_id": "pilot-paper-002",
+  "registered_at": "2026-11-25T07:24:21+00:00",
+  "registered_by": "claude-code",
+  "copy": {
+    "file_name": "pilot-paper-002.docx",
+    "byte_size": 8805237,
+    "sha256": "04cc31be9f9876fef975e8d4e6b427bb4a063920288fe5c0b72e8e3244a6172d",
+    "format": "docx",
+    "origin_sha256": "a7a38132cf35d3632c4cb8aacba910994e9ad7e8b27413761260ade2d6502278",
+    "origin_byte_size": 8871367
+  },
+  "metadata": {
+    "page_count": 18,
+    "word_count": 11710,
+    "figure_count": 7,
+    "table_count": 1,
+    "comment_count": 0,
+    "revision_mark_count": 113,
+    "heading_count": 9,
+    "heading_outline_sha256": "6cd62cc49106407f14085bdff7f1fe85ac4078792a24547a40edf47b50922fab"
+  },
+  "authorisation": {
+    "grant_id": "grant-model-suggestions-pilot/LC-P4-PILOT",
+    "record": "docs/acceptance/LC-P4-PILOT-providers-config.md",
+    "subject_ref": "pilot/LC-P4-PILOT/desensitised-copy",
+    "scope": "pilot/LC-P4-PILOT/desensitised-copy/**",
+    "granted_by": "owner",
+    "granted_at": "2026-11-24T00:00:00+00:00",
+    "expires_at": "2026-12-24T00:00:00+00:00"
+  },
+  "storage": {
+    "root": "E:/trial-material",
+    "relative_path": "pilot/LC-P4-PILOT/desensitised-copy/pilot-paper-002.docx"
+  },
+  "checklist": {
+    "document": "docs/plans/LC-P4-PILOT-desensitisation-checklist.md",
+    "applies_to_sha256": "04cc31be9f9876fef975e8d4e6b427bb4a063920288fe5c0b72e8e3244a6172d",
+    "result": {
+      "date": "2026-11-25",
+      "operator": "owner",
+      "items": {
+        "A-1": "pass",
+        "A-2": "pass",
+        "A-3": "pass",
+        "A-4": "pass",
+        "A-5": "pass",
+        "A-6": "pass",
+        "A-7": "pass",
+        "B-1": "pass",
+        "B-2": "pass",
+        "B-3": "pass",
+        "B-4": "pass",
+        "C-1": "pass",
+        "C-2": "pass",
+        "C-3": "pass",
+        "C-4": "pass",
+        "D-1": "pass",
+        "D-2": "pass",
+        "D-3": "pass",
+        "D-4": "pass",
+        "D-5": "pass"
+      }
+    }
+  }
+}

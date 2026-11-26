@@ -151,8 +151,10 @@ from labcairn.application.meeting_text import (
 from labcairn.application.model_suggestions import (
     MODEL_SUGGESTION_MODE_REAL,
     ModelSuggestionBackend,
+    ModelSuggestionRunData,
     SuggestionLoopConfig,
     parse_approval_ids,
+    read_suggestion_run,
     suggest_for_version,
 )
 from labcairn.application.ppt_deck import PptDeckIngested, PptHit, ingest_ppt_deck, search_ppt_deck
@@ -198,10 +200,12 @@ from labcairn.application.roles_run import (
 )
 from labcairn.application.stages import StageRequest, StageWork
 from labcairn.application.trajectory import (
+    ReviewRoundListed,
     TrajectoryHit,
     TrajectoryIngested,
     UsableRule,
     ingest_paper_trajectory,
+    list_review_rounds,
     search_trajectory,
     usable_guidance,
 )
@@ -1176,6 +1180,31 @@ __all__ = ["router"]
 # --------------------------------------------------------------------------- #
 
 
+@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])
+def get_review_rounds(
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> list[ReviewRoundListed]:
+    """The revision rounds this workspace holds, **newest first**.
+
+    **The service naming the round is what the workbench was missing.** A
+    surface that wants to work on a round needs to know which one the
+    workspace holds, and there was no route that said so: the projects were
+    in the store and nothing exposed them. So a workbench that wanted a
+    round had to name one it had been told about by something other than
+    the service — and the thing it named was a sample round, forever.
+
+    **A round is an address, and this listing is addresses.** The pair of
+    ids says which paper and which revision of it; the words behind them are
+    reached through the review routes below, which apply the policy. **No
+    paragraph, no comment and no file name is named here.**
+
+    **A version the policy denies is dropped, not named.** The listing asks
+    the permission per version, on the version's own material, and a denied
+    version is not in the answer — the same rule the ingest follows.
+    """
+    return list(list_review_rounds(context))
+
+
 @router.get("/review/opinions", response_model=ReviewOpinions, tags=["review"])
 def get_review_opinions(
     context: Annotated[ApplicationContext, Depends(_context)],
@@ -1281,6 +1310,40 @@ def post_review_suggest(
             retry_attempts=body.retry_attempts,
         ),
     )
+    return _suggest_run_wire(run)
+
+
+@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])
+def get_review_suggest_run(
+    run_id: str,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ReviewSuggestRun:
+    """One suggestion run's account, **read back after the run finished**.
+
+    **The run writes its own record, and this is the read of it.** The
+    account the run answered with is gone the moment the caller lets it go,
+    so a gate that wanted the evidence of a run *after* the run had
+    finished had nothing to read and recorded its slot as unknown for
+    exactly that reason. The row is the durable half of the answer.
+
+    **The same shape comes back that the run answered with.** One spelling
+    of a run's account, so a reader can compare the two without knowing
+    which route produced which.
+
+    **The boundary holds on the way out too.** The mode, the model id, the
+    counts, the durations, the stop reason and the per-request entries —
+    ids, counts and durations, and the request's text never among them.
+    """
+    return _suggest_run_wire(read_suggestion_run(context, run_id))
+
+
+def _suggest_run_wire(run: ModelSuggestionRunData) -> ReviewSuggestRun:
+    """The run's account as the wire spells it.
+
+    **One place, so the two routes cannot disagree.** The run's own answer
+    and the run's record read back are the same account, and a reader that
+    compared them would be comparing a thing with itself.
+    """
     return ReviewSuggestRun(
         run_id=run.run_id,
         project_id=run.project_id,
@@ -1294,6 +1357,8 @@ def post_review_suggest(
         opinions_skipped=run.opinions_skipped,
         started_at=run.started_at.isoformat(),
         finished_at=run.finished_at.isoformat(),
+        duration_seconds=run.duration_seconds,
+        requests=run.requests,
     )
 
 
@@ -1364,12 +1429,14 @@ def post_review_preview(
     """Measure what the apply round would do, before anything is written.
 
     **The preview is the dry run the workbench shows before the operator
-    commits** (execution plan §3.2: *应用修改前必须预览修改数量、影响段落和
-    输出变化摘要*). It takes the same body the apply route takes, because
-    it answers the apply's question about the same round; it writes
-    nothing — no file, no store row — and the digests it returns are the
-    sha256 of the drafts the apply would publish. A caller applies the
-    round and compares; the equality is the preview's own witness.
+    commits** (execution plan §3.2, read 2026-11-25: *before changes are
+    applied, the number of changes, the affected paragraphs and a summary
+    of the output changes must be previewed*). It takes the same body the
+    apply route takes, because it answers the apply's question about the
+    same round; it writes nothing — no file, no store row — and the
+    digests it returns are the sha256 of the drafts the apply would
+    publish. A caller applies the round and compares; the equality is the
+    preview's own witness.
     """
     return preview_review_apply(
         context,

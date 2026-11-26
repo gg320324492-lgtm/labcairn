@@ -1,0 +1,529 @@
+{
+  "schema": "labcairn.pilot-gate-evidence/1",
+  "tool": "scripts/pilot_gate_evidence.py",
+  "command": "python scripts/pilot_gate_evidence.py --workspace E:\\labcairn-local\\tmp\\win-b-evidence\\fixture-workspace --base-url http://127.0.0.1:51048 --apply --query 'paper' --note \"A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule. It is not the pilot paper's workspace, and the pilot's confirmation of every capability below is still outstanding.\"",
+  "collected_at": "2026-11-25T04:40:06.621262+00:00",
+  "service": {
+    "base_url": "http://127.0.0.1:51048"
+  },
+  "preconditions": {
+    "a-trial": "a participant's observation on the pilot paper, which no tool can decide",
+    "a-bound-task": "a task bound to material, so a read has material to answer with",
+    "a-rule": "a guidance rule in the memory, so the listing has something to filter",
+    "a-project-id": "a paper project id, so the project's routes can be addressed",
+    "a-second-project": "a second paper project, so a rule can be read from another's context",
+    "a-closed-binding": "a closed binding's dossier manifest -- the one record that carries the project id, the task id and both version ids at once",
+    "an-applied-round": "an applied round, so the suggestion loop's own record exists",
+    "published-deliverables": "the four published deliverables, so the export and its digests exist"
+  },
+  "workspace": {
+    "root": "E:\\labcairn-local\\tmp\\win-b-evidence\\fixture-workspace",
+    "session_token_present": true,
+    "note": "A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule. It is not the pilot paper's workspace, and the pilot's confirmation of every capability below is still outstanding."
+  },
+  "queries": [
+    "paper"
+  ],
+  "reads": [
+    {
+      "route": "GET /health",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "POST /task/select",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /task",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /plan",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /steps",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /events",
+      "outcome": "refused",
+      "status": 403,
+      "refusal": "not_implemented"
+    },
+    {
+      "route": "GET /artifacts",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /trajectory/search",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /ppt/search",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /meeting/search",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /tasks",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /sources",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /guidance/rules",
+      "outcome": "ok",
+      "status": 200
+    },
+    {
+      "route": "GET /guidance/usable",
+      "outcome": "ok",
+      "status": 200
+    }
+  ],
+  "slots": [
+    {
+      "slot": "G1-1",
+      "condition": "Task entry through to the delivery centre, in one workspace",
+      "coverage_kind": "System capability, **confirmed on real data by the trial**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "a-bound-task",
+        "a-closed-binding"
+      ],
+      "lacks": [
+        "a-closed-binding"
+      ],
+      "reason": "the path's first half was walked -- the task was selected, the workflow declares 8 stage(s) and the runtime holds 0 step(s) -- and its second half was not: the workspace holds no closed binding, so there were no opinions to read and no deliverables to export; the service refused the read of GET /events with not_implemented (403), so what it carries was not measured",
+      "evidence": {
+        "task_id": "01a21076-9275-7401-bddf-2966da23251a",
+        "task_selected": true,
+        "bound_source_count": 0,
+        "plan_stage_count": 8,
+        "plan_stage_statuses": {
+          "pending": 8
+        },
+        "skill_digest": "b99378ca06f29acee920d3f982c73259514824581f25a962747d7bea7c79e3f3",
+        "step_count": 0,
+        "step_statuses": {},
+        "max_attempt": null,
+        "run_count": 0,
+        "stage_count": 0,
+        "artifact_count": 0,
+        "approval_count": 0,
+        "event_count": null
+      },
+      "read_from": [
+        "GET /health",
+        "POST /task/select",
+        "GET /task",
+        "GET /plan",
+        "GET /steps",
+        "GET /events",
+        "GET /artifacts"
+      ],
+      "unreadable_routes": [
+        "GET /events"
+      ],
+      "status_after_this_run": "PENDING \u2014 the path's first half was walked -- the task was selected, the workflow declares 8 stage(s) and the runtime holds 0 step(s) -- and its second half was not: the workspace holds no closed binding, so there were no opinions to read and no deliverables to export; the service refused the read of GET /events with not_implemented (403), so what it carries was not measured (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G1-2",
+      "condition": "Three-column layout and opinion location work on real data",
+      "coverage_kind": "**Real trial only** (usability on the pilot paper)",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "requires": [
+        "a-trial"
+      ],
+      "lacks": [
+        "a-trial"
+      ],
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G1-3",
+      "condition": "Task stages and manuscript changes give evident, comprehensible feedback",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "requires": [
+        "a-trial"
+      ],
+      "lacks": [
+        "a-trial"
+      ],
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G1-4",
+      "condition": "Approval, preview, failure and retry states are correctly understood by users",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "requires": [
+        "a-trial"
+      ],
+      "lacks": [
+        "a-trial"
+      ],
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G2-1",
+      "condition": "A real desensitised paper completes the full revision loop",
+      "coverage_kind": "System capability (apply/publish binding, witnessed in code), **confirmed end-to-end on the pilot paper by the trial**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "a-project-id"
+      ],
+      "lacks": [
+        "a-project-id"
+      ],
+      "reason": "the chain was not read at all: GET /trajectory serves the comments under named issue keys, and no route lists the workspace's paper projects, so no key could be named -- the workspace holds no closed binding to carry a project id either, so the walk resolved no link",
+      "evidence": {},
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the chain was not read at all: GET /trajectory serves the comments under named issue keys, and no route lists the workspace's paper projects, so no key could be named -- the workspace holds no closed binding to carry a project id either, so the walk resolved no link (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G2-2",
+      "condition": "Four deliverables generated and consistently bound",
+      "coverage_kind": "System capability (manifest-bound export, digest-checked), **confirmed on the pilot paper**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "a-closed-binding"
+      ],
+      "lacks": [
+        "a-closed-binding"
+      ],
+      "reason": "the workspace holds no closed binding, so there were no deliverables to bind: the ledger holds 0 artefact(s) [] and none of them is a dossier manifest",
+      "evidence": {
+        "artifact_count": 0,
+        "artifact_kinds": [],
+        "manifest_count": 0
+      },
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so there were no deliverables to bind: the ledger holds 0 artefact(s) [] and none of them is a dossier manifest (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G2-3",
+      "condition": "One real model generates suggestions within the authorised scope",
+      "coverage_kind": "System capability (authorisation gate, per-opinion consent), **executed on the pilot paper**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "an-applied-round"
+      ],
+      "lacks": [
+        "an-applied-round"
+      ],
+      "reason": "no read-only route publishes a suggestion run's account -- the mode, model id, request count, token estimate, duration and stop reason are returned by POST /review/suggest and held in the model_suggestion_runs row, and nothing reads them back; the workspace holds no applied round either, so a run had nothing to record",
+      "evidence": {
+        "run_count": 0,
+        "run_statuses": {},
+        "approval_count": 0,
+        "approval_states": {}
+      },
+      "read_from": [
+        "GET /task"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 no read-only route publishes a suggestion run's account -- the mode, model id, request count, token estimate, duration and stop reason are returned by POST /review/suggest and held in the model_suggestion_runs row, and nothing reads them back; the workspace holds no applied round either, so a run had nothing to record (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G2-4",
+      "condition": "Preview, per-item approval, apply, publish, retry and recovery pass",
+      "coverage_kind": "System capability (witnessed), **confirmed on the pilot paper**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "an-applied-round"
+      ],
+      "lacks": [
+        "an-applied-round"
+      ],
+      "reason": "the workspace holds no closed binding, so no preview, decision or apply was recorded; the runtime holds 0 step(s) and the highest attempt any of them took was None, so the retry arm was not exercised either",
+      "evidence": {
+        "step_count": 0,
+        "step_statuses": {},
+        "max_attempt": null,
+        "retried_step_count": 0,
+        "stage_count": 0,
+        "stage_statuses": {},
+        "approval_count": 0
+      },
+      "read_from": [
+        "GET /artifacts",
+        "GET /task",
+        "GET /steps"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so no preview, decision or apply was recorded; the runtime holds 0 step(s) and the highest attempt any of them took was None, so the retry arm was not exercised either (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G2-5",
+      "condition": "Key refusal paths and evidence checks pass",
+      "coverage_kind": "System capability, **re-confirmed on the pilot deployment**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "published-deliverables"
+      ],
+      "lacks": [
+        "published-deliverables"
+      ],
+      "reason": "the workspace holds no closed binding, so there was no deliverable whose digest could be checked: the ledger holds 0 artefact(s) [] and none of them is a dossier manifest",
+      "evidence": {
+        "artifact_count": 0,
+        "artifact_kinds": [],
+        "manifest_count": 0
+      },
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the workspace holds no closed binding, so there was no deliverable whose digest could be checked: the ledger holds 0 artefact(s) [] and none of them is a dossier manifest (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G3-1",
+      "condition": "Paper/revision trajectory, PPT and meeting text are retrievable by source",
+      "coverage_kind": "System capability (the three search surfaces), **confirmed with the pilot's real sources**",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "a-bound-task"
+      ],
+      "lacks": [
+        "a-bound-task"
+      ],
+      "reason": "the trajectory, deck, meeting surface(s) answered with no hit for the query, so the retrieval was not exercised there; the workspace holds 1 task(s) and 0 of them is bound to material, and the ledger holds 0 source(s), so there was nothing indexed to retrieve",
+      "evidence": {
+        "trajectory_hit_count": 0,
+        "deck_hit_count": 0,
+        "meeting_hit_count": 0,
+        "task_count": 1,
+        "bound_task_count": 0,
+        "bound_source_count": 0,
+        "ledger_source_count": 0,
+        "ledger_source_kinds": []
+      },
+      "read_from": [
+        "GET /trajectory/search",
+        "GET /ppt/search",
+        "GET /meeting/search",
+        "GET /task",
+        "GET /tasks",
+        "GET /sources"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the trajectory, deck, meeting surface(s) answered with no hit for the query, so the retrieval was not exercised there; the workspace holds 1 task(s) and 0 of them is bound to material, and the ledger holds 0 source(s), so there was nothing indexed to retrieve (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G3-2",
+      "condition": "The two-layer structure (raw material \u2192 guidance rules) is traceable",
+      "coverage_kind": "System capability",
+      "coverage": "capability-only",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "a-rule"
+      ],
+      "lacks": [
+        "a-rule"
+      ],
+      "reason": "the memory holds no rule, so the link from a raw source through a distilled rule to the rule's record was not walked; the ledger holds 0 source(s)",
+      "evidence": {
+        "rule_count": 0,
+        "ledger_source_count": 0
+      },
+      "read_from": [
+        "GET /guidance/rules",
+        "GET /sources"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the memory holds no rule, so the link from a raw source through a distilled rule to the rule's record was not walked; the ledger holds 0 source(s) (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G3-3",
+      "condition": "Advisor-confirmed rules are callable by other projects",
+      "coverage_kind": "System capability",
+      "coverage": "capability-only",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "a-rule",
+        "a-second-project"
+      ],
+      "lacks": [
+        "a-rule",
+        "a-second-project"
+      ],
+      "reason": "the memory holds no confirmed rule, so no advisor confirmation was exercised; a second project's context is not reachable either, because no route lists the workspace's paper projects",
+      "evidence": {
+        "rule_count": 0,
+        "confirmed_rule_count": 0,
+        "published_rule_count": 0
+      },
+      "read_from": [
+        "GET /guidance/rules",
+        "GET /guidance/usable"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the memory holds no confirmed rule, so no advisor confirmation was exercised; a second project's context is not reachable either, because no route lists the workspace's paper projects (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G3-4",
+      "condition": "Unconfirmed relations cannot become guidance rules directly",
+      "coverage_kind": "System capability (witnessed)",
+      "coverage": "capability-only",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "a-rule"
+      ],
+      "lacks": [
+        "a-rule"
+      ],
+      "reason": "the listing was read and served no rule, so its filtering was not exercised; the memory holds no rule to filter",
+      "evidence": {
+        "rule_count": 0,
+        "usable_rule_count": 0,
+        "usable_states": {},
+        "unconfirmed_served": [],
+        "unconfirmed_in_memory": []
+      },
+      "read_from": [
+        "GET /guidance/rules",
+        "GET /guidance/usable"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the listing was read and served no rule, so its filtering was not exercised; the memory holds no rule to filter (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G4-1",
+      "condition": "3\u20135 members completed the first trial round",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "requires": [
+        "a-trial"
+      ],
+      "lacks": [
+        "a-trial"
+      ],
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G4-2",
+      "condition": "One paper completed the full loop",
+      "coverage_kind": "Shared with G2-1",
+      "coverage": "capability-and-trial",
+      "verdict": "UNKNOWN",
+      "requires": [
+        "a-project-id"
+      ],
+      "lacks": [
+        "a-project-id"
+      ],
+      "reason": "the chain was not read at all: GET /trajectory serves the comments under named issue keys, and no route lists the workspace's paper projects, so no key could be named -- the workspace holds no closed binding to carry a project id either, so the walk resolved no link",
+      "evidence": {},
+      "read_from": [
+        "GET /artifacts"
+      ],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING \u2014 the chain was not read at all: GET /trajectory serves the comments under named issue keys, and no route lists the workspace's paper projects, so no key could be named -- the workspace holds no closed binding to carry a project id either, so the walk resolved no link (record: P4-G1-G4-system-capability-record.json)"
+    },
+    {
+      "slot": "G4-3",
+      "condition": "Efficiency, quality and traceability data recorded",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "requires": [
+        "a-trial"
+      ],
+      "lacks": [
+        "a-trial"
+      ],
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G4-4",
+      "condition": "Blocker issues are fixed, or explicitly block wider trial",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "requires": [
+        "a-trial"
+      ],
+      "lacks": [
+        "a-trial"
+      ],
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING"
+    },
+    {
+      "slot": "G4-5",
+      "condition": "Serious issues have an owner, a fix version and a regression record",
+      "coverage_kind": "**Real trial only**",
+      "coverage": "trial-only",
+      "verdict": "NOT_ADDRESSED",
+      "requires": [
+        "a-trial"
+      ],
+      "lacks": [
+        "a-trial"
+      ],
+      "reason": "the slot's coverage kind says the real trial alone decides it, and the evidence is a person's observation",
+      "evidence": {},
+      "read_from": [],
+      "unreadable_routes": [],
+      "status_after_this_run": "PENDING"
+    }
+  ]
+}

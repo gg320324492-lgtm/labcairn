@@ -12,7 +12,7 @@ The commands — ``init``, ``doctor``, ``serve``,
 ``task create/run/status/resume/figure/report/reconcile/claim``,
 ``task claim-attest/proposal-confirm``,
 ``task approval-request/approval-grant``,
-``sources inspect/ingest/addresses``, ``artifacts list``,
+``sources inspect/ingest/addresses/remove``, ``artifacts list``,
 ``guidance rule-confirm``, ``roles run`` — and the plumbing they share:
 
 * **every command's data comes from the application layer.** A command here

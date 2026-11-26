@@ -227,7 +227,7 @@ labcairn task figure --path one.csv --operator labcairn.analysis.mean   --recipe
 
 where `$ARGS` holds `path`, `operator_id`, `recipe` and `parameters`, spelled
 exactly as the run spells them — a different spelling is a different approval, and
-the run refuses it rather than squinting at it. The seventeen commands that exist are
+the run refuses it rather than squinting at it. The commands this page and the README list are the same set, and they are
 listed in
 [the README](../README.md#the-command-line-what-exists-today); `task report`,
 `task figure`, `task claim`, `task approval-request`, `task approval-grant`,
@@ -434,28 +434,42 @@ The run says this in its own output, and the report carries it:
 | `uv run labcairn --help` | The same file — it proves the entry point resolves and every command is registered. |
 | `pnpm install --frozen-lockfile`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check` | The same file, and the `web-quality` workflow. |
 | `labcairn init`, `labcairn doctor`, `labcairn task create`, `labcairn task run`, `labcairn task resume`, `labcairn task status`, `labcairn sources inspect`, `labcairn sources ingest`, `labcairn artifacts list`, `labcairn serve` | The CLI is the authority: `tests/test_readme_accuracy.py::test_the_readme_documents_only_commands_that_exist` runs `labcairn <command> --help` for every one of them the README documents, and the walk runs the ones the path uses. |
+| `labcairn task report`, `labcairn task figure`, `labcairn task claim`, `labcairn task approval-request`, `labcairn task approval-grant`, `labcairn task reconcile`, `labcairn sources addresses` | The CLI is the authority, as above: `tests/test_readme_accuracy.py::test_the_readme_documents_only_commands_that_exist` runs `labcairn <command> --help` for every one of them the README documents. These seven are named in prose rather than in the README's table, and [`tests/test_quickstart_commands.py`](../tests/test_quickstart_commands.py) holds this page's list and the README's to the same set, in both directions. |
 | `uv run python scripts/outsider_path.py` | [`tests/test_outsider_path.py`](../tests/test_outsider_path.py) runs the script in the witness mode and reads the report it wrote. |
 
 ---
 
-## 8. One gap in this page itself, stated
+## 8. One gap in this page itself, now closed
 
 **Nothing watches that this page's command list and the README's are the
 same set.** The two tables in §7 are the authority, and a command on this
 page that is in neither would not be caught by anything.
 
-The reason is the file-ownership contract this work order works under: it
-does not own `tests/`, so it could not add the witness that would catch it,
-and a test file added without a shard entry is a test CI never runs. **The
-claim is therefore a procedure rather than a property**, and the procedure
-is: *a command added here is added to the README's table and to
-`scripts/outsider_path.py`'s table in the same change.* The README's own
-table **is** fail-closed in both directions — a command the README shows
-that the script does not run fails the walk, and a row in the script's table
-that the README does not show fails it too.
+The reason it was open is the file-ownership contract this work order
+worked under: it did not own `tests/`, so it could not add the witness that
+would catch it, and a test file added without a shard entry is a test CI
+never runs. **The claim was therefore a procedure rather than a property**,
+and the procedure was: *a command added here is added to the README's table
+and to `scripts/outsider_path.py`'s table in the same change.* The README's
+own table **is** fail-closed in both directions — a command the README
+shows that the script does not run fails the walk, and a row in the script's
+table that the README does not show fails it too.
 
-**This is a gap for the gate to close**, and it is recorded here rather than
-left for the next reader to find.
+**The property is now a property**, not a procedure.
+[`tests/test_quickstart_commands.py`](../tests/test_quickstart_commands.py)
+reads this page and the README, resolves every command each of them names
+against the CLI's own command tree, and fails in **both** directions when
+the two sets differ — a command named here and not there, and a command
+named there and not here. The repository's own commands are checked against
+`scripts/outsider_path.py`'s table the same way, so the procedure above is
+enforced rather than stated.
+
+**The two pages did not agree when the witness was written, and the README
+was the one that had drifted.** The CLI gained `labcairn task reconcile` on
+2026-10-27, and this page named it the same day; the README's prose named
+the other six commands that are newer than its table but not that one, so
+the README was corrected to name it, and the witness is what keeps the two
+pages in step from now on.
 
 ---
 

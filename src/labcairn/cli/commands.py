@@ -55,7 +55,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Final, NoReturn, cast
+from typing import TYPE_CHECKING, Annotated, Any, Final, NoReturn, Protocol, cast
 from urllib.parse import urlsplit
 
 import typer
@@ -68,6 +68,8 @@ if TYPE_CHECKING:
 
     from labcairn.api.selection import TaskSelector
     from labcairn.application import ApplicationContext, MaterialIngested, SourceAddress
+    from labcairn.application.approvals import ApprovalUse
+    from labcairn.application.material_ingestion import SourceRemoved
     from labcairn.application.model_request import ModelInvocation
     from labcairn.application.model_suggestions import ModelSuggestionBackend
     from labcairn.application.roles_run import RoleRunBackend
@@ -86,8 +88,11 @@ if TYPE_CHECKING:
     from labcairn.core.ids import TaskId
     from labcairn.core.providers.protocol import ModelRequest, ModelResponse
     from labcairn.guidance.models import GuidanceCheck, GuidanceRule
+    from labcairn.providers.adapter import ExchangeRecord
     from labcairn.providers.capabilities import Capability, ProviderCapabilities
+    from labcairn.providers.consent import OutboundConsent
     from labcairn.providers.credentials import ProviderSettings
+    from labcairn.providers.probe import ProbeCache, ProbeKey, ProbeRecord
     from labcairn.security.paths import CanonicalPath
     from labcairn.security.permissions import Grant
 
@@ -216,7 +221,10 @@ app = typer.Typer(
     add_completion=False,
 )
 task_app = typer.Typer(help="Create, run, inspect and resume a task.", no_args_is_help=True)
-sources_app = typer.Typer(help="Inspect the material a task is bound to.", no_args_is_help=True)
+sources_app = typer.Typer(
+    help="Inspect the material a task is bound to, and take it back.",
+    no_args_is_help=True,
+)
 artifacts_app = typer.Typer(help="List what a task has produced.", no_args_is_help=True)
 guidance_app = typer.Typer(
     help="Settle the guidance rules — confirm one, or dispute it.",
@@ -492,7 +500,9 @@ def doctor(
             help=(
                 "Ask the configured model providers what they can do, by making real "
                 "requests. Costs money; without it the capabilities are reported as "
-                "declared but unverified."
+                "declared but unverified. A probe is consented to like any other "
+                "outbound request, so it needs a task and one granted approval per "
+                "request it makes; the report says which ones to ask for."
             ),
         ),
     ] = False,
@@ -506,6 +516,7 @@ def doctor(
             ),
         ),
     ] = None,
+    task: TaskOption = None,
     show_token: Annotated[
         bool,
         typer.Option(
@@ -530,6 +541,15 @@ def doctor(
     fine when no command can use it. The command still reports: a
     diagnostic that refuses to run on the thing that is broken is not a
     diagnostic.
+
+    **A probe is consented to, like any other outbound request.** ADR-0006
+    statement 3: a probe sends requests, so it needs a decision before it
+    sends one. The approvals it spends are granted against a task, so
+    ``--probe`` needs one — the workspace's current task, or ``--task`` — and
+    one granted approval per request the probe makes. Without them the probe
+    is not made, and the finding says so, with the commands that ask for the
+    approvals it is missing. The diagnostic reports rather than refuses: the
+    rest of the report is still worth having.
     """
     from labcairn.cli import render
     from labcairn.cli.models import emit_model
@@ -544,6 +564,7 @@ def doctor(
             config,
             probe=probe,
             assume_capability=tuple(assume_capability or ()),
+            task_id=_the_task(config, task, as_json=as_json),
             show_token=show_token,
         )
     if as_json:
@@ -558,6 +579,7 @@ def _doctor_report(
     *,
     probe: bool,
     assume_capability: tuple[str, ...],
+    task_id: TaskId | None,
     show_token: bool,
 ) -> DoctorReport:
     """Everything doctor found, assembled from the workspace's own files."""
@@ -607,7 +629,14 @@ def _doctor_report(
         workspace=workspace_finding,
         database=database,
         policy=policy_finding,
-        providers=_provider_findings(location, probe=probe, assume_capability=assume_capability),
+        providers=_provider_findings(
+            location,
+            probe=probe,
+            assume_capability=assume_capability,
+            database_path=database_path if present else None,
+            config=config,
+            task_id=task_id,
+        ),
         api_session=session,
     )
 
@@ -679,6 +708,9 @@ def _provider_findings(
     *,
     probe: bool,
     assume_capability: tuple[str, ...],
+    database_path: Path | None = None,
+    config: WorkspaceConfig | None = None,
+    task_id: TaskId | None = None,
 ) -> tuple[ProviderFinding, ...]:
     """What the workspace's model providers can do.
 
@@ -686,11 +718,34 @@ def _provider_findings(
     reported as unverified — which is the honest state of a workspace whose
     endpoints have never been asked. With it, the providers are probed for
     real, which costs money and is why it is opt-in.
+
+    **A stored record is read back, and reading one is not a probe.** ADR-0002
+    wants probe results cached per ``(endpoint, model, protocol)``, so a
+    reading that was measured once is available to every later ``doctor``
+    without paying for it again. The report says which of the two it shows —
+    ``live`` for a reading this run took, ``stored`` for one read back out of
+    the store — because "probed" alone does not say whether the number in
+    front of the reader is minutes old or months old.
+
+    **A provider the configuration declares unprobed is not probed and not
+    read.** ADR-0002 §Risks names ``a ``probed: false`` override that yields
+    ``UNVERIFIED````: with a record in the store, an operator needs a way to
+    say *treat this one as not measured* — on an offline machine, or against a
+    reading they do not trust. The override suppresses both the stored
+    reading and the probe, so no money is spent on a reading the workspace
+    has been told to ignore.
+
+    **A probe is consented to, like any other outbound request.** ADR-0006
+    statement 3: a probe sends requests, so it goes through the same gate,
+    and the approvals it spends are granted against a task. The probe is
+    handed a consent port built from the task's granted approvals, and a
+    provider nobody has agreed to is not asked: the finding says so instead,
+    and no request leaves.
     """
     from labcairn.cli.models import ProviderFinding
     from labcairn.cli.workspace import WorkspaceSetupError
     from labcairn.providers.capabilities import ALL_CAPABILITIES
-    from labcairn.providers.probe import endpoint_fingerprint
+    from labcairn.providers.probe import probe_key
 
     settings_by_name = _provider_settings(location)
     if not settings_by_name:
@@ -705,27 +760,316 @@ def _provider_findings(
         )
 
     findings: list[ProviderFinding] = []
-    for name, settings in settings_by_name.items():
-        fingerprint = endpoint_fingerprint(
-            base_url=settings.sanitised_base_url(),
-            model=settings.model,
-            protocol=settings.protocol_label,
-        )
-        capabilities = _probe_capabilities(settings, fingerprint) if probe else None
-        findings.append(
-            ProviderFinding(
-                name=name,
-                protocol=settings.protocol_label,
+    with _probe_context(location, config, task_id) as context:
+        for name, settings in settings_by_name.items():
+            key = probe_key(
+                base_url=settings.sanitised_base_url(),
                 model=settings.model,
-                endpoint_fingerprint=fingerprint,
-                probed=capabilities is not None,
-                capabilities=_capability_findings(
-                    capabilities,
-                    assume_capability=assume_capability,
-                ),
+                protocol=settings.protocol_label,
             )
-        )
+            consent, missing = _the_probe_consent(context, name=name, settings=settings)
+            record, source, error = _probe_finding(
+                settings,
+                key,
+                probe=probe,
+                database_path=database_path,
+                consent=consent,
+                missing=missing,
+            )
+            capabilities = record.to_provider_capabilities() if record is not None else None
+            findings.append(
+                ProviderFinding(
+                    name=name,
+                    protocol=settings.protocol_label,
+                    model=settings.model,
+                    endpoint_fingerprint=key.endpoint_fingerprint,
+                    probed=record is not None,
+                    probe_source=source,
+                    observed_at=record.observed_at.isoformat() if record is not None else None,
+                    probe_error=error,
+                    probed_override=not settings.probed,
+                    capabilities=_capability_findings(
+                        capabilities,
+                        assume_capability=assume_capability,
+                    ),
+                )
+            )
     return tuple(findings)
+
+
+@contextmanager
+def _probe_context(
+    location: WorkspaceLocation,
+    config: WorkspaceConfig | None,
+    task_id: TaskId | None,
+) -> Iterator[ApplicationContext | None]:
+    """The context a probe's approvals are spent in, or nothing at all.
+
+    **``None`` when there is no task to consent against.** A probe's approval
+    is granted against a task — the ledger refuses an approval spent for
+    another — so a workspace with no task has nothing to spend one from. The
+    doctor reports that as a finding rather than refusing: a diagnostic that
+    refuses to run on the thing that is broken is not a diagnostic, and the
+    rest of the report is still worth having.
+
+    The store is opened **for writing**, because spending an approval writes:
+    the ledger moves the row to ``CONSUMED``, and that is the whole of what a
+    single-use guarantee is.
+    """
+    if config is None or task_id is None:
+        yield None
+        return
+    from labcairn.cli.workspace import application_context
+
+    with application_context(location, config, task_id) as context:
+        yield context
+
+
+def _the_task(
+    config: WorkspaceConfig | None,
+    requested: str | None,
+    *,
+    as_json: bool,
+) -> TaskId | None:
+    """Which task a probe's approvals would be spent against.
+
+    **A task that was named and is not one is refused**, the way every other
+    command refuses it: that is a usage error rather than a state, and it is
+    the same refusal, so it has the same witness.
+
+    **A workspace with no task is not refused.** A probe's consent is granted
+    against a task, and a workspace with no task has nothing to spend an
+    approval from — but the doctor still reports everything else it found, so
+    the answer is ``None`` rather than a refusal. A diagnostic that refuses to
+    run on the thing that is broken is not a diagnostic.
+    """
+    from labcairn.core.ids import TaskId, is_uuid7
+
+    if config is None:
+        return None
+    if requested is not None:
+        return _select_task(config, requested, as_json=as_json)
+    chosen = config.current_task
+    if chosen is None or not is_uuid7(chosen):
+        return None
+    return TaskId(uuid.UUID(chosen))
+
+
+def _the_probe_consent(
+    context: ApplicationContext | None,
+    *,
+    name: str,
+    settings: ProviderSettings,
+) -> tuple[OutboundConsent, tuple[tuple[Capability, ApprovalUse], ...]]:
+    """The consent port one provider's probe is handed, and what it is missing.
+
+    **A port that refuses is still a port.** A workspace with no task has no
+    approvals to spend, so the probe is handed a port that refuses every
+    request: the probe then does not reach the endpoint, and the finding says
+    why. That is the same shape as the provider layer's other refusals — a
+    decision that was not granted — and not a second mechanism.
+
+    The second value is the requests no approval covers, so the caller can
+    say what to ask for rather than only that something is missing.
+    """
+    from labcairn.application.outbound import probe_consent
+    from labcairn.application.refusal import ApplicationRefusedError
+    from labcairn.providers.capabilities import ALL_CAPABILITIES
+    from labcairn.providers.consent import RefusingConsent
+    from labcairn.providers.probe import probe_requests
+
+    if context is None:
+        return (
+            RefusingConsent(
+                "no approval covers this probe: a probe's consent is granted against a "
+                "task, and this workspace has no task to grant it against. The remedy "
+                "is a task, and an approval for each request the probe makes."
+            ),
+            (),
+        )
+    try:
+        consent = probe_consent(
+            context,
+            provider=name,
+            model=settings.model,
+            requests=probe_requests(frozenset(ALL_CAPABILITIES)),
+            now=datetime.now(UTC),
+        )
+    except ApplicationRefusedError as error:
+        return RefusingConsent(str(error)), ()
+    return consent, consent.missing()
+
+
+def _the_approval_commands(missing: Sequence[tuple[Capability, ApprovalUse]]) -> str:
+    """The commands that ask for the approvals a probe is missing.
+
+    **The consent is bound to a digest of the arguments as the run states
+    them**, so an operator who spells the request differently gets an
+    approval the probe cannot spend. The command is therefore exact: the
+    arguments are the ones the probe's own use carries, and the path is left
+    out because the layer sets it from the resource.
+
+    **One command per request, not per distinct text.** The ledger's grants
+    are single-use, so the two requests that carry the same words need two
+    approvals — and the command is the same for both.
+    """
+    if not missing:
+        return ""
+    commands = [
+        "  labcairn task approval-request --capability "
+        f"{use.capability.value} --root {use.root_id} --resource-key "
+        f"{use.resource_key} --arguments-json '{json.dumps(_the_arguments(use), sort_keys=True)}'"
+        f"  # {capability.value}"
+        for capability, use in missing
+    ]
+    return (
+        " Ask for each of them with:\n"
+        + "\n".join(commands)
+        + "\nthen grant each with `labcairn task approval-grant <approval-id>`."
+    )
+
+
+def _the_arguments(use: ApprovalUse) -> dict[str, object]:
+    """The arguments an approval for this use is asked with.
+
+    **The path is not among them**: the layer sets it from the resource the
+    operation addresses, so an operator who spelled it differently would be
+    asking for a different thing than the one that runs.
+    """
+    return {key: value for key, value in use.arguments.items() if key != "path"}
+
+
+def _probe_finding(
+    settings: ProviderSettings,
+    key: ProbeKey,
+    *,
+    probe: bool,
+    database_path: Path | None,
+    consent: OutboundConsent,
+    missing: Sequence[tuple[Capability, ApprovalUse]] = (),
+) -> tuple[ProbeRecord | None, str, str | None]:
+    """One provider's reading: where it came from, and what could be kept.
+
+    **Three answers, and they are not the same answer.** A provider that was
+    never asked has no reading (``none``); a provider this run asked has one
+    (``live``); a provider whose reading the store already held has one too
+    (``stored``). The third value returned is the reason the record could not
+    be kept, when it could not — a reading the product does not keep is not
+    the same claim as one it does, and the report says which it is.
+
+    **The store is asked, never assumed.** A workspace whose database has not
+    been migrated past this revision has no table to read and no table to
+    write, and both are reported rather than raised: ``doctor`` is a
+    diagnostic, and a diagnostic that dies on the first thing it cannot read
+    is not a diagnostic.
+
+    **A provider declared unprobed is not asked about, at all.** ADR-0002's
+    ``probed: false`` override: the operator has said this provider's
+    capabilities are not established here, so the stored record is not read
+    and the probe is not made. Probing it would spend money on a reading the
+    workspace was told to ignore.
+
+    **A refusal is reported as the reason the reading is missing.** The probe
+    was not made because nobody agreed to it, and that is not the same as a
+    probe that was made and failed — so the finding carries the refusal's
+    own words.
+    """
+    from labcairn.providers.errors import OutboundRefusedError
+
+    if not settings.probed:
+        return None, "none", None
+    if probe:
+        try:
+            record = _probe_record(settings, consent)
+        except OutboundRefusedError as refusal:
+            return None, "none", refusal.reason + _the_approval_commands(missing)
+        if record is None:
+            return None, "none", None
+        error = _keep_probe_record(database_path, record)
+        return record, "live", error
+    record = _stored_probe_record(database_path, key)
+    if record is None:
+        return None, "none", None
+    return record, "stored", None
+
+
+def _probe_record(settings: ProviderSettings, consent: OutboundConsent) -> ProbeRecord | None:
+    """Ask one endpoint what it can do, and return what it answered.
+
+    A probe that fails is reported as a capability that could not be observed
+    rather than as a crash: ``doctor`` is a diagnostic, and a diagnostic that
+    dies on the first thing it cannot read is not a diagnostic.
+
+    **A refusal is not a failed probe.** It is a decision, and the operator
+    has to be told which one was missing, so it is raised rather than folded
+    into the ``None`` above.
+    """
+    from labcairn.providers.errors import OutboundRefusedError
+
+    try:
+        from labcairn.providers.pydantic_models import probe_record as run_probe
+
+        return run_probe(settings, consent=consent)
+    except OutboundRefusedError:
+        raise
+    except Exception:
+        return None
+
+
+def _stored_probe_record(database_path: Path | None, key: ProbeKey) -> ProbeRecord | None:
+    """The record the store keeps for this key, or ``None`` when it has none.
+
+    **A store that cannot be read is a store with nothing to say.** The
+    workspace's database may not exist, may not have been migrated past the
+    revision that adds this table, or may be unreadable; each of those means
+    the same thing to the reader — no record — and each is reported as
+    ``unverified`` rather than raised.
+    """
+    if database_path is None or not database_path.is_file():
+        return None
+    from labcairn.application.probe_records import SqliteProbeCache
+    from labcairn.db import create_db_engine, create_session_factory, session_scope
+
+    try:
+        engine = create_db_engine(database_path, readonly=True)
+        factory = create_session_factory(engine)
+        try:
+            with session_scope(factory) as session:
+                return SqliteProbeCache(session).get(
+                    endpoint_fingerprint=key.endpoint_fingerprint,
+                    model=key.model,
+                    protocol=key.protocol,
+                )
+        finally:
+            engine.dispose()
+    except Exception:
+        return None
+
+
+def _keep_probe_record(database_path: Path | None, record: ProbeRecord) -> str | None:
+    """Write the record into the store. The reason it could not be, or ``None``.
+
+    **A reading that could not be kept is reported, not hidden.** The probe
+    happened and cost money whatever the store does with it, so the operator
+    is told what was observed *and* that the product is not holding it.
+    """
+    if database_path is None or not database_path.is_file():
+        return "the workspace has no database to keep the probe record in"
+    from labcairn.application.probe_records import SqliteProbeCache
+    from labcairn.db import create_db_engine, create_session_factory, session_scope
+
+    engine = None
+    try:
+        engine = create_db_engine(database_path)
+        factory = create_session_factory(engine)
+        with session_scope(factory) as session:
+            SqliteProbeCache(session).put(record)
+    except Exception as error:
+        return f"the probe record could not be kept: {error}"
+    finally:
+        if engine is not None:
+            engine.dispose()
+    return None
 
 
 def _provider_settings(location: WorkspaceLocation) -> Mapping[str, ProviderSettings]:
@@ -744,65 +1088,6 @@ def _provider_settings(location: WorkspaceLocation) -> Mapping[str, ProviderSett
         raise WorkspaceSetupError(f'{path} must hold a top-level "providers" object.')
     entries = raw["providers"]
     return {str(name): ProviderSettings.from_mapping(entry) for name, entry in entries.items()}
-
-
-def _probe_capabilities(
-    settings: ProviderSettings,
-    fingerprint: str,
-) -> ProviderCapabilities | None:
-    """Ask one endpoint what it can do.
-
-    A probe that fails is reported as a capability that could not be observed
-    rather than as a crash: ``doctor`` is a diagnostic, and a diagnostic that
-    dies on the first thing it cannot read is not a diagnostic.
-    """
-    from labcairn.providers.capabilities import Capability, CapabilityOutcome, ProviderCapabilities
-
-    try:
-        from labcairn.providers.pydantic_models import smoke_test
-
-        wire = smoke_test(settings)
-    except Exception:
-        return None
-
-    outcomes = wire.get("outcomes", {})
-    evidence = wire.get("evidence", {})
-    if not isinstance(outcomes, Mapping) or not isinstance(evidence, Mapping):
-        return None
-    try:
-        parsed_outcomes = {
-            Capability(str(capability)): CapabilityOutcome(str(outcome))
-            for capability, outcome in outcomes.items()
-        }
-    except ValueError:
-        return None
-    return ProviderCapabilities.from_outcomes(
-        endpoint_fingerprint=str(wire.get("endpoint_fingerprint", fingerprint)),
-        model=str(wire.get("model", settings.model)),
-        protocol=str(wire.get("protocol", settings.protocol_label)),
-        outcomes=parsed_outcomes,
-        unsupported_reason=_evidence_by_capability(evidence),
-    )
-
-
-def _evidence_by_capability(evidence: Mapping[Any, Any]) -> dict[Capability, str]:
-    """The probe's evidence, keyed by the capability it explains.
-
-    An entry whose key is not a capability this build knows is dropped rather
-    than guessed at: the reason is only meaningful against the capability it
-    was observed for, and a reason attached to the wrong one would be a claim
-    about something nobody measured.
-    """
-    from labcairn.providers.capabilities import Capability
-
-    reasons: dict[Capability, str] = {}
-    for key, value in evidence.items():
-        try:
-            capability = Capability(str(key))
-        except ValueError:
-            continue
-        reasons[capability] = str(value)
-    return reasons
 
 
 def _capability_findings(
@@ -1995,6 +2280,74 @@ def _render_ingestion(model: SourcesIngested) -> RenderableType:
     return Panel(table, title="ingested", expand=False)
 
 
+@sources_app.command("remove")
+def sources_remove(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The source to take back.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Take a source back out of the ledger.
+
+    **A source's identity is where the material is, not what it holds.** The
+    ledger keys a source by its location, so a material that is moved and
+    ingested again is a *second* source rather than a moved one — and the row
+    the old path left behind names a path that is not there any more. This
+    command is how that row leaves.
+
+    The row goes and the evidence stays: the extracted text and the
+    addresses into it are keyed by the content hash, so the records resting
+    on them keep resolving.
+
+    A manuscript's version that named the material **follows the bytes** to
+    the row that holds them, because a version is the set of bytes it was
+    made from. Where the material is nowhere else in the ledger, the
+    removal is refused rather than take a version's row with it.
+
+    A source the ledger does not hold is **refused**, not pretended away.
+    """
+    from labcairn.application.material_ingestion import remove_source
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import application_context, locate
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            removed = remove_source(context, source)
+    if as_json:
+        emit_model(removed)
+    else:
+        _console().print(_render_removal(removed))
+
+
+def _render_removal(model: SourceRemoved) -> RenderableType:
+    """What the removal took out, drawn from the model.
+
+    The picture is generated from the same value the ``--json`` form
+    serialises, so the two cannot disagree. The tasks that let the material
+    go are named one by one: a count alone would not say which binding
+    moved.
+    """
+    from rich.panel import Panel
+    from rich.table import Table
+
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("removed", model.source_id)
+    table.add_row("path", model.relative_path)
+    table.add_row("digest", model.content_sha256)
+    table.add_row("disclosures", str(model.removed_problem_count))
+    for task_id in model.released_task_ids:
+        table.add_row("released", task_id)
+    for version_id in model.repointed_version_ids:
+        table.add_row("version", f"{version_id} -> {model.repointed_to_source_id}")
+    return Panel(table, title="removed", expand=False)
+
+
 # --------------------------------------------------------------------------- #
 # artifacts
 # --------------------------------------------------------------------------- #
@@ -2336,8 +2689,19 @@ def service_app(
     and ``POST /review/suggest`` in ``real`` mode is refused with
     ``model_suggestion_no_provider`` — the refusal, not a failure, is the
     honest state of a service the owner has not authorised.
+
+    **The event stream is wired to the store's own log, and that is the
+    difference between a service and a shell.** The API's ``/events``
+    routes read through a port, and a service that starts without
+    something behind that port answers ``GET /events`` with a refusal that
+    says ``not_implemented`` — the stream was never wired, and the runbook
+    that asks for the stage timeline cannot read it on the service the
+    runbook starts. The source here is the store's own reader, and the
+    host — this command — is what supplies it, which is where the port
+    says the supplying belongs.
     """
     from labcairn.api import create_app
+    from labcairn.application.events import StoreEventSource
 
     return create_app(
         context,
@@ -2347,6 +2711,7 @@ def service_app(
         static_dir=static_dir,
         select_task=select_task,
         model_suggestions=model_suggestion_backend(context),
+        event_source=StoreEventSource(),
     )
 
 
@@ -2476,8 +2841,11 @@ def _real_suggestion_backend(
     """
     from labcairn.application.approvals import access_grants, register_access_grant
     from labcairn.application.model_suggestions import ModelSuggestionBackend
+    from labcairn.application.probe_records import SqliteProbeCache
 
-    transport = _suggestion_transport(settings, credential)
+    transport = _suggestion_transport(
+        settings, credential, probe_cache=SqliteProbeCache(context.store.session)
+    )
     if transport is None:
         return None
 
@@ -2541,7 +2909,60 @@ def _suggestion_grant(record: Mapping[str, str]) -> Grant | None:
     )
 
 
-def _suggestion_transport(settings: Any, credential: Any) -> Any:
+class _TransportSeam(Protocol):
+    """The seam the wiring reads a transport through.
+
+    **The transport's own members, named in one place.** Beyond the
+    answer it gives, the wiring needs three things from a transport: the
+    model it is for, the credential its exchanges were recorded under, and
+    the provider layer's own record of what it has sent. This protocol is
+    where those are declared, so the transport that builds one is checked
+    against it -- by mypy, at the build -- rather than at the arm that
+    reads it.
+
+    **There is no ``hasattr`` arm here, and that is the point.** A
+    private attribute reached through ``hasattr`` fails quietly: it
+    produces ``None``, and ``None`` means "this provider's schema was
+    never probed", which is a refusal of every real role run that leaves
+    no trace of the wiring that caused it. A transport that cannot
+    present the seam is not a transport this wiring can use, and saying so
+    by raising is the honest shape of that: the wiring is broken, and a
+    broken wiring is a crash, not a refusal.
+    """
+
+    model_id: str
+
+    def send(self, request: ModelRequest) -> str:
+        """One request out, one answer back."""
+        ...
+
+    @property
+    def credential_fingerprint(self) -> str:
+        """Which credential the exchanges were recorded under, and no value."""
+        ...
+
+    @property
+    def capabilities(self) -> ProviderCapabilities | None:
+        """The provider's probed capabilities, or ``None`` when none has run.
+
+        **The provider layer's own record, not a copy of it.** The role
+        loop refuses a schema request the probe does not license, so the
+        record that decides it has to be the one the provider layer
+        holds -- a second copy would be a claim about a provider that
+        nothing measured.
+        """
+        ...
+
+    def exchanges(self) -> tuple[ExchangeRecord, ...]:
+        """The provider layer's own record of the calls it has made."""
+        ...
+
+
+def _suggestion_transport(
+    settings: Any,
+    credential: Any,
+    probe_cache: ProbeCache | None = None,
+) -> _TransportSeam | None:
     """The gated transport one provider's settings build, or ``None``.
 
     The adapter is built with the same five gates every other real call
@@ -2555,8 +2976,22 @@ def _suggestion_transport(settings: Any, credential: Any) -> Any:
     **The loop's seam names a ``model_id``**, and the adapter names itself
     ``label:model``; the seam is what the loop reads and records, so the
     returned object carries that name, not the adapter's.
+
+    **The probe record is handed to the gate, not merely to the report.**
+    ADR-0002 wants a provider gated by what was measured against it, and the
+    measurement the product keeps is the one in the store — so the cache and
+    the key the record is filed under go to the adapter, which reads the
+    record when it is assembled and gates on that.
+
+    **A provider the configuration declares unprobed is gated as unprobed.**
+    The cache is not handed over for one, so the adapter finds no record and
+    the gate refuses it the way it refuses an endpoint nobody has asked.
+    Otherwise the product would contradict itself: the doctor would report
+    the provider as unverified while the gate held it to a reading the
+    operator has disowned.
     """
     from labcairn.providers.adapter import PydanticAiModelProvider
+    from labcairn.providers.probe import probe_key
     from labcairn.providers.pydantic_models import (
         build_http_client,
         build_model,
@@ -2576,9 +3011,16 @@ def _suggestion_transport(settings: Any, credential: Any) -> Any:
             usage_capture=sniffer,
             redactor=credential_redactor(credential),
             timeout_s=settings.timeout_s,
+            max_output_tokens=settings.max_output_tokens,
             clock=lambda: 0.0,
+            probe_cache=probe_cache if settings.probed else None,
+            probe_key=probe_key(
+                base_url=settings.sanitised_base_url(),
+                model=settings.model,
+                protocol=settings.protocol_label,
+            ),
         )
-        return _SuggestionTransportAdapter(
+        return _ProviderTransport(
             adapter,
             model_id=settings.model,
             credential_fingerprint=str(credential.fingerprint),
@@ -2590,13 +3032,21 @@ def _suggestion_transport(settings: Any, credential: Any) -> Any:
         return None
 
 
-class _SuggestionTransportAdapter:
-    """The provider adapter, wearing the loop's transport seam.
+class _ProviderTransport:
+    """The provider adapter, wearing the transport seam both loops read.
 
     The seam asks for one attribute the adapter does not carry —
     ``model_id``, the name the run row and the approval derivation record —
-    and one method it does. Nothing else is added: the adapter's own five
-    gates run exactly as every other real call runs them.
+    and one method it does. The adapter's own five gates run exactly as
+    every other real call runs them; nothing here changes a call.
+
+    **The two members the role loop reads are the adapter's own, offered
+    under the seam's names.** The probe record and the exchange records
+    live on the provider adapter; this class does not copy them, it
+    presents them. That is what lets the wiring read them without
+    reaching into a private attribute -- and what makes the wiring fail
+    loudly, rather than quietly deciding that a provider was never
+    probed, when the transport it was handed cannot present them.
     """
 
     def __init__(self, adapter: Any, *, model_id: str, credential_fingerprint: str) -> None:
@@ -2606,7 +3056,7 @@ class _SuggestionTransportAdapter:
 
     def send(self, request: ModelRequest) -> str:
         """One request through the adapter's gates, one answer text out."""
-        answer = cast(ModelResponse, self._adapter.send(request))
+        answer = cast("ModelResponse", self._adapter.send(request))
         return answer.text
 
     @property
@@ -2619,6 +3069,26 @@ class _SuggestionTransportAdapter:
         the value itself.
         """
         return self._credential_fingerprint
+
+    @property
+    def capabilities(self) -> ProviderCapabilities | None:
+        """The provider's probe record, or ``None`` when no probe has run.
+
+        **The adapter's own record, read through the seam.** ``None``
+        here is an honest answer -- no probe has run against this
+        provider -- and the role loop refuses a schema request on it
+        rather than sending the material on the chance.
+        """
+        return cast("ProviderCapabilities | None", self._adapter.capabilities)
+
+    def exchanges(self) -> tuple[ExchangeRecord, ...]:
+        """The provider layer's own record of the calls it has made.
+
+        Digests and counts, never text -- the same records the provider
+        layer persists, offered under the seam's name so the wiring does
+        not have to know how the adapter holds them.
+        """
+        return cast("tuple[ExchangeRecord, ...]", tuple(self._adapter.exchanges()))
 
 
 def credential_redactor(credential: Any) -> Any:
@@ -3135,7 +3605,20 @@ def role_run_backend(context: ApplicationContext) -> RoleRunBackend | None:
     this build cannot construct. A service or a command with no backend
     still runs; the loop's own refusal says what a run that needs the
     model may not do.
+
+    **The probe record is read off the transport's seam, and the seam is
+    explicit.** The provider's capabilities are what license a schema
+    request, so they are read the same way the answer is read: through a
+    named member of :class:`_TransportSeam`, never through a private
+    attribute reached behind ``hasattr``. A transport that cannot present
+    the record is not a transport this wiring can use, and the wiring says
+    so by raising rather than by quietly deciding that the provider was
+    never probed -- a quiet ``None`` here would refuse every real role
+    run, and the refusal would name the provider rather than the wiring
+    that caused it.
     """
+    from labcairn.application.probe_records import SqliteProbeCache
+    from labcairn.application.roles_run import RoleRunBackend
     from labcairn.providers.credentials import load_credential, load_providers_config
 
     path = context.workspace.selected_root / PROVIDERS_FILE_NAME
@@ -3155,7 +3638,9 @@ def role_run_backend(context: ApplicationContext) -> RoleRunBackend | None:
         credential = load_credential(settings)
     except Exception:
         return None
-    transport = _suggestion_transport(settings, credential)
+    transport = _suggestion_transport(
+        settings, credential, probe_cache=SqliteProbeCache(context.store.session)
+    )
     if transport is None:
         return None
     grant = _suggestion_grant(record)
@@ -3176,13 +3661,13 @@ def role_run_backend(context: ApplicationContext) -> RoleRunBackend | None:
         provider=record["provider"],
         model=settings.model,
         send=lambda prompt: _the_loop_invocation(transport, prompt),
-        capabilities=transport._adapter.capabilities if hasattr(transport, "_adapter") else None,
+        capabilities=transport.capabilities,
         grants=grants,
         destination=record["destination"],
     )
 
 
-def _the_loop_invocation(transport: Any, prompt: str) -> ModelInvocation:
+def _the_loop_invocation(transport: _TransportSeam, prompt: str) -> ModelInvocation:
     """One call through the wired transport, recorded in the layer's wire form.
 
     **The record is the adapter's own.** The transport is the provider
@@ -3192,13 +3677,20 @@ def _the_loop_invocation(transport: Any, prompt: str) -> ModelInvocation:
     as the call's. The adapter names itself ``provider:model``, and the
     fingerprint it records is the credential's own -- the same shape every
     exchange record in the log carries.
+
+    **The exchange records are read through the seam, not around it.**
+    The records are the provider layer's own, and the seam is where the
+    transport offers them; a wiring that reached past the seam for them
+    would be reading an attribute that the seam does not promise, and
+    would read it as "no exchanges" when it was absent.
     """
     from labcairn.application.model_request import ModelInvocation
+    from labcairn.core.providers.protocol import ModelRequest
 
     request = ModelRequest(prompt=prompt)
-    before = transport._adapter.exchanges() if hasattr(transport, "_adapter") else ()
+    before = transport.exchanges()
     answer = transport.send(request)
-    after = transport._adapter.exchanges() if hasattr(transport, "_adapter") else ()
+    after = transport.exchanges()
     fresh = after[len(before) :] if len(after) >= len(before) else after
     model_id = transport.model_id
     return ModelInvocation(
@@ -3207,7 +3699,33 @@ def _the_loop_invocation(transport: Any, prompt: str) -> ModelInvocation:
         model=model_id,
         exchanges=tuple(exchange.to_wire() for exchange in fresh),
         credential_fingerprint=transport.credential_fingerprint,
+        structured=_the_document(answer),
     )
+
+
+def _the_document(answer: str) -> Mapping[str, object] | None:
+    """The provider's answer, when it came back as a document.
+
+    **A JSON object, or nothing.** The role loop asks the model for one
+    part per role, and a model that answers in the shape it was asked for
+    answers with a document. This wiring does not ask for that -- the
+    prompt owns the question -- it *recognises* the document when the
+    provider returned one, and hands it to the layer, which judges it
+    against the schema it asked for.
+
+    **An answer that is not a document is not one.** Nothing here
+    guesses: text that does not parse, or that parses to something which
+    is not an object, leaves the document absent, and the layer refuses
+    with its own reason rather than this path inventing a judgement about
+    what the model said.
+    """
+    try:
+        parsed = json.loads(answer)
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return cast("Mapping[str, object]", parsed)
 
 
 def the_role_run_ticket_rendered(ticket: Any) -> RenderableType:
@@ -3304,34 +3822,24 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
     judgements: dict[str, Any] = {}
     trajectory = parsed.get("trajectory")
     if trajectory is not None:
-        if not isinstance(trajectory, dict):
-            _refuse(
-                CLI_REFUSAL_INVALID_ARGUMENTS,
-                "the 'trajectory' judgement is one JSON object.",
-                as_json=as_json,
-            )
+        part = _the_judgement_part_or_declined("trajectory", trajectory, as_json=as_json)
         judgements["trajectory"] = TrajectoryJudgement(
-            issue_type=str(trajectory.get("issue_type", "")),
-            alignment=str(trajectory.get("alignment", "")),
-            advisor_quote=str(trajectory.get("advisor_quote", "")),
-            note=str(trajectory.get("note", "")),
-            edit_action_id=trajectory.get("edit_action_id"),
+            issue_type=str(part.get("issue_type", "")),
+            alignment=str(part.get("alignment", "")),
+            advisor_quote=str(part.get("advisor_quote", "")),
+            note=str(part.get("note", "")),
+            edit_action_id=part.get("edit_action_id"),
         )
     guidance = parsed.get("guidance")
     if guidance is not None:
-        if not isinstance(guidance, dict):
-            _refuse(
-                CLI_REFUSAL_INVALID_ARGUMENTS,
-                "the 'guidance' judgement is one JSON object.",
-                as_json=as_json,
-            )
+        part = _the_judgement_part_or_declined("guidance", guidance, as_json=as_json)
         judgements["guidance"] = GuidanceJudgement(
-            issue_type=str(guidance.get("issue_type", "")),
-            severity=str(guidance.get("severity", "")),
-            reason=str(guidance.get("reason", "")),
-            suggested_next_action=str(guidance.get("suggested_next_action", "")),
-            uncertainty_kind=str(guidance.get("uncertainty_kind", "")),
-            what_is_uncertain=str(guidance.get("what_is_uncertain", "")),
+            issue_type=str(part.get("issue_type", "")),
+            severity=str(part.get("severity", "")),
+            reason=str(part.get("reason", "")),
+            suggested_next_action=str(part.get("suggested_next_action", "")),
+            uncertainty_kind=str(part.get("uncertainty_kind", "")),
+            what_is_uncertain=str(part.get("what_is_uncertain", "")),
             claims=tuple(
                 CardClaim(
                     text=str(claim.get("text", "")),
@@ -3340,21 +3848,94 @@ def _the_judgements_from_json(raw: str | None, *, as_json: bool) -> dict[str, An
                     issue_key=claim.get("issue_key"),
                     advisor_quote=claim.get("advisor_quote"),
                 )
-                for claim in guidance.get("claims", ())
+                for claim in part.get("claims", ())
             ),
-            style_notes=tuple(guidance.get("style_notes", ())),
+            style_notes=tuple(part.get("style_notes", ())),
         )
     critique = parsed.get("critique")
     if critique is not None:
-        if not isinstance(critique, dict):
-            _refuse(
-                CLI_REFUSAL_INVALID_ARGUMENTS,
-                "the 'critique' judgement is one JSON object.",
-                as_json=as_json,
-            )
+        part = _the_judgement_part_or_declined("critique", critique, as_json=as_json)
         judgements["critique"] = CritiqueJudgement(
-            verdict=str(critique.get("verdict", "")),
-            repair_advice=str(critique.get("repair_advice", "")),
-            handover_reason=critique.get("handover_reason"),
+            verdict=str(part.get("verdict", "")),
+            repair_advice=str(part.get("repair_advice", "")),
+            handover_reason=part.get("handover_reason"),
         )
     return judgements
+
+
+def _the_judgement_part_or_declined(
+    part: str,
+    payload: object,
+    *,
+    as_json: bool,
+) -> Mapping[str, Any]:
+    """One judgement part, checked against the fields the role takes.
+
+    **A part that is not an object is refused, and so is a part carrying a
+    field the role does not take.** The first is a shape the command can see
+    for itself; the second is a field the caller wrote and the role would
+    have dropped without a word -- and a judgement that loses a field
+    quietly is not the judgement the caller wrote.
+
+    **The vocabulary is the role's own.** The fields are read off the
+    layer's dataclass through
+    :mod:`labcairn.application.judgement_fields`, so the list that refuses
+    here is the list the role itself checks, and there is no second spelling
+    of it to fall behind.
+
+    **The refusal names the field.** A refusal that says only that something
+    is wrong sends the caller looking; one that names the field sends them
+    straight to it.
+
+    **Each part's message is a literal, and that is a rule rather than an
+    accident.** The refusal enumeration
+    (``tests/test_cli_refusal_enumeration.py``) reads the CLI's source and
+    matches each refusal to a witness by the words it quotes, so a message
+    built by interpolation reads to it as a refusal with no part in it --
+    ``the ' ' judgement ...`` -- and the refusal then has no witness of its
+    own to be named. One branch per part, each carrying its whole sentence
+    as a literal, keeps the message quotable and keeps the enumeration
+    able to say which part was refused.
+    """
+    from labcairn.application.judgement_fields import unknown_fields
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
+    if not isinstance(payload, dict):
+        if part == "trajectory":
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "the 'trajectory' judgement is one JSON object.",
+                as_json=as_json,
+            )
+        if part == "guidance":
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "the 'guidance' judgement is one JSON object.",
+                as_json=as_json,
+            )
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            "the 'critique' judgement is one JSON object.",
+            as_json=as_json,
+        )
+    unknown = unknown_fields(part, payload)
+    if unknown:
+        names = ", ".join(repr(name) for name in unknown)
+        if part == "trajectory":
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"the 'trajectory' judgement has a field the role does not take: {names}.",
+                as_json=as_json,
+            )
+        if part == "guidance":
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"the 'guidance' judgement has a field the role does not take: {names}.",
+                as_json=as_json,
+            )
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"the 'critique' judgement has a field the role does not take: {names}.",
+            as_json=as_json,
+        )
+    return payload

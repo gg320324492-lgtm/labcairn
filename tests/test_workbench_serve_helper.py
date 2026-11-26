@@ -389,49 +389,41 @@ def test_the_development_server_s_origins_are_answered_to_by_default(
 # --------------------------------------------------------------------------- #
 
 
-def test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts(
+def test_the_event_stream_the_page_reads_is_wired_in_the_service_the_cli_starts(
     served: ServedWorkbench,
 ) -> None:
-    """The stream the page reads is still unwired — and now says so to the reader.
+    """The stream the page reads is wired, and it answers with the task's events.
 
-    ``labcairn serve`` builds the service without an event source — the command's own
-    docstring says the stream belongs to the packages that own it — so the honest
-    answer is a refusal, and it is one this test measures rather than carries: both
-    reads answer ``403`` with ``not_implemented``.
+    **The gap this closes.** ``labcairn serve`` used to build the service
+    without an event source, so both reads answered ``403`` with
+    ``not_implemented`` — and the runbook that asks for the stage timeline
+    could not read it on the service the runbook starts. The events were in
+    the store the whole time; the service could not say them back. The host
+    now supplies the store's own reader, and the stream is a second way to
+    read the log rather than a refusal.
 
-    **What this test used to record, and what closed it.** Until 2026-11-10 the stream
-    route raised the same refusal *inside* its response generator, by which point the
-    ``200`` and ``text/event-stream`` headers had been sent: the client saw a stream
-    that opened and ended with nothing in it, the service logged a traceback, and the
-    Events panel said *"the event stream is live"*. That traceback was measured at
-    6,205 bytes for one short stream against an 8,192-byte pipe capacity, and a service
-    whose output is a pipe nobody drains parks in the write and answers nothing after
-    that — the defect named O6. The route now refuses an unwired source before it
-    starts a response (`src/labcairn/api/routes.py`, `get_event_stream`), so the
-    refusal is a response, and the record is
-    `docs/acceptance/o6-event-stream-stall-2026-11-10.md`.
-
-    **Why it is still a test and not a note.** The stream is *not wired*: a service
-    that answered this read with a live stream would be claiming an event source it
-    does not have. What the read is for is that the refusal reaches the reader in the
-    same two fields the JSON read carries — a refusal the client cannot see is a
-    refusal nobody acts on.
+    **And an unwired source still refuses before the response starts.** The
+    route refuses before it starts a response, so a service without a
+    source answers with the same two fields the JSON read carries — never a
+    200 stream that then died with nothing in it and left the service to log
+    a traceback (the O6 stall,
+    ``docs/acceptance/o6-event-stream-stall-2026-11-10.md``). That
+    property is watched where the unwired source is the one under test, in
+    ``tests/test_api.py``; here the source is the store's, and the witness
+    is that the reader gets the log.
     """
     page_read = served.get("/events", timeout=20.0)
-    assert page_read.status == 403, page_read.body[:200]
-    assert page_read.json()["reason"] == "not_implemented", page_read.body[:200]
+    assert page_read.status == 200, page_read.body[:200]
+    body = page_read.json()
+    assert body["events"], "the task was created, so the log is not empty"
+    assert body["task_id"], "the page does not say which task's log it is"
 
-    # The gap is closed: the refusal reaches the reader, in the same two
-    # fields the JSON read carries. It used to open a 200 stream that then
-    # died with nothing in it and left the service to log a traceback — the
-    # traceback that, measured, was the fuel of the O6 stall (see
-    # docs/acceptance/o6-event-stream-stall-2026-11-10.md).
     stream = served.get("/events/stream?follow=false", timeout=20.0)
-    assert stream.status == 403, (
-        "the stream no longer carries its refusal as a response: it answered "
+    assert stream.status == 200, (
+        "the stream no longer answers the service's own log: it answered "
         f"{stream.status} with {stream.body[:200]!r}"
     )
-    assert stream.json()["reason"] == "not_implemented", stream.body[:200]
+    assert "data:" in stream.body, f"the stream carried no frames: {stream.body[:200]!r}"
 
 
 # --------------------------------------------------------------------------- #

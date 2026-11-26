@@ -1,6 +1,6 @@
 # The P1 review dossier — upstream designs, LabCairn's independent implementation, and its tests
 
-**Anchors:** 9 — every converted pointer below carries the words it cites.
+**Anchors:** 15 — every converted pointer below carries the words it cites.
 
 **Work order:** LC-P1-14 (public alpha handoff and review dossier) · **Task:** T08
 **Status:** the dossier exists; the checkbox it discharges is `docs/UPSTREAM_REFERENCES.md:197`.
@@ -10,7 +10,7 @@
 > **Dated snapshot — true when written, superseded since.** The sentence above was
 > written on 2026-10-25 and was true then: every test, ADR and path this dossier named
 > existed at `dd08573`, and all 36 of its catalogue citations resolved in the catalogue
-> there, which was 195 lines long and had none of them on a blank line. Two things have
+> there, which was 195 lines long and had none of them on a blank line. Three things have
 > moved since. The catalogue has grown to 327 lines, so the citations below name where
 > the wording is **now**: 9 of the 37 wordings the dossier leans on sat ten lines higher
 > at `dd08573`, and the wording the commit-SHA column is cited for was rewritten in place
@@ -18,8 +18,13 @@
 > dossier has also since named two things that are not in the tree at `dd08573`: its own
 > witness `tests/test_review_dossier.py` (added the same day, `76d5e1c`), and
 > `tests/test_source_contracts.py::test_locator_kinds_are_closed_at_eight_members` (added
-> 2026-10-29, `56595a1`). The sentence is left as written because it records what the
-> dossier was measured against; the two items named above are the exceptions.
+> 2026-10-29, `56595a1`). **Phase 4's work is in the tree now, and §7 is where this
+> dossier says what it does not cover**: the exit skeleton
+> `docs/acceptance/P4-G1-G4-record-skeleton.md`, the capability record
+> `docs/acceptance/P4-G1-G4-system-capability-record.json` and the release notes
+> `docs/RELEASE-NOTES.md` are named below, and none of the three is in the tree at
+> `dd08573`. The sentence is left as written because it records what the dossier was
+> measured against; the items named above are the exceptions.
 
 **What this document is for.** One external reviewer, with no access to any upstream
 repository, has to be able to answer one question: **of the things LabCairn does,
@@ -629,6 +634,41 @@ Stated plainly, because a dossier that lists only its strengths is a brochure.
    watched sentences would be watching its own imagination, and a rewrite that
    changed nothing true would turn it red. What is checked here is what a
    reader follows.
+7. **Phase 4 is not covered by this dossier, and the boundary statement above
+   covers the tree this dossier was written for.** Phase 4 borrowed no
+   upstream design: no Phase 4 plan, acceptance record or pilot document names
+   an upstream repository, and the catalogue's own scope says which clones it
+   covers — `docs/UPSTREAM_REFERENCES.md`, *Scope.* This verification covers the
+   five Phase 1 clones in this catalogue — so Phase 4 has no upstream column,
+   §2 has no comparison to make of it and §3 has no refusal to record, and a
+   Phase 4 row in either would be a comparison without a pair. **Everything
+   above this item is about the tree at `dd08573`** — the rule §0 sets out —
+   and the tree now holds Phase 4's work, which is the pilot's runbook and
+   exit skeleton and the material registration, and the eleventh batch's
+   additions to it, which are what closed the evidence gaps the gates had: the
+   consent gate a capability probe goes through, and the routes that name a
+   workspace's rounds
+   (`src/labcairn/api/routes.py:1183` — `@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])`),
+   read a suggestion run's account
+   (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`)
+   and answer the event stream
+   (`src/labcairn/api/routes.py:845` — `@router.get("/events", response_model=EventStreamPage, tags=["events"])`).
+   **Nothing above establishes anything about any of that.** Phase 4's four
+   exit gates `P4-G1`–`P4-G4` are **open**: all **18** of their evidence slots
+   are `PENDING` in the exit skeleton
+   `docs/acceptance/P4-G1-G4-record-skeleton.md`, seven of them marked *Real
+   trial only*
+   (`docs/acceptance/P4-G1-G4-record-skeleton.md:210` — `Real trial only`),
+   and the capability record
+   `docs/acceptance/P4-G1-G4-system-capability-record.json` names its own
+   workspace as synthetic — *"A synthetic workspace, made to exercise the
+   collector. It holds a task and nothing else: no paper, no closed binding,
+   no rule. It is not the pilot paper's workspace"*
+   (`docs/acceptance/P4-G1-G4-system-capability-record.json:22` — `A synthetic workspace, made to exercise the collector. It holds a task and nothing else: no paper, no closed binding, no rule.`).
+   **A reader who wants to know what Phase 4 does not establish must read the
+   release notes `docs/RELEASE-NOTES.md` §3**
+   (`docs/RELEASE-NOTES.md:776` — `What the evidence does`) **and the exit
+   skeleton**; **this dossier vouches for neither.**
 
 ---
 

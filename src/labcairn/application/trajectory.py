@@ -153,6 +153,26 @@ class PaperProjectListed(Result):
     created_at: datetime
 
 
+class ReviewRoundListed(Result):
+    """One revision round, named by its ids and nothing else.
+
+    **A round is an address, not a content.** The pair ``project_id`` and
+    ``version_id`` says which paper and which revision of it a surface is
+    working on; the words of the paper, the advisor's comments and the
+    tracked changes live behind the versions' material and are reached
+    through the service's own review routes, which apply the policy. A
+    listing that carried a paragraph would be a listing that leaked the
+    material it was supposed to name.
+
+    ``created_at`` is when the version was recorded, so a reader can tell
+    which of several rounds is the recent one without asking.
+    """
+
+    project_id: str
+    version_id: str
+    created_at: str
+
+
 class TrajectoryHit(Result):
     """One search hit: the entry, with the provenance it was ingested with."""
 
@@ -309,6 +329,47 @@ def list_paper_projects(context: ApplicationContext) -> tuple[PaperProjectListed
             created_at=row.created_at,
         )
         for row in rows
+    )
+
+
+def list_review_rounds(context: ApplicationContext) -> tuple[ReviewRoundListed, ...]:
+    """The revision rounds this workspace holds, **newest first**.
+
+    **A round is an address, and this listing is addresses.** The service
+    could not tell the workbench which round it was working on: the projects
+    were in the store and nothing exposed them, so a surface that wanted a
+    round had to name one it had been told about by something other than the
+    service — which is how a surface ends up addressing a sample round
+    forever. This is that read.
+
+    **The material is not named, and the permission is asked anyway.** A
+    round's ids say which paper and which revision of it; the words behind
+    them are reached through the review routes, which apply the policy. The
+    permission is still asked per version, on the version's own material,
+    because a version the policy denies is dropped from the listing rather
+    than named in it — the same rule the ingest follows, and the same rule
+    ADR-0003 C5 asks a bulk listing to keep.
+
+    **Newest first, because the recent one is the one a person is
+    working on.** The order is the version's own recording time, and the
+    project and version ids break a tie, so the same workspace answers the
+    same way twice.
+
+    :raises ApplicationRefusedError: the task's own store session is not
+        usable.
+    """
+    dated: list[tuple[datetime, str, str]] = []
+    for project in list_paper_projects(context):
+        for version in _permitted_versions(context, project.project_id):
+            dated.append((version.created_at, project.project_id, version.version_id))
+    dated.sort(reverse=True)
+    return tuple(
+        ReviewRoundListed(
+            project_id=project_id,
+            version_id=version_id,
+            created_at=created_at.isoformat(),
+        )
+        for created_at, project_id, version_id in dated
     )
 
 

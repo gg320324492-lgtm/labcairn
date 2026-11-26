@@ -455,6 +455,34 @@ def _approval_row(context: ApplicationContext, approval_id: ApprovalId) -> Appro
     )
 
 
+def granted_approvals_for(
+    context: ApplicationContext,
+    *,
+    args_digest: str,
+) -> tuple[Approval, ...]:
+    """The granted approvals whose digest matches, in the store's order.
+
+    **The store keeps the digest of the arguments, not the arguments.** So an
+    approval is recognised by the digest of the use it covers, and this is the
+    reader for that question: the caller that has the use computes the
+    digest and asks here for the rows that carry it. Two rows may carry the
+    same digest — the same request asked for twice — and both are returned,
+    because a grant is spent on the request that names it and a second
+    request needs a second grant.
+
+    **Only granted rows come back.** A pending, expired or spent approval
+    covers nothing, and handing one over as though it did would be a lie the
+    ledger would have to correct.
+    """
+    with store_refusals():
+        approvals = list_approvals(context.store.session, context.task_id)
+    return tuple(
+        approval
+        for approval in approvals
+        if approval.state is ApprovalState.GRANTED and approval.args_digest == args_digest
+    )
+
+
 def _operation_row(context: ApplicationContext, approval: Approval) -> Operation | None:
     """The operation the approval was asked for, if the store still holds it."""
     with store_refusals():

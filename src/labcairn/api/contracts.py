@@ -56,6 +56,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from labcairn.application import ChainComment, ChainEdit
+from labcairn.application.model_suggestions import SuggestionRequestEntry
 from labcairn.application.models import Result
 from labcairn.core.ids import ApprovalId, RunId
 from labcairn.evidence.states import EvidenceKind
@@ -605,6 +606,17 @@ class ReviewSuggestRun(Result):
     row it mirrors is the budget's account — a reader answers "what did
     this run cost, what did it produce, and why did it stop" from this one
     object, without reading the suggestion rows.
+
+    **The same account is returned twice, and that is the point.** The run
+    writes its own record, and ``GET /review/suggest/runs/{run_id}`` reads
+    it back — so a gate that wants the evidence of a run *after* the run
+    has finished has something to read, rather than a slot it can only
+    record as unknown.
+
+    **The per-request entries carry the durations and the approvals.** One
+    entry per request the run made: which opinion, which model answered,
+    what happened, how long it took and what it cost. **No prose** — the
+    request text and the model's answer are not here, and never were.
     """
 
     run_id: str
@@ -619,6 +631,11 @@ class ReviewSuggestRun(Result):
     opinions_skipped: int
     started_at: str
     finished_at: str
+    #: How long the run took, in seconds — the run's own two timestamps,
+    #: subtracted, so the backoff between retries counts too.
+    duration_seconds: float
+    #: One entry per request the run made, in the order it made them.
+    requests: tuple[SuggestionRequestEntry, ...] = ()
 
 
 class ApplyReviewBody(Result):

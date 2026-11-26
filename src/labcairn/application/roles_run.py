@@ -77,6 +77,7 @@ from typing import TYPE_CHECKING, Any, Final, Protocol, cast
 
 from pydantic import create_model
 
+from labcairn.application import records
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse, request_approval
 from labcairn.application.context import ApplicationContext
 from labcairn.application.model_request import ModelInvocation, request_model
@@ -483,6 +484,39 @@ def the_role_run_question(
     )
 
 
+def _asked_for_request(request: RoleRunRequest) -> dict[str, str]:
+    """What the caller asked for, as the refusal event records it.
+
+    **Identifiers, keys and counts — never the material's text.** The point
+    is that a person reading the log knows which request was refused without
+    the log becoming a second copy of the manuscript. Values are strings so
+    the payload stays a flat mapping a reader can print.
+    """
+    asked = {
+        "operation": "roles run: request",
+        "roles": ", ".join(request.roles),
+        "project": request.project_id,
+        "issue_key": request.issue_key,
+    }
+    if request.version_ids:
+        asked["versions"] = ", ".join(request.version_ids)
+    if request.rule_id is not None:
+        asked["rule"] = request.rule_id
+    return asked
+
+
+def _asked_for_run(ticket: RoleRunTicket) -> dict[str, str]:
+    """What the spend asked for, as the refusal event records it."""
+    asked = {
+        "operation": "roles run: spend",
+        "roles": ", ".join(contract.role_id for contract in ticket.contracts),
+        "issue_key": ticket.request.issue_key,
+    }
+    if ticket.approval_id is not None:
+        asked["approval"] = str(ticket.approval_id)
+    return asked
+
+
 def request_role_run(
     context: ApplicationContext,
     request: RoleRunRequest,
@@ -502,19 +536,37 @@ def request_role_run(
     :raises ApplicationRefusedError: everything
         :func:`the_role_run_question` refuses, and the policy's refusal of
         the request the approval is for.
+
+    **A refusal is recorded before it is raised.** The pilot measured the
+    gap: a refusal that reached only the exit code and the message left no
+    trace in the task's event log, so the next morning the log could not
+    say that anything was asked for. The event names the refusal's own
+    reason, its message, and the request — ids, keys and counts, never the
+    material's text — and it is written before the exception leaves this
+    function so the caller still gets the same refusal it always did.
     """
     moment = now if now is not None else datetime.now(UTC)
-    question = the_role_run_question(context, request, plan=plan)
-    roles = _the_roles(request.roles)
-    missing = _missing_judgements(request, roles)
-    approval_id: ApprovalId | None = None
-    if missing:
-        asked = request_approval(
+    try:
+        question = the_role_run_question(context, request, plan=plan)
+        roles = _the_roles(request.roles)
+        missing = _missing_judgements(request, roles)
+        approval_id: ApprovalId | None = None
+        if missing:
+            asked = request_approval(
+                context,
+                ApprovalRequest(use=_the_use(question), expires_at=expires_at),
+                now=moment,
+            )
+            approval_id = asked.approval.approval_id
+    except ApplicationRefusedError as refused:
+        records.record_refusal(
             context,
-            ApprovalRequest(use=_the_use(question), expires_at=expires_at),
+            reason=refused.reason.value,
+            message=refused.detail,
+            asked_for=_asked_for_request(request),
             now=moment,
         )
-        approval_id = asked.approval.approval_id
+        raise
     return RoleRunTicket(
         question=question,
         approval_id=approval_id,
@@ -553,11 +605,57 @@ def run_role_run(
     prompt, a different set of roles -- produces a different digest, and
     the spend is refused because the approval does not cover this question.
 
+    **An answered request closes what asked for it.** Once the model call
+    returns, the operation its approval authorised is confirmed, the stage
+    that was parked on the approval is completed, and the run that held the
+    stage is finished -- one transaction, the transitions in the order they
+    happened. Before that closure the stage read ``blocked`` and the run
+    ``running`` long after both had stopped being true.
+
+    **A refusal is recorded before it is raised.** The same rule the ask
+    follows: the reason, the message and the request land in the task's
+    event log, so a refusal nobody watched is still a refusal the product
+    can show.
+
     :raises ApplicationRefusedError: the run needs a model judgement and no
         provider invocation was given; the consent refused the call; the
         answer did not carry a judgement for a role the request named; or a
         role refused its own judgement.
     """
+    try:
+        return _run_role_run(
+            context,
+            ticket,
+            grants=grants,
+            at=at,
+            send=send,
+            capabilities=capabilities,
+            budget=budget,
+            ledger=ledger,
+        )
+    except ApplicationRefusedError as refused:
+        records.record_refusal(
+            context,
+            reason=refused.reason.value,
+            message=refused.detail,
+            asked_for=_asked_for_run(ticket),
+            now=at,
+        )
+        raise
+
+
+def _run_role_run(
+    context: ApplicationContext,
+    ticket: RoleRunTicket,
+    *,
+    grants: Sequence[Grant],
+    at: datetime,
+    send: Callable[[str], ModelInvocation] | None,
+    capabilities: ProviderCapabilities | None,
+    budget: RunBudget | None,
+    ledger: LedgerSnapshot | None,
+) -> RoleRunResult:
+    """The run's body, under :func:`run_role_run`'s refusal record."""
     question = ticket.question
     request = question.request
     # **The contracts are the authority for what runs.** They are the part of
@@ -613,6 +711,14 @@ def run_role_run(
         )
         answer = model_answer.answer
         exchange_event_id = model_answer.exchange_event_id
+        # **The request was answered, so what asked for it is closed.** The
+        # approval was consumed and the call returned; the operation its
+        # intent named is confirmed, the stage parked on it completed, and
+        # the run finished — the transitions that were missing from the
+        # pilot's chain, written now in the order they happened. The role
+        # work below may still refuse, and that refusal is recorded as a
+        # refusal; it does not unstate the call that happened.
+        records.complete_consumed_approval(context, approval_id=ticket.approval_id, now=at)
         document = captured[0].structured if captured else None
         judgements = _the_judgements(document, missing, judgements)
 
@@ -1488,13 +1594,26 @@ def run_role_run_service(
             ticket.request, tuple(contract.role_id for contract in ticket.contracts)
         )
         if missing:
-            raise ApplicationRefusedError(
+            # **This refusal belongs to the service, so the service records
+            # it.** It never reaches `run_role_run`, whose wrapper records
+            # the refusals of the spend; recording it here keeps every
+            # refusal on the task's path a fact the log holds, and keeps
+            # the two wrappers from recording the same refusal twice.
+            refused = ApplicationRefusedError(
                 ApplicationRefusal.ROLE_RUN_NO_PROVIDER,
                 "no real-model transport is wired into this service, so there is"
                 " nothing to ask. A run that needs a model judgement is refused"
                 " rather than simulated: an invented judgement would put words in"
                 " a model's mouth that no model said.",
             )
+            records.record_refusal(
+                context,
+                reason=refused.reason.value,
+                message=refused.detail,
+                asked_for=_asked_for_run(ticket),
+                now=at,
+            )
+            raise refused
         return the_role_run_run(run_role_run(context, ticket, grants=(), at=at))
     return the_role_run_run(
         run_role_run(

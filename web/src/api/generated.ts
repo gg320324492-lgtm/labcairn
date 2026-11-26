@@ -265,6 +265,7 @@ export type EventType =
   | 'stage_blocked'
   | 'operation_intent'
   | 'operation_awaiting_approval'
+  | 'operation_denied'
   | 'operation_attempted'
   | 'operation_confirmed'
   | 'operation_failed'
@@ -284,6 +285,7 @@ export type EventType =
   | 'response_recorded'
   | 'followup_assessed'
   | 'model_exchanged'
+  | 'refusal_recorded'
 
 export type EvidenceCreator = 'rule' | 'user' | 'model_proposal'
 
@@ -755,6 +757,12 @@ export type ReviewPreview = {
   original_size_bytes: number
 }
 
+export type ReviewRoundListed = {
+  project_id: string
+  version_id: string
+  created_at: string
+}
+
 export type ReviewSuggestBody = {
   project_id: string
   version_id: string
@@ -779,6 +787,8 @@ export type ReviewSuggestRun = {
   opinions_skipped: number
   started_at: string
   finished_at: string
+  duration_seconds: number
+  requests?: SuggestionRequestEntry[]
 }
 
 export type ReviewSuggestionBody = {
@@ -1089,6 +1099,20 @@ export type StrictNonNegFloat = number
 export type StrictNonNegInt = number
 
 export type StrictPosInt = number
+
+export type SuggestionRequestEntry = {
+  feedback_id: string
+  source: string
+  outcome: string
+  attempts: number
+  elapsed_s: number
+  tokens_estimated: number
+  tokens_measured: number
+  detail: string
+  retryable: boolean | null
+  approval_id: string | null
+  approval_spent: boolean
+}
 
 export type Task = {
   schema_version?: number

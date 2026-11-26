@@ -460,6 +460,11 @@ class ApplicationRefusal(StrEnum):
     ROLE_ABSTENTION_WITHOUT_A_MISSING = "role_abstention_without_a_missing"
     #: The memory holds no rule under the id a card tries to cite.
     ROLE_RULE_NOT_IN_THE_MEMORY = "role_rule_not_in_the_memory"
+    #: The memory holds the rule and does not serve it: its source
+    #: material is withdrawn, out of the reader's reach, or unattested.
+    ROLE_RULE_NOT_SERVED_BY_THE_MEMORY = "role_rule_not_served_by_the_memory"
+    #: A rule reference is a citation the memory did not mint.
+    ROLE_CITATION_NOT_MINTED_BY_THE_MEMORY = "role_citation_not_minted_by_the_memory"
     #: The verdict named is outside the four the vocabulary closes.
     ROLE_VERDICT_UNKNOWN = "role_verdict_unknown"
     #: The review accepted evidence it cannot check.
@@ -566,12 +571,16 @@ class ApplicationRefusal(StrEnum):
     #: carries the point the cancellation was asked at, so the record says
     #: where it stopped rather than leaving the operator to infer it.
     APPLY_CANCELLED = "apply_cancelled"
-    #: The model that produces the suggestions did not answer within its
-    #: window. **A timeout is retryable in a way a refusal is not**: the
-    #: material is unchanged and no decision was recorded, so asking again is
-    #: safe. The integration with the real model window's own classification
-    #: lands there; this is the apply path's name for it.
-    REVIEW_MODEL_TIMEOUT = "review_model_timeout"
+    # **A model timeout is not a refusal, and this is where that is written
+    # down.** The provider layer classifies it —
+    # :data:`labcairn.providers.errors.FailureKind.TIMEOUT`, retryable, with
+    # the action "ask again" — the suggestion loop retries it inside the
+    # run's own budget and then offers the labelled substitute, and the run
+    # record names the timeout as the failure it was. **A refusal is a state
+    # this layer declines to act from; a timeout is a call that did not come
+    # back.** This vocabulary holds what the layer refuses, and nobody
+    # refuses a timeout: the call is retried, and the fallback that follows
+    # is labelled as the substitute's.
     #: The source file could not be opened for its pre-publication check
     #: because another process holds it locked. **A lock is not a change** —
     #: the bytes may be exactly the ones the import receipt hashed, and the
@@ -743,6 +752,12 @@ ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
         ApplicationRefusal.ROLE_ABSTENTION_WITHOUT_A_MISSING
     ),
     RoleRefusal.RULE_NOT_IN_THE_MEMORY: (ApplicationRefusal.ROLE_RULE_NOT_IN_THE_MEMORY),
+    RoleRefusal.RULE_NOT_SERVED_BY_THE_MEMORY: (
+        ApplicationRefusal.ROLE_RULE_NOT_SERVED_BY_THE_MEMORY
+    ),
+    RoleRefusal.CITATION_NOT_MINTED_BY_THE_MEMORY: (
+        ApplicationRefusal.ROLE_CITATION_NOT_MINTED_BY_THE_MEMORY
+    ),
     RoleRefusal.VERDICT_UNKNOWN: ApplicationRefusal.ROLE_VERDICT_UNKNOWN,
     RoleRefusal.UNVERIFIABLE_EVIDENCE_ACCEPTED: (
         ApplicationRefusal.ROLE_UNVERIFIABLE_EVIDENCE_ACCEPTED

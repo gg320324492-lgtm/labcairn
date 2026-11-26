@@ -1,7 +1,7 @@
 """Failure classification for the provider layer — the closed vocabulary, never raw text.
 
 The shape is ADR-0002 §"LabCairn's own contracts" item 5, scoped to the slice
-this work order owns. ``labcairn/runtime/operations.py`` is the intended home for
+this work order owns. ``labcairn/runtime/operation.py`` is the intended home for
 the persisted form and is owned by LC-P1-02/LC-P1-04, so this module defines the
 *provider-layer* failures and nothing else: no ``OperationFailure``, no
 ``operation_id``, no state transitions. What it does provide is the part the
@@ -67,6 +67,11 @@ class FailureKind(StrEnum):
     loop, ``POLICY_DENIED`` to LC-P1-04's policy layer, and ``OUT_OF_SCOPE`` to
     the stage allowlist. An enum member nothing can raise is a member that will
     eventually be raised by accident.
+
+    **Where the ADR records the split.** The ADR that names those four members
+    keeps the accounting: ``docs/adr/ADR-0002-model-and-tool-execution-boundary.md``
+    §"Contracts and acceptance tests", table "Not carried", says which layer
+    owns each of them, what this tree does instead, and what would close it.
     """
 
     # --- decided before the request goes out ---
@@ -356,13 +361,37 @@ def classify_exception(exc: BaseException, *, redactor: Redactor) -> ProviderFai
     return type has no field that holds arbitrary text.
     """
     detail_digest = redactor.digest(_safe_text(exc))
+    return ProviderFailure.of(_kind_of(exc), detail_digest=detail_digest)
+
+
+def _kind_of(exc: BaseException) -> FailureKind:
+    """The kind, from the error that carries one, or from the third party's shape.
+
+    **LabCairn's own errors carry their own classification.** A
+    :class:`ProviderTimeoutError` knows it is a timeout and a
+    :class:`ProviderCancelledError` knows it is a cancellation; deriving the
+    kind from the class name instead would call both ``provider_transient``
+    and lose two distinctions the record is asked to keep — a timeout from a
+    5xx, and a cancellation from a failure worth retrying. **The kind a
+    LabCairn error carries was written here, from the closed table, so it is
+    read rather than re-derived.**
+
+    A third party's exception carries nothing, so its HTTP status decides,
+    and its class name is the last resort.
+    """
+    if isinstance(exc, ProviderError):
+        return exc.failure.kind
     status = _status_of(exc)
-    kind = _STATUS_KINDS.get(status, FailureKind.PROVIDER_TRANSIENT) if status else _name_kind(exc)
-    return ProviderFailure.of(kind, detail_digest=detail_digest)
+    if status is not None:
+        return _STATUS_KINDS.get(status, FailureKind.PROVIDER_TRANSIENT)
+    return _name_kind(exc)
 
 
 _NAME_KINDS: Mapping[str, FailureKind] = {
     "Timeout": FailureKind.TIMEOUT,
+    # The standard spelling, and the one the adapters catch: a call that ran
+    # out of time is a timeout, not an unnamed transient.
+    "TimeoutError": FailureKind.TIMEOUT,
     "CancelledError": FailureKind.CANCELLED,
     "UserError": FailureKind.CAPABILITY_UNAVAILABLE,
 }

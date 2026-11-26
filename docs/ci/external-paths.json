@@ -1,6 +1,6 @@
 {
   "schema": "labcairn-external-path-ledger/v1",
-  "read_at": "2026-11-18",
+  "read_at": "2026-11-26",
   "root": "E:/labcairn-local",
   "what_this_is": "Every path under E:/labcairn-local that a tracked file names, and what each one is expected to be: present, renamed (with the path that replaced it), or absent. The rule it encodes: a rename is not a defect, a bare pointer to the old name is. The half that needs the packs runs on a development machine; the half that only needs the tree runs in CI.",
   "apparatus": [
@@ -26,9 +26,11 @@
         "docs/ci/protection-reading-2026-11-18.md",
         "docs/handoff/CURRENT.md",
         "docs/plans/LC-P3-05-shell-implementation-plan.md",
+        "docs/plans/LC-P4-PILOT-runbook.md",
         "scripts/closeout_12_rows.py",
         "scripts/lgpl_upstream_archives.py",
-        "tests/evaluation/manifest.py"
+        "tests/evaluation/manifest.py",
+        "tests/test_pilot_runbook.py"
       ]
     },
     {
@@ -849,6 +851,29 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/dist/v0.1.0",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-v010-install-drill-2026-11-25.md",
+        "docs/releases/v0.1.0-artifact.json"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/dist/v0.1.0/win-unpacked/resources/backend/labcairn",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-v010-install-drill-2026-11-25.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/distil_rules_pilot3_revisions.py",
       "expectation": "present",
       "kind": "material",
@@ -1364,7 +1389,19 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
-        "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md"
+        "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md",
+        "docs/acceptance/LC-P3-05-v010-install-drill-2026-11-25.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p307-nsis-arms/dist-0.0.2",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-v010-install-drill-2026-11-25.md"
       ]
     },
     {
@@ -1375,7 +1412,8 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
-        "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md"
+        "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md",
+        "docs/acceptance/LC-P3-05-v010-install-drill-2026-11-25.md"
       ]
     },
     {
@@ -1388,7 +1426,9 @@
       "sites": [
         "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md",
         "docs/changelog/phase-3.md",
-        "docs/handoff/CURRENT.md"
+        "docs/handoff/CURRENT.md",
+        "docs/plans/LC-P4-G0-baseline-freeze.md",
+        "docs/plans/PHASE_3-work-orders.md"
       ]
     },
     {
@@ -1494,6 +1534,17 @@
       "sites": [
         "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md",
         "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/p308-trial-run/installer-0.0.3",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-v010-install-drill-2026-11-25.md"
       ]
     },
     {
@@ -1716,6 +1767,61 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/phase4-pilot-evidence",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/handoff/CURRENT.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-capability-probe-2026-11-25",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-capability-probe-2026-11-25.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-25",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-26/run-record-round-d.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-26/run-record.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/picture-probe-20261119",
       "expectation": "present",
       "kind": "material",
@@ -1724,6 +1830,19 @@
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-first-round-2026-11-26.md",
+        "docs/acceptance/LC-P4-PILOT-import-2026-11-25.md",
+        "docs/acceptance/LC-P4-PILOT-source-removal-2026-11-26.md"
       ]
     },
     {
@@ -1771,7 +1890,9 @@
         "docs/acceptance/LC-P2-07-table-row-markers.md",
         "docs/acceptance/LC-P2-11-check-binding.md",
         "docs/acceptance/LC-P2-11-pilot-4-distillation.md",
-        "docs/acceptance/LC-P2-27-position-anchors.md"
+        "docs/acceptance/LC-P2-27-position-anchors.md",
+        "docs/acceptance/LC-P4-PILOT-import-2026-11-25.md",
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
       ]
     },
     {
@@ -1830,6 +1951,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/pilot-ws/materials/pilot/LC-P4-PILOT/desensitised-copy/pilot-paper-002.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-import-2026-11-25.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/pilot-ws/providers.json",
       "expectation": "present",
       "kind": "material",
@@ -1837,6 +1969,8 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md",
+        "docs/handoff/CURRENT.md",
         "scripts/run_ourside_competitor.py"
       ]
     },
@@ -2204,6 +2338,28 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/secrets/minimax-key.txt",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/secrets/minimax-m31-flash-active.txt",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-providers-config.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/shell-logs",
       "expectation": "present",
       "kind": "material",
@@ -2530,6 +2686,17 @@
       "sites": [
         "docs/THREAT-MODEL.md",
         "docs/acceptance/LC-P3-01-browser-rerun-2026-11-13.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/labcairn.db.backup.before-source-removal-2026-11-26",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-source-removal-2026-11-26.md"
       ]
     },
     {
@@ -3038,6 +3205,39 @@
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/win-b-evidence/fixture-workspace",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/P4-G1-G4-system-capability-record.json"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/v010-install-drill-20261125",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-v010-install-drill-2026-11-25.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/v010-install-drill-20261125/backup/userdata",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P3-05-v010-install-drill-2026-11-25.md"
       ]
     },
     {

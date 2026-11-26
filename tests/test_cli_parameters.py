@@ -562,3 +562,88 @@ def test_a_task_id_that_is_not_a_uuid_is_refused(workspace: Path) -> None:
     # The refusal says in its own words what a task id is, and not only
     # which format it is in.
     assert "task ids are UUIDv7" in result.stderr
+
+
+# --------------------------------------------------------------------------- #
+# taking a source back
+# --------------------------------------------------------------------------- #
+
+
+def test_sources_remove_takes_the_source_out_of_the_ledger(workspace: Path) -> None:
+    """``sources remove`` takes a source back, and the ledger says so.
+
+    **What would make this red.** A command that reported success without
+    taking the row out would leave the operator believing the material was
+    gone while the row went on naming a path that is not there -- which is
+    the gap the command exists to close. The proof is the ledger itself: the
+    source is no longer there to be inspected.
+    """
+    (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Taking a source back",
+        "--objective",
+        "One.",
+        "--criterion",
+        "Done.",
+        "--json",
+    )
+    assert created.returncode == 0, created.stderr
+    ingested = run_cli("--workspace", str(workspace), "sources", "ingest", "--json")
+    assert ingested.returncode == 0, ingested.stderr
+    source = ingested.json()["source_ids"][0]
+
+    removed = run_cli(
+        "--workspace", str(workspace), "sources", "remove", "--source", source, "--json"
+    )
+    assert removed.returncode == 0, removed.stderr
+    assert removed.json()["source_id"] == source
+
+    inspected = run_cli(
+        "--workspace", str(workspace), "sources", "inspect", "--source", source, "--json"
+    )
+    assert inspected.returncode == EXIT_REFUSED
+    assert inspected.json()["reason"] == "source_not_found"
+
+
+def test_sources_remove_refuses_a_source_the_ledger_does_not_hold(workspace: Path) -> None:
+    """A source that is not there is refused, and the command says which.
+
+    **What would make this red.** A command that reported success for a
+    source it could not find would tell an operator the material was taken
+    back when nothing happened at all -- and the row they wanted gone would
+    still be there. The refusal carries the layer's own reason, so a script
+    reads one refusal format whichever surface produced it.
+    """
+    (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Taking nothing back",
+        "--objective",
+        "One.",
+        "--criterion",
+        "Done.",
+        "--json",
+    )
+    assert created.returncode == 0, created.stderr
+
+    result = run_cli(
+        "--workspace",
+        str(workspace),
+        "sources",
+        "remove",
+        "--source",
+        "src-0000000000000000",
+        "--json",
+    )
+    assert result.returncode == EXIT_REFUSED
+    assert result.json()["reason"] == "source_not_found"
+    assert "src-0000000000000000" in result.json()["message"]

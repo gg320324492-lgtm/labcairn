@@ -81,7 +81,7 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
 
       # Every script name below was read out of web/package.json "scripts"
-      # and exists there: typecheck, lint, test, build.
+      # and exists there: typecheck, lint, format:check, test, build.
       - name: install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
@@ -90,6 +90,14 @@ jobs:
 
       - name: lint
         run: pnpm run lint
+
+      # LC-P1-14 §3 item 1: the README documents `pnpm format:check`, and the
+      # Python suite only runs it on a machine that has pnpm, which a runner
+      # does not. Prettier's check runs here so a formatting drift in web/
+      # cannot reach main without a run noticing. `pnpm run` (not the bare
+      # script name) because the script's name contains a colon.
+      - name: format:check
+        run: pnpm run format:check
 
       - name: test
         run: pnpm run test
