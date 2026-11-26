@@ -282,6 +282,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_cli_layer_models.py": ("e2e", "cli-task"),
     "test_cli_evidence_writer.py": ("e2e", "cli-task"),
     "test_cli_confirmation_guidance.py": ("e2e", "cli-task"),
+    # The CLI's own model request: one question about one source, one
+    # request, and the consent gate ahead of the spend.
+    "test_cli_suggest.py": ("e2e", "cli-task"),
     "test_cli_path_refused_catch.py": ("negative", "path-traversal"),
     "test_cli_refusal_enumeration.py": ("negative", "missing-material"),
     "test_cli_serve_bind_refusal.py": ("negative", "path-traversal"),
@@ -688,6 +691,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # affiliation or project number. Its clause is the repository gates,
     # because it watches the repository's own documents.
     "test_pilot_decisions.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_pilot_records_carry_no_names.py": (REPOSITORY_CLASS, "repository-gate"),
     # Phase 4 (P4-PILOT §9.4). The completed feedback form's walk into the
     # system's issue record: the dry run previews what would be written,
     # the form's two closed vocabularies map onto the record's, and
