@@ -243,7 +243,9 @@
         "tests/test_intake_guards.py",
         "tests/test_baseline_document.py",
         "tests/test_evidence_anchor_registry.py",
-        "tests/test_material_adapters.py"
+        "tests/test_material_adapters.py",
+        "tests/test_dangling_source_read_faces.py",
+        "tests/test_source_removal_scope.py"
       ]
     ],
     "windows-latest": [
@@ -445,7 +447,9 @@
         "tests/test_fake_provider_determinism.py",
         "tests/test_pilot_redaction.py",
         "tests/test_security_injection.py",
-        "tests/test_review_dossier.py"
+        "tests/test_review_dossier.py",
+        "tests/test_dangling_source_read_faces.py",
+        "tests/test_source_removal_scope.py"
       ],
       [
         "tests/test_feedback_events.py",
@@ -558,6 +562,7 @@
       "test_consent_refusal_vocabulary.py": 0.2,
       "test_consent_two_gates.py": 0.81,
       "test_consent_withdrawal.py": 0.74,
+      "test_dangling_source_read_faces.py": 0.0,
       "test_dataset_consent.py": 0.89,
       "test_developer_launch.py": 22.53,
       "test_diagnostics_package.py": 4.61,
@@ -704,6 +709,7 @@
       "test_source_id_type.py": 3.79,
       "test_source_removal.py": 5.23,
       "test_source_removal_event.py": 2.43,
+      "test_source_removal_scope.py": 0.0,
       "test_status_consistency.py": 1.78,
       "test_store_atomicity.py": 3.06,
       "test_store_concurrency.py": 6.3,
@@ -791,6 +797,7 @@
       "test_consent_refusal_vocabulary.py": 0.38,
       "test_consent_two_gates.py": 12.13,
       "test_consent_withdrawal.py": 1.43,
+      "test_dangling_source_read_faces.py": 0.0,
       "test_dataset_consent.py": 1.71,
       "test_developer_launch.py": 44.85,
       "test_diagnostics_package.py": 40.99,
@@ -937,6 +944,7 @@
       "test_source_id_type.py": 12.83,
       "test_source_removal.py": 54.99,
       "test_source_removal_event.py": 22.83,
+      "test_source_removal_scope.py": 0.0,
       "test_status_consistency.py": 14.08,
       "test_store_atomicity.py": 26.51,
       "test_store_concurrency.py": 46.69,

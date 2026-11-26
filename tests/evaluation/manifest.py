@@ -651,6 +651,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # the version follows the bytes, and the disclosures that went were the
     # removed row's own.
     "test_source_removal.py": ("integration", "state-transitions"),
+    # What a removal releases when two tasks hold the material: both let
+    # it go, and the --task option does not narrow that.
+    "test_source_removal_scope.py": ("integration", "state-transitions"),
+    # A dangling source id read back through the product's faces: what
+    # refuses it, what names it, and what reads as sound anyway.
+    "test_dangling_source_read_faces.py": ("integration", "state-transitions"),
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),
