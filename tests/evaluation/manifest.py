@@ -707,6 +707,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # refused rather than kept. Its clause is the repository gates, because
     # it watches the repository's own tool.
     "test_pilot_redaction.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_pixel_comparison.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------
