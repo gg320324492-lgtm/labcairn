@@ -1,35 +1,58 @@
 # LabCairn — Current handoff
 
 
-## 2026-11-27 - pull request #224 is merged, and the two windows that answered the removal
+## 2026-11-27 - pull request #224 is merged, four windows answered, and a name got out
 
 - **Pull request #224 is merged** (merge commit `6b8e09f`), and the delivery
   branch is gone from both the remote and the local checkout. The work it
   carried is on `main`; the round's records, the two bookkeeping closures,
   the re-measured shard costs and the floor witness are all in it.
-- **Two more windows have been merged into the local `main`.** One ran the
-  report's content checks over the pilot copy and wrote down what they read:
-  the gate runs on the **model** and not on an exported file — checking a
-  rendered file would be a second copy of the content — so **there is no
-  route that checks an export that already exists**, and both versions of
-  the pilot's report pass all five checks. Its seven mutation probes each
-  broke one check and were each refused by that check. The other made a
-  removal **say in the log which source it took back**: a `source_removed`
-  event carrying the source's id, its path, its digest and the tasks that
-  let it go, written in the same transaction as the deletion, with
-  migration `0034` and the checked-in TypeScript contract regenerated.
-- **Two witnesses that held the old shape moved with the product.** The
-  event vocabulary has 33 members now, not 32, and a removal writes **two**
-  events — the task's revision and the one that names the source — so the
-  witness that used to freeze "one event" says so and holds both. One
-  anchor drifted with the new enum member and was re-pointed.
-- **What is still in flight.** The window that gives the CLI a model
-  request of its own is finishing its mutation checks; the window that
-  replays the round on the pilot workspace, on the tree that closes the
-  gaps, is running. **The remote `main` is behind the local `main`** — this
-  batch's work is merged locally and awaits one pull request and one run.
-- **The costs are owed to the runner again.** The two new test files carry
-  `0.0` until a run measures them, and the partition is rebuilt from that.
+- **Four more windows have been merged into the local `main`.**
+  - **The CLI has a model request of its own.** `labcairn suggest` asks one
+    question about one source and sends exactly one request, and **the
+    consent gate runs before the approval is spent** — a refusal costs
+    nothing, which is the property its thirteen witnesses hold. The owner
+    decided this shape after the round found that `roles run` refuses on a
+    document with no comments, so no command could reach a model at all on
+    the pilot's copy. **No real request was made**: the witnesses use the
+    project's own fakes.
+  - **The report's content checks, read and written down.** The gate runs
+    on the **model** and not on an exported file — checking a rendered file
+    would be a second copy of the content — so **there is no route that
+    checks an export that already exists**. Both versions of the pilot's
+    report pass all five checks, and seven mutation probes each broke one
+    check and were each refused by that check.
+  - **A removal says in the log which source it took back**: a
+    `source_removed` event carrying the source's id, its path, its digest
+    and the tasks that let it go, written in the same transaction as the
+    deletion; migration `0034`; the checked-in TypeScript contract
+    regenerated.
+  - **The round replayed on the pilot workspace, on the tree that closes
+    its gaps.** The refusal is now in the event log (`seq 74`,
+    `refusal_recorded`), and the consent-gated run closes its stage and
+    its run (`seq 120`–`131`, ending in `run_finished`). **The workspace
+    changed** — the store moved from revision 0032 to 0034 and the event
+    log from 10,305 to 10,401 — and the record says so, because a window
+    that changes state outside the repository must say what it changed.
+- **A person's name reached a record in the tree, and that is the batch's
+  one failure.** The replay's record named the workspace's own issue key,
+  version id and file name for the second corpus, and all three carried a
+  name in Chinese. **The workspace is allowed to hold them; the tree is
+  not** — a label that carries a name is material too. The identifiers are
+  redacted in place and the record says why. **Nothing watched that**: the
+  preparation papers had a witness for exactly these three checks and the
+  measurement records had none, so
+  `tests/test_pilot_records_carry_no_names.py` now holds every pilot
+  record to them.
+- **Pull request #225 is open** and carries this batch; one run, one
+  pull request. Two witnesses that are new carry `0.0` costs until that
+  run supplies the numbers, and the partition is rebuilt from them
+  afterwards.
+- **What this batch did not answer.** Whether the same kind of leak exists
+  in the earlier records that carry Chinese for other reasons, and
+  whether the git history holds one — the leak never left this machine,
+  but no witness looks there. The suggestion loop still cannot run on a
+  copy without comments.
 
 
 ## 2026-11-26 (night) - the two bookkeeping gaps are closed, the shard costs are measured again, and the pull request is ready
