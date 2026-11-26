@@ -124,7 +124,8 @@
         "tests/test_baseline_document.py",
         "tests/test_analysis_descriptive.py",
         "tests/test_quickstart_commands.py",
-        "tests/test_source_removal.py"
+        "tests/test_source_removal.py",
+        "tests/test_source_removal_event.py"
       ],
       [
         "tests/test_application_layer.py",
@@ -441,7 +442,8 @@
         "tests/test_analysis_report_manifest.py",
         "tests/test_security_injection.py",
         "tests/test_security_approval.py",
-        "tests/test_source_removal.py"
+        "tests/test_source_removal.py",
+        "tests/test_source_removal_event.py"
       ],
       [
         "tests/test_analysis_service.py",
@@ -695,6 +697,7 @@
       "test_source_contracts.py": 2.5,
       "test_source_id_type.py": 6.34,
       "test_source_removal.py": 0.0,
+      "test_source_removal_event.py": 0.0,
       "test_status_consistency.py": 2.68,
       "test_store_atomicity.py": 3.26,
       "test_store_concurrency.py": 6.39,
@@ -925,6 +928,7 @@
       "test_source_contracts.py": 3.73,
       "test_source_id_type.py": 13.77,
       "test_source_removal.py": 0.0,
+      "test_source_removal_event.py": 0.0,
       "test_status_consistency.py": 18.86,
       "test_store_atomicity.py": 30.55,
       "test_store_concurrency.py": 42.59,

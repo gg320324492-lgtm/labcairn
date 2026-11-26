@@ -632,6 +632,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_store_atomicity.py": ("negative", "crash-between-write-and-confirm"),
     "test_store_concurrency.py": ("integration", "event-append"),
     "test_store_events.py": ("integration", "event-append"),
+    # A removal that leaves no trace in the log: the event that names the
+    # source it took back, written with the deletion.
+    "test_source_removal_event.py": ("integration", "event-append"),
     # The operation's state machine, and the one state the tree used to
     # define and never write: a policy denial now leaves an operation in
     # state ``denied`` and the event that describes it, in one transaction,
