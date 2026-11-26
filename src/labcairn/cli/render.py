@@ -26,7 +26,13 @@ from labcairn.application.artifacts import ArtifactView
 from labcairn.application.sources import SourceView
 from labcairn.application.stages import StageRun, TaskPlan
 from labcairn.application.tasks import TaskState
-from labcairn.cli.models import DoctorReport, ProviderFinding, WorkspaceInitialised
+from labcairn.cli.models import (
+    DoctorReport,
+    ProviderFinding,
+    SuggestionAsked,
+    SuggestionOutcome,
+    WorkspaceInitialised,
+)
 from labcairn.runtime.lifecycle import Task
 
 
@@ -266,12 +272,55 @@ def render_artifacts(models: tuple[ArtifactView, ...]) -> RenderableType:
     return Panel(table, title="artifacts", expand=False)
 
 
+def render_suggestion_asked(model: SuggestionAsked) -> RenderableType:
+    """What ``suggest`` is asking for, before anything is spent.
+
+    **The question is printed, because a person is about to grant it.** The
+    material is not: it is named by its digest and by how much of it the
+    question is about, and the truncation is stated rather than left for the
+    reader to guess.
+    """
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("source", model.source_id)
+    table.add_row("question", model.question)
+    table.add_row("provider", f"{model.provider}:{model.model}")
+    table.add_row("destination", model.destination)
+    table.add_row("material sha256", model.material_sha256)
+    table.add_row(
+        "material read",
+        f"{model.excerpt_characters} of {model.material_characters} characters"
+        + (" (truncated)" if model.truncated else ""),
+    )
+    table.add_row("approval", model.approval_id)
+    table.add_row("expires", model.expires_at)
+    return Panel(table, title="suggestion asked", expand=False)
+
+
+def render_suggestion(model: SuggestionOutcome) -> RenderableType:
+    """What came back from one question about one source's material."""
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("source", model.source_id)
+    table.add_row("provider", f"{model.provider}:{model.model}")
+    table.add_row("destination", model.destination)
+    table.add_row("answer sha256", model.answer_sha256)
+    table.add_row("answer", model.answer)
+    table.add_row("written to", model.answer_path)
+    table.add_row("exchange", model.exchange_event_id)
+    return Panel(table, title="suggestion", expand=False)
+
+
 __all__ = [
     "render_artifacts",
     "render_doctor",
     "render_initialised",
     "render_source",
     "render_stage_run",
+    "render_suggestion",
+    "render_suggestion_asked",
     "render_task",
     "render_task_plan",
     "render_task_state",
