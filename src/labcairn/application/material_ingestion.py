@@ -89,13 +89,19 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
+from typing import Any, cast
+
+from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
+from sqlalchemy.orm import Session
 
 from labcairn.application import consent
 from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import SourceId
-from labcairn.db.repository import load_task
+from labcairn.db.models import PaperVersionRow, SourceProblemRow, SourceRow
+from labcairn.db.repository import list_tasks, load_source, load_task
 from labcairn.material.ingest import IngestOutcome
 from labcairn.material.walk import WalkReport, ingest_workspace
 from labcairn.security.capabilities import CapabilityId
@@ -109,7 +115,9 @@ __all__ = [
     "IngestFailure",
     "IngestedFile",
     "MaterialIngested",
+    "SourceRemoved",
     "ingest_material",
+    "remove_source",
 ]
 
 
@@ -186,6 +194,36 @@ class MaterialIngested(Result):
     readable: int
     empty: int
     unreadable: int
+
+
+class SourceRemoved(Result):
+    """What the removal took out of the ledger.
+
+    ``released_task_ids`` are the tasks that held the material and no longer
+    do. **A task that keeps holding a source the ledger does not hold is a
+    task that claims material it cannot produce**, and the layer refuses that
+    when it lists a task's sources -- so the binding is released here rather
+    than left broken.
+
+    ``removed_problem_count`` is how many disclosures about *that file at that
+    location* went with it. The extracted text and the addresses do not: they
+    are the evidence side, and ADR-0009 says a file that is deleted does not
+    take its text with it.
+
+    ``repointed_version_ids`` are the paper versions that named the material
+    and now name it where it lives, with ``repointed_to_source_id`` saying
+    where that is. **A version's identity is the bytes it was made from**, so
+    a version that follows the bytes is still the same version; the ones that
+    could not follow are not listed here, because the removal refused.
+    """
+
+    source_id: str
+    relative_path: str
+    content_sha256: str
+    released_task_ids: tuple[str, ...]
+    removed_problem_count: int
+    repointed_version_ids: tuple[str, ...] = ()
+    repointed_to_source_id: str | None = None
 
 
 def ingest_material(
@@ -434,3 +472,188 @@ def _the_report(
         empty=empty,
         unreadable=unreadable,
     )
+
+
+def remove_source(context: ApplicationContext, source_id: str) -> SourceRemoved:
+    """Take a source back out of the ledger.
+
+    **A source's identity is where the material is, not what it holds.** The
+    ledger keys a source by its location -- the id is minted from the root and
+    the key inside it, and the path is unique -- while the digest is recorded
+    and never the key. So a material that is *moved* is a *new* source, and
+    ingesting it where it now sits writes a second row rather than moving the
+    first one. That is the rule working, not the rule failing: the row the
+    old path left behind names a path that is not there any more, and this is
+    the operation that takes it back.
+
+    **The row goes; the evidence stays.** The extracted text and the
+    addresses into it are keyed by the content hash and the locator, not by
+    the source, and ADR-0009 says a file that is deleted does not take its
+    text with it -- so the records resting on those addresses keep
+    resolving. What leaves with the row is the material's own inventory
+    entry and the disclosures about *that file at that location*.
+
+    **A task that held the material lets it go.** The binding is the task's
+    own state, and the store's writer records a revision with the event that
+    describes it, so the release is written with its event rather than by
+    editing the column behind the log's back.
+
+    **A paper version that named the material follows the bytes.** A version
+    is the set of bytes it was made from -- the model says so, and says that
+    two files with the same bytes are one version -- so when the material is
+    at another location and the ledger holds a row for it there, the version
+    follows the bytes to that row. When no such row exists the bytes are
+    gone, and the removal refuses rather than take a manuscript's revision
+    history with it.
+
+    **The operation refuses before it has had any effect.** A source the
+    ledger does not hold, a policy that denies the material, and a paper
+    version whose material is nowhere else are refusals, and none of them
+    leaves a half-applied removal behind.
+
+    :param context: everything the operation is given.
+    :param source_id: the id of the source to take back.
+    :raises ApplicationRefusedError: the ledger holds no such source, the
+        policy denied the material, or a paper version names the file and the
+        material is nowhere else in the ledger.
+    """
+    session = context.store.session
+    source = load_source(session, str(source_id))
+    if source is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_NOT_FOUND,
+            f"the ledger holds no source with the id {source_id!r}.",
+        )
+
+    resource = context.resource_for(source.relative_path)
+    consent.evaluate(
+        context,
+        capability=CapabilityId.SOURCE_INVENTORY,
+        arguments={},
+        resource=resource,
+    )
+
+    versions, survivor = _take_the_versions_with_the_material(session, source)
+
+    # The binding first, then the row. A release that commits and a deletion
+    # that does not leaves a task that no longer holds material the ledger
+    # still holds, which is a state the operator can undo; the other order
+    # leaves a task holding a source that is not there, which is the broken
+    # state this operation exists to end.
+    released = _release_the_bindings(context, source.source_id)
+    problems = _remove_the_source_rows(session, source.source_id)
+    session.commit()
+    return SourceRemoved(
+        source_id=source.source_id,
+        relative_path=source.relative_path,
+        content_sha256=source.content_sha256,
+        released_task_ids=released,
+        removed_problem_count=problems,
+        repointed_version_ids=versions,
+        repointed_to_source_id=survivor,
+    )
+
+
+def _release_the_bindings(context: ApplicationContext, source_id: str) -> tuple[str, ...]:
+    """Every task that held the material lets it go, and says so in the log.
+
+    The binding is the task's own state, and the store's writer is the only
+    thing that writes it -- it records the revision with the event that
+    describes it, which is what ADR-0003 C3 asks for. **A task that kept
+    holding a source the ledger does not hold is a task that claims material
+    it cannot produce**, and the layer refuses that when it lists a task's
+    sources.
+
+    Every task is looked at, not only the one the caller happens to be in: a
+    source is workspace state, and the tasks that hold it are the ones that
+    would be left claiming it.
+    """
+    released: list[str] = []
+    with store_refusals():
+        for task in list_tasks(context.store.session):
+            if source_id not in task.bound_source_ids:
+                continue
+            remaining = tuple(
+                SourceId(bound) for bound in task.bound_source_ids if bound != source_id
+            )
+            context.store.bind_sources(task.task_id, remaining)
+            released.append(str(task.task_id))
+    return tuple(released)
+
+
+def _remove_the_source_rows(session: Session, source_id: str) -> int:
+    """The row, and the disclosures about that file at that location, gone.
+
+    The disclosures go with the row because they are about *this file at this
+    path*: the same bytes ingested somewhere else are disclosed again there,
+    and a disclosure about a file the ledger no longer holds is a disclosure
+    about nothing.
+
+    The extracted text and the addresses into it stay. They are keyed by the
+    content hash and the locator rather than by the source, and ADR-0009 is
+    explicit that a file which is deleted does not take its text with it --
+    so the records that rest on those addresses keep resolving.
+    """
+    problems = cast(
+        CursorResult[Any],
+        session.execute(delete(SourceProblemRow).where(SourceProblemRow.source_id == source_id)),
+    ).rowcount
+    row = session.scalar(select(SourceRow).where(SourceRow.source_id == source_id))
+    if row is not None:
+        session.delete(row)
+    return max(problems, 0)
+
+
+def _take_the_versions_with_the_material(
+    session: Session, source: Source
+) -> tuple[tuple[str, ...], str | None]:
+    """The versions that named the material follow the bytes, or the removal refuses.
+
+    **A version's identity is the bytes it was made from.** The version
+    graph's own model says so: the file's bytes move, a version that took
+    its identity from the file would move with it, and *two files with the
+    same bytes are one version*. So when the material is at another location
+    and the ledger holds a row for it there, the version follows the bytes to
+    that row -- it keeps naming the same set of bytes, and its recorded hash
+    still matches the row it names.
+
+    When there is no such row the bytes are gone, and **a version with no
+    file is not a version**: the schema cascades, so the version's row would
+    go with the file. The removal refuses rather than take a manuscript's
+    revision history with it, and the refusal comes before anything is
+    written.
+
+    :returns: the versions that were re-pointed, and the row they now name.
+    """
+    versions = tuple(
+        session.scalars(
+            select(PaperVersionRow).where(PaperVersionRow.source_id == source.source_id)
+        )
+    )
+    if not versions:
+        return (), None
+    survivor = session.scalar(
+        select(SourceRow)
+        .where(
+            SourceRow.content_sha256 == source.content_sha256,
+            SourceRow.source_id != source.source_id,
+        )
+        .order_by(SourceRow.ingested_at.asc(), SourceRow.source_id.asc())
+        .limit(1)
+    )
+    if survivor is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.PAPER_CONTRACT_REFUSED,
+            f"the paper version {versions[0].version_id!r} was recorded against "
+            f"the material {source.source_id!r}, and a version with no file is "
+            "not a version: the material's bytes are nowhere else in the ledger, "
+            "so taking the material back would take that version's row with it. "
+            "The material stays in the ledger until the version does.",
+        )
+    for version in versions:
+        version.source_id = survivor.source_id
+    # The re-pointing is on the wire before the row it points at is deleted:
+    # the foreign key is checked per statement, and a delete that ran first
+    # would cascade the version's row away.
+    session.flush()
+    return tuple(version.version_id for version in versions), survivor.source_id

@@ -69,6 +69,7 @@ if TYPE_CHECKING:
     from labcairn.api.selection import TaskSelector
     from labcairn.application import ApplicationContext, MaterialIngested, SourceAddress
     from labcairn.application.approvals import ApprovalUse
+    from labcairn.application.material_ingestion import SourceRemoved
     from labcairn.application.model_request import ModelInvocation
     from labcairn.application.model_suggestions import ModelSuggestionBackend
     from labcairn.application.roles_run import RoleRunBackend
@@ -220,7 +221,10 @@ app = typer.Typer(
     add_completion=False,
 )
 task_app = typer.Typer(help="Create, run, inspect and resume a task.", no_args_is_help=True)
-sources_app = typer.Typer(help="Inspect the material a task is bound to.", no_args_is_help=True)
+sources_app = typer.Typer(
+    help="Inspect the material a task is bound to, and take it back.",
+    no_args_is_help=True,
+)
 artifacts_app = typer.Typer(help="List what a task has produced.", no_args_is_help=True)
 guidance_app = typer.Typer(
     help="Settle the guidance rules — confirm one, or dispute it.",
@@ -2274,6 +2278,74 @@ def _render_ingestion(model: SourcesIngested) -> RenderableType:
             message = refusal.message if refusal is not None else "the index was not written"
             table.add_row("trajectory", f"{outcome.project_id}: refused ({reason}): {message}")
     return Panel(table, title="ingested", expand=False)
+
+
+@sources_app.command("remove")
+def sources_remove(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The source to take back.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Take a source back out of the ledger.
+
+    **A source's identity is where the material is, not what it holds.** The
+    ledger keys a source by its location, so a material that is moved and
+    ingested again is a *second* source rather than a moved one — and the row
+    the old path left behind names a path that is not there any more. This
+    command is how that row leaves.
+
+    The row goes and the evidence stays: the extracted text and the
+    addresses into it are keyed by the content hash, so the records resting
+    on them keep resolving.
+
+    A manuscript's version that named the material **follows the bytes** to
+    the row that holds them, because a version is the set of bytes it was
+    made from. Where the material is nowhere else in the ledger, the
+    removal is refused rather than take a version's row with it.
+
+    A source the ledger does not hold is **refused**, not pretended away.
+    """
+    from labcairn.application.material_ingestion import remove_source
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import application_context, locate
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            removed = remove_source(context, source)
+    if as_json:
+        emit_model(removed)
+    else:
+        _console().print(_render_removal(removed))
+
+
+def _render_removal(model: SourceRemoved) -> RenderableType:
+    """What the removal took out, drawn from the model.
+
+    The picture is generated from the same value the ``--json`` form
+    serialises, so the two cannot disagree. The tasks that let the material
+    go are named one by one: a count alone would not say which binding
+    moved.
+    """
+    from rich.panel import Panel
+    from rich.table import Table
+
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("removed", model.source_id)
+    table.add_row("path", model.relative_path)
+    table.add_row("digest", model.content_sha256)
+    table.add_row("disclosures", str(model.removed_problem_count))
+    for task_id in model.released_task_ids:
+        table.add_row("released", task_id)
+    for version_id in model.repointed_version_ids:
+        table.add_row("version", f"{version_id} -> {model.repointed_to_source_id}")
+    return Panel(table, title="removed", expand=False)
 
 
 # --------------------------------------------------------------------------- #
