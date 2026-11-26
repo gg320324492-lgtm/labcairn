@@ -3655,6 +3655,15 @@ Expanding data access scope, write permission to original material, unapproved o
     122 + 384 on another; **both were 506 tokens**, differently shared. The
     capture now reads the whole input, and a reading that is not a
     measurement is `Unknown` rather than a number.
+
+    *Those two readings are anchored where a reader can check them*: they
+    were taken on the pilot workspace's copy of the signed material
+    (sha256 `04cc31be9f9876fef975e8d4e6b427bb4a063920288fe5c0b72e8e3244a6172d`,
+    registered as `pilot-paper-002`), during the requests recorded in
+    [`docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`](../acceptance/LC-P4-PILOT-real-request-2026-11-25.md)
+    §8; the raw evidence is outside this repository, under
+    `E:/labcairn-local/phase4-pilot-evidence/`, which the external-path
+    ledger answers for.
   - **The loop counts what the provider reported.** The estimate is a
     fallback for the sides the provider did not report, and everywhere it is
     read the run record, the request entries and the wire say which is
