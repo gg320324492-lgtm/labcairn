@@ -37,6 +37,7 @@ from pathlib import Path
 
 import pytest
 
+from labcairn.core.providers.protocol import UsageReport
 from labcairn.core.providers.usage import Known, Unknown, UnknownReason
 from labcairn.providers.budget import (
     BudgetDecision,
@@ -58,7 +59,9 @@ from labcairn.providers.ledger import (
     COST_SCALE,
     LedgerSnapshot,
     RunLedger,
+    TokenOrigin,
     micros_to_usd,
+    spend_from_report,
     usage_reporting_is_usable,
     usd_to_micros,
 )
@@ -524,3 +527,93 @@ def test_usage_reporting_is_usable_is_false_for_every_unproven_case() -> None:
         )
         is False
     )
+
+
+# --------------------------------------------------------------------------- #
+# what the provider reported, and what we counted
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.unit
+def test_a_reported_side_is_counted_as_reported_and_the_estimate_is_not_added() -> None:
+    """The provider's report is the figure; the estimate does not join it.
+
+    The pilot measured why the distinction matters: the same answer length
+    was reported as 1.25 to 3.65 output tokens per character, and 6.75
+    across both rounds
+    (``docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`` §8.4), so a
+    figure counted from characters is not a measurement and must never
+    stand in for one that exists.
+
+    **What makes this red:** a spend that added the estimate on top of a
+    side the provider had already reported. The total would be the two
+    added together, and the budget would be charged twice for one call.
+    """
+    report = UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    spend = spend_from_report(report, estimated_input=425, estimated_output=417)
+    assert spend.measured == 6595
+    assert spend.estimated == 0
+    assert spend.total == 6595
+    assert spend.origin is TokenOrigin.MEASURED
+
+
+@pytest.mark.unit
+def test_the_estimate_covers_only_the_side_the_provider_left_unreported() -> None:
+    """A half-reported response is mixed, and the gap is the estimate's.
+
+    **What makes this red:** a spend that dropped the unreported side
+    instead of falling back to the estimate for it. The total would be the
+    measured half alone, and the budget would under-count what the
+    provider spent.
+    """
+    report = UsageReport(
+        input_tokens=Known(506),
+        output_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+    )
+    spend = spend_from_report(report, estimated_input=425, estimated_output=417)
+    assert spend.measured == 506
+    assert spend.estimated == 417
+    assert spend.total == 923
+    assert spend.origin is TokenOrigin.MIXED
+
+
+@pytest.mark.unit
+def test_a_response_that_reported_nothing_is_an_estimate_and_says_so() -> None:
+    """No report at all: the spend is the estimate, and it is marked as one.
+
+    **What makes this red:** a spend that called a counted estimate a
+    measurement. The origin would read ``measured`` for tokens nobody
+    measured, and a reader would take the figure for a report.
+    """
+    spend = spend_from_report(None, estimated_input=425, estimated_output=417)
+    assert spend.measured == 0
+    assert spend.estimated == 842
+    assert spend.total == 842
+    assert spend.origin is TokenOrigin.ESTIMATED
+
+
+@pytest.mark.unit
+def test_the_total_is_never_smaller_than_either_figure() -> None:
+    """A ceiling that reads the total is never under-counted.
+
+    The owner's rule: when the provider's report says more than the
+    estimate, the budget has to see the larger number.
+
+    **What makes this red:** a total that took the estimate over the
+    report, or dropped a side of it. The ceiling would be checked against
+    a number smaller than what the provider charged.
+    """
+    report = UsageReport(input_tokens=Known(506), output_tokens=Known(6089))
+    spend = spend_from_report(report, estimated_input=425, estimated_output=417)
+    assert spend.total >= 6089, "the provider's own output figure"
+    assert spend.total >= 425 + 417, "the character count of the same call"
+
+    half = spend_from_report(
+        UsageReport(
+            input_tokens=Known(506),
+            output_tokens=Unknown(UnknownReason.PROVIDER_OMITTED),
+        ),
+        estimated_input=425,
+        estimated_output=417,
+    )
+    assert half.total >= 506, "the provider's own input figure"

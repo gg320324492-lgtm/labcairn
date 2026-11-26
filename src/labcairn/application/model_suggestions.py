@@ -62,7 +62,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Final, Protocol, runtime_checkable
 
@@ -74,11 +74,12 @@ from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.review import record_review_suggestion
 from labcairn.core.ids import ApprovalId
-from labcairn.core.providers.protocol import ModelRequest
+from labcairn.core.providers.protocol import ModelRequest, UsageReport
 from labcairn.db.models import ModelSuggestionRunRow
 from labcairn.editing.drafts import ApprovedEdit
 from labcairn.papers.feedback import FeedbackEvent, list_feedback_events
 from labcairn.providers.errors import classify_exception
+from labcairn.providers.ledger import TokenOrigin, TokenSpend, spend_from_report
 from labcairn.providers.redaction import Redactor
 from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
 from labcairn.security.paths import CanonicalPath
@@ -100,6 +101,7 @@ __all__ = [
     "SubstituteTransport",
     "SuggestionLoopConfig",
     "SuggestionRequestEntry",
+    "UsageReportingTransport",
     "desensitised_prompt",
     "read_suggestion_run",
     "suggest_for_version",
@@ -141,12 +143,51 @@ _DOCUMENT_PART: str = "word/document.xml"
 def _estimate_tokens(text: str) -> int:
     """A conservative token estimate: characters over four, at least one.
 
-    The transport seam returns text, not usage, so the loop's token figure
-    is an *estimate* — named as one on the run row, never dressed up as a
-    measurement. A ceiling checked against this estimate is checked
-    against the same number every time, which is what a budget needs.
+    **This is a fallback, not a reading.** The provider's own usage report
+    is the measurement, and where there is one this number is not used at
+    all; where there is none, this is what the loop counts and it is
+    recorded as an estimate. The pilot measured why the distinction matters:
+    the same answer length produced 1.25 to 3.65 reported tokens per
+    character on one endpoint, and 6.75 across both rounds
+    (``docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`` §8.4), so
+    a ceiling written from a character count is written from a number that
+    moves by nearly a factor of three between two calls of the same shape.
+
+    The estimate is never zero, which is what lets a zero in
+    :attr:`~labcairn.providers.ledger.TokenSpend.estimated` mean *the
+    estimate was not used* rather than *the estimate came to nothing*.
     """
     return max(1, len(text) // 4)
+
+
+def _reported_usage(transport: ModelSuggestionTransport) -> UsageReport | None:
+    """What the provider reported for the call just made, if it reported anything.
+
+    **A transport that does not report is not a failure.** It reported
+    nothing, and the caller falls back to the estimate and says so — which
+    is the honest answer, and the one the record carries.
+
+    The check is against a protocol rather than a private attribute, so a
+    transport either presents the seam or does not; nothing reaches in and
+    finds a member that happens to be there.
+    """
+    if isinstance(transport, UsageReportingTransport):
+        return transport.last_usage()
+    return None
+
+
+def _spend_delta(before: TokenSpend, after: TokenSpend) -> TokenSpend:
+    """What one attempt added to a source's account.
+
+    **The two parts are subtracted apart**, so an entry says which of them
+    the request spent: the provider's own report, or LabCairn's count of
+    the text. A delta of zero on the estimated side means the attempt
+    spent no estimate — the provider reported every side of it.
+    """
+    return TokenSpend(
+        measured=after.measured - before.measured,
+        estimated=after.estimated - before.estimated,
+    )
 
 
 def desensitised_prompt(event: FeedbackEvent, *, redactor: Redactor) -> str:
@@ -181,6 +222,12 @@ def desensitised_prompt(event: FeedbackEvent, *, redactor: Redactor) -> str:
 class SourceAccounting:
     """What one source has spent, read by the loop after every call.
 
+    **The tokens are two named parts, not one number.** ``spend`` holds
+    what the provider reported beside what LabCairn counted from the text,
+    and the two never describe the same tokens: the estimate covers only
+    the sides the provider left unreported. The budget reads the total, and
+    the record says which part of it was measured.
+
     The counting lives on the source because the transport call happens
     there; the loop reads the counters before and after each attempt, so
     the run row's figures cover retries and fallbacks as well as first
@@ -188,7 +235,24 @@ class SourceAccounting:
     """
 
     requests_made: int = 0
-    tokens_estimated: int = 0
+    #: What this source has spent: the provider's report beside the
+    #: fallback estimate.
+    spend: TokenSpend = field(default_factory=TokenSpend)
+
+    @property
+    def tokens_measured(self) -> int:
+        """What the provider reported, in tokens."""
+        return self.spend.measured
+
+    @property
+    def tokens_estimated(self) -> int:
+        """What LabCairn counted from the text, in tokens.
+
+        Zero while the estimate has not been used at all, which is a
+        different fact from an estimate that came to nothing — see
+        :class:`~labcairn.providers.ledger.TokenSpend`.
+        """
+        return self.spend.estimated
 
 
 @runtime_checkable
@@ -208,6 +272,28 @@ class ModelSuggestionTransport(Protocol):
 
     def send(self, request: ModelRequest) -> str:
         """One request out, one answer back. Raises on failure."""
+        ...
+
+
+@runtime_checkable
+class UsageReportingTransport(Protocol):
+    """A transport that also says what the provider reported for its last call.
+
+    **The seam is optional, and its absence is not a failure.** A transport
+    that does not implement it reported nothing, and the loop counts the
+    estimate and records it as an estimate. A transport that does implement
+    it hands over the provider's own usage report, and the loop counts
+    that instead — which is the difference between a ceiling checked
+    against what the provider charged and one checked against a character
+    count.
+
+    **``last_usage`` speaks about the call that was just made.** A
+    transport that answered a second call and still reported the first
+    one's usage would have the loop counting one call's tokens twice.
+    """
+
+    def last_usage(self) -> UsageReport | None:
+        """The provider's usage report for the call just made, or ``None``."""
         ...
 
 
@@ -311,9 +397,33 @@ class ProviderSuggestionSource:
             return None
         prompt = desensitised_prompt(event, redactor=self._redactor)
         self.accounting.requests_made += 1
-        self.accounting.tokens_estimated += _estimate_tokens(prompt)
-        answer = self._transport.send(ModelRequest(prompt=prompt))
-        self.accounting.tokens_estimated += _estimate_tokens(answer)
+        estimated_input = _estimate_tokens(prompt)
+        try:
+            answer = self._transport.send(ModelRequest(prompt=prompt))
+        except Exception:
+            # The request went out and the provider may have spent tokens on
+            # it; nothing came back to measure. The estimate is the fallback,
+            # and it is recorded as one.
+            self.accounting.spend = self.accounting.spend.merged(
+                spend_from_report(
+                    None,
+                    estimated_input=estimated_input,
+                    estimated_output=0,
+                )
+            )
+            raise
+        # **The provider's own report, where there is one.** The character
+        # count is the fallback for the sides the provider left unreported,
+        # and only for those: the pilot measured a factor of three between
+        # the two for the same prompt, so an estimate that stood in for a
+        # measurement would be a number nobody could rely on.
+        self.accounting.spend = self.accounting.spend.merged(
+            spend_from_report(
+                _reported_usage(self._transport),
+                estimated_input=estimated_input,
+                estimated_output=_estimate_tokens(answer),
+            )
+        )
         return self._wrap(event, answer)
 
     def _wrap(self, event: FeedbackEvent, answer: str) -> ApprovedEdit | None:
@@ -401,7 +511,15 @@ class SubstituteSuggestionSource:
         )
         comment = event.comment_text.strip()
         new_text = f"{old_text} (revised to address the comment: {comment[:120]})"
-        self.accounting.tokens_estimated += _estimate_tokens(new_text)
+        # The substitute renders locally and reports no usage, so its spend
+        # is an estimate — and it is recorded as one.
+        self.accounting.spend = self.accounting.spend.merged(
+            spend_from_report(
+                None,
+                estimated_input=0,
+                estimated_output=_estimate_tokens(new_text),
+            )
+        )
         return ApprovedEdit(
             part=_DOCUMENT_PART,
             paragraph=paragraph,
@@ -466,7 +584,16 @@ class SuggestionRequestEntry(Result):
     outcome: str
     attempts: int
     elapsed_s: float
+    #: The request's token figure — what the budget counted for it. **The
+    #: name is the row's and the wire's, and it is the request's total**, not
+    #: only the estimated part of it: a request that reported its usage was
+    #: measured, and a row that said "0" for it would under-report what the
+    #: provider spent. :attr:`tokens_measured` says which it was.
     tokens_estimated: int
+    #: The part of :attr:`tokens_estimated` the provider reported. Zero means
+    #: the provider reported nothing for this request, and the whole figure
+    #: is the fallback estimate.
+    tokens_measured: int
     #: A class name, never prose: the refusal's reason or the failure's kind.
     detail: str
     retryable: bool | None
@@ -486,7 +613,19 @@ class ModelSuggestionRunData:
     mode: str
     model_id: str
     requests_made: int
+    #: The run's token figure — what the budget bounded. **The name is the
+    #: row's and the wire's, and it is the run's total**: the provider's
+    #: reported usage where there was one, and the fallback estimate for
+    #: the sides the provider left unreported. :attr:`tokens_measured` is
+    #: the part of it the provider reported, and :attr:`token_origin` says
+    #: what the whole is made of.
     tokens_estimated: int
+    #: The part of :attr:`tokens_estimated` the provider reported.
+    tokens_measured: int
+    #: What the run's token figure is made of: ``measured``, ``estimated``
+    #: or ``mixed`` — the provider's own report, LabCairn's fallback count,
+    #: or both.
+    token_origin: TokenOrigin
     stopped_reason: str | None
     suggestions_recorded: int
     opinions_skipped: int
@@ -598,6 +737,19 @@ def _measured_seconds(record: Mapping[str, object], field: str) -> float:
     )
 
 
+def _measured_int_or_zero(record: Mapping[str, object], field: str) -> int:
+    """One measured count, read back — or zero when the record predates it.
+
+    **An absent field is not a damaged one.** A run written before the
+    provider's report was recorded has no measured count to read, and its
+    tokens are the estimate it recorded at the time; a field that is
+    *present* and not a number is damaged, and that is refused as before.
+    """
+    if field not in record:
+        return 0
+    return _measured_int(record, field)
+
+
 def _entry_from_record(record: Mapping[str, object], *, mode: str) -> SuggestionRequestEntry:
     """One stored request entry, read back as the layer's own shape."""
     outcome = str(record.get("outcome", ""))
@@ -610,6 +762,7 @@ def _entry_from_record(record: Mapping[str, object], *, mode: str) -> Suggestion
         attempts=_measured_int(record, "attempts"),
         elapsed_s=_measured_seconds(record, "elapsed_s"),
         tokens_estimated=_measured_int(record, "tokens_estimated"),
+        tokens_measured=_measured_int_or_zero(record, "tokens_measured"),
         detail=str(record.get("detail", "")),
         retryable=None if retryable is None else bool(retryable),
         approval_id=None if approval_id is None else str(approval_id),
@@ -655,6 +808,13 @@ def read_suggestion_run(context: ApplicationContext, run_id: str) -> ModelSugges
             ApplicationRefusal.ARGUMENTS_INVALID,
             f"the store holds no suggestion run with the id {run_id!r}.",
         )
+    entries = tuple(_entry_from_record(record, mode=row.mode) for record in row.requests_json)
+    # **The measured part is the entries' own.** The row's column holds the
+    # run's token total; the split between what the provider reported and
+    # what LabCairn counted is carried by the entries, and read back from
+    # them here.
+    measured = sum(entry.tokens_measured for entry in entries)
+    spend = TokenSpend(measured=measured, estimated=row.tokens_estimated - measured)
     return ModelSuggestionRunData(
         run_id=row.run_id,
         project_id=row.project_id,
@@ -663,12 +823,14 @@ def read_suggestion_run(context: ApplicationContext, run_id: str) -> ModelSugges
         model_id=row.model_id,
         requests_made=row.requests_made,
         tokens_estimated=row.tokens_estimated,
+        tokens_measured=measured,
+        token_origin=spend.origin,
         stopped_reason=row.stopped_reason,
         suggestions_recorded=row.suggestions_recorded,
         opinions_skipped=row.opinions_skipped,
         started_at=row.started_at,
         finished_at=row.finished_at,
-        requests=tuple(_entry_from_record(record, mode=row.mode) for record in row.requests_json),
+        requests=entries,
     )
 
 
@@ -929,12 +1091,13 @@ class SuggestionLoop:
         spends none, and says so by recording none.
         """
         started = time.monotonic()
-        tokens_before = source.accounting.tokens_estimated
+        spend_before = source.accounting.spend
         try:
             edit = source(event)
         except Exception as error:
             elapsed = time.monotonic() - started
             failure = classify_exception(error, redactor=self._redactor)
+            spent = _spend_delta(spend_before, source.accounting.spend)
             self._entries.append(
                 _entry(
                     event,
@@ -942,7 +1105,8 @@ class SuggestionLoop:
                     outcome="failed",
                     attempts=attempts,
                     elapsed_s=elapsed,
-                    tokens=source.accounting.tokens_estimated - tokens_before,
+                    tokens=spent.total,
+                    tokens_measured=spent.measured,
                     detail=failure.kind.value,
                     retryable=failure.retryable,
                     approval_id=approval_id,
@@ -950,6 +1114,7 @@ class SuggestionLoop:
             )
             return _RETRY if failure.retryable else _GIVE_UP
         elapsed = time.monotonic() - started
+        spent = _spend_delta(spend_before, source.accounting.spend)
         self._entries.append(
             _entry(
                 event,
@@ -957,7 +1122,8 @@ class SuggestionLoop:
                 outcome="empty" if edit is None else "answered",
                 attempts=attempts,
                 elapsed_s=elapsed,
-                tokens=source.accounting.tokens_estimated - tokens_before,
+                tokens=spent.total,
+                tokens_measured=spent.measured,
                 approval_id=approval_id,
             )
         )
@@ -1056,12 +1222,20 @@ class SuggestionLoop:
         return True
 
     def _check_token_budget(self) -> None:
-        """The token-estimate ceiling, checked after the call it bounds.
+        """The token ceiling, checked after the call it bounds.
 
-        The estimate is the only figure the transport seam offers, and it
-        is recorded as an estimate. The call that crosses the ceiling is
-        the last one: the next opinion is skipped, and the row says which
-        stop fired.
+        **The ceiling is checked against the provider's own report where
+        there was one.** The pilot measured why: the same answer length
+        produced 1.25 to 3.65 reported tokens per character, and 6.75
+        across both rounds
+        (``docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`` §8.4),
+        so a ceiling checked against a character count is checked against
+        a number that moves by nearly a factor of three between two calls
+        of the same shape. Where the provider reported nothing, the
+        estimate stands in — and the run's account says that is what it is.
+
+        The call that crosses the ceiling is the last one: the next opinion
+        is skipped, and the row says which stop fired.
         """
         ceiling = self._config.max_tokens
         if ceiling is not None and self._tokens_total() > ceiling:
@@ -1091,12 +1265,22 @@ class SuggestionLoop:
         )
         self._suggestions_recorded += 1
 
-    def _tokens_total(self) -> int:
-        """Both sources' estimates, together. The run's own figure."""
-        total = self._primary.accounting.tokens_estimated
+    def _spend(self) -> TokenSpend:
+        """Both sources' spend, together. The run's own account."""
+        total = self._primary.accounting.spend
         if self._fallback is not None:
-            total += self._fallback.accounting.tokens_estimated
+            total = total.merged(self._fallback.accounting.spend)
         return total
+
+    def _tokens_total(self) -> int:
+        """The run's tokens: what the provider reported, plus what we counted.
+
+        **The estimate is a fallback, never a second reading.** The
+        provider's report is counted where there was one, and the estimate
+        covers only the sides it left unreported — so the total is never
+        smaller than either, and the budget is never under-counted.
+        """
+        return self._spend().total
 
     def _requests_total(self) -> int:
         """Both sources' calls, together. The run's own figure."""
@@ -1137,6 +1321,7 @@ class SuggestionLoop:
         session = self._context.store.session
         session.add(row)
         session.commit()
+        spend = self._spend()
         return ModelSuggestionRunData(
             run_id=self._run_id,
             project_id=self._project_id,
@@ -1144,7 +1329,9 @@ class SuggestionLoop:
             mode=self._mode,
             model_id=model_id,
             requests_made=self._requests_total(),
-            tokens_estimated=self._tokens_total(),
+            tokens_estimated=spend.total,
+            tokens_measured=spend.measured,
+            token_origin=spend.origin,
             stopped_reason=self._stopped_reason,
             suggestions_recorded=self._suggestions_recorded,
             opinions_skipped=self._opinions_skipped,
@@ -1190,6 +1377,7 @@ def _entry(
     attempts: int = 0,
     elapsed_s: float = 0.0,
     tokens: int = 0,
+    tokens_measured: int = 0,
     detail: str = "",
     retryable: bool | None = None,
     approval_id: str | None = None,
@@ -1206,6 +1394,12 @@ def _entry(
     consumed — the caller presented none, or the gate refused and left it
     unspent. It is an id, never a digest of the request and never the
     request itself.
+
+    **``tokens_estimated`` is the request's token total and
+    ``tokens_measured`` is the part of it the provider reported.** The two
+    are named apart because the reader has to be able to tell a measurement
+    from a count of characters: an entry whose tokens were all measured
+    says so, and one whose transport reported nothing says that too.
     """
     record: dict[str, object] = {
         "feedback_id": event.feedback_id,
@@ -1214,6 +1408,7 @@ def _entry(
         "attempts": attempts,
         "elapsed_s": round(elapsed_s, 6),
         "tokens_estimated": tokens,
+        "tokens_measured": tokens_measured,
         "detail": detail,
     }
     if retryable is not None:

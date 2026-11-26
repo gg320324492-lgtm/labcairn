@@ -1058,12 +1058,20 @@ def test_the_suggest_run_record_is_readable_back_after_the_run(
             "attempts",
             "elapsed_s",
             "tokens_estimated",
+            "tokens_measured",
             "detail",
             "retryable",
             "approval_id",
             "approval_spent",
         }
         assert entry["elapsed_s"] >= 0.0
+        # **The wire says which of the tokens were measured.** The entry
+        # carries the request's token figure and the part of it the
+        # provider reported, so a reader of one request can tell a
+        # measurement from a count of characters. A substitute run reports
+        # nothing, so all of its tokens are the estimate.
+        assert entry["tokens_measured"] == 0
+        assert entry["tokens_estimated"] > 0
     assert record["duration_seconds"] >= 0.0
 
     # **And no prose.** The boundary holds on the way out too: ids, counts
