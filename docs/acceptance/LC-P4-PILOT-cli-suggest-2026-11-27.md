@@ -207,13 +207,24 @@ witnesses in this record, and the enumeration passed on this tree.
 **For the main session.**
 
 * **The shard list.** `tests/test_cli_suggest.py` is a new test file and
-  **is in no shard**. `.github/ci-shards.json` needs it, and the cost has
-  to be **measured on a runner**: `python .github/make_ci_shards.py` refuses
-  to guess a cost it has not measured, and `python .github/remeasure_shards.py
-  <run-id>` reads the per-file seconds out of a CI log. The mark, for the
-  partition: this file is **13 e2e witnesses that run the CLI**, and it
-  took **114.8 s** on a development machine — the order of magnitude only;
-  the runner's number is the one that counts.
+  **is in no shard**, and `tests/test_ci_shard_coverage.py` says so in
+  exactly two places, both of which are red on this tree until it is
+  registered:
+
+  ```
+  on ubuntu-latest, these test files are in no shard, so CI never runs them:
+  ['tests/test_cli_suggest.py']
+  on ubuntu-latest, these test files have no measured cost recorded:
+  ['test_cli_suggest.py']. Regenerate the shard file.
+  ```
+
+  `.github/ci-shards.json` needs it, and the cost has to be **measured on
+  a runner**: `python .github/make_ci_shards.py` refuses to guess a cost it
+  has not measured, and `python .github/remeasure_shards.py <run-id>`
+  reads the per-file seconds out of a CI log. The mark, for the partition:
+  this file is **13 e2e witnesses that run the CLI**, and it took
+  **114.8 s** on a development machine — the order of magnitude only; the
+  runner's number is the one that counts.
 * **The layer operation.** The command assembles the request in the CLI
   package, because the layer has no operation for this shape and the
   `application` package was not this window's to change. `labcairn.cli`'s
