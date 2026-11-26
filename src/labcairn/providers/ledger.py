@@ -47,7 +47,12 @@ report beside LabCairn's fallback estimate, and :attr:`TokenSpend.origin`
 says which of them a total is made of. **The estimate is a fallback, not a
 second reading**: it covers the sides the provider left unreported and
 nothing else, so the two never count the same tokens twice, and the total
-is never smaller than either.
+is never smaller than either. **It is not a bound on what the provider
+charged for an unreported side.** The pilot measured a character estimate
+of 416 tokens for an answer the provider reported as 6,089
+(``docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`` §8.4); the
+fallback exists so a call that reported nothing is still counted, not so
+its count can be mistaken for the measurement it stands in for.
 
 Counting the two kinds of request separately
 --------------------------------------------
@@ -162,13 +167,16 @@ class TokenSpend:
     **``estimated == 0`` means the estimate was not used at all**, and not
     that the estimate came to nothing: every estimate LabCairn takes is at
     least one token, so a zero here can only mean that the provider
-    reported every side. :func:`spend_from_report` is what keeps that true,
-    and :attr:`origin` is what reads it back.
+    reported every side. :func:`spend_from_report` is what keeps that true
+    — it refuses a spend whose unreported side would be covered by a zero
+    estimate, because that spend would read as measured — and
+    :attr:`origin` is what reads it back.
 
     :attr:`total` is what a ceiling must see — never smaller than either
-    part, so a budget that reads it is never under-counted — and it always
-    travels with :attr:`origin`, so a reader is never left to guess whether
-    it is a measurement.
+    part — and it always travels with :attr:`origin`. When the origin is
+    not ``MEASURED`` the total is a fallback count, not a measurement: it
+    is not a bound on what the provider charged for the sides it left
+    unreported.
     """
 
     #: Tokens the provider reported.
@@ -215,8 +223,13 @@ def spend_from_report(
     provider may report the input and omit the output, or report neither;
     the estimate covers exactly the sides that are missing, so the two never
     count the same tokens twice and the total is never smaller than either
-    source. A ceiling that reads the total is therefore never under-counted
-    against the provider's own figure.
+    source. The estimate is a count, not a bound: for the same answer the
+    pilot measured a character estimate of 416 tokens against the provider's
+    6,089 (``docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`` §8.4),
+    so a total made of fallbacks is not a ceiling on what the provider
+    charged. A ceiling that must bound the provider's own figure reads the
+    provider ledger's :class:`~labcairn.core.providers.usage.UsageValue`,
+    which is ``Unknown`` when a side is — never this fallback.
 
     ``report`` is ``None`` when the transport reported nothing at all — the
     case the estimate exists for. A report whose fields are all ``Unknown``
@@ -225,20 +238,48 @@ def spend_from_report(
     **Pass the count, not a zero.** A zero here for a side the provider
     left unreported would make the spend read as measured; every estimate
     LabCairn takes is at least one token, so a caller that counts the text
-    it sent never passes one.
+    it sent never passes one. **That is enforced, not requested:** a
+    fallback that would leave an unreported side indistinguishable from a
+    measurement raises :class:`ValueError`. The failure path is not that
+    case — a call that raised before an answer existed passes an output
+    estimate of zero beside an input estimate of at least one, and the
+    spend says ``ESTIMATED`` rather than refusing.
+
+    :raises ValueError: an estimate is negative, or the provider left a
+        side unreported and the fallback estimates for the unreported sides
+        add to zero.
     """
+    if estimated_input < 0 or estimated_output < 0:
+        raise ValueError(
+            "a token estimate cannot be negative: "
+            f"estimated_input={estimated_input}, estimated_output={estimated_output}"
+        )
     if report is None:
-        return TokenSpend(measured=0, estimated=estimated_input + estimated_output)
-    measured = 0
-    estimated = 0
-    if isinstance(report.input_tokens, Known):
-        measured += report.input_tokens.value
+        measured = 0
+        estimated = estimated_input + estimated_output
+        unreported = True
     else:
-        estimated += estimated_input
-    if isinstance(report.output_tokens, Known):
-        measured += report.output_tokens.value
-    else:
-        estimated += estimated_output
+        measured = 0
+        estimated = 0
+        unreported = False
+        if isinstance(report.input_tokens, Known):
+            measured += report.input_tokens.value
+        else:
+            unreported = True
+            estimated += estimated_input
+        if isinstance(report.output_tokens, Known):
+            measured += report.output_tokens.value
+        else:
+            unreported = True
+            estimated += estimated_output
+    if unreported and estimated == 0:
+        raise ValueError(
+            "the provider left a token side unreported and the fallback "
+            "estimates for the unreported sides add to zero; the spend would "
+            "read as measured, and an estimate used as a fallback must stay "
+            "distinguishable from a measurement. Pass the character count, "
+            "not a zero."
+        )
     return TokenSpend(measured=measured, estimated=estimated)
 
 
