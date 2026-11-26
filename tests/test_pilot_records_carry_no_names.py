@@ -48,13 +48,29 @@ RECORDS: Final[tuple[Path, ...]] = (
     *sorted(Path("docs/acceptance").glob("batch-1[3-5]-review-*.md")),
 )
 
+#: A maximal run of Han characters, written as code points rather than as
+#: the characters themselves: **the tree's Chinese is measured**, and a
+#: witness that spent the budget it exists to protect would break its own
+#: rule before it could keep it.
 #: A maximal run of Han characters — the same shape
 #: ``tests/test_pilot_decisions.py`` holds the preparation papers to.
-HAN_RUN: Final = re.compile(r"[㐀-䶿一-鿿豈-﫿]+")
+HAN_RUN: Final = re.compile(
+    "["
+    + chr(0x3400)
+    + "-"
+    + chr(0x4DBF)
+    + chr(0x4E00)
+    + "-"
+    + chr(0x9FFF)
+    + chr(0xF900)
+    + "-"
+    + chr(0xFAFF)
+    + "]+"
+)
 
 #: A CJK fullwidth enumeration comma — the mark a half-translated line
 #: leaves behind in English prose.
-FULLWIDTH_COMMA: Final = re.compile("、")
+FULLWIDTH_COMMA: Final = re.compile(chr(0x3001))
 
 #: Identifier shapes the records must not carry, in the same shapes
 #: ``tests/test_pilot_decisions.py`` and ``tests/test_pilot_runbook.py``

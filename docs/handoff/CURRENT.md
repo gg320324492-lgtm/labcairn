@@ -39,11 +39,14 @@
   version id and file name for the second corpus, and all three carried a
   name in Chinese. **The workspace is allowed to hold them; the tree is
   not** — a label that carries a name is material too. The identifiers are
-  redacted in place and the record says why. **Nothing watched that**: the
-  preparation papers had a witness for exactly these three checks and the
-  measurement records had none, so
+  redacted in place and the record says why. **Two witnesses now cover
+  the two directions.** `tests/test_no_reference_leakage.py` holds the
+  tree's Chinese budget — a file carrying Chinese that was never measured
+  fails the build, and **the leak was exactly that**, so it would have
+  been caught before it merged. What was unwatched was the other
+  direction, a name written into a record that was already there, and
   `tests/test_pilot_records_carry_no_names.py` now holds every pilot
-  record to them.
+  record to no Chinese, no fullwidth comma and no identifying pattern.
 - **Pull request #225 is open** and carries this batch; one run, one
   pull request. Two witnesses that are new carry `0.0` costs until that
   run supplies the numbers, and the partition is rebuilt from them

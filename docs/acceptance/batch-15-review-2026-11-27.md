@@ -41,10 +41,16 @@ were taken on, which is a fact about a reading.
 **Pass.** None of the new test files contains a `skip`, a `skipif` or an
 `xfail`: **no arm of them can pass by not running.**
 
-**And this batch added a guard of a guard.** The rule "the pilot's
-records carry no name" already existed for the preparation papers
-(`tests/test_pilot_decisions.py`). The measurement records had no such
-witness — and that is where the leak landed (R4).
+**And this batch added a guard of a guard — of a guard that was itself
+watched in only one direction.** The rule "the pilot's records carry no
+name" already existed for the preparation papers
+(`tests/test_pilot_decisions.py`), and a second witness already holds the
+tree's Chinese budget: `tests/test_no_reference_leakage.py` fails when a
+file that carries Chinese was never measured. **The leak was a new file
+carrying Chinese, so that witness would have caught it** — and the
+measurement records, which existed before it, were none of its business.
+What was unwatched was the other direction: **a name written into a
+record that was already there**, changing no file's Chinese status.
 
 ## R4. External material is paraphrased in English with provenance, never quoted in the original
 
@@ -64,20 +70,29 @@ record says why — the corpus and the root are still there, so a reader
 can find the row, and the name is not. The redaction is recorded in the
 record itself rather than done silently.
 
-**What now watches it.** `tests/test_pilot_records_carry_no_names.py`
-holds every pilot record — the desensitisation measurement, the import,
-the first real request, the round, the removal and its witnesses, the
-report checks, the replay, the CLI's request, and the reviews of these
-batches — to three checks: no Han character run, no fullwidth enumeration
-comma, and no identifier shape a real name or affiliation leaves behind
-(email, phone, grant or project number, ORCID). **Putting the name back
-was checked to turn it red.**
+**What now watches it.** Two witnesses, in two directions.
+`tests/test_no_reference_leakage.py` holds the tree's Chinese budget: a
+file that carries Chinese and was never measured fails the build, so **a
+new record that copied the corpus in would be caught before it merged**.
+`tests/test_pilot_records_carry_no_names.py` holds every pilot record —
+the desensitisation measurement, the import, the first real request, the
+round, the removal and its witnesses, the report checks, the replay, the
+CLI's request, and the reviews of these batches — to three checks: no Han
+character run, no fullwidth enumeration comma, and no identifier shape a
+real name or affiliation leaves behind (email, phone, grant or project
+number, ORCID). **That one is the direction the budget does not cover: a
+name written into a record that was already there.** Putting the name
+back was checked to turn it red, and the witness writes its patterns as
+code points so that it spends none of the budget it protects.
 
 **Why the rule is a Han character and not a name list.** The corpus is
 Chinese. A run of Han characters in an English record is not a style
 question; it is a transcription. A denylist of known names would find
 today's leak and tomorrow's, and would not find the leak nobody wrote
-down.
+down. **And the rule is a budget, not a ban**: the repository's own
+Chinese documents are legitimate, so what is watched is that the tree
+carries no more Chinese than it was measured to carry, plus that the
+pilot's own records carry none at all.
 
 **What this review did not do.** It did not check the tree for leaks of
 the same kind outside the pilot's records — the earlier acceptance
@@ -153,7 +168,7 @@ no reader can repeat that without changing the workspace again.
 | Finding | Where it went |
 |---|---|
 | A person's name, in Chinese, reached a record in the tree | `7fae861` — redacted in place, said in the record, and watched by a new witness |
-| The pilot's measurement records had no name-watching witness | `7fae861` — the same file, over every pilot record |
+| A name written into a record that was already there was unwatched | `7fae861` — the same file, over every pilot record; the Chinese budget in `tests/test_no_reference_leakage.py` covers the other direction |
 | Two witnesses froze the old shape (one event; 32 event types) | `3df9e3a` — moved with the product |
 | A record named a temporary directory that is gone next run | `0293a4d` — the parent is the fact |
 | Five anchors moved with the new command | `d3da581` — re-pointed with the checker's own word-matching |
