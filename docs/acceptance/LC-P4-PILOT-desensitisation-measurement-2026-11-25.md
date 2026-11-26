@@ -129,19 +129,54 @@ produced each of them:
 | 22,442 characters of visible text | the checker's item B-3 facts (`visible_text_characters_copy`) | the two digests named above |
 | 198 revision marks, each with an author field | the redaction's own report (`author_fields_replaced=198`) | the copy's digest |
 | 111 and 2 marks by the two who marked the document | the same report, read against the original | the original's digest |
-| seven pictures, each decoding to the same pixels | a picture-by-picture comparison of the two documents' `word/media/*` parts | the two digests named above |
+| seven pictures, each decoding to the same pixels | [`scripts/pilot_picture_comparison.py`](../../scripts/pilot_picture_comparison.py)'s per-picture verdict | the two digests named above |
 
-**One of those readings was taken by a one-off script that is not in this
-repository**: the picture-by-picture pixel comparison. The character count
-is now reported by the checker itself, so anyone can read it again; the
-pixel comparison has no tool yet, so its reading is recorded here with the
-digests it was taken at rather than with a command that could be re-run.
-That is a gap in the tree, not in the record: a comparison a later reader
-cannot repeat is a measurement nobody can check.
+**The pixel comparison had no tool, and now has one.** It was taken by a
+one-off script that was not in this repository, so the reading was recorded
+here with the digests it was taken at rather than with a command that could
+be re-run — a comparison a later reader cannot repeat is a measurement
+nobody can check. It can be repeated:
 
-**All of them were measured on this machine, on 2026-11-25, against the
-digests named above.** A digest identifies bytes; a different copy has a
-different digest, and the numbers would be about that one.
+```
+python scripts/pilot_picture_comparison.py \
+    --copy <the copy under the authorised root> \
+    --original <the advisor's copy under advisor-sample/>
+```
+
+The tool reads the pictures out of both archives, decodes each one, and
+compares the two over **decoded pixels** and not over bytes: the redaction
+blanked a path inside two pictures' own metadata, in place and at the same
+length, so those two pictures' bytes differ where their pixels do not, and
+a comparison over bytes would have reported them as different.
+
+Measured on 2026-11-26 against the digests named above, the reading is:
+
+| Picture | Part | Size | Bytes | Pixels |
+|---|---|---|---|---|
+| 1 | `word/media/image1.png` | 1267 × 761 | the same | identical |
+| 2 | `word/media/image2.tiff` | 6846 × 4783 | differ | identical |
+| 3 | `word/media/image3.tiff` | 1519 × 496 | the same | identical |
+| 4 | `word/media/image4.tiff` | 768 × 516 | the same | identical |
+| 5 | `word/media/image5.tiff` | 1750 × 1767 | the same | identical |
+| 6 | `word/media/image6.tiff` | 6846 × 4783 | differ | identical |
+| 7 | `word/media/image7.tiff` | 2929 × 1290 | the same | identical |
+
+Seven compared, seven identical, none differing, none that the decoder
+could not read, and no picture on one side alone. The report names the
+decoder and says what it refuses, because a picture the decoder cannot
+read is a fact to report and not a failure to hide. The decoder is the
+tool's own — `zlib` for PNG, and a TIFF 6.0 reader for uncompressed and
+LZW strips — because the project's dependencies carry no image decoder and
+this one adds none. The tool's witnesses are in
+[`tests/test_pixel_comparison.py`](../../tests/test_pixel_comparison.py):
+eighteen tests, and ten mutations between them, each of which was checked
+to turn the witness that watches it red, with the file's own tests green
+again when the script was restored.
+
+**All of them were measured on this machine, on 2026-11-25 — and the pixel
+comparison again on 2026-11-26 — against the digests named above.** A
+digest identifies bytes; a different copy has a different digest, and the
+numbers would be about that one.
 
 ## How the reading was taken
 
