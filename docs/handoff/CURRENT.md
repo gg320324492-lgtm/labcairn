@@ -1,6 +1,37 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-27 - pull request #224 is merged, and the two windows that answered the removal
+
+- **Pull request #224 is merged** (merge commit `6b8e09f`), and the delivery
+  branch is gone from both the remote and the local checkout. The work it
+  carried is on `main`; the round's records, the two bookkeeping closures,
+  the re-measured shard costs and the floor witness are all in it.
+- **Two more windows have been merged into the local `main`.** One ran the
+  report's content checks over the pilot copy and wrote down what they read:
+  the gate runs on the **model** and not on an exported file — checking a
+  rendered file would be a second copy of the content — so **there is no
+  route that checks an export that already exists**, and both versions of
+  the pilot's report pass all five checks. Its seven mutation probes each
+  broke one check and were each refused by that check. The other made a
+  removal **say in the log which source it took back**: a `source_removed`
+  event carrying the source's id, its path, its digest and the tasks that
+  let it go, written in the same transaction as the deletion, with
+  migration `0034` and the checked-in TypeScript contract regenerated.
+- **Two witnesses that held the old shape moved with the product.** The
+  event vocabulary has 33 members now, not 32, and a removal writes **two**
+  events — the task's revision and the one that names the source — so the
+  witness that used to freeze "one event" says so and holds both. One
+  anchor drifted with the new enum member and was re-pointed.
+- **What is still in flight.** The window that gives the CLI a model
+  request of its own is finishing its mutation checks; the window that
+  replays the round on the pilot workspace, on the tree that closes the
+  gaps, is running. **The remote `main` is behind the local `main`** — this
+  batch's work is merged locally and awaits one pull request and one run.
+- **The costs are owed to the runner again.** The two new test files carry
+  `0.0` until a run measures them, and the partition is rebuilt from that.
+
+
 ## 2026-11-26 (night) - the two bookkeeping gaps are closed, the shard costs are measured again, and the pull request is ready
 
 - **The pilot's copy went through one whole round on the product's own
