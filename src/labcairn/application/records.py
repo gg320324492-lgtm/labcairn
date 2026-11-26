@@ -502,6 +502,51 @@ def record_refusal(
         )
 
 
+def record_source_removed(
+    context: ApplicationContext,
+    *,
+    source_id: str,
+    relative_path: str,
+    content_sha256: str,
+    released_task_ids: tuple[str, ...],
+    now: datetime,
+) -> None:
+    """Record the removal of a source's row on the task's own event log.
+
+    **Before this function, a removal left no entry that named the source.**
+    The pilot measured it: ``sources remove --source src-0738f31ecf1e750b``
+    took the row back and wrote exactly one event, ``task_revised``, whose
+    payload was empty. The binding release was in the log; the removal was
+    not, and the next morning the log could not say what had been taken back.
+
+    The event is an **annotation** — no run, stage, operation or transition —
+    for the same reason :func:`record_refusal` is: taking a stale location
+    back changes no attempt, and inventing one would be the trace a reader
+    could mistake for work that started. The source it names is the *row*
+    that left; ``source_changed`` is a different fact, the material moving
+    under a source that stays.
+
+    **The removal's state change rides in this unit, not before it.** The
+    caller deletes the row inside the same session and leaves the commit to
+    this function: ADR-0003 C3 puts a state row and the event that describes
+    it in one transaction, so a store that cannot take the event does not
+    take the deletion either. A deletion committed first and an event written
+    afterwards would leave the log silent about a row that is gone — the
+    failure this function exists to end, one direction or the other.
+    """
+    with context.store.unit(context.task_id) as work:
+        work.emit(
+            EventType.SOURCE_REMOVED,
+            payload={
+                "source_id": source_id,
+                "relative_path": relative_path,
+                "content_sha256": content_sha256,
+                "released_task_ids": list(released_task_ids),
+            },
+            occurred_at=now,
+        )
+
+
 def fail_operation(
     context: ApplicationContext,
     operation: Operation,

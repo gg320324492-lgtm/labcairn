@@ -1035,3 +1035,68 @@ def test_a_store_at_the_previous_head_reaches_the_refusal_event_after_the_upgrad
     finally:
         connection.close()
     assert count == 1, "the refusal event did not land in the store after the upgrade"
+
+
+def _insert_a_source_removed_event(path: Path, event_id: str) -> None:
+    """Write one ``source_removed`` event the way a raw writer would.
+
+    The row names no Run, no Stage, no Operation and no transition, because
+    the vocabulary says a removal is an annotation about the task rather
+    than an attempt inside a run -- so the four CHECK constraints are all
+    exercised by the same insert.
+    """
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO events (seq, event_id, task_id, run_id, stage_id, "
+            "operation_id, type, from_state, to_state, schema_version, "
+            "occurred_at, document, payload) "
+            "VALUES (1, ?, 'task-1', NULL, NULL, NULL, "
+            "'source_removed', NULL, NULL, 1, '2026-11-27T00:00:00Z', "
+            "'{}', '{}')",
+            (event_id,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_a_store_at_the_previous_head_reaches_the_source_removal_event_after_the_upgrade(
+    tmp_path: Path,
+) -> None:
+    """The removal type has to reach a store that was built before it.
+
+    A store created at 0033 keeps the four vocabulary constraints it was
+    built with, because alembic does not run an earlier revision again. So
+    revision 0034 rebuilds the events table for those stores, and this
+    witnesses both halves of the shape: the downgrade puts the 0033
+    vocabulary back, and the upgrade carries ``source_removed`` into it.
+
+    The inserted row is also the constraint witness. It carries no
+    ``run_id``, no ``operation_id`` and no transition, so it proves the new
+    type is in the three "must not" sets as well as in the closed list --
+    a vocabulary that listed the type but left it in the run-scoped or
+    transition sets would refuse the very event the product writes.
+
+    Red by: the upgrade leaving the type out of the vocabulary (the insert
+    after the upgrade would raise), or the downgrade leaving it in (the
+    insert before the upgrade would not raise).
+    """
+    path = tmp_path / "removal-vocabulary.db"
+    upgrade_to_head(path)
+
+    alembic_command.downgrade(alembic_config(path), "0033")
+    with pytest.raises(sqlite3.IntegrityError, match="ck_events_type_is_closed_vocabulary"):
+        _insert_a_source_removed_event(path, "removed-before")
+
+    alembic_command.upgrade(alembic_config(path), "head")
+    _insert_a_source_removed_event(path, "removed-after")
+
+    connection = sqlite3.connect(path)
+    try:
+        count = connection.execute(
+            "SELECT count(*) FROM events WHERE type = 'source_removed'"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    assert count == 1, "the removal event did not land in the store after the upgrade"

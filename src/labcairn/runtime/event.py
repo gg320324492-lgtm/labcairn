@@ -74,6 +74,12 @@ class EventType(StrEnum):
     CHECKPOINT_CREATED = "checkpoint_created"
     ARTIFACT_RECORDED = "artifact_recorded"
     SOURCE_CHANGED = "source_changed"
+    #: A source left the ledger. ``source_changed`` is the *material* moving
+    #: under a source; this is the *row* leaving, and the two are different
+    #: facts about different things. A removal that wrote only ``task_revised``
+    #: left the log unable to say which source had been taken back — the next
+    #: morning's reader saw a task that had changed and nothing about why.
+    SOURCE_REMOVED = "source_removed"
     OUTBOUND_CONSENT_REQUESTED = "outbound_consent_requested"
 
     # LC-P2-09, ADR-0017 D8: the four events of the feedback chain — a
@@ -122,6 +128,11 @@ ANNOTATION_EVENTS: frozenset[EventType] = frozenset(
     {
         EventType.ARTIFACT_RECORDED,
         EventType.SOURCE_CHANGED,
+        # The removal of a source's row. It is not an attempt inside a run:
+        # taking a stale location back is workspace maintenance, and a removal
+        # that invented a Run for itself would be a trace a reader could
+        # mistake for work that was attempted.
+        EventType.SOURCE_REMOVED,
         EventType.OUTBOUND_CONSENT_REQUESTED,
         # ADR-0017 D8: the feedback chain's four events. A comment, an edit,
         # a response and an assessment are observations about the manuscript,
@@ -327,6 +338,41 @@ class RefusalRecordedPayload(LabCairnModel):
 
 
 register_payload_schema(EventType.REFUSAL_RECORDED, RefusalRecordedPayload)
+
+
+class SourceRemovedPayload(LabCairnModel):
+    """What a ``source_removed`` event carries beyond the fact of it.
+
+    A row left the ledger and the log has to say *which* row, or the next
+    morning's reader sees only that a task was revised. Four fields, because
+    the removal is a fact about a location and the three parts of that fact
+    are not interchangeable:
+
+    * ``source_id`` is the identity the ledger keys the row by -- the source
+      root and the key inside it. It is the id a caller passed to the
+      command, and the one the log has to hold for the removal to be
+      nameable at all;
+    * ``relative_path`` is where the material was, because a source's
+      identity *is* its location: two rows with the same bytes are two
+      sources, so the id alone does not tell a reader which path left;
+    * ``content_sha256`` is the digest the ledger recorded for those bytes,
+      so the log can say what it was that the path held;
+    * ``released_task_ids`` names the tasks that had to let the material go.
+      Most removals release none; the ones that do are the state change this
+      operation exists to make, and "which tasks no longer hold it?" is
+      answered here rather than by reading the tasks back.
+
+    No material text belongs here. A path, a digest and ids are the log's
+    own currency, and the removal has nothing else to say.
+    """
+
+    source_id: str = Field(min_length=1)
+    relative_path: str = Field(min_length=1)
+    content_sha256: str = Field(min_length=1)
+    released_task_ids: tuple[str, ...] = ()
+
+
+register_payload_schema(EventType.SOURCE_REMOVED, SourceRemovedPayload)
 
 
 class Event(LabCairnModel):
