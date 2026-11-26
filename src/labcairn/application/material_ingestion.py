@@ -98,6 +98,7 @@ from sqlalchemy.orm import Session
 from labcairn.application import consent
 from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
+from labcairn.application.records import record_source_removed
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import SourceId
 from labcairn.db.models import PaperVersionRow, SourceProblemRow, SourceRow
@@ -493,6 +494,14 @@ def remove_source(context: ApplicationContext, source_id: str) -> SourceRemoved:
     resolving. What leaves with the row is the material's own inventory
     entry and the disclosures about *that file at that location*.
 
+    **The log names the row that left.** The removal writes a
+    ``source_removed`` event carrying the source's id, its path, its digest
+    and the tasks that had to let it go, in the same transaction as the
+    deletion. Before it, a removal wrote only the released tasks' revisions
+    and the log could not say which source had been taken back; a task that
+    changed and a source that left are two facts, and only the first was
+    recorded.
+
     **A task that held the material lets it go.** The binding is the task's
     own state, and the store's writer records a revision with the event that
     describes it, so the release is written with its event rather than by
@@ -542,7 +551,17 @@ def remove_source(context: ApplicationContext, source_id: str) -> SourceRemoved:
     # state this operation exists to end.
     released = _release_the_bindings(context, source.source_id)
     problems = _remove_the_source_rows(session, source.source_id)
-    session.commit()
+    # The row is deleted inside this session and the event is the unit that
+    # commits it: ADR-0003 C3 puts the two in one transaction, so a store that
+    # refuses the event does not lose the row either.
+    record_source_removed(
+        context,
+        source_id=source.source_id,
+        relative_path=source.relative_path,
+        content_sha256=source.content_sha256,
+        released_task_ids=released,
+        now=context.store.clock(),
+    )
     return SourceRemoved(
         source_id=source.source_id,
         relative_path=source.relative_path,

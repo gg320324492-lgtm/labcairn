@@ -279,6 +279,7 @@ export type EventType =
   | 'checkpoint_created'
   | 'artifact_recorded'
   | 'source_changed'
+  | 'source_removed'
   | 'outbound_consent_requested'
   | 'feedback_recorded'
   | 'edit_action_recorded'
