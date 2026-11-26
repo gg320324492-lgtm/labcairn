@@ -47,10 +47,31 @@
   direction, a name written into a record that was already there, and
   `tests/test_pilot_records_carry_no_names.py` now holds every pilot
   record to no Chinese, no fullwidth comma and no identifying pattern.
+- **Two more windows have answered, and one of them found something.**
+  - **What a removal releases when two tasks hold the material** is now
+    held still: the removal releases **both** bindings, and `--task` does
+    not narrow that. The record had said the CLI's `--task` option does
+    not narrow the release and that one run could not tell two behaviours
+    apart; **two holders tell them apart**, and the answer is the wider
+    one.
+  - **A dangling source id, read back through the product's faces, splits
+    into three answers.** The source faces refuse it and name it (`403`,
+    exit 3); the report face refuses it and names it
+    (`report_content_refused`); **and the record face reads as sound while
+    the row it names is gone** — `GET /records` answers **200** with the
+    record intact, and `task claim-attest` advances it into the **citable**
+    set with exit 0 **without asking of the anchor's source row a second
+    time**. The record's observed hash is `None` because there is no row
+    to read it from, and no wired face runs the C1-C3 comparison. **That
+    is a product gap, measured and witnessed, not fixed** — the witness
+    would go red if a face learned to check the source row again.
+- **The threat model followed the command.** The `suggest` command moved
+  `init`'s three `mkdir` calls down 29 lines, and §1.2's write range
+  moved with them (444-448 is now 473-477).
 - **Pull request #225 is open** and carries this batch; one run, one
-  pull request. Two witnesses that are new carry `0.0` costs until that
-  run supplies the numbers, and the partition is rebuilt from them
-  afterwards.
+  pull request. The costs were re-measured from the runner and the
+  documents that print them were carried with the table; the two newest
+  witnesses carry `0.0` until the next run supplies their numbers.
 - **What this batch did not answer.** Whether the same kind of leak exists
   in the earlier records that carry Chinese for other reasons, and
   whether the git history holds one — the leak never left this machine,
