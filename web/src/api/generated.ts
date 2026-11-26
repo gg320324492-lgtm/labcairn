@@ -1106,6 +1106,7 @@ export type SuggestionRequestEntry = {
   attempts: number
   elapsed_s: number
   tokens_estimated: number
+  tokens_measured: number
   detail: string
   retryable: boolean | null
   approval_id: string | null

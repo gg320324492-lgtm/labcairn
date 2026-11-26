@@ -31,6 +31,24 @@ Cost is a :data:`UsageValue` too, in **micro-USD** as a plain ``int``
 (:func:`usd_to_micros` raises on a sub-micro-USD ceiling rather than rounding a
 guard down).
 
+What the provider reported, and what we counted
+-----------------------------------------------
+A provider's own usage report is a **measurement**: the endpoint says how
+many tokens it spent, and that number is the one a ceiling must be checked
+against. A character count is not. The pilot's first real request measured
+why — the same answer length produced 1.25 to 3.65 reported tokens per
+character, and 6.75 across both rounds
+(``docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md`` §8.4), so a
+ceiling written from a character count is written from a number that moves
+by nearly a factor of three between two calls of the same shape.
+
+So the two never share a column. :class:`TokenSpend` carries the provider's
+report beside LabCairn's fallback estimate, and :attr:`TokenSpend.origin`
+says which of them a total is made of. **The estimate is a fallback, not a
+second reading**: it covers the sides the provider left unreported and
+nothing else, so the two never count the same tokens twice, and the total
+is never smaller than either.
+
 Counting the two kinds of request separately
 --------------------------------------------
 ``labcairn_requests`` counts calls LabCairn issued. ``provider_attempts`` counts
@@ -52,7 +70,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from decimal import ROUND_HALF_UP, Decimal
+from enum import StrEnum
 
+from labcairn.core.providers.protocol import UsageReport
 from labcairn.core.providers.usage import (
     Known,
     Unknown,
@@ -101,6 +121,125 @@ def usd_to_micros(amount: Decimal) -> int:
 
 def micros_to_usd(micros: int) -> Decimal:
     return (Decimal(micros) / COST_SCALE).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+
+
+class TokenOrigin(StrEnum):
+    """What a token total is made of: the provider's report, ours, or both.
+
+    **A total that cannot say which it is, is a total nobody can act on.**
+    An estimate presented as a measurement is the dangerous direction: it
+    under-reads what the provider actually charged, and a ceiling checked
+    against it is spent past. A measurement presented as an estimate is the
+    safe direction — it understates the certainty rather than the size —
+    but it is still a wrong answer, and the reader is owed the right one.
+
+    This is **not** a second spelling of
+    :class:`~labcairn.core.providers.usage.UsageValue`. That vocabulary
+    answers *whether a quantity is known*; this one answers *whether a known
+    number was measured or counted*, which it cannot express — both are
+    known, and only one of them is a measurement.
+    """
+
+    #: Every token in the total came from the provider's own usage report.
+    MEASURED = "measured"
+    #: Every token in the total was counted by LabCairn, because the provider
+    #: reported nothing.
+    ESTIMATED = "estimated"
+    #: The provider reported part of it and LabCairn counted the rest.
+    MIXED = "mixed"
+
+
+@dataclass(frozen=True, slots=True)
+class TokenSpend:
+    """One run's token spend: the provider's report, beside our fallback estimate.
+
+    **Two named parts, never one unnamed number.** ``measured`` is what the
+    provider's own usage report said; ``estimated`` is what LabCairn counted
+    from the text, for the sides the provider left unreported. The estimate
+    is a *fallback*, not a second reading: it covers only what the provider
+    did not report, so the two never count the same tokens twice.
+
+    **``estimated == 0`` means the estimate was not used at all**, and not
+    that the estimate came to nothing: every estimate LabCairn takes is at
+    least one token, so a zero here can only mean that the provider
+    reported every side. :func:`spend_from_report` is what keeps that true,
+    and :attr:`origin` is what reads it back.
+
+    :attr:`total` is what a ceiling must see — never smaller than either
+    part, so a budget that reads it is never under-counted — and it always
+    travels with :attr:`origin`, so a reader is never left to guess whether
+    it is a measurement.
+    """
+
+    #: Tokens the provider reported.
+    measured: int = 0
+    #: Tokens LabCairn counted from the text, for the sides the provider did
+    #: not report. Zero means the estimate was not used at all.
+    estimated: int = 0
+
+    @property
+    def total(self) -> int:
+        """Every token of this spend, as far as it is known."""
+        return self.measured + self.estimated
+
+    @property
+    def origin(self) -> TokenOrigin:
+        """What the total is made of."""
+        if self.estimated == 0:
+            return TokenOrigin.MEASURED
+        if self.measured == 0:
+            return TokenOrigin.ESTIMATED
+        return TokenOrigin.MIXED
+
+    def merged(self, other: TokenSpend) -> TokenSpend:
+        """Two spends, together: the measured parts add, and so do the estimated ones.
+
+        The estimate is used or it is not, and the sum says which: a spend
+        that used it and one that did not merge into one that did.
+        """
+        return TokenSpend(
+            measured=self.measured + other.measured,
+            estimated=self.estimated + other.estimated,
+        )
+
+
+def spend_from_report(
+    report: UsageReport | None,
+    *,
+    estimated_input: int,
+    estimated_output: int,
+) -> TokenSpend:
+    """One call's spend: the provider's report where it gave one, our estimate for the rest.
+
+    **The provider's report wins, and the estimate fills only the gaps.** A
+    provider may report the input and omit the output, or report neither;
+    the estimate covers exactly the sides that are missing, so the two never
+    count the same tokens twice and the total is never smaller than either
+    source. A ceiling that reads the total is therefore never under-counted
+    against the provider's own figure.
+
+    ``report`` is ``None`` when the transport reported nothing at all — the
+    case the estimate exists for. A report whose fields are all ``Unknown``
+    is the same case in the other spelling.
+
+    **Pass the count, not a zero.** A zero here for a side the provider
+    left unreported would make the spend read as measured; every estimate
+    LabCairn takes is at least one token, so a caller that counts the text
+    it sent never passes one.
+    """
+    if report is None:
+        return TokenSpend(measured=0, estimated=estimated_input + estimated_output)
+    measured = 0
+    estimated = 0
+    if isinstance(report.input_tokens, Known):
+        measured += report.input_tokens.value
+    else:
+        estimated += estimated_input
+    if isinstance(report.output_tokens, Known):
+        measured += report.output_tokens.value
+    else:
+        estimated += estimated_output
+    return TokenSpend(measured=measured, estimated=estimated)
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,6 +358,12 @@ class RunLedger:
         the run total ``Unknown`` even though ``input_tokens`` was measured. The
         alternative — keeping the last known pair — is the "once unknown, stays
         known" lie ADR-0002's propagation rule forbids.
+
+        **What lands here is the provider's own report.** The ledger holds no
+        estimate: a fallback count is not a reading of what the provider
+        spent, and a ledger that carried one would be carrying a second
+        opinion about the same fact. An estimate belongs beside the report,
+        marked as one — which is what :class:`TokenSpend` is for.
         """
         self._state = replace(
             self._state,
