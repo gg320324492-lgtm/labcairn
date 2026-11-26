@@ -772,12 +772,41 @@ def test_an_outline_inside_the_repository_is_refused(material: Material, tmp_pat
     assert not out.exists()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="a separator is a separator only on Windows")
 def test_a_root_spelled_differently_is_the_same_root(
     material: Material, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """One directory has one name, however it is spelled."""
+    """One directory has one name, however it is spelled.
+
+    **The spelling that differs is the separator's, and that is Windows's
+    alone.** A backslash is a path separator on Windows and an ordinary
+    character in a name on POSIX, so ``/tmp/x`` and ``\\tmp\\x`` are two
+    different places on a runner and one place on a workstation. The
+    platform-neutral half of the property is witnessed below.
+    """
     spelled = str(material.root).replace("/", "\\")
     monkeypatch.setenv(registration.MATERIAL_ROOTS_ENV, spelled)
+    out = tmp_path / "records" / "pilot-paper-001.json"
+    code, _, err = _create(material, out)
+    assert code == 0, err
+    code, printed, err = _run("check", str(out))
+    assert code == 0, printed + err
+
+
+def test_a_root_spelled_with_a_trailing_separator_is_the_same_root(
+    material: Material, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One directory has one name, however it is spelled.
+
+    **The spelling that differs is one every platform shares**: a trailing
+    separator, or a redundant component. Both name the same directory on
+    Windows and on POSIX, so this is the half of the property that does not
+    need a platform to be true.
+
+    Red by: the tool comparing the authorised root as a string and refusing
+    a copy under a root that carries a trailing separator.
+    """
+    monkeypatch.setenv(registration.MATERIAL_ROOTS_ENV, str(material.root) + os.sep)
     out = tmp_path / "records" / "pilot-paper-001.json"
     code, _, err = _create(material, out)
     assert code == 0, err

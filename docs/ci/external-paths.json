@@ -1789,6 +1789,28 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-26/run-record-round-d.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/phase4-pilot-evidence/LC-P4-PILOT-real-request-2026-11-26/run-record.json",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/picture-probe-20261119",
       "expectation": "present",
       "kind": "material",
@@ -1797,6 +1819,17 @@
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-02-text-box-not-admitted-by-the-schema-2026-11-19.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/pilot-ws",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-import-2026-11-25.md"
       ]
     },
     {
@@ -1844,7 +1877,9 @@
         "docs/acceptance/LC-P2-07-table-row-markers.md",
         "docs/acceptance/LC-P2-11-check-binding.md",
         "docs/acceptance/LC-P2-11-pilot-4-distillation.md",
-        "docs/acceptance/LC-P2-27-position-anchors.md"
+        "docs/acceptance/LC-P2-27-position-anchors.md",
+        "docs/acceptance/LC-P4-PILOT-import-2026-11-25.md",
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md"
       ]
     },
     {
@@ -1903,6 +1938,17 @@
       ]
     },
     {
+      "path": "E:/labcairn-local/pilot-ws/materials/pilot/LC-P4-PILOT/desensitised-copy/pilot-paper-002.docx",
+      "expectation": "present",
+      "kind": "material",
+      "replacement": null,
+      "note": "named by a record and found on disk when the ledger was built",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-import-2026-11-25.md"
+      ]
+    },
+    {
       "path": "E:/labcairn-local/pilot-ws/providers.json",
       "expectation": "present",
       "kind": "material",
@@ -1910,6 +1956,7 @@
       "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
+        "docs/acceptance/LC-P4-PILOT-real-request-2026-11-25.md",
         "docs/handoff/CURRENT.md",
         "scripts/run_ourside_competitor.py"
       ]
