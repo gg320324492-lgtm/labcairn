@@ -637,6 +637,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # state ``denied`` and the event that describes it, in one transaction,
     # while a refusal for any other reason still leaves nothing at all.
     "test_operation_states.py": ("integration", "state-transitions"),
+    # The two places the product's own bookkeeping used to stop: a refusal
+    # that left no event, and a stage that stayed blocked after its approval
+    # had been consumed and its request answered.
+    "test_task_stage_closure.py": ("integration", "state-transitions"),
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),
