@@ -123,25 +123,25 @@ on `main` is the measurement.
 ## 3. What a CI job costs
 
 The per-file costs in `.github/ci-shards.json` are runner measurements,
-anchored at `193f244b4fce7f4d6f19d596164f7d77a1b6a453`. Summed over the
+anchored at `486a71c548dadd452c882fa9c4fb09b363878b88`. Summed over the
 five offline classes:
 
 | platform | unit | integration | negative | e2e | repository | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| ubuntu-latest | 222.7 s | 899.7 s | 184.2 s | 2427.7 s | 212.1 s | **3946.3 s ≈ 65.8 min** |
-| windows-latest | 598.5 s | 5793.1 s | 452.5 s | 2952.0 s | 318.1 s | **10114.2 s ≈ 168.6 min** |
+| ubuntu-latest | 207.2 s | 948.3 s | 137.7 s | 2436.1 s | 157.0 s | **3886.3 s ≈ 64.8 min** |
+| windows-latest | 457.8 s | 5921.8 s | 436.5 s | 3198.4 s | 304.0 s | **10318.5 s ≈ 172.0 min** |
 
-The current pull-request wall clock is set by the slowest shard: about 1686 s
-on Windows (28.1 min) and 1205 s on Ubuntu, over six shards per platform
+The current pull-request wall clock is set by the slowest shard: about 1720 s
+on Windows (28.7 min) and 1206 s on Ubuntu, over six shards per platform
 (the matrix has been `[0, 1, 2, 3, 4, 5]` since 2026-11-15). A job that
 runs all five offline classes **on Ubuntu** would therefore become the new
-bottleneck at about 66 minutes — roughly a forty-six-minute increase on
+bottleneck at about 65 minutes — roughly a forty-five-minute increase on
 every pull request, and another full run of the suite on top of the twelve
-shard jobs. On Windows it would be about 169 minutes, which is not a
+shard jobs. On Windows it would be about 172 minutes, which is not a
 candidate.
 
 That cost is the reason for the trigger choices below: the job is valuable
-as a report, but it is not worth adding forty-six minutes to every pull request
+as a report, but it is not worth adding forty-five minutes to every pull request
 while the shard jobs already run the same files.
 
 ## 4. The options
@@ -152,13 +152,13 @@ while the shard jobs already run the same files.
   `NOT RUN` and exits 2; the job is marked `continue-on-error` (or left
   non-required) so the red is visible but blocks nothing. The report is the
   product.
-- **What CI looks like.** One more job per pull request, about 66 minutes on
+- **What CI looks like.** One more job per pull request, about 65 minutes on
   Ubuntu, carrying a permanent red X whose cause is a protocol gap the pull
   request did not create.
 - **What goes red.** The job, always, by design. A permanent red that is
   expected is a red nobody reads — the exact shape the project's reviews
   keep finding ("a green row that measured nothing" has a red twin).
-- **Cost.** +46 minutes of pull-request wall clock and one extra suite run
+- **Cost.** +45 minutes of pull-request wall clock and one extra suite run
   per pull request.
 - **Owner's decision.** Accept a permanently red non-required check, or
   accept `continue-on-error` hiding it.
@@ -168,10 +168,10 @@ while the shard jobs already run the same files.
 - **Semantics.** `--classes unit,integration,negative,e2e,repository`; the
   fifth class is `NOT SELECTED` and named in the report. Exit 0/1 then means
   what it says, and all six blockers are evaluable.
-- **What CI looks like.** One more job per pull request, about 66 minutes on
+- **What CI looks like.** One more job per pull request, about 65 minutes on
   Ubuntu; the report says `NOT SELECTED` for the fifth class.
 - **What goes red.** Only real test failures (exit 1). It can be green.
-- **Cost.** Same +46 minutes and the same duplicate suite run as A.
+- **Cost.** Same +45 minutes and the same duplicate suite run as A.
 - **Owner's decision.** Whether a second full run of the suite per pull
   request is worth a report the shard jobs cannot produce, and whether the
   job should be a required check. **If it is required, "green" would mean
@@ -186,7 +186,7 @@ while the shard jobs already run the same files.
   or `continue-on-error`.
 - **What CI looks like.** No pull-request impact; one run per period.
 - **What goes red.** The job, every time, for the same reason as A.
-- **Cost.** About 66 minutes of runner time per period, no pull-request
+- **Cost.** About 65 minutes of runner time per period, no pull-request
   wall clock.
 - **Owner's decision.** Cadence, and whether a report that is always red is
   worth producing.
@@ -209,7 +209,7 @@ while the shard jobs already run the same files.
   a harness that cannot run a selected class (exit 2). It can be green, and
   green would mean the four offline protocol classes and the repository
   gates held.
-- **Cost.** About 66 minutes of Ubuntu runner time per period; **zero
+- **Cost.** About 65 minutes of Ubuntu runner time per period; **zero
   pull-request wall clock**.
 - **What it gives up.** Nothing is checked before a merge; a regression is
   found on the next schedule, not on the pull request. The report is not a
@@ -219,7 +219,7 @@ while the shard jobs already run the same files.
   still no pull-request wall clock) or a pull-request job (option B).
 
 **Why D rather than C.** C's red is guaranteed and therefore uninformative;
-D's red is a measurement. **Why D rather than A/B.** A and B spend forty-six
+D's red is a measurement. **Why D rather than A/B.** A and B spend forty-five
 minutes of pull-request wall clock on a second run of the same files; the
 owner's standing rule is that CI is not spent unless necessary, and a
 report that is already produced periodically is the cheaper way to keep the
@@ -301,12 +301,12 @@ recorded in §8.
 
 1. **The trigger.** Keep the weekly schedule (implemented), move it to
    `push` on `main` so every merge gets a report, or accept option B and
-   spend about forty-six minutes of pull-request wall clock. Only B can ever be a
+   spend about forty-five minutes of pull-request wall clock. Only B can ever be a
    required check.
 2. **The cadence**, if the schedule stays.
 3. **Whether the job's artifact and log are enough**, or the report should
    be published somewhere a human reads it.
-4. **Whether the runner cost is acceptable** — about 66 minutes of Ubuntu
+4. **Whether the runner cost is acceptable** — about 65 minutes of Ubuntu
    runner time per period, against zero pull-request wall clock.
 5. Nothing about the fifth class: that was ruled on 2026-10-28 —
    `provider-smoke.yml` is its shape, and this job reports it as
