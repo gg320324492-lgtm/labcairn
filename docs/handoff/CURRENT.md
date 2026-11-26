@@ -1,6 +1,41 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-26 (later) - one whole round on the pilot copy, the stale row taken back, and a fallback estimate that can no longer read as a measurement
+
+- **The pilot's copy went through one whole round on the product's own
+  surfaces.** Inventory → an anchored claim → the consent gate → one real
+  model request → attestation → two report revisions → twelve exported
+  files (six per revision). Every id, digest, count and timing in
+  [`LC-P4-PILOT-first-round-2026-11-26.md`](../acceptance/LC-P4-PILOT-first-round-2026-11-26.md)
+  was measured on the workspace, and the record says where each step
+  stopped. **The advisor's half of the round could not run, and the record
+  says that too**: the copy carries no comments, so `roles run` refuses it,
+  and the CLI has no route to a model request at all. That is a fact about
+  the product as it stands, not a defect of the round.
+- **The pilot's stale source row was taken back by the product's own
+  command.** `sources remove` was run on the workspace, and the row naming
+  a path that is no longer on the disk is gone; the text stayed, the
+  version followed the bytes, and both refusals refused and changed
+  nothing. The counts before and after were read back from a copy of the
+  database taken immediately before the command, not remembered. Two gaps
+  are recorded plainly: **the removal writes no event of its own, and the
+  anchor path is untested.**
+- **A fallback estimate can no longer read as a measurement.** The provider
+  run ledger already refused to decide on an unmeasurable total, and the
+  budget already halted on it; the hole was one layer in, where a zero
+  fallback over an unreported side made the spend read `MEASURED`. It now
+  raises instead. The loop's estimate-only budget and the wire's lost
+  provenance are still open and belong to other work.
+- **The fifth CI round's two failures were one failure, and the tree had
+  already answered it.** Both platforms' shard 3 failed on the same
+  witness: the handoff named the evidence directory and the ledger did
+  not answer for it. The ledger has been rebuilt — the directory and the
+  database copy the removal record names are both on disk, both are
+  expected to be present, and the ledger's reading is now dated
+  2026-11-26.
+
+
 ## 2026-11-22 - Phase 3 closes: the trial ran, the review passed, the strip defect is fixed, and the exit decision is signed
 
 - **The LC-P3-08 trial ran on 2026-11-21/22** on the owner's machine, the
