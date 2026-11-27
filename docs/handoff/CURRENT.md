@@ -52,8 +52,10 @@
 - **The push waits.** The delivery to the remote is not made while one window
   is still running: the owner's call, on 2026-11-28, is that the push carries
   this batch and that window's together — **one pull request and one run for
-  both**, because a run is a fixed cost (the seventeen required checks, with
-  the Windows leg the slowest) and a run per batch is a run per batch.
+  both**, because a run is a fixed cost (the seventeen required checks — the
+  required set read from GitHub on 2026-11-18 at
+  `ac362d2cb5536d05372cf02b49a499036efd2952` — with the Windows leg the
+  slowest) and a run per batch is a run per batch.
 
 
 ## 2026-11-27 - pull request #224 is merged, four windows answered, and a name got out
