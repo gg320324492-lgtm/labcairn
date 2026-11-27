@@ -56,6 +56,8 @@ what the commented case would use -- so a green run here costs nothing.
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -63,6 +65,7 @@ from feedback_chain_fixtures import MOMENT, ChainEnv, build_chain
 from store_support import StoreEnv
 from store_support import env as _shared_env
 
+from labcairn.application.chain import ChainDocumentShape
 from labcairn.application.context import ApplicationContext
 from labcairn.application.events import read_events
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
@@ -522,6 +525,209 @@ def test_the_comment_count_is_the_projects_and_not_one_versions(
     )
     held = chain_layer.read_comments(chain.context, issue_keys=(KEY,))
     assert len(held) == 1, "and the read under the key agrees"
+
+
+def _a_project_commented_in_its_second_round(env: StoreEnv, tmp_path: Path) -> ChainEnv:
+    """A project whose **second** round carries the advisor's one remark.
+
+    **This is the shape the count's scope was changed for.** The comment is
+    written on a version a request may not name, so a count narrowed to the
+    versions the caller named sees nothing while the project holds the
+    advisor's words.
+    """
+    from feedback_chain_fixtures import a_comment
+
+    from labcairn.papers.feedback import record_feedback, set_issue_key
+
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir()
+    chain = build_chain(
+        env.store(),
+        workspace_root,
+        comments=(),
+        second_comments=(a_comment("201"),),
+    )
+    for role_id in ("trajectory", "guidance", "critique"):
+        _spec(chain.context, role_id)
+    (event,) = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        now=MOMENT,
+    )
+    set_issue_key(chain.context, feedback_id=event.feedback_id, issue_key=KEY, now=MOMENT)
+    return chain
+
+
+def _the_narrowed_count(chain: ChainEnv, versions: tuple[str, ...]) -> int:
+    """The count the shape reported before its scope changed.
+
+    **The predicate is the old one, written out.** It counted the project's
+    comments **on the versions the caller named**, and the change removed the
+    version condition. Measuring it here is what lets a reader compare the
+    answer the product used to carry with the one it carries now.
+    """
+    from sqlalchemy import select
+
+    from labcairn.db.models import FeedbackEventRow
+
+    session = chain.context.store.session
+    return len(
+        session.scalars(
+            select(FeedbackEventRow.feedback_id).where(
+                FeedbackEventRow.project_id == chain.project_id,
+                FeedbackEventRow.version_id.in_(versions),
+            )
+        ).all()
+    )
+
+
+def test_the_narrowed_count_would_have_made_a_commented_project_abstain(
+    env: StoreEnv, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What the old count answered, beside what the new one answers.
+
+    **The shape now counts the project's comments; it used to count the
+    versions the caller named.** The two answers differ where it matters:
+    this project wrote its remark on a version the request does not name, and
+    under a key the request does not name.
+
+    * the **narrowed** count saw nothing, so the run would have taken the
+      comment-less branch and told the reader the document holds no comment
+      -- about a project whose margin holds the advisor's words;
+    * the **project** count sees the comment, so the request is refused by
+      name: the key is the mistake, and it has a remedy.
+
+    **The first answer is measured, not argued.** The read is replaced by one
+    that returns the shape the old count produced, and the run is made over
+    it; the second is the product as it stands.
+    """
+    from labcairn.application import chain as chain_layer
+
+    chain = _a_project_commented_in_its_second_round(env, tmp_path)
+    named = (chain.version_id,)
+    request = replace(
+        _request(chain, roles=("trajectory",)),
+        issue_key="iss-elsewhere",
+        version_ids=named,
+    )
+
+    shape = chain_layer.read_document_shape(
+        chain.context, project_id=chain.project_id, version_ids=named
+    )
+    assert shape.comment_count == 1, "the shape counts the project's comment"
+    assert shape.version_ids == named, "and it still reports the versions the caller named"
+    assert _the_narrowed_count(chain, named) == 0, (
+        "the narrowed count saw no comment: the one the project holds was"
+        " written on a version the request does not name"
+    )
+
+    real = chain_layer.read_document_shape
+
+    def the_shape_the_old_count_produced(
+        context: ApplicationContext,
+        *,
+        project_id: str,
+        version_ids: Sequence[str] = (),
+    ) -> ChainDocumentShape:
+        return replace(
+            real(context, project_id=project_id, version_ids=version_ids),
+            comment_count=0,
+        )
+
+    monkeypatch.setattr(chain_layer, "read_document_shape", the_shape_the_old_count_produced)
+    ticket = request_role_run(chain.context, request, plan=_plan(), expires_at=EXPIRES, now=MOMENT)
+    result = run_role_run(chain.context, ticket, grants=(), at=MOMENT)
+    assert result.abstentions, (
+        "with the narrowed count the run abstains, and says the document holds no comment"
+    )
+    assert ticket.approval_id is None, "and it asks nobody's consent"
+    monkeypatch.undo()
+
+    refused = _role_refusal_reason(
+        lambda: request_role_run(
+            chain.context, request, plan=_plan(), expires_at=EXPIRES, now=MOMENT
+        )
+    )
+    assert refused is RoleRefusal.COMMENT_NOT_IN_THE_CHAIN, (
+        "with the project's count the same request is refused: the key is the mistake"
+    )
+
+
+def test_the_narrowed_count_would_have_abstained_over_the_comment_it_was_asked_about(
+    env: StoreEnv, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The count and the read disagreeing about one comment, measured.
+
+    **This is the sharpest shape of the change.** The request names the key
+    the comment carries, and names only the first version -- the comment was
+    written in the second. The read under the key **finds** the comment; the
+    narrowed count sees none, and the run would have abstained over the very
+    remark it was asked about.
+
+    The project's count sees it, so the run is not comment-less: it asks for
+    the approval a model call needs.
+    """
+    from labcairn.application import chain as chain_layer
+
+    chain = _a_project_commented_in_its_second_round(env, tmp_path)
+    named = (chain.version_id,)
+    request = replace(
+        _request(chain, roles=("trajectory",)),
+        version_ids=named,
+    )
+
+    assert len(chain_layer.read_comments(chain.context, issue_keys=(KEY,))) == 1, (
+        "the read under the key finds the comment, whatever version it was written on"
+    )
+    assert _the_narrowed_count(chain, named) == 0, "the narrowed count sees none"
+    assert (
+        chain_layer.read_document_shape(
+            chain.context, project_id=chain.project_id, version_ids=named
+        ).comment_count
+        == 1
+    ), "the project's count sees it"
+
+    real = chain_layer.read_document_shape
+
+    def the_shape_the_old_count_produced(
+        context: ApplicationContext,
+        *,
+        project_id: str,
+        version_ids: Sequence[str] = (),
+    ) -> ChainDocumentShape:
+        return replace(
+            real(context, project_id=project_id, version_ids=version_ids),
+            comment_count=0,
+        )
+
+    # **Both runs would be about the comment's own material**, because the
+    # chain holds the comment under the key the read was given -- so the
+    # caller declares that material in both worlds.
+    paths = chain_layer.read_material_paths(chain.context, version_ids=(chain.second_version_id,))
+    the_path = paths[chain.second_version_id]
+    canonical = chain.context.resource_for(the_path)
+    the_plan = replace(
+        _plan(),
+        root_id=canonical.root_id,
+        resource_key=canonical.declared_key,
+        material_ref=the_path,
+    )
+
+    monkeypatch.setattr(chain_layer, "read_document_shape", the_shape_the_old_count_produced)
+    ticket = request_role_run(chain.context, request, plan=the_plan, expires_at=EXPIRES, now=MOMENT)
+    run_role_run(chain.context, ticket, grants=(), at=MOMENT)
+    assert ticket.approval_id is None, (
+        "with the narrowed count the run abstains over the comment it was asked about,"
+        " and asks nobody's consent"
+    )
+    monkeypatch.undo()
+
+    ticket = request_role_run(chain.context, request, plan=the_plan, expires_at=EXPIRES, now=MOMENT)
+    assert ticket.approval_id is not None, (
+        "with the project's count the run is not comment-less: it asks for the consent"
+        " a model call needs"
+    )
 
 
 def test_the_wire_carries_the_abstentions_and_the_shape(bare: ChainEnv) -> None:
