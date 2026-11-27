@@ -56,6 +56,41 @@
   required set read from GitHub on 2026-11-18 at
   `ac362d2cb5536d05372cf02b49a499036efd2952` — with the Windows leg the
   slowest) and a run per batch is a run per batch.
+- **What the tree's Chinese turned out to be.** Every Han run in the tracked
+  tree is now registered by digest, length and class — **53 files, 1,956
+  runs**, eight classes, and the registry holds **no Han character** of its
+  own. The classes that were not allowed — corpus labels, corpus
+  quotations, person names — are **gone from the tree**: the trial record's
+  corpus file names, the exit decision's fingerprint label, the readerB
+  review's annotated-file label, ADR-0014's author label, the LC-P2-11
+  surname-and-title and the synthetic corpus's name-shaped author are
+  redacted or replaced, and each record says why. The design quotations
+  stayed, classified, with the reasoning that they are the tree's own
+  specification. **Both quantity pins were re-measured at that tree**, not
+  carried forward (56 → 53 files, 13,139 → 13,074 characters, 1,971 → 1,956
+  runs).
+- **The report's door now asks the source.** The gate runs C1 for **every**
+  citable record, whether or not its log holds a C1 to re-run, and the
+  report compares the **file** with the ledger's account before it writes
+  anything. **The review's own probe, unchanged, now refuses**: the report
+  over an attested claim whose source moved exits **3** and writes nothing,
+  where it exited 0 and wrote a receipt that said `current`.
+- **What the published history still carries, measured on 2026-11-28.** The
+  tree's tip is clean; the history is not. Over `origin/main` and the
+  delivery head, with the tree's own definition of a name-shaped run (one
+  surname and one title): **17 blobs in 4 files**, plus the corpus labels in
+  three more files' histories, and every one of them an **ancestor of
+  `origin/main`**. The earliest affected commit has **1,306 commits** after
+  it in `main`.
+- **The owner's call: split in two.** The delivery line is rewritten now —
+  the leaked commit's name leaves the branch that becomes `main` — and
+  **`main`'s history is a batch of its own**, with its own run and its own
+  anchors to move. The card for it goes up after this delivery lands, so it
+  cannot collide with the rewrite now in flight.
+- **Two gaps the review named.** The acceptance records' cited hashes are
+  checked by **no test** (only the status board's are), and the CLI's
+  rendered table does not show the gate's verdict the way the API's contract
+  does. Both are cards in the next batch.
 
 
 ## 2026-11-27 - pull request #224 is merged, four windows answered, and a name got out
