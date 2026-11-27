@@ -81,8 +81,9 @@ window is the command line's rendering of facts that already existed.
 ## What the command line now prints
 
 Measured on this tree, through the console script, over a workspace holding
-one attested record (`E:/labcairn-local/tmp/probe_cli_gate.py`, outside the
-repository):
+one attested record (the probe that drove it lives outside the repository, in
+the registered temp area, and is named in the **Material** paragraph above
+rather than here — a record may not name a path the ledger does not hold):
 
 ```
 $ labcairn task report   -> exit 0
@@ -189,10 +190,72 @@ was untouched by all three — and each was caught by a witness that reads the
 ## Measurements
 
 - The new file at this tree: **7 passed** in 170.20 s.
-- The whole suite: **measured separately** — see below.
+- The whole suite at this tree: **25 failed, 6392 passed, 39 skipped**. The
+  failures were sorted by measurement, not by assumption — see "What the
+  failures were" below, which separates this window's three from the nineteen
+  that reproduce at the base revision.
 - `ruff check` and `ruff format --check` over the three changed files: clean.
 - `mypy --strict` over the three changed files: `Success: no issues found in 3
   source files`.
+
+### What the failures were
+
+**Three were this window's**, and are expected: the new file is in no shard,
+has no measured cost, and is in no gate class (the table under "What was not
+measured"). The integrating session registers it.
+
+**Three more were this window's, by accident, and were fixed here:**
+
+- `tests/test_external_path_references.py::test_every_path_a_record_names_is_in_the_ledger`
+  — the record named the probe's own path, and a record may not name a path
+  the ledger does not hold. The probe is now described rather than named.
+- `tests/test_status_consistency.py` (two failures) — this window's edit to
+  `commands.py` shifted it by **eleven lines**, and five anchors in three
+  documents cite lines in it. Each was re-pointed with the checker's own
+  word-matching, the way commit `49d3659` did for the same reason. **Both
+  witnesses pass now (599 passed).**
+
+**Nineteen are not this window's, and the measurement says so.** The same four
+test files were run at the base revision `9fff78d`, in a separate worktree with
+its own environment: **19 failures there, 19 the same tests**. The
+difference between the two sets is exactly the three above and the three
+shard/manifest ones.
+
+**Their cause, measured.** `55942a3` — "Ask every citable record about its
+source, and the file before the receipt" — merged into `main` as `1d62b95`
+*before* this window's base. It made the report render compare every source
+its citations name against the ledger's account, and **refuse before writing**
+when the file has moved. The exit demonstration and the outsider path both
+ingest `tests/fixtures/analysis/groups.csv` into a **clone** and then expect
+the report to be written:
+
+```
+the ledger holds 1c74e71d72ce676838e78fc4aeb7cd7303e210268430b5fe143e83173226373f,
+and the file now hashes to b2da5b9315d506f16052e97451a06b3fb0cc686f97a76d4f8d567baf8b5c1f9f
+```
+
+`sha256sum tests/fixtures/analysis/groups.csv` at this tree is the first of
+those — so the **clone's** copy is the one that moved, and the door now
+refuses where the demonstration expects a report. That is the drift window's
+integration gap and not this one's: the door is behaving as it was written to
+behave, and the demonstration has not caught up with it.
+
+**This window does not own those files** (`examples/g4_exit_demo.py` and
+`scripts/outsider_path.py`, with the witnesses that drive them,
+`tests/test_smoke_path.py` and `tests/test_outsider_path.py`), so this window
+did not touch them. It is reported here so the integrating session knows the
+nineteen are a known, measured, pre-existing failure and not something this
+change introduced.
+
+**And the integrating session has closed them.** The cause above is the drift
+window's integration gap, and it was closed there rather than here: both
+demonstrations now show the refusal — the reason, the source, the bytes the
+ledger holds and the bytes the file has, and **nothing written** — with a
+control of its own, and a witness reads each demonstration's output for the
+refusal's line and the two hashes it names. Measured at the integrating
+session's tree: `tests/test_smoke_path.py` **21 passed** and
+`tests/test_outsider_path.py` **17 passed**, and the runner's own run on the
+delivery head was green.
 
 ### A whole-suite run that hung, and what it cost
 

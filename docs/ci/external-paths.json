@@ -3226,17 +3226,6 @@
       ]
     },
     {
-      "path": "E:/labcairn-local/tmp/probe_cli_gate.py",
-      "expectation": "absent",
-      "kind": "scratch",
-      "replacement": null,
-      "note": "a scratch probe that drove the console script for the command line's gate rendering; it lived under the volatile temp root and is gone",
-      "announcements": [],
-      "sites": [
-        "docs/acceptance/LC-P4-PILOT-cli-gate-rendering-2026-11-28.md"
-      ]
-    },
-    {
       "path": "E:/labcairn-local/tmp/t05-dist-check",
       "expectation": "absent",
       "kind": "scratch",
