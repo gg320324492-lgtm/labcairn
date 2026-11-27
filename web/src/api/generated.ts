@@ -196,6 +196,18 @@ export type ComputationLocator = {
   input_hashes: string[]
 }
 
+export type ConflictDetail = {
+  locator: string
+  left: ConflictSide
+  right: ConflictSide
+}
+
+export type ConflictSide = {
+  evidence_id: string
+  value: number | null
+  unit: string | null
+}
+
 export type DeliverableFileWire = {
   kind: string
   relative_path: string
@@ -332,6 +344,19 @@ export type FileRef = {
 }
 
 export type FilterOp = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le'
+
+export type Finding = {
+  evidence_id: string
+  kind: string
+  reason: string
+  detail?: ConflictDetail | null
+}
+
+export type GateResult = {
+  passed: boolean
+  findings: Finding[]
+  considered?: string[]
+}
 
 export type GuidanceCheck = {
   check_id: string
@@ -644,6 +669,8 @@ export type ReportBody = {
 export type ReportRendered = {
   receipt: ArtifactReceipt
   resource_key: string
+  evidence_gate: GateResult
+  unjudged_records?: string[]
 }
 
 export type ReproducibilityManifest = {

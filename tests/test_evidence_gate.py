@@ -29,7 +29,7 @@ from sqlalchemy.engine import Connection
 from conftest import migrated_database_from
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.checks.c3 import C3_CHECKER_ID
-from labcairn.evidence.gate import evaluate_task
+from labcairn.evidence.gate import evaluate_records, evaluate_task
 from labcairn.evidence.index import LabCairnIndex
 from labcairn.evidence.record import EvidenceRecord, VerificationRecord
 from labcairn.evidence.states import (
@@ -535,3 +535,113 @@ def test_the_c3_checker_id_is_the_one_the_catalog_knows() -> None:
     from labcairn.evidence.catalog import is_registered_rule
 
     assert is_registered_rule(C3_CHECKER_ID)
+
+
+# --------------------------------------------------------------------------- #
+# the subset door: the same questions, over the records a statement rests on
+# --------------------------------------------------------------------------- #
+
+
+def test_the_subset_door_judges_the_records_it_is_given_and_no_others(store: Store) -> None:
+    """A statement is not refused for a record it does not quote.
+
+    The whole-task door sees the extracted record and fails. The subset door
+    sees only the verified one, and passes: that is the difference the
+    narrower question exists for.
+    """
+    connection, index = store
+    append_record(connection, _claim("ev-sound"))
+    _verify(connection, index, "ev-sound")
+    append_record(
+        connection,
+        _claim("ev-other", status="extracted", span="A second quotation, also located."),
+    )
+
+    whole = evaluate_task(connection, task_id="task-1", index=index)
+    assert not whole.passed
+
+    subset = evaluate_records(connection, task_id="task-1", index=index, evidence_ids=["ev-sound"])
+    assert subset.passed
+    assert subset.findings == ()
+    assert subset.considered == ("ev-sound",)
+    assert subset.citable == ("ev-sound",)
+
+
+def test_the_subset_door_keeps_the_ledger_s_order_not_the_caller_s(store: Store) -> None:
+    """Two callers naming the same set get the same sequence.
+
+    ``considered`` is what a caller displays or records; an order that followed
+    the caller's list would make two renderings of one ledger differ in a field
+    that means "which records".
+    """
+    connection, index = store
+    append_record(connection, _claim("ev-a"))
+    append_record(connection, _claim("ev-b", span="A second quotation, also located."))
+    _verify(connection, index, "ev-a")
+    _verify(connection, index, "ev-b")
+
+    result = evaluate_records(
+        connection, task_id="task-1", index=index, evidence_ids=["ev-b", "ev-a"]
+    )
+    assert result.considered == ("ev-a", "ev-b")
+
+
+def test_the_subset_door_refuses_an_id_the_task_does_not_hold(store: Store) -> None:
+    """A gate asked about a record the ledger cannot load has nothing to judge.
+
+    Dropping the id would answer "passed" over a set that is not the one the
+    caller asked about, which is the green report nobody questions.
+    """
+    connection, index = store
+    append_record(connection, _claim("ev-1"))
+
+    with pytest.raises(ValueError, match="ev-not-in-this-task"):
+        evaluate_records(
+            connection,
+            task_id="task-1",
+            index=index,
+            evidence_ids=["ev-1", "ev-not-in-this-task"],
+        )
+
+
+def test_the_subset_door_still_names_the_record_a_conflict_is_with(store: Store) -> None:
+    """A5 at the narrower door: one side judged, both sides named.
+
+    The report may state only the verified record and disclose the unsupported
+    one; the gate was asked about the verified record only. The finding is
+    attached to the judged record, and its detail carries the other record, its
+    number and the shared address -- because a detail naming one side would be
+    a detail that picked the winner.
+    """
+    connection, index = store
+    append_record(connection, _numeric("ev-a", 3.5))
+    append_record(connection, _numeric("ev-b", 9.0))
+    advance(
+        connection,
+        "ev-a",
+        VerificationStatus.VERIFIED_BY_RULE,
+        index=index,
+        checks=(CheckKind.C3,),
+        checked_at=NOW,
+    )
+    advance(
+        connection,
+        "ev-b",
+        VerificationStatus.UNSUPPORTED,
+        index=index,
+        checks=(CheckKind.C3,),
+        checked_at=NOW,
+    )
+
+    result = evaluate_records(connection, task_id="task-1", index=index, evidence_ids=["ev-a"])
+    assert not result.passed
+    assert result.considered == ("ev-a",)
+    conflicts = [finding for finding in result.findings if finding.kind == "conflict"]
+    assert len(conflicts) == 1
+    assert conflicts[0].evidence_id == "ev-a"
+    assert conflicts[0].detail is not None
+    assert {conflicts[0].detail.left.evidence_id, conflicts[0].detail.right.evidence_id} == {
+        "ev-a",
+        "ev-b",
+    }
+    assert {conflicts[0].detail.left.value, conflicts[0].detail.right.value} == {3.5, 9.0}

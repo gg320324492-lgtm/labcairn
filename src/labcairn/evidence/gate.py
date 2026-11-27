@@ -42,10 +42,30 @@ creation time purely so that a caller rendering a list sees a stable order --
 not a ranking, and :func:`~labcairn.evidence.store.load_task_records` says so
 in its own docstring, because an ordering that looks like a preference is a
 trap for whoever reads it next.
+
+**The whole task, and the subset a caller asks about.**
+--------------------------------------------------
+:func:`evaluate_task` judges every record a task holds, and that is the
+question a ledger asks: *is anything in this task unsound?* A caller that is
+about to make a statement asks a narrower one: *are the records **this**
+statement rests on sound?* :func:`evaluate_records` answers that one, over a
+named subset, with the same four questions and the same
+:class:`GateResult` -- because a caller that has to re-implement the status,
+identifier, drift and conflict rules over its own subset is a caller that will
+implement three of them.
+
+The subset is the caller's responsibility, and the caller must be able to say
+why it chose it. The report layer is the one caller today, and its reason is
+in :mod:`labcairn.application.reports`: it presents some records as
+established and prints every other record's status beside it, so the status
+finding on a record whose status the report prints is a finding the report has
+already answered in its own text. What the gate judges is the set a statement
+makes its own; what it leaves out, the caller's record has to say out loud.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy.engine import Connection
@@ -69,6 +89,7 @@ __all__ = [
     "Finding",
     "GateResult",
     "conflict_between",
+    "evaluate_records",
     "evaluate_task",
 ]
 
@@ -177,7 +198,69 @@ def evaluate_task(
     is the last place a fabricated source, an unlocated locator, an unverified
     claim or a contradicted number can be caught.
     """
-    records = load_task_records(connection, task_id)
+    return _judge(connection, load_task_records(connection, task_id), index)
+
+
+def evaluate_records(
+    connection: Connection,
+    *,
+    task_id: str,
+    index: SourceIndex,
+    evidence_ids: Sequence[str],
+) -> GateResult:
+    """The records named, and only those, judged against the ledger and the source.
+
+    **Why a subset, and what it does not mean.** A statement rests on some
+    records and not others. Asking the gate about the whole task answers a
+    question the statement does not depend on: a planned record, or one a
+    person has superseded, would refuse a statement that never quoted it, and
+    a superseded row is *kept by design* -- so that refusal could never be
+    repaired. The caller that narrows the set owes two things in return: it
+    must be able to say why these records are the ones its statement rests on,
+    and its own record must name the records it left out.
+    :func:`~labcairn.application.reports.render_report` is the caller today.
+
+    The records are judged in the ledger's stable order, not the order the
+    caller named them, so two callers naming the same set get the same
+    :attr:`GateResult.considered` sequence.
+
+    **A conflict still names both sides.** ``_conflicts`` is A5 in code: each
+    finding is attached to a judged record, and its ``detail`` carries *both*
+    records and both numbers -- the peer may be a record outside this subset,
+    and the disagreement is still reported in full rather than as one side of
+    it. So :attr:`GateResult.considered` names what was judged, and a conflict
+    finding's detail names the record that disagreed even when that record was
+    not among them.
+
+    :raises ValueError: an id the ledger does not hold for this task. A caller
+        that asks the gate to judge a record the ledger has never heard of is a
+        caller whose two reads disagree, and a gate that silently dropped it
+        would report "passed" over a set it did not judge.
+    """
+    by_id = {record.evidence_id: record for record in load_task_records(connection, task_id)}
+    unknown = sorted(set(evidence_ids) - set(by_id))
+    if unknown:
+        raise ValueError(
+            f"the task {task_id!r} holds no record with the id(s) {unknown}. The "
+            "gate judges records the ledger holds; an id it cannot load is a "
+            "disagreement between the caller's read and the ledger's, and "
+            "judging the rest would report a verdict over a set that is not the "
+            "one the caller asked about."
+        )
+    wanted = set(evidence_ids)
+    judged = tuple(record for record in by_id.values() if record.evidence_id in wanted)
+    return _judge(connection, judged, index)
+
+
+def _judge(
+    connection: Connection, records: tuple[EvidenceRecord, ...], index: SourceIndex
+) -> GateResult:
+    """The four questions, over one set of records.
+
+    Shared by the whole-task and the subset door so that the two cannot drift:
+    a rule added here is a rule the report's door gets, and a rule the report
+    cannot answer (identifier, drift, conflict) is a rule it refuses for.
+    """
     findings: list[Finding] = []
     for record in records:
         findings.extend(_judge_status(record))
@@ -314,7 +397,11 @@ def _conflicts(
     Each conflict is reported from both sides, because A5's rule is that
     neither wins: a report that named only one of them would be naming a
     winner. And the two findings carry the *same* detail, so the reader sees
-    one disagreement described twice rather than two disagreements.
+    one disagreement described twice rather than two disagreements. When the
+    caller named only one side (see :func:`evaluate_records`), the one side's
+    finding is reported and its detail still carries both records and both
+    numbers -- the disagreement is stated in full; only the finding's subject
+    is the record that was judged.
     """
     findings: list[Finding] = []
     for record in records:
