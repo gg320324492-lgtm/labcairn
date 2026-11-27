@@ -2,8 +2,8 @@
 
 **Date:** 2026-11-27
 **Base commit:** `8dacfea180b4e882b7ac87d2c4e2739b609b0528`
-**Record read at:** the commit that adds this file; the sentence naming it
-is an amendment in the same branch.
+**Record read at:** commit `31c2116`, which adds this file; this sentence
+naming it is an amendment in the same branch.
 **Measured by:** the classification window, on the development machine.
 **Status:** the classification is measured and pinned; the runs that did not
 belong are redacted or replaced; **the published history still carries
