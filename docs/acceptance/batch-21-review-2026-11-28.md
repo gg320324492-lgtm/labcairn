@@ -165,15 +165,22 @@ witness with its arms, its scope and its exception list, unfinished. The
 work here finished it, added the missing arm, and merged it; and the
 witness's first run found the one citation the rewrite had missed.
 
-**What the hung run cost, and who caused it.** The delivery's reviewer-mode
-walk runs the whole suite in its clone. It was started at 05:03 and **four
-pytest runs were then measured beside it**, every one against the same
-`TEMP` — what `CLAUDE.md` forbids. **The walk hung the same way the
-earlier one did**: the clone's interpreter at zero CPU, blocked on a child
-that never signalled, killed at fifty minutes with no result. The lesson
-recorded by the earlier window is not advice; it is a mechanism that holds
-only while the session obeys it, and **the session that broke it was the one
-integrating the batch**.
+**What the first attempt cost, and what is not claimed.** The delivery's
+reviewer-mode walk runs the whole suite in its clone. It was started at
+05:03 and **four pytest runs were then measured beside it**, every one
+against the same `TEMP` — what `CLAUDE.md` forbids. The walk produced **no
+result**: killed at fifty minutes, an empty log and no report.
+
+**The cause is not measured, and none is claimed.** The kill followed a
+measurement of one interpreter at zero CPU over a fifteen-second interval,
+and the attempt that followed — its own `TEMP`, its own work root, nothing
+measured beside it — showed the same shape while **working**: an idle
+parent, a child burning CPU, and a temp directory whose newest entry went
+eleven minutes without a change. So that reading does not tell a stall from
+progress, and the four runs beside the first attempt are not shown to have
+caused it. What the second attempt does show is the rule as the earlier
+window states it: the whole-suite run gets the machine to itself, and the
+witnesses that need measuring run before it or after it, never beside it.
 
 ## Where each finding went
 
@@ -186,4 +193,4 @@ integrating the batch**.
 | A citation the rewrite missed, in a record written after the rewrite | closed — the citation is re-pointed, the record says the hash moved, and the witness that found it is in the tree |
 | The status the product cannot reach | measured and filed; the three options and their costs are the owner's to take |
 | The CLI's human rendering shows neither list | closed — the gate's verdict, the judged ids, the unjudged ids and the findings count are drawn |
-| A whole-suite run hung on a shared `TEMP` | closed by re-running alone, and recorded twice — the rule and the repeat |
+| A whole-suite run produced no result | the cause was not measured and none is claimed; the run was made again with the machine to itself, and the record says which reading does not tell a stall from progress |

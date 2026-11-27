@@ -33,14 +33,19 @@
   **quoted** hash is quoted material and not a claim — has an arm of its own,
   so it cannot become a tolerance.
 - **A whole-suite run wants the machine to itself, and the integrating
-  session broke that rule once.** The delivery's reviewer-mode walk runs the
-  whole suite in its clone; it was started at 05:03 and four pytest runs
-  were then measured **beside** it, every one against the same `TEMP`.
-  **The walk hung the same way the earlier one did** — the clone's
-  interpreter at zero CPU, blocked on a child that never signalled — and was
-  killed at fifty minutes with no result. The re-run was made with the
-  machine to itself and nothing beside it. The rule is in `CLAUDE.md` and in
-  the acceptance record; it holds only while the session obeys it.
+  session's first attempt produced no result.** The delivery's
+  reviewer-mode walk runs the whole suite in its clone; it was started at
+  05:03 and four pytest runs were then measured **beside** it, every one
+  against the same `TEMP` — what the rule forbids. The walk produced **no
+  result**: killed at fifty minutes, an empty log, no report. **The cause
+  was not measured and none is claimed.** The kill followed a reading of
+  one interpreter at zero CPU over a fifteen-second interval, and the
+  attempt that followed — its own `TEMP`, its own work root, nothing
+  measured beside it — showed the same shape while **working**: an idle
+  parent, a child burning CPU, and a temp directory whose newest entry
+  went eleven minutes without a change. So that reading does not tell a
+  stall from progress. What the second attempt does show is the rule as
+  it stands: the whole-suite run gets the machine to itself.
 
 
 ## 2026-11-28 (later) - the delivery is on the remote, and the tree's own walks caught the contract change
