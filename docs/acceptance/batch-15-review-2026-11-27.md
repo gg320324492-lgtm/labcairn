@@ -68,7 +68,15 @@ metadata, digests, counts, ids and timings.
 **What was done.** The three identifiers are redacted in place, and the
 record says why — the corpus and the root are still there, so a reader
 can find the row, and the name is not. The redaction is recorded in the
-record itself rather than done silently.
+record itself rather than done silently. **The redaction cleaned the tree
+tip only.** `a399bfb` is an ancestor of `origin/claude/delivery-phase5`
+and of `refs/pull/225/head`, both public, and fetching
+`docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` at that commit over
+plain HTTPS, with no credential, answers **200** with five Han runs in
+the body (26 characters); the name is in the published history, and
+only a rewrite plus a host-side purge would reach it. That is measured,
+with the options costed, in
+[LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md](LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md).
 
 **What now watches it.** Two witnesses, in two directions.
 `tests/test_no_reference_leakage.py` holds the tree's Chinese budget: a
@@ -98,10 +106,15 @@ pilot's own records carry none at all.
 the same kind outside the pilot's records — the earlier acceptance
 records and the source files carry Chinese too, and whether any of it is
 the material's own wording is a question this batch did not answer. It
-also did not check the **git history**: the leak was in one commit on a
-local branch, never pushed, so it never reached the remote, but a leak
-that had been pushed would still be in the history, and no witness looks
-there.
+also did not check the **git history** — and that first reading was
+wrong, in a way this review's own record did not catch: the leak was in
+a commit that **had been pushed**. `a399bfb` is an ancestor of
+`origin/claude/delivery-phase5` and of `refs/pull/225/head`, both
+public; an uncredentialed HTTPS fetch of the file at that commit answers
+**200**. What the rewrite would cost, and what it would and would not
+achieve on a public host, is measured in
+[LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md](LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md),
+and the choice is the owner's.
 
 ## R5. A documented rule and its implementation say the same thing, and both sides are witnessed
 
@@ -168,7 +181,7 @@ no reader can repeat that without changing the workspace again.
 | Finding | Where it went |
 |---|---|
 | A person's name, in Chinese, reached a record in the tree | `7fae861` — redacted in place, said in the record, and watched by a new witness |
-| A name written into a record that was already there was unwatched | `7fae861` — the same file, over every pilot record; the Chinese budget in `tests/test_no_reference_leakage.py` covers the other direction |
+| A name written into a record that was already there was unwatched | `7fae861` — the zero-tolerance witness over the pilot's two record globs; **the Chinese budget does not cover that direction** — it pins the *longest* Han run per file, so a short name in a file that already carries a longer run moves no pinned number. The gap is closed by the per-file Han-total pin, measured and registered in [LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md](LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md) |
 | Two witnesses froze the old shape (one event; 32 event types) | `3df9e3a` — moved with the product |
 | A record named a temporary directory that is gone next run | `0293a4d` — the parent is the fact |
 | Five anchors moved with the new command | `d3da581` — re-pointed with the checker's own word-matching |

@@ -17,7 +17,10 @@ distilled rule statement or a manuscript paragraph has -- an act someone must
 register deliberately, in the commit that adds it.
 
 Run: ``python scripts/cjk_ceilings.py`` prints the registry as a Python literal.
-``--json`` prints the same data for the test to compare against.
+``--json`` prints the same data for the test to compare against. ``--totals``
+prints the per-file Han totals -- the companion measurement the short-name
+witness pins, because a name shorter than the file's longest run does not move
+the longest run at all.
 """
 
 from __future__ import annotations
@@ -70,6 +73,20 @@ def longest_run(text: str) -> int:
     return max((len(m.group(0)) for m in HAN_RUN.finditer(text)), default=0)
 
 
+def total_han(text: str) -> int:
+    """Every Han character the file carries, not only the longest run.
+
+    The longest run is a budget on *new long Chinese*: a quoted paragraph, a
+    distilled rule statement. It cannot see a short addition -- a three- or
+    four-character name appended to a file that already carries a longer run
+    leaves ``longest_run`` exactly where it was, so the pin stays green while
+    the name sits in the tree. This measures the other thing: the file's whole
+    Han load, so that any addition, however short, moves a number the pin
+    holds.
+    """
+    return sum(len(m.group(0)) for m in HAN_RUN.finditer(text))
+
+
 def measure(root: Path) -> dict[str, int]:
     """path -> longest Han run, for every tracked file that carries one at all.
 
@@ -93,9 +110,37 @@ def measure(root: Path) -> dict[str, int]:
     return out
 
 
+def measure_totals(root: Path) -> dict[str, int]:
+    """path -> every Han character the file carries, for files that carry any.
+
+    The companion to :func:`measure`, and the measurement the short-name
+    witness pins: a name of any length moves this number even when it does not
+    move the longest run. Same skip list, same undecodable-file value.
+    """
+    out: dict[str, int] = {}
+    for rel in tracked_files(root):
+        path = root / rel
+        if path.suffix.lower() in SKIP_SUFFIXES or not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            out[rel] = -1
+            continue
+        total = total_han(text)
+        if total:
+            out[rel] = total
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="emit JSON instead of a Python literal")
+    parser.add_argument(
+        "--totals",
+        action="store_true",
+        help="emit the per-file Han totals (the short-name measurement) as JSON",
+    )
     parser.add_argument(
         "--root",
         default=str(Path(__file__).resolve().parent.parent),
@@ -107,6 +152,9 @@ def main() -> int:
     if not (root / "pyproject.toml").is_file():
         print(f"not a repository root: {root}", file=sys.stderr)
         return 2
+    if args.totals:
+        print(json.dumps(measure_totals(root), ensure_ascii=False, sort_keys=True))
+        return 0
     data = measure(root)
     if args.json:
         print(json.dumps(data, ensure_ascii=False, sort_keys=True))
