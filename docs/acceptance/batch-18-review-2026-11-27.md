@@ -148,6 +148,16 @@ the shard cost anchor and six `test_status_consistency` anchors.
   cite.** The comment-less run has no card to cite a rule from, and the
   rule the request names is not fetched. That is the honest shape of the
   case, and no witness covers that path yet.
+  **Correction, made here: the middle clause is false, and the measurement
+  is what says so.** `the_role_run_question` calls `_the_rule(context,
+  request)` — which is `cite_rule`, and which **raises**
+  `RULE_NOT_IN_THE_MEMORY` when the memory holds no rule under that id —
+  and the question is built **before** `_run_role_run` reaches its
+  comment-less branch. So naming a rule the memory lacks **refuses the
+  whole request**, before the chain's "no comment" state is consulted: a
+  document with no comments that names a rule the memory lacks is
+  **refused, not abstained**. The record is corrected in place, and the
+  path is now open work.
 - **The blast radius of the comment count's new scope.** The count is the
   **project's**, not one version's, because the chain reads comments by
   key wherever they were written — so the count and that read have to

@@ -313,6 +313,18 @@ back again changed **no** test's outcome.
   read. What is measured here is the product's behaviour on the project's
   own fixtures.
 - **A run over a document with no comment and a rule the card would cite was
-  not exercised** — the comment-less run has no card to cite a rule from, and
-  the rule the request names is not fetched. That is the honest shape of the
-  case, but it is a path no witness covers yet.
+  not exercised** — the comment-less run has no card to cite a rule from. That
+  is the honest shape of the case, but it is a path no witness covers yet.
+  **Correction, 2026-11-27: the rule *is* fetched, and this record said
+  otherwise.** It said *"the rule the request names is not fetched"*, and the
+  measurement says the opposite: `the_role_run_question` calls
+  `_the_rule(context, request)` — which is `cite_rule`, which **raises**
+  `RULE_NOT_IN_THE_MEMORY` when the memory holds no rule under that id —
+  and the question is built **before** `_run_role_run` reaches its
+  comment-less branch. So **naming a rule the memory does not hold refuses
+  the whole request**, with `RULE_NOT_IN_THE_MEMORY`, before the chain's
+  "no comment" state is ever consulted: a document with no comments that
+  names a rule the memory lacks is **refused, not abstained**. Which of
+  those the product's promises support, and what the answer is when the
+  memory *does* hold the rule, is now open work — a window has the path
+  and the measurement.
