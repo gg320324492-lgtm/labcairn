@@ -104,6 +104,15 @@ class EventType(StrEnum):
     #: ask, so the log can answer "what was refused, and for what".
     REFUSAL_RECORDED = "refusal_recorded"
 
+    #: The mentor loop ran over material that carries no advisor's comment,
+    #: and each role said what it could not answer. **The record of a run
+    #: that abstained is not a record of a run that was refused and not a
+    #: record of a run that judged a comment** — a reader who cannot tell
+    #: the three apart cannot tell what the product did, and this is the
+    #: type that lets them tell. It is an annotation: no model was called,
+    #: no approval was spent, and there is no attempt for it to belong to.
+    ROLE_ABSTENTION_RECORDED = "role_abstention_recorded"
+
 
 #: Event types that carry neither run_id nor the operation context.
 TASK_LEVEL_EVENTS: frozenset[EventType] = frozenset(
@@ -149,6 +158,11 @@ ANNOTATION_EVENTS: frozenset[EventType] = frozenset(
         EventType.EDIT_ACTION_RECORDED,
         EventType.RESPONSE_RECORDED,
         EventType.FOLLOWUP_ASSESSED,
+        # The mentor loop's abstention. It is an observation about the
+        # material rather than an attempt: no model was called, no approval
+        # was spent, and a reader must be able to see that the run abstained
+        # rather than judged.
+        EventType.ROLE_ABSTENTION_RECORDED,
     }
 )
 
@@ -373,6 +387,36 @@ class SourceRemovedPayload(LabCairnModel):
 
 
 register_payload_schema(EventType.SOURCE_REMOVED, SourceRemovedPayload)
+
+
+class RoleAbstentionPayload(LabCairnModel):
+    """What a ``role_abstention_recorded`` event says.
+
+    **The three fields a reader needs to tell this run from any other.**
+    A run that abstained and a run that judged a comment produce different
+    outputs, and a reader who has only the log has to be able to say which
+    happened — so the log carries:
+
+    * ``project_id`` — the project whose chain was read, because "the chain
+      holds no comment" is a fact about a chain and not about a task;
+    * ``roles`` — the roles the request named, because a run that abstained
+      at two roles and one that abstained at three are different runs;
+    * ``missing`` — **what each role lacked, named**. A record that said
+      only "the roles abstained" would be a shrug wearing a record's
+      clothes, and the difference between "the chain holds no comment" and
+      "the memory holds no rule" is the difference between a product and an
+      outage.
+
+    **No material text belongs here.** The project id, the role ids and the
+    names of what was missing are the log's own currency.
+    """
+
+    project_id: str = Field(min_length=1)
+    roles: tuple[str, ...] = Field(min_length=1)
+    missing: Mapping[str, str] = Field(default_factory=dict)
+
+
+register_payload_schema(EventType.ROLE_ABSTENTION_RECORDED, RoleAbstentionPayload)
 
 
 class Event(LabCairnModel):

@@ -92,10 +92,11 @@ from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
 from labcairn.security.permissions import Grant
 
 if TYPE_CHECKING:
+    from labcairn.application.chain import ChainDocumentShape
     from labcairn.roles.critique import ReviewVerdict
     from labcairn.roles.guidance import CardClaim, GuidanceCard, RuleCitation
     from labcairn.roles.models import AgentRoleSpec
-    from labcairn.roles.trajectory import TrajectoryCandidate
+    from labcairn.roles.trajectory import TrajectoryAbstention, TrajectoryCandidate
 
 
 #: The roles the loop can run. **Closed**: a role that is not here is not run,
@@ -457,18 +458,18 @@ def the_role_run_question(
         guidance that makes a card to review; a named role has no contract,
         or its contract does not list the capability the run exercises; the
         memory holds no rule under the id the request names; the chain holds
-        no comment under the issue key, or a version named is outside the
-        project's graph; or the caller's declaration of the material is not
-        the material the chain holds.
+        comments but none under the issue key, or a version named is outside
+        the project's graph; or the caller's declaration of the material is
+        not the material the chain holds.
     """
     roles = _the_roles(request.roles)
     contracts = tuple(_the_contract(context, role_id=role_id) for role_id in roles)
+    chain = _the_chain(context, request)
     missing = _missing_judgements(request, roles)
-    if missing:
+    if missing and not chain.holds_no_comment:
         for contract in contracts:
             contract.require_allowed(CapabilityId.MODEL_REQUEST)
 
-    chain = _the_chain(context, request)
     material = _the_material(context, request, chain)
     _check_the_declaration(plan, material)
     rule_citation = _the_rule(context, request)
@@ -802,12 +803,36 @@ def _missing_judgements(request: RoleRunRequest, roles: tuple[str, ...]) -> tupl
 
 @dataclass(frozen=True)
 class _ChainFacts:
-    """What the chain holds for the request: the comment's words and the rounds."""
+    """What the chain holds for the request: the comment's words and the rounds.
+
+    **``shape`` is the document's own, and it is here for a reason.** A
+    request whose chain holds **no comment at all** is not a mistake about
+    a comment; it is a request about a document that carries no advisor's
+    marks. The refusal and the report are told apart by the chain's state,
+    and the state is carried here so that the run can say which one it is.
+    """
 
     comment_texts: tuple[str, ...]
     version_ids: tuple[str, ...]
     edit_ids: tuple[str, ...]
     comment_version_id: str
+    #: The document's shape, as the chain reports it. **It is present for
+    #: every request**, commented or not, because the shape is what a
+    #: comment-less run reports and what a commented run's own record says
+    #: the material was.
+    shape: ChainDocumentShape
+
+    @property
+    def holds_no_comment(self) -> bool:
+        """Whether the chain holds no comment at all for this request.
+
+        **This is the whole of the difference between the two refusals.**
+        A chain that holds comments but none under the named key is a
+        mistake about a comment, and it is refused. A chain that holds no
+        comment at all is a document with no advisor's marks in it, and it
+        is reported.
+        """
+        return self.shape.comment_count == 0
 
 
 def _the_chain(context: ApplicationContext, request: RoleRunRequest) -> _ChainFacts:
@@ -817,56 +842,82 @@ def _the_chain(context: ApplicationContext, request: RoleRunRequest) -> _ChainFa
     the loop sends is the same material the roles will work on, and the
     refusals the read raises are the roles' own.
 
-    :raises ApplicationRefusedError: the chain holds no comment under the
-        issue key, or a version named is outside the project's graph, or the
-        accepted edges leave the order ambiguous.
+    **And the two ways of holding no comment are told apart here.** The
+    request names an issue key, and the chain may hold no comment under it
+    for two quite different reasons:
+
+    * the chain holds **no comment at all** — the advisor wrote nothing in
+      the margins of this document. **That is a shape of the material**,
+      and the chain's own promise is that it is a shape the chain can
+      report and does not explain away. So the run proceeds and each role
+      says what it could not answer;
+    * the chain holds **comments, but not under this key** — the caller
+      asked about a mark that is not the one they meant. **That is a
+      mistake about a comment**, and it is refused by name, exactly as it
+      always was.
+
+    :raises ApplicationRefusedError: the chain holds comments but none under
+        the issue key, or a version named is outside the project's graph, or
+        the accepted edges leave the order ambiguous.
     """
     from labcairn.application import chain as chain_layer
-    from labcairn.roles.trajectory import TrajectoryInput, read_trajectory
 
-    chain = read_trajectory(
+    shape = chain_layer.read_document_shape(
         context,
-        trajectory_input=TrajectoryInput(
-            project_id=request.project_id,
-            version_ids=request.version_ids,
-            issue_keys=(request.issue_key,),
-        ),
+        project_id=request.project_id,
+        version_ids=request.version_ids,
     )
     held = chain_layer.read_comments(context, issue_keys=(request.issue_key,))
-    if not held:
+    if not held and shape.comment_count > 0:
         raise ApplicationRefusedError(
             ApplicationRefusal.ROLE_COMMENT_NOT_IN_THE_CHAIN,
             f"the chain holds no comment under the key {request.issue_key!r}",
         )
     return _ChainFacts(
-        comment_texts=tuple(comment.comment_text for comment in chain.comments),
-        version_ids=chain.ordered_version_ids,
-        edit_ids=tuple(edit.edit_action_id for edit in chain.edits),
-        comment_version_id=held[0].version_id,
+        comment_texts=tuple(comment.comment_text for comment in held),
+        version_ids=shape.version_ids,
+        edit_ids=(),
+        comment_version_id=held[0].version_id if held else "",
+        shape=shape,
     )
 
 
 def _the_material(
     context: ApplicationContext, request: RoleRunRequest, chain: _ChainFacts
 ) -> MaterialAddress:
-    """Where the comment's material is, computed from the chain.
+    """Where the material is, computed from the chain.
 
     **The loop does not take the caller's word for it.** The comment names
     a version, the version names a source, and the source names a path --
     and that path is what the run would send. So the address is a fact the
     loop can prove, and the caller's declaration is checked against it.
 
+    **And a chain that holds no comment takes its material from the
+    document's own first version.** There is no comment to name one, and
+    the run still has to say which material it is about -- the shape of the
+    document is the run's answer, so the material it answers about is the
+    document's. **The versions are in the accepted edges' order**, so the
+    first is the earliest round the project holds, and it is the same order
+    the role loop reads the chain in.
+
     :raises ApplicationRefusedError: the version names material the ledger
-        does not hold.
+        does not hold, or the chain holds no version at all.
     """
     from labcairn.application import chain as chain_layer
 
-    paths = chain_layer.read_material_paths(context, version_ids=(chain.comment_version_id,))
-    workspace_path = paths.get(chain.comment_version_id)
+    version_id = chain.comment_version_id or (chain.version_ids[0] if chain.version_ids else "")
+    if not version_id:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.CHAIN_SOURCE_NOT_FOUND,
+            "the chain holds no version, so the run has no address for the material it"
+            " would send",
+        )
+    paths = chain_layer.read_material_paths(context, version_ids=(version_id,))
+    workspace_path = paths.get(version_id)
     if workspace_path is None:
         raise ApplicationRefusedError(
             ApplicationRefusal.CHAIN_SOURCE_NOT_FOUND,
-            f"the version {chain.comment_version_id!r} names material the ledger"
+            f"the version {version_id!r} names material the ledger"
             " does not hold, so the run has no address for the material it would send",
         )
     canonical = context.resource_for(workspace_path)
