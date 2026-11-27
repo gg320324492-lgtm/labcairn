@@ -102,6 +102,15 @@
   measures the **longest** Han run per file, so a short name added to a
   file that already carries a longer run leaves the measurement unchanged
   and the witness green. A probe outside the repository confirmed it.
+  **What merging #225 would add, stated plainly:** the name is already
+  anonymously fetchable today, because `origin/claude/delivery-phase5` and
+  `refs/pull/225/head` both carry `a399bfb` and the remote serves any
+  commit's blobs by sha. Merging would not disclose anything new, and it
+  would make the name **permanent in the default branch's history**, so
+  every later clone carries it. `origin/main` does not hold `a399bfb`
+  today. The owner's decision on the remedy should take that into
+  account; the merge decision and the remedy decision are separable, and
+  this review takes neither.
 
 
 ## 2026-11-26 (night) - the two bookkeeping gaps are closed, the shard costs are measured again, and the pull request is ready
