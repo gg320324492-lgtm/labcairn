@@ -691,6 +691,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # The tree's whole Han load, pinned beside the longest-run budget: a name
     # of any length moves the number the longest run cannot see.
     "test_chinese_totals_pin.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Every Han run in the tree, registered by digest, length and class: what
+    # the Chinese *is*, and not only how much of it there is.
+    "test_chinese_run_classes.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),
     # The quickstart's command list and the README's against each other. The
