@@ -306,6 +306,15 @@ def _scratch_repo(tmp_path: Path, content: str) -> Path:
     repo = tmp_path / "scratch"
     (repo / "docs").mkdir(parents=True)
     _git(repo, "init")
+    # **The identity is set here, and not taken from the machine.** A commit
+    # needs a name and an address, and a machine that has them configured
+    # globally does not prove the witness works on a machine that has not:
+    # the runner refused the commit with git's exit 128, "author identity
+    # unknown", while the tree stayed green here because this machine has a
+    # global identity. A scratch repository that says who it is needs
+    # nothing from the host.
+    _git(repo, "config", "user.email", "scratch@example.invalid")
+    _git(repo, "config", "user.name", "scratch")
     (repo / "pyproject.toml").write_text(
         '[project]\nname = "scratch"\nversion = "0"\n', encoding="utf-8"
     )

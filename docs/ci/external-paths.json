@@ -2547,6 +2547,7 @@
         "docs/acceptance/LC-P3-07-drill-run-2026-11-14.md",
         "docs/acceptance/LC-P4-PILOT-attest-refuses-dangling-source-2026-11-27.md",
         "docs/acceptance/LC-P4-PILOT-attested-source-drift-2026-11-28.md",
+        "docs/acceptance/LC-P4-PILOT-cli-gate-rendering-2026-11-28.md",
         "docs/acceptance/LC-P4-PILOT-dangling-source-ids-2026-11-26.md",
         "docs/acceptance/LC-P4-PILOT-report-checks-2026-11-26.md",
         "docs/acceptance/LC-P4-PILOT-report-evidence-gate-2026-11-27.md",
@@ -3222,6 +3223,17 @@
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P3-05-input-update-supply-2026-11-14.md"
+      ]
+    },
+    {
+      "path": "E:/labcairn-local/tmp/probe_cli_gate.py",
+      "expectation": "absent",
+      "kind": "scratch",
+      "replacement": null,
+      "note": "a scratch probe that drove the console script for the command line's gate rendering; it lived under the volatile temp root and is gone",
+      "announcements": [],
+      "sites": [
+        "docs/acceptance/LC-P4-PILOT-cli-gate-rendering-2026-11-28.md"
       ]
     },
     {

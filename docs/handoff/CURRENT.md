@@ -1,6 +1,48 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-28 (later still) - three cards answered, and the records' citations got a witness
+
+- **Three cards the owner started. Two answered, and both are merged into the
+  local `main`; the third was killed by the provider's daily limit, and its
+  work was picked up here.**
+- **The status the product cannot reach, measured.** `store.advance` is the
+  only writer of `verified_by_rule`, and **nothing in `src/` calls it** — the
+  six surfaces produce `planned`, `extracted` and `user_attested`, and the
+  reachable state machine is **three states wide** (`conflicted`,
+  `unsupported` and every fallback belong to `advance` too). The record
+  carries the three options with their costs and **does not choose for the
+  owner**; the witness (`tests/test_surface_status_reach.py`) reads `src/`
+  with an AST, so the gap is watched rather than described.
+- **The gate's verdict where a reader can see it.** `labcairn task report`
+  now prints the records the evidence gate judged **and the ones it did not
+  judge at all**, so the command line says what the refusal was about.
+  Seven witnesses and an acceptance record.
+- **A witness for the citations the records make.** The delivery-line
+  rewrite re-pointed seventy-two citations in eighteen files with a script of
+  its own, and **nothing in the tree could tell a right commit from a wrong
+  one** — both are ancestors of a branch. `tests/test_record_citations.py`
+  is that witness, and it **found what the rewrite missed**: the record the
+  status-reach batch wrote cites the commit that batch started from under the
+  name the rewrite gave it, and no document said so. The citation is
+  re-pointed, and the record says the hash moved.
+- **The provider's daily limit took the third card.** That session's own
+  transcript says it had run 113 turns when it was rejected with HTTP 429
+  (`daily_usage_exceeded`, resets 2026-11-28 00:00 UTC). It left one file
+  uncommitted; the work here finished it, and the rule it needed — that a
+  **quoted** hash is quoted material and not a claim — has an arm of its own,
+  so it cannot become a tolerance.
+- **A whole-suite run wants the machine to itself, and the integrating
+  session broke that rule once.** The delivery's reviewer-mode walk runs the
+  whole suite in its clone; it was started at 05:03 and four pytest runs
+  were then measured **beside** it, every one against the same `TEMP`.
+  **The walk hung the same way the earlier one did** — the clone's
+  interpreter at zero CPU, blocked on a child that never signalled — and was
+  killed at fifty minutes with no result. The re-run was made with the
+  machine to itself and nothing beside it. The rule is in `CLAUDE.md` and in
+  the acceptance record; it holds only while the session obeys it.
+
+
 ## 2026-11-28 (later) - the delivery is on the remote, and the tree's own walks caught the contract change
 
 - **The delivery is pushed, and pull request #225 carries it.** The rewritten

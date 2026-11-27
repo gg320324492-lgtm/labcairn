@@ -223,6 +223,18 @@ The lesson for the next window: the whole-suite run gets the machine to
 itself, and the witnesses that need measuring run **before** it or **after**
 it, never beside it.
 
+**It happened again the same day, from the integrating session.** The
+delivery's own reviewer-mode walk — the outsider's path run in full, which
+runs the whole suite in its clone — was started at 05:03, and four pytest
+runs were then measured **beside** it, every one of them against the same
+`TEMP`, which is what `CLAUDE.md` forbids. **The walk hung the same way**:
+the clone's interpreter at zero CPU, blocked on a child that never
+signalled, and it was killed at fifty minutes with no result. The lesson
+above is not advice — it is a mechanism that holds only while the session
+obeys it, and the session that broke it was the one integrating the batch.
+The re-run was made with the machine to itself, and nothing else was run
+beside it.
+
 ### The environment, and why it was rebuilt rather than shared
 
 The project's `.venv` at `E:/LabCairn/.venv` is an **editable install** whose
