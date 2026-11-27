@@ -32,12 +32,16 @@ already lapsed. The approval the demonstration asks the service for is
 therefore the one value here read from the wall clock, and it outlives the
 grant at any hour of the day.
 
-**The report is rendered once.** The layer's ``render_report`` renders it into
-bytes and writes it as a revision; the CLI's ``artifacts list`` names that file
-and its hash, and the API serves the same bytes from
-``/artifacts/{id}/content``. That is §1.4.2's decision — one renderer, and
-both surfaces serve the same bytes — and it is what makes "CLI and Web produce
-the same versioned report" a hash comparison rather than a promise.
+**The report is rendered once, and refused once.** The layer's
+``render_report`` renders it into bytes and writes it as a revision; the CLI's
+``artifacts list`` names that file and its hash, and the API serves the same
+bytes from ``/artifacts/{id}/content``. That is §1.4.2's decision — one
+renderer, and both surfaces serve the same bytes — and it is what makes "CLI
+and Web produce the same versioned report" a hash comparison rather than a
+promise. The same operation refuses the second request, over a material whose
+bytes have moved since the ledger recorded them, and writes nothing at all --
+which is step 8's claim, and the reason a report made over moved bytes is not
+a report marked stale.
 
 **The material goes in through the CLI.** The application layer has an
 ingestion operation, and ``labcairn task create`` calls it: the material under
@@ -93,6 +97,7 @@ from labcairn.api.app import create_app
 from labcairn.api.bind import DEFAULT_BIND_HOST, DEFAULT_BIND_PORT, own_origin
 from labcairn.api.session import SESSION_DIR_NAME, SESSION_FILE_NAME
 from labcairn.application import ApplicationContext, render_report
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.reports import ReportRequest
 from labcairn.cli.workspace import (
     DEFAULT_POLICY_RULES,
@@ -104,7 +109,7 @@ from labcairn.core.ids import ApprovalId, OperationId, TaskId
 from labcairn.db import create_db_engine, create_session_factory
 from labcairn.db.migrations import head_revision
 from labcairn.db.models import SourceAnchorRow
-from labcairn.db.repository import TaskStore
+from labcairn.db.repository import TaskStore, list_artifacts
 from labcairn.evidence.cite_support import LocationResolution
 from labcairn.evidence.index import LabCairnIndex
 from labcairn.evidence.record import EvidenceRecord
@@ -1149,19 +1154,47 @@ def _walk_the_path(root: Path, session: Session) -> int:
             "the walk did not name this hash",
         )
 
+        # The report is asked for again, and the layer refuses it. A report
+        # written now would carry a receipt that says "current" over bytes
+        # the ledger no longer describes, and ADR-0004 I4 invalidates a
+        # record whose source has moved rather than refreshing it -- so
+        # nothing is written: not the revision, and not a row.
         before = the_digests(revision_one)
-        second_revision = render_report(
-            context,
-            ReportRequest(path="report", template_id="default"),
-            now=NOW + timedelta(minutes=1),
-        )
+        artefacts_before = len(list_artifacts(session, task_id))
+        refusal: ApplicationRefusedError | None = None
+        try:
+            render_report(
+                context,
+                ReportRequest(path="report", template_id="default"),
+                now=NOW + timedelta(minutes=1),
+            )
+        except ApplicationRefusedError as error:
+            refusal = error
         session.commit()
         after = the_digests(revision_one)
+        artefacts_after = len(list_artifacts(session, task_id))
         revision_two = root / "output" / str(task_id) / "report" / "v2"
+        if refusal is not None:
+            print(f"  refusal    : {refusal.reason.value}")
+            print(f"  because    : {refusal.detail}")
         check(
-            "the re-render is a new revision, with its own files",
-            second_revision.receipt.revision == 2 and revision_two.is_dir(),
-            f"v{second_revision.receipt.revision}",
+            "the re-render is refused, because the material it cites has moved",
+            refusal is not None,
+            refusal.reason.value if refusal is not None else "the report was written",
+        )
+        check(
+            "and the refusal names the source, the ledger's bytes and the file's bytes",
+            refusal is not None
+            and refusal.reason is ApplicationRefusal.REPORT_EVIDENCE_REFUSED
+            and source.source_id in refusal.detail
+            and source.content_sha256 in refusal.detail
+            and observed in refusal.detail,
+            source.source_id if refusal is not None else "no refusal to read",
+        )
+        check(
+            "nothing was written: no second revision, and no new row",
+            not revision_two.exists() and artefacts_after == artefacts_before,
+            f"{artefacts_after} artefact(s), and no v2 directory",
         )
         check(
             "and the first revision's bytes are unchanged",
@@ -1184,27 +1217,34 @@ def _walk_the_path(root: Path, session: Session) -> int:
             not the_same_revision(before, the_digests(altered_revision)),
             "a copy of the revision with a file's bytes altered is not the revision",
         )
-        # The control: the walk's answer is the walk's own. The revision
-        # rendered *after* the material changed is not stale, because the walk
-        # marks the artefacts whose chain names the hash that moved -- and a
-        # conclusion that said "the material moved, so everything is stale"
-        # would say otherwise.
-        after_the_change = coordinator.stale_artifacts(task_id)
-        after_ids = {receipt.receipt_id for receipt in after_the_change}
+        # The control for the refusal's own comparison: the file's bytes
+        # against the ledger's, which is the difference the refusal rests on.
+        # It has to be able to answer the other way, or it would refuse every
+        # report -- including the one this demonstration wrote a moment ago.
+        # The bytes the ledger holds are the bytes the file had before the
+        # demonstration moved it, so the difference was on the file's side and
+        # nowhere else.
         check(
-            "the staleness walk says the revision rendered after the change is not stale",
-            second_revision.receipt.receipt_id not in after_ids,
-            f"{len(after_ids)} stale receipt(s), and v2 is not among them",
+            "the comparison the refusal rests on found a difference, and only the file moved",
+            digest(CORPUS.read_bytes()) == source.content_sha256
+            and observed != source.content_sha256,
+            f"the ledger holds {source.content_sha256[:12]}, the file has {observed[:12]}",
         )
-        # And the comparison, asked about that same revision: a receipt the
-        # walk did not mark stale is not stale by the repository's rule either,
-        # so the rule has a state as well as a reason.
+        # And the rule has a state as well as a reason: a receipt the walk
+        # did not mark stale is not stale by the repository's rule either.
         check(
             "the staleness comparison says no about a receipt the walk did not mark",
-            not is_stale(second_revision.receipt),
-            "the revision rendered after the change is current",
+            not is_stale(
+                stale[0].model_copy(
+                    update={
+                        "staleness": ArtifactStaleness.CURRENT,
+                        "staleness_reason": None,
+                    }
+                )
+            ),
+            "a receipt the walk did not mark is not stale by the repository's rule",
         )
-        print(f"  v1 and v2 differ, and v1 is untouched: {sorted(before)}")
+        print(f"  v1 is untouched, and there is no v2: {sorted(before)}")
     finally:
         api_session.close()
         api_engine.dispose()
@@ -1230,6 +1270,10 @@ def _walk_the_path(root: Path, session: Session) -> int:
     print("    record that rests on it itself. The report carries a real claim,")
     print("    cited to a cell of the material the CLI ingested -- but the claim")
     print("    was made by the demonstration, not by the product.")
+    print("  * The refusal names its own remedy -- ingest the material again,")
+    print("    then re-verify or re-attest the claims it carries -- and this run")
+    print("    did not take it. What the run shows is the refusal and the walk's")
+    print("    stale mark; the path that follows them is not exercised here.")
     print("  * The demonstration did not ask for an approval that had already")
     print("    lapsed. The service records a grant with its own clock, so the")
     print("    approval it asks for is live by construction, and what the")

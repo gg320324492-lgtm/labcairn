@@ -96,7 +96,7 @@ STEPS: tuple[str, ...] = (
 #: counted neither in the lines nor in the summary, so a run that had a claim
 #: fail and still said "every check held" would be counted at one fewer. The
 #: count is the only thing that would say so.
-EXPECTED_CHECKS: int = 60
+EXPECTED_CHECKS: int = 62
 
 #: The claim planted false, for the run that has to fail. It is a claim the
 #: demonstration makes in its first step, so the planted run stops early and
@@ -659,6 +659,7 @@ def test_every_comparison_was_shown_a_difference_it_had_to_find(
         "the staleness comparison says no about a receipt the walk did not mark",
         "the changed-hash comparison finds the difference it was given",
         "the staleness walk says nothing is stale while the material is unchanged",
+        "the comparison the refusal rests on found a difference, and only the file moved",
     ):
         assert f"[ok] {control}" in output, (
             f"the demonstration never ran the control {control!r}, so its comparison "
@@ -781,6 +782,55 @@ def test_the_report_was_marked_stale_when_the_material_moved(
     assert report.group(1) in stale, (
         f"the report's receipt {report.group(1)} is not among the artefacts the "
         f"walk marked stale: {stale}"
+    )
+
+
+@pytest.mark.e2e
+def test_the_report_was_refused_when_the_material_moved(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """A report asked for over moved bytes was refused, and nothing was written.
+
+    A report rendered while the material it cites has moved would carry a
+    receipt that says "current" over bytes the ledger no longer describes.
+    ADR-0004 I4 invalidates a record whose source has moved rather than
+    refreshing it, so the layer refuses the report before it is written -- and
+    the refusal says which source, which bytes the ledger holds and which
+    bytes the file has, or the caller cannot act on it.
+
+    **The demonstration's output is the evidence.** A refusal the
+    demonstration swallowed would leave the run green over a report that was
+    written anyway, so this test reads the refusal's own line and the two
+    hashes it names, and compares them with the hashes the demonstration
+    measured.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+
+    assert "[ok] the re-render is refused, because the material it cites has moved" in output, (
+        "the demonstration never showed the report being refused over moved bytes"
+    )
+    assert "[ok] nothing was written: no second revision, and no new row" in output, (
+        "the demonstration never showed that the refusal wrote nothing"
+    )
+    source = re.search(r"^\s+source\s+:\s+(\S+)$", output, flags=re.MULTILINE)
+    ledger_hash = re.search(r"^\s+hash\s+:\s+([0-9a-f]{64})$", output, flags=re.MULTILINE)
+    moved_hash = re.search(
+        r"^\s+the file now hashes\s+:\s+([0-9a-f]{64})$", output, flags=re.MULTILINE
+    )
+    refusal = re.search(r"^\s+because\s+:\s+(.+)$", output, flags=re.MULTILINE)
+    assert source is not None, "the demonstration never named the source it ingested"
+    assert ledger_hash is not None, "the demonstration never printed the ledger's hash"
+    assert moved_hash is not None, "the demonstration never printed the file's hash"
+    assert refusal is not None, "the demonstration never printed the refusal's reason"
+    assert source.group(1) in refusal.group(1), (
+        f"the refusal did not name the source {source.group(1)}"
+    )
+    assert ledger_hash.group(1) in refusal.group(1), (
+        "the refusal did not name the bytes the ledger holds"
+    )
+    assert moved_hash.group(1) in refusal.group(1), (
+        "the refusal did not name the bytes the file has"
     )
 
 
