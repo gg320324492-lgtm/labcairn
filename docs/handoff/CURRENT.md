@@ -128,6 +128,32 @@
   today. The owner's decision on the remedy should take that into
   account; the merge decision and the remedy decision are separable, and
   this review takes neither.
+- **The tree's blind spot is closed.** The budget measures the **longest**
+  Han run per file, so a short name added to a file that already carries a
+  longer run left the measurement unchanged and the witness green. A
+  companion measure now pins the **whole** Han load of every tracked file,
+  so a name of any length moves a number the pin holds. **The two rules
+  are deliberately not merged**: the budget stays a budget — it is not
+  quietly a ban, and it is not quietly widened — and the new pin measures
+  a different quantity (the whole load) over a different scope (every
+  tracked file, not the pilot's two globs). Verified here by hand: a
+  four-character name appended to a file whose longest run was 7 left the
+  longest run at **7** and moved the total from **34** to **38**.
+- **A document with no comments can take part in the role chain.** The
+  branch is taken on **the chain's state, not the request's shape**: the
+  chain counts the comments the project holds, zero is a shape like any
+  other, and a chain that holds comments but not under the key the
+  request named is **still refused exactly as it was** — same reason, same
+  place, same witnesses. Each role abstains through **its own primitive**
+  (role A has no advisor's words to carry, so it carries no advisor's
+  quote), the abstention is recorded in a new `role_abstention_recorded`
+  event (migration `0035`), and the run and stage beside it are closed in
+  the same transaction as the annotation. **Nothing is spent**: no wire, no
+  approval, and no refusal for want of a provider.
+- **Three new test files carry `0.0` until a runner measures them**:
+  `test_attest_source_presence.py`, `test_chinese_totals_pin.py` and
+  `test_role_run_commentless.py`. They are filed in the manifest and in a
+  shard, so CI will run them — the number is what is owed.
 
 
 ## 2026-11-26 (night) - the two bookkeeping gaps are closed, the shard costs are measured again, and the pull request is ready
