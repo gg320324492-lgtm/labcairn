@@ -44,8 +44,16 @@
   measured beside it — showed the same shape while **working**: an idle
   parent, a child burning CPU, and a temp directory whose newest entry
   went eleven minutes without a change. So that reading does not tell a
-  stall from progress. What the second attempt does show is the rule as
-  it stands: the whole-suite run gets the machine to itself.
+  stall from progress.
+- **And the second attempt's end is measured, and it is a ceiling rather
+  than a stall.** The clone's whole suite **exceeded the timeout the walk
+  gives that command** (5400 s): the runner's own shard costs put the
+  whole suite at **10120 s** on Windows when it runs as one process, while
+  the six shards run in parallel on six runners (the slowest is 1687 s).
+  **A reviewer-mode run cannot finish on Windows at this tree**, whatever
+  the machine is doing, and the walk's report is not written. The counts
+  in `docs/QUICKSTART.md` are written from the **witness mode** instead —
+  83 checks, measured, and the mode the tree's test runs on every CI run.
 
 
 ## 2026-11-28 (later) - the delivery is on the remote, and the tree's own walks caught the contract change

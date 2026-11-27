@@ -34,6 +34,23 @@ quoted; the run's own command lines, exit codes and seconds are in §4.
 | The commit cloned | `92cc92025ac6d2a8186805ae808d80da7c6287de` |
 | The run | **115 checks, all held**, in **1573.2 s** — of which the whole suite in the clone is 1501.4 s |
 
+**The 2026-11-28 attempt produced no result, and the reason is measured.**
+The reviewer mode was run again on the delivered tree, with its own `TEMP`
+and its own work root. The clone's whole suite **exceeded the timeout the
+walk gives that command** — 5400 seconds — and the walk's report was never
+written. The ceiling is arithmetic rather than a stall: the runner's own
+measured shard costs put the whole suite at **10120 s** on Windows and
+**4197 s** on Ubuntu when it runs as **one process**, and the clone runs it
+as one process. (The six shards run in parallel on six runners, so the
+runner's wall clock is the slowest shard — 1687 s.) **So a reviewer-mode run
+cannot finish on Windows at this tree**, whatever the machine is doing; on
+Ubuntu the same sum would fit, but the clone is the host's own.
+
+**What the tree's witness runs instead.** The witness mode reduces the
+whole-suite command to a collection, and `tests/test_outsider_path.py` runs
+it on every CI run. It makes **83** checks, measured on 2026-11-28, and it
+is the mode the counts in §5 are written from.
+
 To run it yourself:
 
 ```bash

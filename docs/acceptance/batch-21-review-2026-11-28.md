@@ -165,22 +165,27 @@ witness with its arms, its scope and its exception list, unfinished. The
 work here finished it, added the missing arm, and merged it; and the
 witness's first run found the one citation the rewrite had missed.
 
-**What the first attempt cost, and what is not claimed.** The delivery's
-reviewer-mode walk runs the whole suite in its clone. It was started at
-05:03 and **four pytest runs were then measured beside it**, every one
-against the same `TEMP` — what `CLAUDE.md` forbids. The walk produced **no
-result**: killed at fifty minutes, an empty log and no report.
+**What the attempts cost, and what is measured.** The delivery's
+reviewer-mode walk runs the whole suite in its clone. **Two attempts were
+made here and neither produced a result**, for two different reasons.
 
-**The cause is not measured, and none is claimed.** The kill followed a
-measurement of one interpreter at zero CPU over a fifteen-second interval,
-and the attempt that followed — its own `TEMP`, its own work root, nothing
-measured beside it — showed the same shape while **working**: an idle
-parent, a child burning CPU, and a temp directory whose newest entry went
-eleven minutes without a change. So that reading does not tell a stall from
-progress, and the four runs beside the first attempt are not shown to have
-caused it. What the second attempt does show is the rule as the earlier
-window states it: the whole-suite run gets the machine to itself, and the
-witnesses that need measuring run before it or after it, never beside it.
+The first was killed at fifty minutes on a reading — one interpreter at zero
+CPU over a fifteen-second interval — that the second attempt showed does not
+tell a stall from progress: the second, with its own `TEMP`, its own work
+root and nothing measured beside it, showed the same shape while **working**
+(an idle parent, a child burning CPU, and a temp directory whose newest
+entry went eleven minutes without a change). So the first attempt's cause is
+not established, and none is claimed.
+
+The second attempt's end **is** measured, and it is not a stall: **the
+clone's whole suite exceeded the timeout the walk gives that command**
+(5400 s), because the runner's own measured shard costs put the whole suite
+at **10120 s** on Windows when it runs as one process — the six shards run
+in parallel on six runners, so the runner's wall clock is the slowest shard,
+1687 s, while the clone runs everything as one process. **A reviewer-mode
+run cannot finish on Windows at this tree**, whatever the machine is doing.
+The tree's **witness mode** — 83 checks, and the mode the tree's test runs
+on every CI run — is what the counts are written from.
 
 ## Where each finding went
 
@@ -193,4 +198,4 @@ witnesses that need measuring run before it or after it, never beside it.
 | A citation the rewrite missed, in a record written after the rewrite | closed — the citation is re-pointed, the record says the hash moved, and the witness that found it is in the tree |
 | The status the product cannot reach | measured and filed; the three options and their costs are the owner's to take |
 | The CLI's human rendering shows neither list | closed — the gate's verdict, the judged ids, the unjudged ids and the findings count are drawn |
-| A whole-suite run produced no result | the cause was not measured and none is claimed; the run was made again with the machine to itself, and the record says which reading does not tell a stall from progress |
+| A reviewer-mode walk produced no result | measured twice over: the first attempt's cause is not established and none is claimed, and the second exceeded the walk's own 5400 s timeout because the clone's serial suite costs 10120 s on Windows; the counts are written from the witness mode instead |
