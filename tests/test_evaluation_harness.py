@@ -15,11 +15,15 @@ test names the property it holds:
   file that is in no class is a file whose cases enter no denominator, and
   that is the hole the harness exists to close — so the hole is closed by a
   test, not by a convention.
-* **The partition agrees with the repository's own markers.** 33 files
-  declare ``unit``, ``integration`` or ``e2e``; where a file declares one,
-  the partition may not contradict it. And the repository's own class holds
-  the repository's own gates and nothing else, so a file that declares no
-  marker cannot be moved into a protocol class and inflate its denominator.
+* **The partition agrees with the repository's own markers.** A file may
+  declare ``unit``, ``integration``, ``negative``, ``e2e`` or
+  ``requires_provider``; where a file declares one, the partition may not
+  contradict it. **The count is not stated here on purpose** — it moves with
+  every file that is filed, and a number that moves is a number that has to be
+  re-measured; the tree is the authority and this sentence is not a copy of
+  it. And the repository's own class holds the repository's own gates and
+  nothing else, so a file that declares no marker cannot be moved into a
+  protocol class and inflate its denominator.
 * **The protocol is read, not restated.** The parser finds the protocol's
   five gate classes, its metrics and its blockers, and refuses a protocol
   that is not there — a parser that returned nothing would make the harness

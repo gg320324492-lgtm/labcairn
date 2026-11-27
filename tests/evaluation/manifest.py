@@ -285,6 +285,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # The CLI's own model request: one question about one source, one
     # request, and the consent gate ahead of the spend.
     "test_cli_suggest.py": ("e2e", "cli-task"),
+    # The report's read-side door: the evidence gate runs before a report
+    # says something, over the records the document states as established.
+    "test_report_evidence_gate.py": ("e2e", "cli-task"),
     "test_cli_path_refused_catch.py": ("negative", "path-traversal"),
     "test_cli_refusal_enumeration.py": ("negative", "missing-material"),
     "test_cli_serve_bind_refusal.py": ("negative", "path-traversal"),

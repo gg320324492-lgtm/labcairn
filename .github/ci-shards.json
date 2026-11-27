@@ -69,7 +69,8 @@
         "tests/test_review_dossier.py",
         "tests/test_attest_source_presence.py",
         "tests/test_chinese_totals_pin.py",
-        "tests/test_role_run_commentless.py"
+        "tests/test_role_run_commentless.py",
+        "tests/test_report_evidence_gate.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -413,7 +414,8 @@
         "tests/test_security_approval.py",
         "tests/test_attest_source_presence.py",
         "tests/test_chinese_totals_pin.py",
-        "tests/test_role_run_commentless.py"
+        "tests/test_role_run_commentless.py",
+        "tests/test_report_evidence_gate.py"
       ],
       [
         "tests/test_feedback_events.py",
@@ -739,7 +741,8 @@
       "test_workspace_path_length.py": 0.52,
       "test_attest_source_presence.py": 0.0,
       "test_chinese_totals_pin.py": 0.0,
-      "test_role_run_commentless.py": 0.0
+      "test_role_run_commentless.py": 0.0,
+      "test_report_evidence_gate.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 9.18,
@@ -977,7 +980,8 @@
       "test_workspace_path_length.py": 0.01,
       "test_attest_source_presence.py": 0.0,
       "test_chinese_totals_pin.py": 0.0,
-      "test_role_run_commentless.py": 0.0
+      "test_role_run_commentless.py": 0.0,
+      "test_report_evidence_gate.py": 0.0
     }
   }
 }
