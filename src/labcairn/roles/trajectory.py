@@ -356,8 +356,7 @@ def abstain_from_candidate(
     if not note.strip():
         raise role_refused(
             RoleRefusal.CARD_FIELD_EMPTY,
-            "the abstention's note is empty, and a note that says nothing is a"
-            " silence",
+            "the abstention's note is empty, and a note that says nothing is a silence",
         )
     return TrajectoryAbstention(
         role_id=spec.role_id,

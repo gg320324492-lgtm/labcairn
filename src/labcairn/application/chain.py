@@ -430,7 +430,10 @@ class ChainDocumentShape:
       :func:`read_revision_events` when a caller may reach them;
     * ``comment_count`` — how many comments the chain holds. **Zero is the
       fact this whole shape exists to carry**, so it is a count and not
-      an absence: a chain that holds none says so.
+      an absence: a chain that holds none says so. **It is the project's
+      count, not one version's** — a comment is the advisor's remark on a
+      round, and the chain reads it by key wherever it was written, so the
+      count and that read have to agree about the same fact.
 
     **And the counts are the log's own currency.** A shape is named by
     ids and counts, and the material's text never travels in it.
@@ -604,26 +607,30 @@ def read_document_shape(
             f"the store holds no paper project with the id {project_id!r}, so the chain"
             " holds no document to report the shape of.",
         )
-    wanted = _the_versions_named(session, project_id, version_ids)
-    if wanted is None:
+    wanted = tuple(str(version_id) for version_id in version_ids if version_id)
+    if not wanted:
         # **Naming no version means the project's whole graph**, the same
         # scope the issue-key listing reaches before it knows which versions
         # it wants. The project's own rows are the base, and the accepted
         # edges then order them.
         wanted = tuple(str(row.version_id) for row in project_version_rows(session, project_id))
+    # **The order is computed by the role, and the role refuses first.** A
+    # version outside the project's graph is refused by the role that reads
+    # the chain, and it is refused in the role's own vocabulary. So the
+    # ordering is asked for before anything else here narrows the answer:
+    # a chain-layer refusal would arrive first and would be a second
+    # spelling of the role's rule.
     ordered = order_versions(context, project_id=project_id, version_ids=wanted)
     revisions = read_revision_events(context, version_ids=ordered)
     return ChainDocumentShape(
         project_id=project_id,
         version_ids=ordered,
         revision_count=len(revisions),
-        comment_count=_the_comments_held(context, project_id, version_ids),
+        comment_count=_the_comments_held(context, project_id),
     )
 
 
-def _the_comments_held(
-    context: ApplicationContext, project_id: str, version_ids: Sequence[str]
-) -> int:
+def _the_comments_held(context: ApplicationContext, project_id: str) -> int:
     """How many comments the project holds, keyed or not.
 
     **The count is of the chain's own rows, not of its issue keys.** A
@@ -633,13 +640,27 @@ def _the_comments_held(
     similarity to one that is". Counting the keys instead would report a
     document with a comment in it as a document with none, and the run
     would then abstain over a chain that holds the advisor's words.
+
+    **And the count is the project's, not one version's.** The comments the
+    chain holds are read by key, and a key names a comment wherever it was
+    written — :func:`read_comments` answers for the whole project. **So
+    the count and that read have to agree about the same fact**, and a
+    count narrowed to the versions the caller named would say "no comment"
+    about a project that holds one, while the read under the same key
+    found it. The versions narrow the *shape's* revisions and its order;
+    they do not narrow the comments.
+
+    **The versions are still checked.** The order above was computed by the
+    role, which refused a version outside the project's graph first and in
+    its own vocabulary -- so this count is reached only over versions the
+    chain holds.
     """
     session = context.store.session
-    conditions = [FeedbackEventRow.project_id == project_id]
-    named = _the_versions_named(session, project_id, version_ids)
-    if named is not None:
-        conditions.append(FeedbackEventRow.version_id.in_(named))
-    return len(session.scalars(select(FeedbackEventRow.feedback_id).where(*conditions)).all())
+    return len(
+        session.scalars(
+            select(FeedbackEventRow.feedback_id).where(FeedbackEventRow.project_id == project_id)
+        ).all()
+    )
 
 
 def _the_versions_named(

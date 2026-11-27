@@ -57,7 +57,7 @@ differently.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 
 from labcairn.application.context import ApplicationContext, store_refusals
@@ -460,6 +460,108 @@ def complete_consumed_approval(
     )
 
 
+def record_role_abstention(
+    context: ApplicationContext,
+    *,
+    project_id: str,
+    roles: Sequence[str],
+    missing: Mapping[str, str],
+    run_id: RunId | None,
+    stage_id: StageId | None,
+    now: datetime,
+) -> None:
+    """Record that the mentor loop ran and abstained, and close what it ran.
+
+    **The record is an annotation, and the run state beside it is closed.**
+    An abstention is not an attempt: no model was called, no approval was
+    spent, and there is no operation for it to belong to. **So the event
+    carries no run and no operation** -- inventing a Run for it would be the
+    trace that could be mistaken for work that was attempted.
+
+    **And the run that ran it is finished anyway.** The pilot measured the
+    gap: a run that did its work and stopped left its stage ``blocked`` and
+    its run ``running`` although nothing was waiting. A run that abstained
+    has done everything it was asked to do, so its stage is completed and its
+    run is finished -- **in the same transaction as the annotation**, so a
+    reader never sees a finished run without the record of what it did, nor
+    a record of an abstention inside a run that claims to be going.
+
+    **The run and stage are written only if the caller had them.** A run
+    over a comment-less document may be reached without a stage of its own
+    -- nothing was planned and nothing was approved -- and then the
+    annotation is the whole of the record, which is the honest shape for a
+    run that touched nothing.
+
+    :param project_id: the project whose chain was read.
+    :param roles: the roles the request named.
+    :param missing: what each role could not answer, keyed by role id.
+    :param run_id: the run the abstention belongs to, when there is one.
+    :param stage_id: the stage the abstention belongs to, when there is one.
+    """
+    with context.store.unit(context.task_id) as work:
+        work.emit(
+            EventType.ROLE_ABSTENTION_RECORDED,
+            payload={
+                "project_id": project_id,
+                "roles": list(roles),
+                "missing": dict(missing),
+            },
+            occurred_at=now,
+        )
+        if stage_id is not None and run_id is not None:
+            stage = _the_stage(context, run_id, stage_id)
+            if stage is not None:
+                completed = _finished(stage, StageStatus.COMPLETED, ())
+                work.emit(
+                    EventType.STAGE_COMPLETED,
+                    run_id=run_id,
+                    stage_id=stage_id,
+                    transition=EventTransition(
+                        from_state=stage.status.value,
+                        to_state=StageStatus.COMPLETED.value,
+                    ),
+                    occurred_at=now,
+                )
+                work.put_stage(completed)
+        if run_id is not None:
+            run = _the_run(context, run_id)
+            if run is not None:
+                finished = Run.model_validate(
+                    {
+                        **run.model_dump(),
+                        "status": RunStatus.FINISHED,
+                        "finished_at": _the_finish_moment(run, now),
+                    }
+                )
+                work.emit(
+                    EventType.RUN_FINISHED,
+                    run_id=run_id,
+                    transition=EventTransition(
+                        from_state=run.status.value,
+                        to_state=RunStatus.FINISHED.value,
+                    ),
+                    occurred_at=now,
+                )
+                work.put_run(finished)
+
+
+def _the_run(context: ApplicationContext, run_id: RunId) -> Run | None:
+    """The run with that id, when the task holds it."""
+    with store_refusals():
+        runs = list_runs(context.store.session, context.task_id)
+    return next((run for run in runs if run.run_id == run_id), None)
+
+
+def _the_stage(context: ApplicationContext, run_id: RunId, stage_id: StageId) -> Stage | None:
+    """The stage with that id, when the task holds it."""
+    with store_refusals():
+        stages = list_stages(context.store.session, context.task_id)
+    return next(
+        (stage for stage in stages if stage.stage_id == stage_id and stage.run_id == run_id),
+        None,
+    )
+
+
 def record_refusal(
     context: ApplicationContext,
     *,
@@ -815,4 +917,5 @@ __all__ = [
     "plan_approval",
     "record_denial",
     "record_refusal",
+    "record_role_abstention",
 ]

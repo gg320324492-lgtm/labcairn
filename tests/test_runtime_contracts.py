@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict, get_args, get_origin
@@ -622,6 +623,14 @@ def _a_value_for(annotation: object) -> object:
     builder — which is how the exchange event's schema, a list with a
     minimum length, hid the registration defect until the schema reached
     every reader.
+
+    **And a tuple is a list as far as the builder is concerned.** The
+    schemas spell their collections as frozen tuples, and a builder that
+    knew only ``list`` would put ``None`` into a required tuple — the same
+    defect the list branch exists to prevent, one spelling over. A mapping
+    is the third spelling, and it is answered with an empty mapping: the
+    builder is asking whether the *shape* is right, and an empty mapping
+    satisfies every mapping the schemas declare.
     """
     if annotation is str:
         return "x"
@@ -630,10 +639,14 @@ def _a_value_for(annotation: object) -> object:
     if annotation is int:
         return 0
     origin = get_origin(annotation)
-    if origin is list:
-        (item,) = get_args(annotation) or (object,)
-        return [_a_value_for(item)]
+    if origin is list or origin is tuple:
+        args = get_args(annotation)
+        if not args:
+            return []
+        return [_a_value_for(args[0])]
     if origin is dict:
+        return {}
+    if origin is not None and isinstance(origin, type) and issubclass(origin, Mapping):
         return {}
     return None
 

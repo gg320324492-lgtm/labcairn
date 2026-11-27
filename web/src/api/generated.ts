@@ -287,6 +287,7 @@ export type EventType =
   | 'followup_assessed'
   | 'model_exchanged'
   | 'refusal_recorded'
+  | 'role_abstention_recorded'
 
 export type EvidenceCreator = 'rule' | 'user' | 'model_proposal'
 
@@ -852,6 +853,14 @@ export type RoleGuidanceJudgement = {
   style_notes?: string[]
 }
 
+export type RoleRunAbstention = {
+  role_id: string
+  role_version: number
+  issue_key: string
+  what_is_missing: string
+  note: string
+}
+
 export type RoleRunBody = {
   roles: string[]
   project_id: string
@@ -922,8 +931,18 @@ export type RoleRunRun = {
   answer: string | null
   exchange_event_id: string | null
   candidate?: RoleRunCandidate | null
+  abstention?: RoleRunAbstention | null
   card?: RoleRunCard | null
   verdict?: RoleRunVerdict | null
+  abstentions?: Record<string, string>
+  shape?: RoleRunShape | null
+}
+
+export type RoleRunShape = {
+  project_id: string
+  version_ids: string[]
+  revision_count: number
+  comment_count: number
 }
 
 export type RoleRunTicketWire = {

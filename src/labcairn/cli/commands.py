@@ -3790,6 +3790,12 @@ def the_role_run_run_rendered(result: Any) -> RenderableType:
     One line per role that ran, in the order it ran, with the model's own
     words when the run asked for them. The outputs are the layer's own
     shapes, so what is printed is what the API returned.
+
+    **And a role that abstained is shown as a role that ran.** The line
+    says what that role could not answer, so a reader of the terminal is
+    not left with a run that looks smaller than it was -- **a run that
+    quietly did less than it reported is the failure this shape exists to
+    prevent.**
     """
     from rich.panel import Panel
     from rich.table import Table
@@ -3808,6 +3814,17 @@ def the_role_run_run_rendered(result: Any) -> RenderableType:
         table.add_row("answer", result.answer)
     if result.exchange_event_id is not None:
         table.add_row("exchange", result.exchange_event_id)
+    for role_id, what_is_missing in result.abstentions.items():
+        table.add_row(f"abstention ({role_id})", what_is_missing)
+    if result.shape is not None:
+        table.add_row(
+            "shape",
+            (
+                f"{result.shape.comment_count} comments, "
+                f"{result.shape.revision_count} revisions, "
+                f"{len(result.shape.version_ids)} versions"
+            ),
+        )
     return Panel(table, title="the loop's run", expand=False)
 
 
