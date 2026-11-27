@@ -194,6 +194,35 @@ was untouched by all three — and each was caught by a witness that reads the
 - `mypy --strict` over the three changed files: `Success: no issues found in 3
   source files`.
 
+### A whole-suite run that hung, and what it cost
+
+The first whole-suite run **hung** and was killed at 29% (`[exited with code
+0]` after the kill, 1976 bytes of output, no summary). It was not this
+window's change: the run was sitting in
+`tests/test_drill_interrupted_writes.py` — a test that spawns a child process
+and kills it in a window — with the pytest process consuming **zero CPU over
+a measured 15-second interval**, blocked on a child that never signalled.
+
+**The cause was this window's own doing, and it is the rule the project's own
+document states.** While the whole suite was running, this window also ran
+**three other pytest suites** against the same machine (`test_ci_shard_coverage`,
+`test_evaluation_harness`, and the two refusal-enumeration files).
+`CLAUDE.md` says it: *"Parallel runs each need their own `TEMP`. `MPLCONFIGDIR`
+is pinned under the temp directory, so two runs sharing one temp directory
+fight over it. **Whole-suite runs go one at a time.**"* All four runs shared
+`E:/labcairn-local/tmp`, and the whole-suite run was the one that hung.
+
+**It is recorded because the number that came out of it is not a number.**
+The killed run reported progress to 29% with no failures in the first 20%
+except the two expected shard ones, and a reader skimming the log would take
+that for a passing run. It is not a passing run: it is a run that stopped.
+**A run that was killed has no result, and "no failures before the hang" is not
+a result.** The suite was re-run alone, with nothing else on the machine.
+
+The lesson for the next window: the whole-suite run gets the machine to
+itself, and the witnesses that need measuring run **before** it or **after**
+it, never beside it.
+
 ### The environment, and why it was rebuilt rather than shared
 
 The project's `.venv` at `E:/LabCairn/.venv` is an **editable install** whose
