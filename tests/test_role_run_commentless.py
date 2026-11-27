@@ -55,6 +55,7 @@ what the commented case would use -- so a green run here costs nothing.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -106,6 +107,28 @@ OBJECTIVES: dict[str, str] = {
     "guidance": "Turn a confirmed case into a card a student can act on.",
     "critique": "Review a card independently and retrieve the counter-evidence.",
 }
+
+
+def _the_child_environment() -> dict[str, str]:
+    """The environment the command runs under, and why it is this one.
+
+    **The width is set, because a pipe is not a terminal.** Rich asks the
+    terminal how wide it is and wraps its output to fit, so a child whose
+    stdout is a pipe renders at eighty columns unless it is told otherwise
+    -- and a wrap that falls *inside* a phrase truncates it, so an
+    assertion about that phrase would fail for a reason that has nothing
+    to do with the property under test. ``COLUMNS`` is the same width the
+    project's other CLI witnesses use.
+
+    **The encoding is set** because the child's output encoding is
+    otherwise the machine's locale encoding, and a path with a non-ASCII
+    character in it would make the test fail for a reason that has nothing
+    to do with the CLI.
+    """
+    environment = dict(os.environ)
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["COLUMNS"] = "200"
+    return environment
 
 
 @pytest.fixture()
@@ -815,7 +838,8 @@ def test_the_command_runs_a_comment_less_document(bare: ChainEnv) -> None:
     """
     import json as _json
     import subprocess
-    import sys
+
+    from test_cli_support import _console_script
 
     from labcairn.cli.workspace import application_context  # noqa: F401
 
@@ -826,10 +850,7 @@ def test_the_command_runs_a_comment_less_document(bare: ChainEnv) -> None:
 
     completed = subprocess.run(
         [
-            str(
-                Path(sys.executable).parent
-                / ("labcairn.exe" if sys.platform == "win32" else "labcairn")
-            ),
+            str(_console_script()),
             "--workspace",
             str(bare.context.workspace.selected_root),
             "roles",
@@ -869,6 +890,7 @@ def test_the_command_runs_a_comment_less_document(bare: ChainEnv) -> None:
         encoding="utf-8",
         errors="replace",
         timeout=300,
+        env=_the_child_environment(),
     )
     assert completed.returncode == 0, f"the command refused: {completed.stderr}"
     run = _json.loads(completed.stdout)
