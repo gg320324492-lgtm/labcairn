@@ -105,6 +105,7 @@ from labcairn.evidence.states import (
     VerificationStatus,
 )
 from labcairn.evidence.store import (
+    DanglingSourceError,
     LedgerError,
     append_record,
     attest,
@@ -453,6 +454,16 @@ def attest_claim(
             note=note,
             checked_at=moment,
         )
+    except DanglingSourceError as error:
+        # The attestation would make the record citable, and a citation rests on
+        # its source. C1 could not confirm the source an anchor names, so the
+        # move is refused with that source named (ADR-0004 I4). The store owns
+        # the rule; the surface inherits the one answer through this code.
+        session.rollback()
+        raise ApplicationRefusedError(
+            ApplicationRefusal.CITATION_SOURCE_UNOBSERVABLE,
+            f"the ledger refused the attestation: {error}",
+        ) from error
     except LedgerError as error:
         session.rollback()
         raise ApplicationRefusedError(
