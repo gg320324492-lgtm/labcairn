@@ -657,6 +657,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # A dangling source id read back through the product's faces: what
     # refuses it, what names it, and what reads as sound anyway.
     "test_dangling_source_read_faces.py": ("integration", "state-transitions"),
+    # That an attestation asks the source a second time: the record may not
+    # reach a citable status while the row its anchor names is gone or moved.
+    "test_attest_source_presence.py": ("integration", "state-transitions"),
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),
