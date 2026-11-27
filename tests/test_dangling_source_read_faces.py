@@ -2,28 +2,29 @@
 
 The acceptance record
 ``docs/acceptance/LC-P4-PILOT-dangling-source-ids-2026-11-26.md`` measured
-every face the product has over the ledger's shape — a source holding
+every face the product has over the ledger's shape -- a source holding
 addresses, taken back: the source-id faces (``list_source_addresses``,
 ``inspect_source``) refuse it, and the report builder refuses a record that
-cites it, naming the source whose row is gone. But two faces the same record
-measured returned the record as **sound**:
+cites it, naming the source whose row is gone. The same reading found two
+faces that did **not** refuse, and this file is the witness that they now do.
 
-* the record's own read — ``list_task_records``, the layer operation the
-  service's ``GET /records`` serves — returned the citing record at all:
-  its status, its anchor ids and its source hash, with no refusal, while the
-  anchor's ``source_id`` named a source the ledger no longer holds; and
-* the attestation — ``attest_claim``, the layer operation the CLI's
-  ``task claim-attest`` serves — **advanced** that record into
-  ``user_attested``, a state a report may cite, without asking of the
-  anchor's source row a second time.
+* the record's own read -- ``list_task_records``, the layer operation the
+  service's ``GET /records`` serves -- returns the citing record, but as
+  ``extracted``: a status a report may not cite. The reading is sound and the
+  record is not citable, which is the whole of what a reader needs to know.
+* the attestation -- ``attest_claim``, the layer operation the CLI's
+  ``task claim-attest`` serves -- **refuses**. Reaching ``user_attested`` is
+  the door to a citable status, and a citation rests on its source; the store
+  runs C1 at that door (ADR-0004 I4), so a record whose anchor names a source
+  the ledger no longer holds cannot be advanced. The refusal names the source.
 
-A row whose source is gone reading back as if nothing were wrong is the
-finding that record exists to hold still, and this file is the witness of it.
-**What would make these red.** Either face learning to check the anchor's
-source row again — a record the ledger holds would stop being listed or
-attested for the better or the worse — or the removal cascade-deleting the
-record or its anchor, so the faces would refuse for a different reason than
-the one measured.
+**What would make these red.** The attestation learning to advance a record
+whose source is gone -- the behaviour the 2026-11-26 record measured -- or the
+removal cascade-deleting the record or its anchor, so the reading would refuse
+for a different reason than the one measured. The reading assertion is the
+control that keeps the second from standing in for the first: the record is
+still listed, still ``extracted``, so the attestation's refusal is C1's and not
+the cascade's.
 
 Nothing under the local material area is read: the shape is built in a
 workspace of its own, under a temporary directory, through the product's own
@@ -42,6 +43,8 @@ from store_support import env as _shared_env
 
 from labcairn.application import (
     ApplicationContext,
+    ApplicationRefusal,
+    ApplicationRefusedError,
     ClaimRequest,
     attest_claim,
     create_task,
@@ -56,6 +59,7 @@ from labcairn.evidence.gate import CITABLE_STATUSES
 from labcairn.evidence.index import load_anchor
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import EvidenceKind, VerificationStatus
+from labcairn.evidence.store import load_record
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
@@ -192,15 +196,21 @@ def _a_context_all(env: StoreEnv, workspace_root: Path) -> ApplicationContext:
 def test_the_records_read_back_the_record_whose_source_is_gone(
     env: StoreEnv, workspace_root: Path
 ) -> None:
-    """The record's own read lists it, in full, after its source row goes.
+    """The record's own read lists it, but as ``extracted`` -- not citable.
+
+    ``list_task_records`` is the face the service's ``GET /records`` serves. It
+    returns the citing record, status and anchor ids and source hash intact,
+    while the source row its anchor names is not in the ledger. That is sound:
+    the record is ``extracted``, a status **no report may cite**, so a reader
+    who stops at the read is told the truth -- here is the record, and it is not
+    yet citable. This is the control for the attestation witness below: the
+    record is still listed and still ``extracted``, so the attestation's refusal
+    is C1's and not the removal having taken the record with the row.
 
     **What would make this red.** A ``list_task_records`` that checked each
-    record's anchors against the sources table would stop listing a record
-    whose anchor names a taken-back row — and the face the service's
-    ``GET /records`` serves would stop returning a record the ledger holds.
-    The measurement the witness holds is the one the record says reads as
-    sound: the record comes back, status and anchor ids and source hash
-    intact, while the source row its anchor names is not in the ledger.
+    record's anchors against the sources table and stopped listing a record
+    whose anchor names a taken-back row, or a removal that cascade-deleted the
+    record -- either would leave the attestation with nothing to refuse.
     """
     context, stale_id, _survivor_id, _task_id, record, anchor_id = _a_shape(env, workspace_root)
     assert load_source(env.session, stale_id) is None, (
@@ -214,9 +224,13 @@ def test_the_records_read_back_the_record_whose_source_is_gone(
     )
     listed = records[0]
     assert listed == record, (
-        "the face returns the record the ledger holds — same fields, same anchors"
+        "the face returns the record the ledger holds -- same fields, same anchors"
     )
     assert listed.status is VerificationStatus.EXTRACTED
+    assert listed.status not in CITABLE_STATUSES, (
+        "a report may not cite the record while it is only extracted, so the "
+        "read tells a reader the truth without certifying anything"
+    )
     assert listed.anchor_ids == (anchor_id,)
     assert listed.source_content_hash is not None
     anchor = load_anchor(env.session.connection(), anchor_id)
@@ -226,37 +240,49 @@ def test_the_records_read_back_the_record_whose_source_is_gone(
     )
 
 
-def test_the_attestation_advances_a_record_whose_source_is_gone(
+def test_the_attestation_refuses_a_record_whose_source_is_gone(
     env: StoreEnv, workspace_root: Path
 ) -> None:
-    """A person's word puts the record into the citable set, with its source gone.
+    """A person's word may not make the record citable while its source is gone.
 
-    ``attest_claim`` is the face the CLI's ``task claim-attest`` serves, and
-    the record measured it returning the record advanced to
-    ``user_attested`` — a state a report may cite — while the anchor's source
-    row was not in the ledger. **What would make this red.** An attestation
-    that re-checked the anchor's source row, or a removal that took the
-    record with the row, and the advance would fail or be unnecessary;
-    the property held still is that the two faces do not ask the question.
+    ``attest_claim`` is the face the CLI's ``task claim-attest`` serves. The
+    2026-11-26 record measured it advancing the record to ``user_attested`` --
+    a state a report may cite -- while the anchor's source row was not in the
+    ledger. It now refuses: reaching a citable status is the door a citation
+    comes through, the store runs C1 at that door (ADR-0004 I4), and the refusal
+    names the source whose bytes could not be observed.
+
+    **What would make this red.** An attestation that stopped re-checking the
+    anchor's source -- the behaviour the record measured -- would advance the
+    record and this would fail; so would a refusal that did not name the source,
+    or one that fired because the removal had taken the record (the read witness
+    above is the control that it did not).
     """
     context, stale_id, _survivor_id, _task_id, record, anchor_id = _a_shape(env, workspace_root)
     assert load_source(env.session, stale_id) is None
 
-    attested = attest_claim(
-        context,
-        record.evidence_id,
-        user_id="the-reader",
-        note="I read it against the address.",
-        now=_MOMENT,
-    )
+    with pytest.raises(ApplicationRefusedError) as caught:
+        attest_claim(
+            context,
+            record.evidence_id,
+            user_id="the-reader",
+            note="I read it against the address.",
+            now=_MOMENT,
+        )
 
-    assert attested.record.status is VerificationStatus.USER_ATTESTED
-    assert attested.record.status in CITABLE_STATUSES, (
-        "the state the attestation reaches is one a report may cite from, and "
-        "the report builder is the only face that catches what the record cites"
+    assert caught.value.reason is ApplicationRefusal.CITATION_SOURCE_UNOBSERVABLE, (
+        "the refusal is the source one, not a generic ledger refusal"
+    )
+    assert stale_id in str(caught.value), (
+        "the refusal names the source whose bytes could not be observed, so a "
+        "reader is not left hunting for the row"
+    )
+    still = load_record(env.session.connection(), record.evidence_id)
+    assert still is not None and still.status is VerificationStatus.EXTRACTED, (
+        "a refused attestation leaves the record where it was -- not citable"
     )
     anchor = load_anchor(env.session.connection(), anchor_id)
     assert anchor is not None and anchor.source_id == stale_id, (
-        "the record that just became citable still rests on an address into a "
-        "source the ledger does not hold"
+        "the anchor is still in the ledger, so the refusal is C1's and not the "
+        "removal having taken the record with the row"
     )

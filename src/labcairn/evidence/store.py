@@ -79,6 +79,7 @@ from labcairn.evidence.states import (
 )
 
 __all__ = [
+    "DanglingSourceError",
     "LedgerError",
     "UnknownRecordError",
     "advance",
@@ -144,6 +145,17 @@ class LedgerError(RuntimeError):
 
 class UnknownRecordError(LedgerError):
     """No record with that id."""
+
+
+class DanglingSourceError(LedgerError):
+    """A record may not be certified citable while its source is gone or moved.
+
+    ADR-0004 I4: a record whose ``source_content_hash`` no longer matches the
+    source is invalidated, not refreshed. A source row the ledger no longer holds
+    is the strongest case of that -- the hash cannot be observed at all -- and a
+    record resting on such an anchor may not reach a citable status. The message
+    names the source so a reader is not left hunting for the row.
+    """
 
 
 def append_record(connection: Connection, record: EvidenceRecord) -> None:
@@ -511,6 +523,40 @@ def advance(
     return final
 
 
+def _require_source_still_supports(connection: Connection, record: EvidenceRecord) -> None:
+    """C1 again, at the door to a citable status (ADR-0004 I4).
+
+    ``advance`` runs C1 before ``verified_by_rule``; the attestation path does
+    not, so a record whose anchor names a source the ledger has since dropped --
+    or whose bytes have moved under it -- could be advanced into
+    ``user_attested``, a state a report may cite, with nothing asking of the
+    source a second time. This is the same check, run at the same door: the
+    source behind every anchor must still be present and unchanged. The verdict
+    is C1's own -- not a second implementation of it -- and the refusal names the
+    source, so a reader is not left hunting for the row.
+    """
+    from labcairn.evidence.index import LabCairnIndex
+
+    index = LabCairnIndex(connection)
+    verdict, _profile = _run_check(CheckKind.C1, record, index)
+    if verdict.outcome is CheckOutcome.PASS:
+        return
+    source_ids = sorted(
+        {
+            anchor.source_id
+            for anchor_id in record.anchor_ids
+            if (anchor := index.load_anchor(anchor_id)) is not None
+        }
+    )
+    named = ", ".join(repr(source_id) for source_id in source_ids)
+    where = f": could not confirm source {named}" if named else ""
+    raise DanglingSourceError(
+        f"Contract 2: {record.status.value} -> user_attested requires the source "
+        f"behind every anchor to be present and unchanged (C1), and it is not"
+        f"{where}. {verdict.detail}"
+    )
+
+
 def attest(
     connection: Connection,
     evidence_id: str,
@@ -565,6 +611,11 @@ def attest(
     # rule-driven move enforces applies here: what a report may cite may not
     # rest on an identifier nothing resolved.
     _require_supported_identifiers(connection, updated, VerificationStatus.USER_ATTESTED)
+    # ...and what a report may cite may not rest on a source the ledger no
+    # longer holds, or whose bytes have moved under it. The attestation is the
+    # door to a citable status, so C1 -- the check ``advance`` runs -- is run
+    # again here before the move (ADR-0004 I4).
+    _require_source_still_supports(connection, updated)
     connection.execute(
         sql_text("UPDATE evidence_records SET status = :status WHERE evidence_id = :eid"),
         {"status": VerificationStatus.USER_ATTESTED.value, "eid": evidence_id},
