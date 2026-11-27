@@ -239,6 +239,60 @@ def test_the_witness_ledger_reports_nothing_lost_when_nothing_was(tmp_path: Path
     )
 
 
+#: The same file with the witness **renamed** -- the same witness, holding a
+#: different property, so its name says so. The batch that closed the
+#: dangling-source gap renamed the witness that asserted an attestation
+#: succeeded over a source the ledger no longer held, into the one that
+#: asserts the refusal.
+LEDGER_RENAMED = """
+def test_a_witness_that_is_here_under_its_new_name() -> None:
+    assert True
+
+
+class TestAClass:
+    def test_a_method_witness(self) -> None:
+        assert True
+"""
+
+
+def test_the_witness_ledger_says_a_rename_is_not_a_loss(tmp_path: Path) -> None:
+    """A renamed witness is named as a replacement, and the report says so.
+
+    **Why this exists.** The ledger reported the deliberate rename as a lost
+    witness — a false alarm in the tool ``CLAUDE.md`` asks for after every
+    merge. **A report that cries loss over a rename teaches a reader to skim
+    past the one that matters**, and this is the tool that stands between a
+    silent loss and a reader who would otherwise notice.
+
+    **What it asserts, and what it does not.** The pairing is *reported*,
+    with both names and the file they share, so a reader sees what the tool
+    noticed and judges it. The tool does not decide a rename happened, and
+    **the exit code is unchanged**: a name that stopped existing is still a
+    name that stopped existing, so the tool must not go quiet because a
+    plausible pairing happened to exist.
+    """
+    repo, before, after = _ledger_repo(tmp_path, LEDGER_RENAMED)
+
+    finished = _run_the_ledger(repo, before, after)
+
+    assert finished.returncode == 1, (
+        "the ledger exited zero over a tree where a witness's name stopped "
+        "existing, which is the green report nobody questions:\n" + finished.stdout
+    )
+    assert "test_a_witness_that_is_here" in finished.stdout, finished.stdout
+    assert "replaced in the same file" in finished.stdout, (
+        "the ledger did not say that the lost name was replaced in the same "
+        "file, so the report reads as a plain loss:\n" + finished.stdout
+    )
+    assert "test_a_witness_that_is_here_under_its_new_name" in finished.stdout, (
+        "the ledger did not name the witness that stands in the lost one's "
+        "place, so a reader cannot check the pairing:\n" + finished.stdout
+    )
+    assert "A rename is not a loss" in finished.stdout, (
+        "the ledger did not say what the pairing means:\n" + finished.stdout
+    )
+
+
 #: Two files that each define a witness **with the same name** — a mirrored
 #: witness, which this project writes on purpose (the comment path's door
 #: mirrors the revision path's seven witnesses name for name). A collector
