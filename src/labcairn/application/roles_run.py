@@ -70,12 +70,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Sequence
-from dataclasses import asdict, dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final, Protocol, cast
 
-from pydantic import create_model
+from pydantic import Field, create_model
 
 from labcairn.application import records
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse, request_approval
@@ -92,10 +92,11 @@ from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
 from labcairn.security.permissions import Grant
 
 if TYPE_CHECKING:
+    from labcairn.application.chain import ChainDocumentShape
     from labcairn.roles.critique import ReviewVerdict
     from labcairn.roles.guidance import CardClaim, GuidanceCard, RuleCitation
     from labcairn.roles.models import AgentRoleSpec
-    from labcairn.roles.trajectory import TrajectoryCandidate
+    from labcairn.roles.trajectory import TrajectoryAbstention, TrajectoryCandidate
 
 
 #: The roles the loop can run. **Closed**: a role that is not here is not run,
@@ -263,6 +264,11 @@ class RoleRunQuestion:
     plan: ModelCallPlan
     material: MaterialAddress
     rule_citation: RuleCitation | None
+    #: The chain the question was built from, and the document's shape as
+    #: the chain reports it. **The run reads it to know which of the two
+    #: cases it is in** -- a chain that holds no comment at all, or a chain
+    #: that holds comments but not under the key the request named.
+    chain: _ChainFacts
 
 
 @dataclass(frozen=True)
@@ -333,14 +339,41 @@ class RoleRunResult:
     and the version the contract had when it was read -- because an output
     that does not say which contract governed it cannot be replayed against
     that contract.
+
+    **And a run that abstained carries its abstentions, not silence.** The
+    ``abstentions`` mapping names, for each role that ran, what that role
+    could not answer and why -- and **a role that abstained is a role that
+    ran**. A run that quietly did less than it reported is the failure this
+    whole shape exists to prevent, so the abstention is a first-class
+    output rather than a missing one.
+
+    **And each role's abstention is the role's own output**, exactly as its
+    judgement would have been: role A's is the abstention type, role B's is
+    the card the role produces when it cannot answer, and role C's is the
+    verdict. **A role that abstained is not a role that returned nothing**,
+    so its output is carried the way every other output is.
+
+    **The shape is the document's own**, so a reader can tell what the run
+    was about -- how many versions, how many marks, how many comments the
+    chain held -- without reading the material's text.
     """
 
     roles: tuple[str, ...]
     candidate: TrajectoryCandidate | None = None
+    #: Role A's abstention, when role A abstained. **It is the role's own
+    #: type**, and it carries no advisor's quote -- because there was no
+    #: advisor's words to carry.
+    abstention: TrajectoryAbstention | None = None
     card: GuidanceCard | None = None
     verdict: ReviewVerdict | None = None
     answer: str | None = None
     exchange_event_id: str | None = None
+    #: What each role that abstained could not answer, keyed by role id.
+    abstentions: Mapping[str, str] = field(default_factory=dict)
+    #: The document's shape, as the chain reported it. **It is present for
+    #: every run**, so a reader of the result and a reader of the event log
+    #: are looking at the same numbers.
+    shape: ChainDocumentShape | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -457,18 +490,18 @@ def the_role_run_question(
         guidance that makes a card to review; a named role has no contract,
         or its contract does not list the capability the run exercises; the
         memory holds no rule under the id the request names; the chain holds
-        no comment under the issue key, or a version named is outside the
-        project's graph; or the caller's declaration of the material is not
-        the material the chain holds.
+        comments but none under the issue key, or a version named is outside
+        the project's graph; or the caller's declaration of the material is
+        not the material the chain holds.
     """
     roles = _the_roles(request.roles)
     contracts = tuple(_the_contract(context, role_id=role_id) for role_id in roles)
+    chain = _the_chain(context, request)
     missing = _missing_judgements(request, roles)
-    if missing:
+    if missing and not chain.holds_no_comment:
         for contract in contracts:
             contract.require_allowed(CapabilityId.MODEL_REQUEST)
 
-    chain = _the_chain(context, request)
     material = _the_material(context, request, chain)
     _check_the_declaration(plan, material)
     rule_citation = _the_rule(context, request)
@@ -481,6 +514,7 @@ def the_role_run_question(
         plan=plan,
         material=material,
         rule_citation=rule_citation,
+        chain=chain,
     )
 
 
@@ -551,7 +585,12 @@ def request_role_run(
         roles = _the_roles(request.roles)
         missing = _missing_judgements(request, roles)
         approval_id: ApprovalId | None = None
-        if missing:
+        # **A chain that holds no comment asks no one's consent.** The
+        # roles abstain on their own account, so there is no model call to
+        # consent to and **no approval is asked for** -- an approval asked
+        # for a call that will never be made is a question the owner has to
+        # answer about nothing.
+        if missing and not question.chain.holds_no_comment:
             asked = request_approval(
                 context,
                 ApprovalRequest(use=_the_use(question), expires_at=expires_at),
@@ -665,6 +704,16 @@ def _run_role_run(
     roles = tuple(contract.role_id for contract in question.contracts)
     missing = _missing_judgements(request, roles)
 
+    # **A chain that holds no comment has no judgement to ask for.** The
+    # roles abstain on their own account, so there is nothing for the model
+    # to supply and **nothing for the model to be asked**. So the run spends
+    # nothing: no wire, no approval, and no refusal for want of a provider.
+    # **The gate-before-the-spend property is not weakened by this** -- the
+    # run does not reach the gate at all, because there is no spend to
+    # gate.
+    if question.chain.holds_no_comment:
+        return _the_abstaining_run(context, question, roles, at=at)
+
     answer: str | None = None
     exchange_event_id: str | None = None
     judgements = _Judgements(
@@ -726,10 +775,133 @@ def _run_role_run(
     return RoleRunResult(
         roles=result.roles,
         candidate=result.candidate,
+        abstention=result.abstention,
         card=result.card,
         verdict=result.verdict,
         answer=answer,
         exchange_event_id=exchange_event_id,
+        abstentions=result.abstentions,
+        shape=result.shape,
+    )
+
+
+def _the_abstaining_run(
+    context: ApplicationContext,
+    question: RoleRunQuestion,
+    roles: tuple[str, ...],
+    *,
+    at: datetime,
+) -> RoleRunResult:
+    """The run over a document that carries no advisor's comment.
+
+    **Each role abstains through its own primitive, and the abstention is
+    the role's output.** Role A has no mark to align, so it abstains with
+    its own abstention type; role B has nothing to diagnose, so it abstains
+    with the card the role already produces when it cannot answer; role C
+    has no card to review, so it says it cannot assess. **A role that
+    abstained is a role that ran**, and the run says so for each of them.
+
+    **And the abstention is recorded, so a reader can tell this run from a
+    commented one.** The annotation names the project, the roles and what
+    each role lacked — ids and counts, never the material's text — and the
+    run state beside it is closed, so the log says a run happened and what
+    it found.
+
+    **Nothing is spent.** No model was asked, no approval was consumed, and
+    the event log holds no exchange: the run never reached the wire, so the
+    gate that guards the wire was never reached either.
+    """
+    from labcairn.roles.guidance import abstaining_card
+    from labcairn.roles.trajectory import abstain_from_candidate
+
+    request = question.request
+    contracts = {contract.role_id: contract for contract in question.contracts}
+    shape = question.chain.shape
+    missing: dict[str, str] = {}
+    abstention = None
+    card = None
+    verdict = None
+
+    for role_id in roles:
+        if role_id == "trajectory":
+            abstention = abstain_from_candidate(
+                spec=contracts["trajectory"],
+                issue_key=request.issue_key,
+                what_is_missing="the chain holds no comment for this document",
+                note=(
+                    "the advisor wrote nothing in the margins of this document, so"
+                    " there is no mark to align a change against"
+                ),
+            )
+            missing[role_id] = abstention.what_is_missing
+        elif role_id == "guidance":
+            card = abstaining_card(
+                spec=contracts["guidance"],
+                issue_type="unknown",
+                what_is_uncertain="the advisor's remark about this document",
+                missing=("the chain holds no comment for this document",),
+            )
+            missing[role_id] = card.uncertainty.what_is_uncertain
+        else:
+            verdict = _the_critique_abstention(context, contracts["critique"], card)
+            missing[role_id] = verdict.repair_advice
+
+    records.record_role_abstention(
+        context,
+        project_id=shape.project_id,
+        roles=roles,
+        missing=missing,
+        run_id=None,
+        stage_id=None,
+        now=at,
+    )
+    return RoleRunResult(
+        roles=roles,
+        abstention=abstention,
+        card=card,
+        verdict=verdict,
+        abstentions=missing,
+        shape=shape,
+    )
+
+
+def _the_critique_abstention(
+    context: ApplicationContext,
+    spec: AgentRoleSpec,
+    card: GuidanceCard | None,
+) -> ReviewVerdict:
+    """Role C's verdict on a card that abstained.
+
+    **The verdict is the role's own.** Role C's vocabulary closes on
+    ``cannot_assess`` -- *"C's honest answer to evidence it cannot reach is
+    ``cannot_assess``, with the reason a person needs"* -- and that is
+    exactly the case here: the card under review named no evidence, so
+    there is nothing for the review to reach.
+
+    **And the handover carries its reason**, because the role's own rule is
+    that a verdict which does not stand hands the card to a person, and a
+    hand-over without its reason is a hand-over nobody can act on.
+    """
+    from labcairn.roles.critique import review_card
+
+    if card is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ROLE_RUN_CRITIQUE_WITHOUT_GUIDANCE,
+            "the critique ran without a card to review, and a review of nothing is not a review",
+        )
+    return review_card(
+        context,
+        spec=spec,
+        card=card,
+        verdict="cannot_assess",
+        repair_advice=(
+            "the chain holds no comment for this document, so there was no card for"
+            " the review to assess"
+        ),
+        handover_reason=(
+            "the advisor wrote nothing in the margins of this document, and a person"
+            " has to say what should be read instead"
+        ),
     )
 
 
@@ -802,12 +974,36 @@ def _missing_judgements(request: RoleRunRequest, roles: tuple[str, ...]) -> tupl
 
 @dataclass(frozen=True)
 class _ChainFacts:
-    """What the chain holds for the request: the comment's words and the rounds."""
+    """What the chain holds for the request: the comment's words and the rounds.
+
+    **``shape`` is the document's own, and it is here for a reason.** A
+    request whose chain holds **no comment at all** is not a mistake about
+    a comment; it is a request about a document that carries no advisor's
+    marks. The refusal and the report are told apart by the chain's state,
+    and the state is carried here so that the run can say which one it is.
+    """
 
     comment_texts: tuple[str, ...]
     version_ids: tuple[str, ...]
     edit_ids: tuple[str, ...]
     comment_version_id: str
+    #: The document's shape, as the chain reports it. **It is present for
+    #: every request**, commented or not, because the shape is what a
+    #: comment-less run reports and what a commented run's own record says
+    #: the material was.
+    shape: ChainDocumentShape
+
+    @property
+    def holds_no_comment(self) -> bool:
+        """Whether the chain holds no comment at all for this request.
+
+        **This is the whole of the difference between the two refusals.**
+        A chain that holds comments but none under the named key is a
+        mistake about a comment, and it is refused. A chain that holds no
+        comment at all is a document with no advisor's marks in it, and it
+        is reported.
+        """
+        return self.shape.comment_count == 0
 
 
 def _the_chain(context: ApplicationContext, request: RoleRunRequest) -> _ChainFacts:
@@ -817,56 +1013,81 @@ def _the_chain(context: ApplicationContext, request: RoleRunRequest) -> _ChainFa
     the loop sends is the same material the roles will work on, and the
     refusals the read raises are the roles' own.
 
-    :raises ApplicationRefusedError: the chain holds no comment under the
-        issue key, or a version named is outside the project's graph, or the
-        accepted edges leave the order ambiguous.
+    **And the two ways of holding no comment are told apart here.** The
+    request names an issue key, and the chain may hold no comment under it
+    for two quite different reasons:
+
+    * the chain holds **no comment at all** — the advisor wrote nothing in
+      the margins of this document. **That is a shape of the material**,
+      and the chain's own promise is that it is a shape the chain can
+      report and does not explain away. So the run proceeds and each role
+      says what it could not answer;
+    * the chain holds **comments, but not under this key** — the caller
+      asked about a mark that is not the one they meant. **That is a
+      mistake about a comment**, and it is refused by name, exactly as it
+      always was.
+
+    :raises ApplicationRefusedError: the chain holds comments but none under
+        the issue key, or a version named is outside the project's graph, or
+        the accepted edges leave the order ambiguous.
     """
     from labcairn.application import chain as chain_layer
-    from labcairn.roles.trajectory import TrajectoryInput, read_trajectory
 
-    chain = read_trajectory(
+    shape = chain_layer.read_document_shape(
         context,
-        trajectory_input=TrajectoryInput(
-            project_id=request.project_id,
-            version_ids=request.version_ids,
-            issue_keys=(request.issue_key,),
-        ),
+        project_id=request.project_id,
+        version_ids=request.version_ids,
     )
     held = chain_layer.read_comments(context, issue_keys=(request.issue_key,))
-    if not held:
+    if not held and shape.comment_count > 0:
         raise ApplicationRefusedError(
             ApplicationRefusal.ROLE_COMMENT_NOT_IN_THE_CHAIN,
             f"the chain holds no comment under the key {request.issue_key!r}",
         )
     return _ChainFacts(
-        comment_texts=tuple(comment.comment_text for comment in chain.comments),
-        version_ids=chain.ordered_version_ids,
-        edit_ids=tuple(edit.edit_action_id for edit in chain.edits),
-        comment_version_id=held[0].version_id,
+        comment_texts=tuple(comment.comment_text for comment in held),
+        version_ids=shape.version_ids,
+        edit_ids=(),
+        comment_version_id=held[0].version_id if held else "",
+        shape=shape,
     )
 
 
 def _the_material(
     context: ApplicationContext, request: RoleRunRequest, chain: _ChainFacts
 ) -> MaterialAddress:
-    """Where the comment's material is, computed from the chain.
+    """Where the material is, computed from the chain.
 
     **The loop does not take the caller's word for it.** The comment names
     a version, the version names a source, and the source names a path --
     and that path is what the run would send. So the address is a fact the
     loop can prove, and the caller's declaration is checked against it.
 
+    **And a chain that holds no comment takes its material from the
+    document's own first version.** There is no comment to name one, and
+    the run still has to say which material it is about -- the shape of the
+    document is the run's answer, so the material it answers about is the
+    document's. **The versions are in the accepted edges' order**, so the
+    first is the earliest round the project holds, and it is the same order
+    the role loop reads the chain in.
+
     :raises ApplicationRefusedError: the version names material the ledger
-        does not hold.
+        does not hold, or the chain holds no version at all.
     """
     from labcairn.application import chain as chain_layer
 
-    paths = chain_layer.read_material_paths(context, version_ids=(chain.comment_version_id,))
-    workspace_path = paths.get(chain.comment_version_id)
+    version_id = chain.comment_version_id or (chain.version_ids[0] if chain.version_ids else "")
+    if not version_id:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.CHAIN_SOURCE_NOT_FOUND,
+            "the chain holds no version, so the run has no address for the material it would send",
+        )
+    paths = chain_layer.read_material_paths(context, version_ids=(version_id,))
+    workspace_path = paths.get(version_id)
     if workspace_path is None:
         raise ApplicationRefusedError(
             ApplicationRefusal.CHAIN_SOURCE_NOT_FOUND,
-            f"the version {chain.comment_version_id!r} names material the ledger"
+            f"the version {version_id!r} names material the ledger"
             " does not hold, so the run has no address for the material it would send",
         )
     canonical = context.resource_for(workspace_path)
@@ -1161,7 +1382,13 @@ def _run_the_roles(
     roles: tuple[str, ...],
     judgements: _Judgements,
 ) -> RoleRunResult:
-    """Run the roles named, in order, each through its own operation."""
+    """Run the roles named, in order, each through its own operation.
+
+    **This is the path a chain that holds a comment takes.** A chain that
+    holds none is answered by :func:`_the_abstaining_run`, which is reached
+    before this one and never reaches a model -- so the roles here always
+    have a mark to work from, and each produces its own output.
+    """
     from labcairn.roles.critique import review_card
     from labcairn.roles.guidance import Uncertainty, build_card
     from labcairn.roles.trajectory import propose_candidate
@@ -1228,6 +1455,7 @@ def _run_the_roles(
         candidate=candidate,
         card=card,
         verdict=verdict,
+        shape=question.chain.shape,
     )
 
 
@@ -1251,6 +1479,7 @@ __all__ = [
     "RoleRunResult",
     "RoleRunRuleCitation",
     "RoleRunRun",
+    "RoleRunShape",
     "RoleRunTicket",
     "RoleRunTicketWire",
     "RoleRunUncertainty",
@@ -1322,6 +1551,23 @@ class RoleRunCandidate(Result):
     note: str
 
 
+class RoleRunAbstention(Result):
+    """Role A's abstention, as the wire carries it.
+
+    **The fields are the abstention's own**, and there is no
+    ``advisor_quote`` among them -- because there were no advisor's words to
+    carry. A wire shape that had an empty quote would be a shape in which a
+    role could say *"I judged the advisor's comment"* while having quoted
+    nothing.
+    """
+
+    role_id: str
+    role_version: int
+    issue_key: str
+    what_is_missing: str
+    note: str
+
+
 class RoleRunCard(Result):
     """Role B's card, as the wire carries it. The fields are the card's own."""
 
@@ -1355,6 +1601,21 @@ class RoleRunVerdict(Result):
     handover_reason: str | None
 
 
+class RoleRunShape(Result):
+    """The document's shape, as the wire carries it.
+
+    **The counts are the log's own currency**, and they are what a reader
+    needs in order to tell a run over a document that carries no advisor's
+    comment from a run over one that does. The material's text never travels
+    in it.
+    """
+
+    project_id: str
+    version_ids: tuple[str, ...]
+    revision_count: int
+    comment_count: int
+
+
 class RoleRunRun(Result):
     """What a run produced, as the wire carries it.
 
@@ -1364,6 +1625,12 @@ class RoleRunRun(Result):
     from schemas. **Nothing is added and nothing is re-spelled**: a field
     the layer's result carries reaches this shape unchanged, so the wire
     and the CLI's ``--json`` are the same bytes.
+
+    **And a run that abstained says so on the wire.** ``abstentions`` names,
+    for each role that ran, what that role could not answer -- **an absent
+    role is a role that answered, and an abstention is a role that ran**.
+    A wire that dropped the abstentions would report a run that did less
+    than it did, which is the failure the whole shape exists to prevent.
     """
 
     roles: tuple[str, ...]
@@ -1374,8 +1641,18 @@ class RoleRunRun(Result):
     #: The exchange record the model call landed in, when one was made.
     exchange_event_id: str | None
     candidate: RoleRunCandidate | None = None
+    #: Role A's abstention, when role A abstained. **It is carried the way
+    #: the candidate is carried** -- because a role that abstained is a role
+    #: that ran, and its output is the abstention.
+    abstention: RoleRunAbstention | None = None
     card: RoleRunCard | None = None
     verdict: RoleRunVerdict | None = None
+    #: What each role that abstained could not answer, keyed by role id.
+    abstentions: dict[str, str] = Field(default_factory=dict)
+    #: The document's shape, as the chain reported it. **It is present for
+    #: every run**, so a reader of the wire and a reader of the event log
+    #: are looking at the same numbers.
+    shape: RoleRunShape | None = None
 
 
 class RoleRunTicketWire(Result):
@@ -1513,8 +1790,32 @@ def the_role_run_run(result: RoleRunResult) -> RoleRunRun:
         answer=result.answer,
         exchange_event_id=result.exchange_event_id,
         candidate=None if result.candidate is None else _the_candidate_wire(result.candidate),
+        abstention=None if result.abstention is None else _the_abstention_wire(result.abstention),
         card=None if result.card is None else _the_card_wire(result.card),
         verdict=None if result.verdict is None else _the_verdict_wire(result.verdict),
+        abstentions=dict(result.abstentions),
+        shape=None if result.shape is None else _the_shape_wire(result.shape),
+    )
+
+
+def _the_abstention_wire(abstention: TrajectoryAbstention) -> RoleRunAbstention:
+    """Role A's abstention, as the wire carries it."""
+    return RoleRunAbstention(
+        role_id=abstention.role_id,
+        role_version=abstention.role_version,
+        issue_key=abstention.issue_key,
+        what_is_missing=abstention.what_is_missing,
+        note=abstention.note,
+    )
+
+
+def _the_shape_wire(shape: ChainDocumentShape) -> RoleRunShape:
+    """The document's shape, as the wire carries it."""
+    return RoleRunShape(
+        project_id=shape.project_id,
+        version_ids=shape.version_ids,
+        revision_count=shape.revision_count,
+        comment_count=shape.comment_count,
     )
 
 
@@ -1593,7 +1894,11 @@ def run_role_run_service(
         missing = _missing_judgements(
             ticket.request, tuple(contract.role_id for contract in ticket.contracts)
         )
-        if missing:
+        # **A run over a document with no comment needs no transport.** The
+        # roles abstain on their own account and no model is asked, so the
+        # absence of a backend is not a reason to refuse: there is nothing
+        # for the transport to carry.
+        if missing and not ticket.question.chain.holds_no_comment:
             # **This refusal belongs to the service, so the service records
             # it.** It never reaches `run_role_run`, whose wrapper records
             # the refusals of the spend; recording it here keeps every

@@ -16,9 +16,9 @@ If ``seq`` were ever the rowid again, the two assertions cannot both hold.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import get_origin
+from typing import get_args, get_origin
 
 import pytest
 from sqlalchemy import inspect, select, text
@@ -412,7 +412,7 @@ def test_the_vocabulary_constraint_lists_exactly_the_frozen_enum(env: StoreEnv) 
     ``models.py`` builds these constraints from :class:`EventType` at import
     time, so a new event type reaches the database automatically. This asserts
     the generated SQL really does contain every member and no non-member — the
-    link between "the contract has 33 types" and "the table accepts 33 types",
+    link between "the contract has 34 types" and "the table accepts 34 types",
     which is the property a reader of the migration alone could not verify.
     """
     session = env.session
@@ -423,8 +423,8 @@ def test_the_vocabulary_constraint_lists_exactly_the_frozen_enum(env: StoreEnv) 
     for value in members:
         assert f"'{value}'" in ddl, f"{value} is missing from the events constraints"
     assert "'task_vaporised'" not in ddl
-    # 33 members, each named in more than one constraint.
-    assert len(members) == 33
+    # 34 members, each named in more than one constraint.
+    assert len(members) == 34
 
 
 def _minimal_payload(schema: type[LabCairnModel]) -> dict[str, object]:
@@ -432,21 +432,52 @@ def _minimal_payload(schema: type[LabCairnModel]) -> dict[str, object]:
 
     Offsets the sweep's job: it proves every type can reach the database, and a
     schema is now part of what "can reach" means.
+
+    **And every spelling of a collection is answered, with a value of the
+    item's own type.** The schemas spell their collections as frozen tuples
+    (``tuple[str, ...]``) and their mappings as ``Mapping[str, str]``, and a
+    builder that knew only ``list`` would put ``0`` into a tuple field -- a
+    payload the event model refuses, which would look like a defect in the
+    event rather than in the builder. And a list of the wrong item type is
+    refused the same way, so the item's own value is what goes in.
     """
     payload: dict[str, object] = {}
     for name, field in schema.model_fields.items():
         if field.is_required():
             origin = get_origin(field.annotation)
-            if origin is list:
+            if origin is list or origin is tuple:
                 # One item: a list a schema bounds below (``min_length=1``)
-                # is satisfied by a single element, and an untyped mapping
-                # element is satisfied by an empty one.
-                payload[name] = [{}]
+                # is satisfied by a single element, and the element is a
+                # value of the item's own type.
+                args = get_args(field.annotation)
+                payload[name] = [_minimal_value(args[0])] if args else [{}]
+            elif origin is dict or origin is Mapping:
+                payload[name] = {}
             elif field.annotation is str:
                 payload[name] = "x"
             else:
                 payload[name] = 0
     return payload
+
+
+def _minimal_value(annotation: object) -> object:
+    """A value that satisfies *annotation*, and only that.
+
+    **The item's own type, not a guess.** A list of strings wants a string
+    and a list of mappings wants a mapping; an annotation the builder does
+    not know is answered with an empty mapping, which is what the list
+    branch has always put there.
+    """
+    if annotation is str:
+        return "x"
+    if annotation is bool:
+        return False
+    if annotation is int:
+        return 0
+    origin = get_origin(annotation)
+    if origin is dict or origin is Mapping:
+        return {}
+    return {}
 
 
 @pytest.mark.parametrize("event_type", list(EventType), ids=lambda t: t.value)
