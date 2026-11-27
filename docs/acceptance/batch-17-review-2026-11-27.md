@@ -215,9 +215,20 @@ source's id named when the row is gone or its bytes have moved under it.
 `CITATION_SOURCE_UNOBSERVABLE`. The origin witness is **flipped**: the
 reading stays as the control that the record is only `extracted` and not
 citable, and the attestation now asserts the refusal. Four witnesses were
-added, and the mutation that restores the pre-fix early return turns the
-four refusal witnesses red and leaves both controls green — **re-checked
-independently here, not taken on the window's word.**
+added by the window, and the mutation that restores the pre-fix early
+return turns the four refusal witnesses red and leaves both controls
+green — **re-checked independently here, not taken on the window's word.**
+
+**A fifth was added here, because the surface's answer was a claim rather
+than a measurement.** The fix's record says the CLI and the API inherit
+the layer's refusal, and that inheritance is a claim about how a surface
+renders an error. Measuring it by hand — driving the console script
+whole, record a claim, take the source back with `sources remove`, then
+attest — gave exit code **3**, the reason
+`citation_source_unobservable`, and the source's id in the message. **A
+hand measurement is not a witness**, so the path is now driven from the
+command line by a test, and the mutation turns it red with the other
+four.
 
 Two edges the fix's own record names, and this review does not close
 either: `advance` to `verified_by_rule` is not re-guarded against a
