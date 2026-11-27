@@ -284,3 +284,15 @@ matching their names in the source is a tool that can stop finding them**,
 and then it reports *"LOST -- none"* over a tree that lost one — which is
 the green report nobody questions. `tests/test_scaffolding.py` runs it
 against a tree that really did lose a witness.
+
+**A rename is reported as a rename, and the exit code does not soften.**
+A witness whose property changed is often renamed — the batch that closed
+the dangling-source gap renamed the one that asserted an attestation
+succeeded over a source the ledger no longer held into the one that
+asserts the refusal. **The ledger prints that pairing, with both names and
+the file they share**, so a reader sees what the tool noticed and judges
+it; the tool does not decide a rename happened. The exit code stays
+conservative — a name that stopped existing is still a name that stopped
+existing — so the tool never goes quiet because a plausible pairing
+happened to exist. A report that cries loss over a rename teaches a reader
+to skim past the one that matters.
