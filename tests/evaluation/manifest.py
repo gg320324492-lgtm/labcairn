@@ -288,6 +288,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # The report's read-side door: the evidence gate runs before a report
     # says something, over the records the document states as established.
     "test_report_evidence_gate.py": ("e2e", "cli-task"),
+    # The same judgement where a reader can see it: the command line renders
+    # which records the gate judged, and which it did not judge at all.
+    "test_cli_report_gate_rendering.py": ("e2e", "cli-task"),
     "test_cli_path_refused_catch.py": ("negative", "path-traversal"),
     "test_cli_refusal_enumeration.py": ("negative", "missing-material"),
     "test_cli_serve_bind_refusal.py": ("negative", "path-traversal"),
@@ -630,6 +633,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_skill_approval.py": ("unit", "approvals"),
     "test_skill_contracts.py": ("unit", "typed-contracts"),
     "test_skill_execution.py": ("unit", "state-transitions"),
+    # The states the product can reach: `advance` is the only writer of
+    # `verified_by_rule`, and no surface calls it, so the class the evidence
+    # layer names is unreachable in the product as it stands.
+    "test_surface_status_reach.py": ("unit", "state-transitions"),
     "test_skill_ledger.py": ("unit", "artifact-hashes"),
     # LC-P1-06's G2 debt: the same clause as `test_skill_ledger.py`, witnessed
     # against the table instead of a list. The read-time check is the property,
@@ -698,6 +705,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # Every Han run in the tree, registered by digest, length and class: what
     # the Chinese *is*, and not only how much of it there is.
     "test_chinese_run_classes.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The revisions the records cite: a hash the tree's own documents name
+    # must be a revision the tree has, and the rewrite that re-pointed
+    # seventy-two of them had no witness that could notice a wrong digit.
+    "test_record_citations.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),
     # The quickstart's command list and the README's against each other. The

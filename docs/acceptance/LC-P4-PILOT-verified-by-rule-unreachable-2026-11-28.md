@@ -3,10 +3,15 @@
 **Ticket:** LC-P4-PILOT (the gap the owner named on 2026-11-28: the store's
 `advance` has no caller).
 **Date:** 2026-11-28.
-**Tree:** `9ee806f9f32c4cf912d8f26ef3fb2480d3687371` (`main`'s tip as the
+**Tree:** `58486d2180613aace95168d876c036221fd189af` (`main`'s tip as the
 batch started, carried on the worktree branch
 `claude/adoring-bardeen-ff1f33`). The measurement below was taken at that
 commit; the record and the witness it names are the only files this work adds.
+**That hash moved once.** The delivery-line rewrite re-hashed the commit the
+batch started from, and the batch was measured at the tree it had before the
+rewrite — the same tree, under the name it has now. The tree's witness for
+the citations the records make (`tests/test_record_citations.py`) is what
+found the old name still written here.
 Windows 11 Pro (10.0.26300 x64, AMD64), Python 3.12.13 (the project's own
 `.venv`).
 **Status:** local evidence only. No push, no pull request, no CI run, no
