@@ -57,6 +57,7 @@ from labcairn.application import (
     record_claim,
 )
 from labcairn.application.material_ingestion import remove_source
+from labcairn.cli.commands import EXIT_REFUSED
 from labcairn.db.repository import load_source
 from labcairn.evidence.index import load_anchor, read_content_hash
 from labcairn.evidence.record import EvidenceRecord
@@ -319,3 +320,101 @@ def test_the_application_refuses_with_its_own_code(env: StoreEnv, workspace_root
     assert source_id in str(caught.value)
     still = load_record(env.session.connection(), record.evidence_id)
     assert still is not None and still.status is VerificationStatus.EXTRACTED
+
+
+# --------------------------------------------------------------------------- #
+# the surface inherits the answer
+# --------------------------------------------------------------------------- #
+
+
+def test_the_cli_refuses_with_the_reason_and_the_source_named(
+    tmp_path: Path,
+) -> None:
+    """The console script is reached, and it refuses the way the layer does.
+
+    **The layer's answer is the surface's answer.** The rule lives in the
+    store, so a surface that renders an
+    :class:`~labcairn.application.refusal.ApplicationRefusedError` inherits
+    it without spelling anything of its own -- but *inheriting* is a claim
+    about the rendering, and this file witnesses it rather than assuming it:
+    the command exits with the refusal code, the machine-readable reason is
+    the layer's own, and the message names the source the ledger dropped.
+
+    **The whole path is driven from the console script**, so the claim is
+    about what a person types: record a claim, take the source back with
+    ``sources remove``, then attest. Nothing is written on the way out.
+    """
+    from test_cli_support import run_cli
+
+    workspace = tmp_path / "workspace"
+    assert run_cli("--workspace", str(workspace), "init").returncode == 0
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Read the literature",
+        "--objective",
+        "Establish what the corpus says about the question.",
+        "--criterion",
+        "A cited answer, or an honest 'not established'.",
+        "--json",
+    )
+    assert created.returncode == 0, created.stderr
+
+    materials = workspace / "materials"
+    materials.mkdir(exist_ok=True)
+    (materials / "one.csv").write_text("name,role\n4.2,control\n", encoding="utf-8")
+    ingested = run_cli("--workspace", str(workspace), "sources", "ingest", "--json")
+    assert ingested.returncode == 0, ingested.stderr
+    source_id = str(ingested.json()["source_ids"][0])
+
+    addressed = run_cli(
+        "--workspace", str(workspace), "sources", "addresses", "--source", source_id, "--json"
+    )
+    assert addressed.returncode == 0, addressed.stderr
+    address = next(item for item in addressed.json() if item["text"].strip() == "4.2")
+
+    claimed = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "claim",
+        "--source",
+        source_id,
+        "--address",
+        address["locator_key"],
+        "--kind",
+        "numeric",
+        "--value",
+        "4.2",
+        "--unit",
+        "dimensionless",
+        "--json",
+    )
+    assert claimed.returncode == 0, claimed.stderr
+    evidence_id = str(claimed.json()["record"]["evidence_id"])
+
+    removed = run_cli(
+        "--workspace", str(workspace), "sources", "remove", "--source", source_id, "--json"
+    )
+    assert removed.returncode == 0, removed.stderr
+
+    refused = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "claim-attest",
+        evidence_id,
+        "--user",
+        "the-advisor",
+        "--note",
+        "I read it against the table.",
+        "--json",
+    )
+
+    assert refused.returncode == EXIT_REFUSED, refused.stdout
+    payload = refused.json()
+    assert payload["reason"] == ApplicationRefusal.CITATION_SOURCE_UNOBSERVABLE.value
+    assert source_id in payload["message"]

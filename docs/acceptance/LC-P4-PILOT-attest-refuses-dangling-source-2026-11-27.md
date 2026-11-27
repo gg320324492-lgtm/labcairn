@@ -85,14 +85,21 @@ them through the existing path.
   `attest_claim` raises `ApplicationRefusedError` with reason
   `CITATION_SOURCE_UNOBSERVABLE`, the message names the source, and the record
   stays `extracted`.
-* `tests/test_attest_source_presence.py` — new, four witnesses:
+* `tests/test_attest_source_presence.py` — new, five witnesses:
   1. a present, unchanged source still attests (the control that the check is not
      a blanket refusal);
   2. a source the ledger no longer holds refuses the store's `attest` with
      `DanglingSourceError` naming the source, the record left `extracted`;
   3. a source whose bytes moved under it — the hash no longer matches, the source
      row still present — refuses the same way (ADR-0004 A2's drift);
-  4. `attest_claim` maps the refusal onto `CITATION_SOURCE_UNOBSERVABLE`.
+  4. `attest_claim` maps the refusal onto `CITATION_SOURCE_UNOBSERVABLE`;
+  5. **the console script refuses with the layer's reason and the source's id
+     named**, driven whole from the command line — record a claim, take the
+     source back with `sources remove`, then attest — so the claim that the
+     surface *inherits* the layer's answer is witnessed at the surface rather
+     than assumed. This fifth witness was added by the integrating session,
+     which measured the same path by hand first and found the exit code, the
+     reason and the source's id all present; the witness holds it from then on.
 
 ## The mutation
 
@@ -104,12 +111,15 @@ behaviour the origin record measured. Under M1:
 * `tests/test_attest_source_presence.py::test_a_missing_source_refuses_the_store_attestation_and_names_it` — **red**;
 * `tests/test_attest_source_presence.py::test_a_moved_source_refuses_the_store_attestation_and_names_it` — **red**;
 * `tests/test_attest_source_presence.py::test_the_application_refuses_with_its_own_code` — **red**;
+* `tests/test_attest_source_presence.py::test_the_cli_refuses_with_the_reason_and_the_source_named` — **red**;
 * the two controls — the reading witness and `test_a_present_unchanged_source_still_attests` — **green**.
 
-Four red, two green (exit 1). The two that stay green are the point: a broken
-implementation that refused *everything* would turn them red, so the four that
+Five red, two green (exit 1). The two that stay green are the point: a broken
+implementation that refused *everything* would turn them red, so the five that
 turned red are witnesses of *this* property and not of a blanket refusal. The
-mutation was restored; `git status` shows `src/` carrying only the fix.
+mutation was restored; `git status` shows `src/` carrying only the fix. The
+integrating session re-applied M1 independently after adding the fifth
+witness, and got the same five red and two green.
 
 ## What the fix does not cover
 
@@ -133,7 +143,7 @@ mutation was restored; `git status` shows `src/` carrying only the fix.
 
 * The gap, its cause and the faces it was measured through — the origin record,
   tree `124e843542b047c40712ddb01dd35642d0ce5f33`.
-* The fix's behaviour, the four witnesses, the two controls and the M1 mutation
+* The fix's behaviour, the five witnesses, the two controls and the M1 mutation
   result — this worktree, based on
   `3d99b07a2c3d45f6dd680fc1c82fca6ef38f0935`, local run on Windows (Python
   3.12.10), the commit that carries this record. Local evidence only; no runner
