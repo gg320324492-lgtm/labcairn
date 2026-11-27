@@ -1441,12 +1441,22 @@ def task_report(
     the claims were read from is named in it, so a later change to that material
     marks this revision stale.
 
+    **The gate's verdict is on the human rendering too.** The operation runs the
+    evidence gate over the records the report states as established, and the
+    result carries both halves of that statement: the records the gate judged,
+    and the records the report names without judging. The API returns them
+    already; the command line now says the same thing, so a reader at the
+    terminal sees the gate's extent rather than only that a report was written.
+    Ids, counts and outcomes — never the records' text.
+
     **A refusal writes nothing.** The content checks run before the first byte of
     any form is drawn, so a report the material does not support is refused with
     ``report_content_refused`` and the check that refused it, and no half-truth is
-    left in the output area.
+    left in the output area. A gate that objects refuses the report the same
+    way, and the refusal names every objection.
     """
     from labcairn.application import ReportRequest, render_report
+    from labcairn.cli import render
     from labcairn.cli.models import emit_model
     from labcairn.cli.workspace import application_context, locate
 
@@ -1468,6 +1478,7 @@ def task_report(
             "beside it under the task's output area, and `labcairn artifacts list` "
             "names them."
         )
+        _console().print(render.render_report_gate(rendered))
 
 
 @task_app.command("claim")

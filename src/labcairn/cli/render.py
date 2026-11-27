@@ -23,6 +23,7 @@ from rich.table import Table
 from rich.text import Text
 
 from labcairn.application.artifacts import ArtifactView
+from labcairn.application.reports import ReportRendered
 from labcairn.application.sources import SourceView
 from labcairn.application.stages import StageRun, TaskPlan
 from labcairn.application.tasks import TaskState
@@ -270,6 +271,44 @@ def render_artifacts(models: tuple[ArtifactView, ...]) -> RenderableType:
             receipt.staleness.value,
         )
     return Panel(table, title="artifacts", expand=False)
+
+
+def render_report_gate(model: ReportRendered) -> RenderableType:
+    """What the evidence gate judged, and what it did not.
+
+    **The two lists are one statement, and the drawing shows both.** The gate
+    judged the records the report states as established, and the report also
+    names records it does not state as established — a claim whose status it
+    prints, and the records it discloses as unresolved. A reader who sees only
+    the judged list cannot tell what the other list holds, and the two together
+    are every record the report carries.
+
+    **Ids, counts and outcomes; never the records' text.** A record's words are
+    the material, and the tree's own rule is that material does not enter the
+    repository and does not travel in a rendering either. What travels is the
+    id, so a reader can look the record up in the ledger.
+
+    **A gate that refused did not get here.** The refusal is rendered by the
+    refusal path, with its reason, and this function is not called: a report
+    that the gate refused was never written, so there is nothing to draw.
+    """
+
+    gate = model.evidence_gate
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    verdict = "passed" if gate.passed else "did not pass"
+    table.add_row("evidence gate", f"{verdict}, over {len(gate.considered)} record(s)")
+    table.add_row(
+        "judged",
+        ", ".join(gate.considered) if gate.considered else "(none)",
+    )
+    table.add_row(
+        "unjudged",
+        ", ".join(model.unjudged_records) if model.unjudged_records else "(none)",
+    )
+    table.add_row("findings", str(len(gate.findings)))
+    return Panel(table, title="evidence gate", expand=False)
 
 
 def render_suggestion_asked(model: SuggestionAsked) -> RenderableType:
