@@ -1468,12 +1468,17 @@ def test_gitleaks_guard_still_accepts_the_repository_config(repo_root: Path) -> 
 #: whose runs were quotations of external material were given English
 #: paraphrases instead: three of them carry no Chinese at all and dropped out
 #: of this table, and every remaining value was re-measured, not carried
-#: forward. This is not a ban on Chinese: the project's own voice is Chinese
-#: in the ADRs, the README is bilingual, and the OOXML fixtures hold
-#: synthetic sentences. It is a pin, so that a new long Chinese run -- the
-#: shape of a quoted comment, a distilled rule statement or a manuscript
-#: paragraph -- cannot enter without the person who added it re-measuring it
-#: here.
+#: forward. Re-measured again on 2026-11-27, by the classification pass:
+#: three files dropped out because their Chinese did not belong -- the trial
+#: record's and the exit decision's corpus labels were redacted, and the task
+#: breakdown's example name became an English phrase -- and every value that
+#: remained was measured again, not carried. This is not a ban on Chinese:
+#: the project's own voice is Chinese in the ADRs, the README is bilingual,
+#: and the OOXML fixtures hold synthetic sentences. It is a pin, so that a
+#: new long Chinese run -- the shape of a quoted comment, a distilled rule
+#: statement or a manuscript paragraph -- cannot enter without the person who
+#: added it re-measuring it here. What each run *is* is pinned separately, by
+#: class, in ``tests/test_chinese_run_classes.py`` and the registry it holds.
 CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "README.md": 29,
     "README.zh-CN.md": 29,
@@ -1497,17 +1502,14 @@ CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "docs/research/upstream-study/PeerRead.md": 11,
     "tests/test_version_alignment.py": 11,
     "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md": 4,
-    "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md": 7,
     "docs/acceptance/LC-P3-08-review-2026-11-22-1.md": 11,
     "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md": 5,
-    "docs/acceptance/LC-P3-08-exit-decision-2026-11-22.md": 7,
     "docs/plans/PHASE_4-execution-plan.md": 27,
     "docs/plans/PHASE_2-work-orders.md": 10,
     "tests/test_status_consistency.py": 5,
     "tests/test_cli_json_forms.py": 2,
     "tests/test_pilot_decisions.py": 2,
     "docs/plans/LC-P2-06-task-breakdown.md": 8,
-    "docs/plans/LC-P2-11-task-breakdown.md": 8,
     "src/labcairn/db/models.py": 3,
     "src/labcairn/security/permissions.py": 8,
     "tests/test_consent_withdrawal.py": 8,
@@ -1590,6 +1592,32 @@ def test_the_tree_carries_no_more_chinese_than_was_measured(repo_root: Path) -> 
     assert not removed, (
         f"a pinned file lost its Chinese and the table was not re-measured: {removed}"
     )
+
+
+def test_every_ceiling_file_is_classified(repo_root: Path) -> None:
+    """The quantity pin and the classification registry cover the same files, and agree.
+
+    Two measurements of the same tree can drift apart: a file pinned here but
+    never classified, or classified but not pinned, is a file one of the two
+    watches does not see. This holds them together. The registry's per-run
+    lengths are also checked against the pinned ceiling -- the longest run it
+    records must be the run this table pins -- so a re-pin of one table alone
+    reddens here.
+    """
+    registry = json.loads(
+        (repo_root / "tests" / "cjk_run_classes.json").read_text(encoding="utf-8")
+    )
+    files = registry["files"]
+    assert set(files) == set(CJK_RUN_CEILINGS), (
+        f"files pinned but not classified: {sorted(set(CJK_RUN_CEILINGS) - set(files))}; "
+        f"files classified but not pinned: {sorted(set(files) - set(CJK_RUN_CEILINGS))}"
+    )
+    for rel, entry in files.items():
+        longest = max(length for _, length, _ in entry["runs"])
+        assert longest == CJK_RUN_CEILINGS[rel], (
+            f"{rel}: the classification records a longest run of {longest}, "
+            f"the ceiling pin says {CJK_RUN_CEILINGS[rel]}"
+        )
 
 
 def test_the_records_that_held_the_corpus_are_clean(repo_root: Path) -> None:

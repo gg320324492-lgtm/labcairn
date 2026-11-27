@@ -23,9 +23,15 @@ sha256 `23622d2d078f65c149a1cca19a7af18d4aaf7c86bd710d1e5968001f82dc2bc0`):
 
 | file | role | bytes | sha256 |
 |---|---|---|---|
-| `MNBs氯消毒大肠杆菌4.0.docx` | student-original (pre-advisor base) | 1 496 950 | `95a7e977b1f420bb5fab1f610a7c2e4b919adb76c76fa6e111bc85914e2980c2` |
-| `MNBs氯消毒大肠杆菌5批注.docx` | advisor-annotated (the trial's working sample) | 8 871 367 | `a7a38132cf35d3632c4cb8aacba910994e9ad7e8b27413761260ade2d6502278` |
-| `MNBs氯消毒大肠杆菌7批注.docx` | advisor-annotated (second batch copy) | 10 815 179 | `0d1a6eb555d6105fcfa08edecb2aa09efe3dc6b293ddb9d10048acbddf841c49` |
+| `MNBs-<subject redacted>-4.0.docx` | student-original (pre-advisor base) | 1 496 950 | `95a7e977b1f420bb5fab1f610a7c2e4b919adb76c76fa6e111bc85914e2980c2` |
+| `MNBs-<subject redacted>-5-annotated.docx` | advisor-annotated (the trial's working sample) | 8 871 367 | `a7a38132cf35d3632c4cb8aacba910994e9ad7e8b27413761260ade2d6502278` |
+| `MNBs-<subject redacted>-7-annotated.docx` | advisor-annotated (second batch copy) | 10 815 179 | `0d1a6eb555d6105fcfa08edecb2aa09efe3dc6b293ddb9d10048acbddf841c49` |
+
+**The labels are redacted (2026-11-27).** The original names carried the
+manuscript's title-of-record, and **a label that carries material is
+material too**: the tree keeps desensitised metadata, and the names live
+in the workspace's supply record named above. Each row is still
+identified by its byte count and its sha256.
 
 The advisor's marks in the working sample: **91 sentence-level
 insertions and 15 deletions** (tracked revisions) plus review markers —
@@ -43,7 +49,7 @@ source: `installer/BUILD-SOURCE.txt`.
 **Trial workspace:** `E:/trial-material/trial-workspace/` (task
 `01a1fe12-fd9f-764f-8bcf-f5cbd57bdcf6`, source
 `src-7aeb09482c91283a`). **Stripped manuscript**
-(`MNBs氯消毒大肠杆菌5批注-stripped.docx`, the loop's input):
+(`MNBs-<subject redacted>-5-annotated-stripped.docx`, the loop's input):
 sha256 `7027b1843ebf34ac14050cca4f4f7682881e6229b7a79bf7510a83d8f45ebdaf`,
 8 804 648 B.
 
