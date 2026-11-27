@@ -569,6 +569,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # the layer's operation behind the same guard, and the CLI's command
     # reaches the same operation -- one serialization, two surfaces.
     "test_role_run_entry.py": ("integration", "api-auth"),
+    # A document the advisor never wrote in can take part in the role chain:
+    # the branch is taken on the chain's state, each role abstains through its
+    # own primitive, and nothing is spent.
+    "test_role_run_commentless.py": ("integration", "api-auth"),
     # Batch 8, window I: the judgement's vocabulary. A part carrying a field
     # the role does not take is refused by name -- the API already refuses it,
     # and the CLI's own docstring promised that it would too. The vocabulary
@@ -681,6 +685,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_baseline_document.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_docx_fixture_corpus.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_no_reference_leakage.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The tree's whole Han load, pinned beside the longest-run budget: a name
+    # of any length moves the number the longest run cannot see.
+    "test_chinese_totals_pin.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),
     # The quickstart's command list and the README's against each other. The
