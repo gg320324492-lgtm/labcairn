@@ -643,11 +643,11 @@ def _the_comments_held(context: ApplicationContext, project_id: str) -> int:
 
     **And the count is the project's, not one version's.** The comments the
     chain holds are read by key, and a key names a comment wherever it was
-    written — :func:`read_comments` answers for the whole project. **So
-    the count and that read have to agree about the same fact**, and a
-    count narrowed to the versions the caller named would say "no comment"
-    about a project that holds one, while the read under the same key
-    found it. The versions narrow the *shape's* revisions and its order;
+    written — :func:`read_comments` narrows by neither version nor project.
+    **So the count and that read have to agree about the comments the run is
+    about**, and a count narrowed to the versions the caller named would say
+    "no comment" about a project that holds one, while the read under the
+    same key found it. The versions narrow the *shape's* revisions and its order;
     they do not narrow the comments.
 
     **The versions are still checked.** The order above was computed by the
