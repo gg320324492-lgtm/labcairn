@@ -403,9 +403,9 @@ carry the same sentence and are corrected with it.
 
 **Why not on pull requests.** The harness runs the same test files the
 twelve shard jobs already run. Its cost on an Ubuntu runner over the five
-offline classes is 3886.3 s (about 65 minutes) — the
+offline classes is 3999.4 s (about 67 minutes) — the
 runner-measured per-file costs in `.github/ci-shards.json`, anchored at
-`486a71c548dadd452c882fa9c4fb09b363878b88`. On a pull request it would add
+`40609d659fc434556fbd8f88ddd8bc4c3e04f3d4`. On a pull request it would add
 about forty minutes to the wall clock and become the new bottleneck.
 A schedule produces the report without touching that clock.
 

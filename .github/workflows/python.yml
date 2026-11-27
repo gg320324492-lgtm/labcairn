@@ -203,16 +203,16 @@ jobs:
         # shard only added a job. On 2026-11-15 the file was split into
         # per-section modules (`tests/test_cli_*.py` over a shared
         # `test_cli_support.py`), the floor moved with it, and six shards
-        # balance on Windows (1719.8 s × 6, ratio 1.000); on Ubuntu the floor
+        # balance on Windows (1589.2 s × 6, ratio 1.000); on Ubuntu the floor
         # is shard 0 alone — the single file `test_drill_rewrite_interrupted.py`
-        # at 1206.3 s against 519.2 s for shards 2–5 and 603.3 s for shard 1
-        # (max/min 2.323) — so the
+        # at 1206.1 s against 547.2 s for shards 2–5 and 604.7 s for shard 1
+        # (max/min 2.204) — so the
         # balance property is "no file can be moved to shorten the wait",
         # not "the shards are equal".
         #
         # The split files' costs in the table are runner measurements
-        # anchored at 486a71c548dadd452c882fa9c4fb09b363878b88 (the remains of
-        # `test_cli.py` cost 1.95 seconds on Windows and 1.19 on
+        # anchored at 40609d659fc434556fbd8f88ddd8bc4c3e04f3d4 (the remains of
+        # `test_cli.py` cost 2.23 seconds on Windows and 1.59 on
         # Ubuntu), re-measured by this workflow's own run;
         # `tests/test_ci_shard_coverage.py::test_the_cost_figures_the_documents_print_are_the_costs_the_table_measures`
         # re-reads the figures from that table, so a re-measurement that is
@@ -432,7 +432,7 @@ jobs:
   # the Phase 1 blocker table with its denominators. It is not on
   # `pull_request` because a full offline run costs about 65 minutes on an
   # Ubuntu runner (the per-file costs in `.github/ci-shards.json`, anchored
-  # at 486a71c548dadd452c882fa9c4fb09b363878b88, sum to 3886.3 s over the
+  # at 40609d659fc434556fbd8f88ddd8bc4c3e04f3d4, sum to 3999.4 s over the
   # five offline classes), and the twelve shard jobs already run the same files. A pull-request job would
   # become the wall-clock bottleneck for a report that can be produced
   # periodically instead.

@@ -70,13 +70,38 @@
   moved with them (444-448 is now 473-477).
 - **Pull request #225 is open** and carries this batch; one run, one
   pull request. The costs were re-measured from the runner and the
-  documents that print them were carried with the table; the two newest
-  witnesses carry `0.0` until the next run supplies their numbers.
+  documents that print them were carried with the table. **The two newest
+  witnesses carried `0.0` until the run that carried this batch supplied
+  their numbers; they are now measured** (`test_source_removal_scope.py`
+  at 1.33 s on Ubuntu and 16.80 s on Windows, and
+  `test_dangling_source_read_faces.py` at 0.88 s and 8.42 s), the costs
+  were re-measured again from that run's log, and the anchor moved to
+  `40609d6`.
 - **What this batch did not answer.** Whether the same kind of leak exists
   in the earlier records that carry Chinese for other reasons, and
-  whether the git history holds one — the leak never left this machine,
-  but no witness looks there. The suggestion loop still cannot run on a
-  copy without comments.
+  whether the git history holds one. The suggestion loop still cannot run
+  on a copy without comments.
+- **Correction, 2026-11-27: the git history does hold one, and it left
+  this machine.** The sentence above used to read *"the leak never left
+  this machine, but no witness looks there"*. **That was wrong**, and the
+  measurement is what says so: two commits carry a name in a document, and
+  the repository is public. `e67269a` (2026-11-01) added
+  `docs/acceptance/second-corpus-absorption.md` with three Han runs in it
+  and is an ancestor of `origin/main`; `a399bfb` (2026-11-27) added
+  `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` with five Han runs
+  and is an ancestor of `origin/claude/delivery-phase5` and of
+  `refs/pull/225/head`. Fetching either file at its commit over plain
+  HTTPS, with no credential, answers **200** with the runs in the body.
+  The redactions (`f0f9cdb`, `7fae861`) cleaned the **tree tips**; the
+  blobs stayed in history, and history is what the remote serves.
+  **A name is material, so this is a disclosure, not a stale tree.** What
+  to do about it — rewriting published history is outward-facing and hard
+  to undo, and the objects and any cached copies may persist — is the
+  owner's decision, and a window has measured the options and their costs
+  against it. **The tree's own budget could not have caught this**: it
+  measures the **longest** Han run per file, so a short name added to a
+  file that already carries a longer run leaves the measurement unchanged
+  and the witness green. A probe outside the repository confirmed it.
 
 
 ## 2026-11-26 (night) - the two bookkeeping gaps are closed, the shard costs are measured again, and the pull request is ready
