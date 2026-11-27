@@ -105,6 +105,11 @@ from labcairn.roles.spec import FORBIDDEN_ACTIONS, define_role_spec
 from labcairn.runtime.event import EventType
 from labcairn.security.capabilities import CapabilityId
 
+#: This file is the product's own rule path over the role chain, so it says
+#: so: the same class as the file it sits beside, and the harness's check
+#: reads this marker rather than the partition table.
+pytestmark = pytest.mark.integration
+
 env = _shared_env
 
 #: The document's one paragraph. The revision inserts one word into it.

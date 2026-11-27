@@ -576,6 +576,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # the branch is taken on the chain's state, each role abstains through its
     # own primitive, and nothing is spent.
     "test_role_run_commentless.py": ("integration", "api-auth"),
+    # The same document, when the request also names a rule: the rule the
+    # memory serves is cited and the run abstains, and the rule the memory
+    # does not hold refuses the request by name, before any consent exists.
+    "test_role_run_commentless_rule.py": ("integration", "api-auth"),
     # Batch 8, window I: the judgement's vocabulary. A part carrying a field
     # the role does not take is refused by name -- the API already refuses it,
     # and the CLI's own docstring promised that it would too. The vocabulary
