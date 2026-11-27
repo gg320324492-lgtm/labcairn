@@ -863,7 +863,7 @@ FIXTURES: list[Fixture] = [
             Revision(
                 kind="del",
                 text="单一",
-                author="林教授",
+                author="作者甲",
                 date="2026-03-02T09:20:00Z",
                 element_id="129",
                 paragraph=0,
@@ -876,7 +876,7 @@ FIXTURES: list[Fixture] = [
         ),
         expectations=(
             "The deleted text is '单一', not mojibake.",
-            "The author's name is '林教授'.",
+            "The author's name is '作者甲'.",
         ),
     ),
     Fixture(

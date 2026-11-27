@@ -74,13 +74,19 @@ def _han(n: int) -> str:
 #: holds. It is a pin, not a ban -- re-measured and re-pinned when the tree
 #: moves -- and it reddens in either direction: growth because a name or a
 #: sentence was written in, shrinkage because a value was carried forward.
+#:
+#: Re-measured on 2026-11-27 by the classification pass, which removed or
+#: redacted the runs that did not belong: three files carry no Chinese now
+#: and dropped out of the table, and the two files that kept a shorter run
+#: were measured again rather than adjusted. The per-run identity is pinned
+#: in ``tests/cjk_run_classes.json``; this table stays the quantity check.
 CJK_HAN_TOTALS: Final[dict[str, int]] = {
     "docs/plans/PHASE_4-execution-plan.md": 4193,
     "README.md": 3593,
     "README.zh-CN.md": 3432,
     "tests/test_readme_accuracy.py": 354,
     "docs/adr/ADR-0015-dataset-consent-and-access.md": 135,
-    "docs/adr/ADR-0014-paper-revision-provenance.md": 121,
+    "docs/adr/ADR-0014-paper-revision-provenance.md": 113,
     "docs/adr/ADR-0016-model-proposal-and-human-confirmation.md": 98,
     "docs/plans/LC-P2-08-task-breakdown.md": 92,
     "src/labcairn/papers/alignment.py": 88,
@@ -93,7 +99,6 @@ CJK_HAN_TOTALS: Final[dict[str, int]] = {
     "src/labcairn/papers/versions.py": 43,
     "docs/research/upstream-study/PeerRead.md": 40,
     "docs/plans/P2-AMD-01-provider-and-data-options.md": 39,
-    "docs/acceptance/LC-P3-08-trial-record-2026-11-22.md": 34,
     "src/labcairn/security/permissions.py": 34,
     "docs/acceptance/g5-review-records.md": 30,
     "docs/plans/LC-P2-14-ablation-protocol.md": 30,
@@ -112,12 +117,10 @@ CJK_HAN_TOTALS: Final[dict[str, int]] = {
     "tests/test_version_confirmation.py": 15,
     "docs/acceptance/P2-G0-evidence-pack.md": 14,
     "tests/test_version_duplicates.py": 13,
-    "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md": 11,
+    "docs/acceptance/LC-P3-08-review-2026-11-22-readerB.md": 5,
     "tests/test_skill_quality.py": 11,
     "tests/test_status_consistency.py": 10,
-    "docs/acceptance/LC-P3-08-exit-decision-2026-11-22.md": 9,
     "docs/acceptance/PR-1-independent-review.md": 9,
-    "docs/plans/LC-P2-11-task-breakdown.md": 8,
     "docs/acceptance/LC-P3-05-clean-windows-drill-2026-11-20.md": 7,
     "docs/adr/ADR-0004-scientific-provenance-and-evidence-model.md": 7,
     "tests/test_material_regressions.py": 7,
@@ -218,6 +221,30 @@ def test_the_tree_carries_no_more_chinese_totals_than_was_measured(
     assert not removed, (
         f"a pinned file lost its Chinese and the table was not re-measured: {removed}"
     )
+
+
+def test_the_totals_pin_agrees_with_the_run_registry(repo_root: Path) -> None:
+    """The totals pin and the per-run classification are the same measurement twice.
+
+    A registry whose run lengths do not sum to the pinned total is a registry
+    that has drifted from the tree -- a class written over the wrong run, a run
+    dropped from one table and not the other. The two are kept in step by
+    re-measuring both in the same commit; this is what notices when only one was.
+    """
+    registry = json.loads(
+        (repo_root / "tests" / "cjk_run_classes.json").read_text(encoding="utf-8")
+    )
+    files = registry["files"]
+    assert set(files) == set(CJK_HAN_TOTALS), (
+        f"files pinned but not classified: {sorted(set(CJK_HAN_TOTALS) - set(files))}; "
+        f"files classified but not pinned: {sorted(set(files) - set(CJK_HAN_TOTALS))}"
+    )
+    for rel, entry in files.items():
+        total = sum(length for _, length, _ in entry["runs"])
+        assert total == CJK_HAN_TOTALS[rel], (
+            f"{rel}: the classification's runs sum to {total}, the totals pin "
+            f"says {CJK_HAN_TOTALS[rel]}"
+        )
 
 
 def test_a_short_name_moves_the_totals_but_not_the_longest_run(

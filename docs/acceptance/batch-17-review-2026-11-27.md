@@ -47,6 +47,17 @@ clean. The three records that carry Chinese for other reasons —
 statements and the corpus's file names, in the owner's language, and each is
 pinned in `CJK_RUN_CEILINGS` with a measured figure.
 
+**Corrected 2026-11-27, by the classification batch.** It read every Chinese
+run in the tree and gave each one a class. The trial record's corpus file
+names were **not** the project's own voice: they carried the manuscript's
+title-of-record, and they are redacted in place — the record says why, and
+the rows stay identified by byte count and sha256. It carries no Chinese
+now and is no longer in `CJK_RUN_CEILINGS`. The other two stand, with the
+class the classification records for them: `design-quotation` for the
+execution design's reader requirements in LC-P2-07, and `product-vocabulary`
+for the overclaim detector's Chinese in LC-P2-25. See
+[`LC-P4-PILOT-chinese-run-classes-2026-11-27.md`](LC-P4-PILOT-chinese-run-classes-2026-11-27.md).
+
 **The review that answers R4 for the delivery finds one thing R4 does not
 cover, and it is the finding below.**
 
