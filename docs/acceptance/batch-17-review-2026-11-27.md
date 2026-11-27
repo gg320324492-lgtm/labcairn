@@ -196,9 +196,31 @@ say so.
 
 | Finding | Where it went |
 | --- | --- |
-| A record can be certified citable over a source that is gone | measured and witnessed; the fix is the next batch's work |
+| A record can be certified citable over a source that is gone | measured and witnessed; **closed the same day** — `store.attest` runs C1 before the move, the origin witness is flipped, and the mutation was re-checked here |
 | The name is in the published history, and the repository is public | measured here, in the handoff, and in the records that said otherwise; the remedy is the owner's |
 | The tree's Chinese budget cannot see a short name | measured here; the closing of it is the next batch's work |
 | The two newest witnesses carried `0.0` | re-measured from the runner, the table rebuilt, the documents carried |
 | The floor's figures and the partition moved | carried into `python.yml`, `CI.md` and `LC-P1-13-evaluation-ci.md` |
 | The review itself | this document, and the handoff |
+
+**Addendum, the same day.** The first row's fix landed while this review
+was still open, and its own words are the reason it is here rather than
+buried: the origin record said the witness holds the behaviour *as it is*,
+so that a face which learned to check the source row again would turn it
+red — *"which is the shape a fix takes when the fix is made."* The fix is
+made. `store.attest` now runs **C1** — `check_source_exists`, reached
+through the same `_run_check` that `advance` uses — and refuses with the
+source's id named when the row is gone or its bytes have moved under it.
+`attest_claim` maps that onto the new refusal code
+`CITATION_SOURCE_UNOBSERVABLE`. The origin witness is **flipped**: the
+reading stays as the control that the record is only `extracted` and not
+citable, and the attestation now asserts the refusal. Four witnesses were
+added, and the mutation that restores the pre-fix early return turns the
+four refusal witnesses red and leaves both controls green — **re-checked
+independently here, not taken on the window's word.**
+
+Two edges the fix's own record names, and this review does not close
+either: `advance` to `verified_by_rule` is not re-guarded against a
+*stale passing* C1 entry written before the source was taken back, and a
+source that was never readable at all is C1's `indeterminate`, which the
+new gate refuses on as well — correctly, but not separately witnessed.
