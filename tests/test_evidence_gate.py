@@ -39,7 +39,7 @@ from labcairn.evidence.states import (
     EvidenceKind,
     VerificationStatus,
 )
-from labcairn.evidence.store import advance, append_record, attest
+from labcairn.evidence.store import advance, append_record, attest, load_record
 from labcairn.material.addressing import render_locator_key
 from labcairn.sources.locators import CsvLocator, PdfLocator
 
@@ -373,6 +373,105 @@ def test_a_source_edited_after_verification_fails_the_gate(store: Store) -> None
     assert not result.passed
     assert [f.kind for f in result.findings] == ["drift"]
     assert "no longer holds" in result.findings[0].reason
+
+
+def test_an_attested_record_is_asked_about_its_source_with_no_c1_in_its_log(
+    store: Store,
+) -> None:
+    """The gap the re-run left open: ``attest`` logs C4 and no C1.
+
+    C4's only verdict is ``not_checked``, so re-running it agrees with itself
+    and the gate finds no drift however far the source has moved. That is why
+    an attested record -- the one citable state a person can reach, and the
+    state the measured probe used -- was reported as established over bytes
+    nobody had checked. ADR-0004 I4 invalidates the record; the gate now runs
+    C1 for every citable record, and the whole-task door refuses.
+
+    The record's log is asserted to hold C4 alone, because the whole point is
+    that the re-run has nothing else to ask.
+    """
+    connection, index = store
+    append_record(connection, _claim("ev-attested", created_by="user"))
+    attest(
+        connection,
+        "ev-attested",
+        user_id="dr-who",
+        note="I read the page and the claim is the page's.",
+        checked_at=NOW,
+    )
+    attested = load_record(connection, "ev-attested")
+    assert attested is not None
+    assert [entry.check for entry in attested.verification_log] == [CheckKind.C4]
+    assert evaluate_task(connection, task_id="task-1", index=index).passed
+
+    connection.execute(
+        sql_text("UPDATE sources SET content_sha256 = :sha WHERE source_id = 'src-1'"),
+        {"sha": OTHER_SHA},
+    )
+    connection.commit()
+
+    result = evaluate_task(connection, task_id="task-1", index=index)
+    assert not result.passed
+    assert [finding.kind for finding in result.findings] == ["drift"]
+    assert "records no C1 verdict" in result.findings[0].reason
+    assert "invalidates" in result.findings[0].reason
+
+
+def test_the_subset_door_asks_an_attested_record_about_its_source_too(store: Store) -> None:
+    """The report's door and the ledger's door agree about the same record.
+
+    The whole-task door refuses this record; a subset door that skipped the
+    source question would let the report through, and the two doors would then
+    disagree about one fact. Both ask it, through the one ``_judge``.
+    """
+    connection, index = store
+    append_record(connection, _claim("ev-attested", created_by="user"))
+    attest(
+        connection,
+        "ev-attested",
+        user_id="dr-who",
+        note="I read the page and the claim is the page's.",
+        checked_at=NOW,
+    )
+    connection.execute(
+        sql_text("UPDATE sources SET content_sha256 = :sha WHERE source_id = 'src-1'"),
+        {"sha": OTHER_SHA},
+    )
+    connection.commit()
+
+    result = evaluate_records(
+        connection,
+        task_id="task-1",
+        index=index,
+        evidence_ids=("ev-attested",),
+    )
+    assert not result.passed
+    assert [(finding.evidence_id, finding.kind) for finding in result.findings] == [
+        ("ev-attested", "drift")
+    ]
+
+
+def test_a_non_citable_record_is_not_asked_about_its_source_twice(store: Store) -> None:
+    """An extracted record's status is already the whole objection.
+
+    The source question is asked about records a report can state as
+    established. A record in any other state is refused by its status alone --
+    and the report prints that status beside the claim rather than asserting
+    the verification holds -- so a second finding about the same record would
+    be one refusal wearing two names. This pins the scope so a later change
+    cannot broaden it by accident.
+    """
+    connection, index = store
+    append_record(connection, _claim("ev-extracted"))
+    connection.execute(
+        sql_text("UPDATE sources SET content_sha256 = :sha WHERE source_id = 'src-1'"),
+        {"sha": OTHER_SHA},
+    )
+    connection.commit()
+
+    result = evaluate_task(connection, task_id="task-1", index=index)
+    assert not result.passed
+    assert [finding.kind for finding in result.findings] == ["status"]
 
 
 def test_conflicting_numbers_fail_the_gate_and_name_both_records(store: Store) -> None:

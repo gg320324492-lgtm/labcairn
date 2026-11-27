@@ -17,6 +17,7 @@ The order, and why the order is the property
 comes first, because a policy denial and a missing renderer have different
 remedies and a caller that is told the wrong one is sent to fix the wrong
 thing. Then the report's material is gathered, the document is built, the
+**sources its citations name are compared with the files on disk**, the
 evidence gate judges the records the document states as established, the
 content checks are run, and only then are the four forms rendered and the
 revision written. A report that cannot be produced leaves **no file behind**:
@@ -27,9 +28,11 @@ a finding.
 **The evidence gate is the last door, and it runs before the checks.**
 ------------------------------------------------------------
 
-The gate is `labcairn.evidence.gate` — the same four questions the work
-order's acceptance names (status, identifier, re-verification, conflict) —
-and until this operation called it, no surface did. It judges **the records
+The gate is `labcairn.evidence.gate` — the same questions the work order's
+acceptance names (status, identifier, re-verification, conflict), and the one
+this operation found missing from them: whether the source still supports a
+record the report states as established when the record's log holds no source
+check to re-run. Until this operation called it, no surface did. It judges **the records
 the document states as established**: the claims whose status is in
 :data:`~labcairn.evidence.states.CITABLE_STATUSES`. An objection refuses the
 report with ``report_evidence_refused``, names every finding and the record
@@ -37,6 +40,17 @@ it concerns, and leaves nothing written — because a report is the last place
 a fabricated source or a contradicted number can be caught, and a report that
 went out with its objection in an adjacent file would still be a report that
 said it.
+
+**The file is asked before the ledger is, because it moves first.** The gate's
+index answers from the ledger, whose content hash is never refreshed, so it
+cannot see a file edited on disk since ingestion. This operation therefore
+opens every source the document's citations name, hashes it, and refuses the
+report with the same ``report_evidence_refused`` when the file is not the
+bytes the ledger describes. The two checks are the two links of one chain —
+the file against the ledger here, the record against the ledger in the gate —
+and neither may pass a source the other refuses. Refusing rather than writing
+a stale receipt is deliberate: a ``STALE`` mark labels an artifact that was
+current when it was made, and a report made after the move was never current.
 
 **Why that scope, and not the task's whole set.** The gate's whole-task door
 (:func:`~labcairn.evidence.gate.evaluate_task`) would refuse a report for a
@@ -217,6 +231,7 @@ from labcairn.reports.revisions import (
     write_report_revision,
 )
 from labcairn.runtime.event import EventType
+from labcairn.security.approval import content_hash
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission
 from labcairn.sources.source import Source, SourceAnchor
@@ -402,9 +417,15 @@ def render_report(
         readings=readings,
     )
 
-    # 5. The evidence gate, over the records the document states as
-    #    established -- before any check reads the ledger again, because the
-    #    gate is what asks whether that ledger's own account is still true.
+    # 5a. The file behind every citation, against the ledger's account of it.
+    #     Asked before the gate because it is the question the ledger cannot
+    #     answer: the ledger's hash is never refreshed, so only the file can
+    #     say whether the material has moved since it was ingested.
+    _refuse_moved_material(context, document=document, sources=sources)
+
+    # 5b. The evidence gate, over the records the document states as
+    #     established -- before any check reads the ledger again, because the
+    #     gate is what asks whether that ledger's own account is still true.
     gate = _the_evidence_gate(
         connection, task_id=str(context.task_id), index=index, document=document
     )
@@ -719,6 +740,94 @@ def _build_the_document(
             "a report the ledger cannot support must not be written with a hole "
             "in it.",
         ) from error
+
+
+# --------------------------------------------------------------------------- #
+# the material the ledger cannot see
+# --------------------------------------------------------------------------- #
+
+
+def _refuse_moved_material(
+    context: ApplicationContext,
+    *,
+    document: ReportDocument,
+    sources: tuple[Source, ...],
+) -> None:
+    """Refuse the report when a cited source is not the file the ledger describes.
+
+    **Why the render and not the gate.** The gate's index answers from the
+    ledger, and the ledger's ``content_sha256`` is the hash the material had
+    when it was ingested -- never refreshed (ADR-0004 I4). A file edited on
+    disk since then therefore looks current to every account built only from
+    ledger rows, and a report would be written with a receipt that says
+    ``current`` over bytes that are gone. The source, in the end, is the file;
+    this is the one place in the render that opens it, hashes it and compares.
+
+    **Every source the document's claims cite**, not only the ones behind
+    established claims: the receipt's chain names a link per cited source
+    (:func:`labcairn.reports.manifest.build_report_manifest` reads them out of
+    the same footnotes), and the receipt's ``current`` is a statement about
+    every link it names. A report written while one named source had moved
+    would be a receipt that is current only by not looking.
+
+    **Refused, not marked stale.** A ``STALE`` receipt is the mark for an
+    artifact that was current when it was made and whose input moved since; a
+    report made *after* the move was never current, and its body would still
+    state its claims as established. So nothing is written, and the refusal
+    names each source, the bytes the ledger holds and the bytes the file has.
+
+    The comparison is with the **ledger's** hash, not the record's: the gate
+    asks the record against the ledger, and this asks the ledger against the
+    file. The two are the links of one chain, and a record whose binding holds
+    against a ledger that no longer describes the file is still a claim on
+    bytes nobody can produce. Reading here is hashing only -- the bytes are
+    never parsed and nothing of the material enters the report -- and it is
+    the act the approval machinery already performs on every bound source
+    (:func:`labcairn.security.approval.sources_intact`).
+    """
+    by_id = {source.source_id: source for source in sources}
+    footnotes = {footnote.footnote_id: footnote for footnote in document.footnotes}
+    cited: set[str] = set()
+    for claim in document.claims:
+        for footnote_id in claim.footnote_ids:
+            footnote = footnotes.get(footnote_id)
+            if footnote is not None:
+                cited.add(footnote.source_id)
+
+    moved: list[str] = []
+    for source_id in sorted(cited):
+        source = by_id.get(source_id)
+        if source is None:
+            # The builder refuses a claim whose citation the report does not
+            # carry, so a document that reaches here names only sources in
+            # this list. An absent row is not this check's question.
+            continue
+        try:
+            resource = context.resource_for(source.relative_path)
+            observed = content_hash(resource.real_path)
+        except ApplicationRefusedError as error:
+            moved.append(f"{source_id!r} ({source.relative_path}) is not addressable: {error}")
+            continue
+        except OSError as error:
+            moved.append(f"{source_id!r} ({source.relative_path}) cannot be read: {error}")
+            continue
+        if observed != source.content_sha256:
+            moved.append(
+                f"{source_id!r} ({source.relative_path}) has moved: the ledger holds "
+                f"{source.content_sha256}, and the file now hashes to {observed}"
+            )
+    if not moved:
+        return
+    raise ApplicationRefusedError(
+        ApplicationRefusal.REPORT_EVIDENCE_REFUSED,
+        f"{len(moved)} source(s) the report cites are not the bytes the ledger "
+        f"describes: {'; '.join(moved)}. ADR-0004 I4 invalidates a record whose "
+        "source has moved rather than refreshing it, so the report is refused "
+        "before it is written: a receipt that said 'current' over these bytes "
+        "would be a claim about the ledger alone, and the report's claims rest on "
+        "the source. Nothing was written. Ingest the material again, then "
+        "re-verify or re-attest the claims it carries.",
+    )
 
 
 @dataclass(frozen=True, slots=True)

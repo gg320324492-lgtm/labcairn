@@ -393,3 +393,89 @@ def test_the_report_is_refused_when_the_gate_finds_a_contradicted_number(
         path.name for path in (workspace / "output" / task_id).rglob("report*") if path.is_file()
     )
     assert forms == [], f"the output area holds {forms}"
+
+
+# --------------------------------------------------------------------------- #
+# the material moves, and the door sees it
+# --------------------------------------------------------------------------- #
+#
+# The gap these two tests close was measured on 2026-11-27 with a probe outside
+# this repository: an attested record over a file that had changed bytes was
+# reported ``successfully`` -- exit 0, a written report, ``staleness: current``
+# -- because the gate re-ran only the C4 the attestation logged, and the
+# receipt's staleness compared the ledger with itself. The two tests below are
+# the same shape at the surface a person uses: the quoted cell does not move;
+# only the file's hash does.
+
+
+def test_an_attested_claim_over_a_moved_file_is_refused_before_anything_is_written(
+    workspace: Path, task_id: str, ingested: str, material: Path
+) -> None:
+    """The measured gap: the source moved under the attestation, and the report refuses.
+
+    The claim quotes the cell that reads ``1``. The file is then rewritten so
+    that the quoted cell still holds ``1`` at the same address -- only the
+    other cell changed -- so the claim's text and locator both still resolve.
+    What moved is the file's hash, and neither the ledger's row nor the C4 the
+    attestation logged knows it. The render asks the file itself, and refuses
+    before a byte of the report is drawn: the receipt it would have written
+    says ``current`` about the ledger, and the claims rest on the source.
+    """
+    address = _the_address_whose_text_is(workspace, ingested, "1")
+    claimed = _claim(workspace, source_id=ingested, address=address, value=1.0, span="1")
+    evidence_id = claimed["record"]["evidence_id"]
+    _attest(workspace, evidence_id)
+
+    material.write_text("a,b\n1,9\n", encoding="utf-8")
+
+    reported = _report(workspace)
+    assert reported.returncode == EXIT_REFUSED, reported.stdout + reported.stderr
+    payload = reported.json()
+    assert payload["reason"] == "report_evidence_refused"
+    message = payload["message"]
+    assert ingested in message
+    assert "has moved" in message
+    assert "Nothing was written" in message
+
+    listed = run_cli("--workspace", str(workspace), "artifacts", "list", "--json")
+    assert listed.returncode == 0, listed.stderr
+    assert listed.json() == [], "a refused report left an artefact behind"
+    forms = sorted(
+        path.name for path in (workspace / "output" / task_id).rglob("report*") if path.is_file()
+    )
+    assert forms == [], f"the output area holds {forms}"
+
+
+def test_an_attested_claim_is_refused_after_the_moved_file_is_ingested_again(
+    workspace: Path, task_id: str, ingested: str, material: Path
+) -> None:
+    """The second link of the chain: the ledger moved, and the record is invalidated.
+
+    After the file is ingested again, the file and the ledger agree -- so the
+    file comparison passes -- and the record's binding is the one that no
+    longer holds: its ``source_content_hash`` is the bytes the attestation was
+    made over, and the ledger now holds different ones. The gate asks C1 for
+    every citable record, whether or not the log records it, and the
+    attestation's log records only C4. ADR-0004 I4 invalidates the record; the
+    report may not state it as established.
+    """
+    address = _the_address_whose_text_is(workspace, ingested, "1")
+    claimed = _claim(workspace, source_id=ingested, address=address, value=1.0, span="1")
+    evidence_id = claimed["record"]["evidence_id"]
+    _attest(workspace, evidence_id)
+
+    material.write_text("a,b\n1,9\n", encoding="utf-8")
+    assert _ingest(workspace) == ingested, "re-ingestion gave the material a new identity"
+
+    reported = _report(workspace)
+    assert reported.returncode == EXIT_REFUSED, reported.stdout + reported.stderr
+    payload = reported.json()
+    assert payload["reason"] == "report_evidence_refused"
+    message = payload["message"]
+    assert evidence_id in message
+    assert "drift" in message
+    assert "no C1 verdict" in message
+
+    listed = run_cli("--workspace", str(workspace), "artifacts", "list", "--json")
+    assert listed.returncode == 0, listed.stderr
+    assert listed.json() == [], "a refused report left an artefact behind"
