@@ -49,6 +49,11 @@
   file the filesystem will list but not open, so git can enumerate it and
   cannot delete it. It is harmless to the tree, the suites and the merge, and
   it is the kind of branch a fresh clone or a `git gc` settles.
+- **The push waits.** The delivery to the remote is not made while one window
+  is still running: the owner's call, on 2026-11-28, is that the push carries
+  this batch and that window's together — **one pull request and one run for
+  both**, because a run is a fixed cost (the seventeen required checks, with
+  the Windows leg the slowest) and a run per batch is a run per batch.
 
 
 ## 2026-11-27 - pull request #224 is merged, four windows answered, and a name got out
