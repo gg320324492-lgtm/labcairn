@@ -1,7 +1,7 @@
 # Batch 18 review — a name in the published history, a chain over a bare document, and a budget that could not see
 
 **Date:** 2026-11-27
-**Range reviewed:** `40609d6..037b834` on `main` — the three windows that
+**Range reviewed:** `fbffd9a16fad6921eac958699233d4c7a3ac4b18..c7e275618ae09b00a8e0e3a363cd674eb194a212` on `main` — the three windows that
 closed what batch 17's review found: the attestation's source check, the
 name watcher's total load beside the history's cost, and the role chain
 over a document the advisor never wrote in. Pull request #225 is open and

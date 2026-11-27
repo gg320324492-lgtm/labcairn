@@ -211,7 +211,7 @@ jobs:
         # not "the shards are equal".
         #
         # The split files' costs in the table are runner measurements
-        # anchored at 40609d659fc434556fbd8f88ddd8bc4c3e04f3d4 (the remains of
+        # anchored at fbffd9a16fad6921eac958699233d4c7a3ac4b18 (the remains of
         # `test_cli.py` cost 2.23 seconds on Windows and 1.59 on
         # Ubuntu), re-measured by this workflow's own run;
         # `tests/test_ci_shard_coverage.py::test_the_cost_figures_the_documents_print_are_the_costs_the_table_measures`
@@ -432,7 +432,7 @@ jobs:
   # the Phase 1 blocker table with its denominators. It is not on
   # `pull_request` because a full offline run costs about 65 minutes on an
   # Ubuntu runner (the per-file costs in `.github/ci-shards.json`, anchored
-  # at 40609d659fc434556fbd8f88ddd8bc4c3e04f3d4, sum to 3999.4 s over the
+  # at fbffd9a16fad6921eac958699233d4c7a3ac4b18, sum to 3999.4 s over the
   # five offline classes), and the twelve shard jobs already run the same files. A pull-request job would
   # become the wall-clock bottleneck for a report that can be produced
   # periodically instead.

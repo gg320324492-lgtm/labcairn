@@ -123,7 +123,7 @@ on `main` is the measurement.
 ## 3. What a CI job costs
 
 The per-file costs in `.github/ci-shards.json` are runner measurements,
-anchored at `40609d659fc434556fbd8f88ddd8bc4c3e04f3d4`. Summed over the
+anchored at `fbffd9a16fad6921eac958699233d4c7a3ac4b18`. Summed over the
 five offline classes:
 
 | platform | unit | integration | negative | e2e | repository | total |

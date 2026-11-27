@@ -2,7 +2,7 @@
 
 **Ticket:** LC-P4-PILOT (the source-removal's own reading faces, the fix)
 **Date:** 2026-11-27.
-**Tree:** `3d99b07a2c3d45f6dd680fc1c82fca6ef38f0935` (worktree
+**Tree:** `b425005568bed02236e5a327d9eef767cdbd7fdf` (worktree
 `affectionate-carson-886aac`, branch `claude/affectionate-carson-886aac`), the
 commit this work sits on; the fix is the commit that carries this record.
 Windows 11 Pro (10.0.26300 x64, AMD64), Python 3.12.10.
@@ -19,7 +19,7 @@ of a document, or key of the pilot appears in this record.
 ## What was measured
 
 The origin record (tree
-`124e843542b047c40712ddb01dd35642d0ce5f33`) measured a gap across the
+`1d0512dffec5699e2ab8ca3bf392c10841ab9ca9`) measured a gap across the
 product's faces. A source row is deleted; the address rows stay and still
 resolve to the text; and then:
 
@@ -142,10 +142,10 @@ witness, and got the same five red and two green.
 ## Claims, and the commit each is anchored to
 
 * The gap, its cause and the faces it was measured through — the origin record,
-  tree `124e843542b047c40712ddb01dd35642d0ce5f33`.
+  tree `1d0512dffec5699e2ab8ca3bf392c10841ab9ca9`.
 * The fix's behaviour, the five witnesses, the two controls and the M1 mutation
   result — this worktree, based on
-  `3d99b07a2c3d45f6dd680fc1c82fca6ef38f0935`, local run on Windows (Python
+  `b425005568bed02236e5a327d9eef767cdbd7fdf`, local run on Windows (Python
   3.12.10), the commit that carries this record. Local evidence only; no runner
   has confirmed it.
 * The local runs behind the numbers above: the flipped witness and the new file,

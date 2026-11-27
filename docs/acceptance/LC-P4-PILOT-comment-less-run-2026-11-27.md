@@ -3,7 +3,7 @@
 **Ticket:** LC-P4-PILOT (a document with no comments takes part in the model's
 role chain)
 **Date:** 2026-11-27.
-**Tree:** based on `main` @ `1de24e2` ("Begin the comment-less run: the event,
+**Tree:** based on `main` @ `92304697d8716caae1f15699f961dae8de5e7ef9` ("Begin the comment-less run: the event,
 the chain's shape, role A's abstention"), worktree
 `nostalgic-torvalds-90b661`, Windows 11 Pro (10.0.26300 x64), Python 3.12.13.
 **Status:** local evidence only. No push, no pull request, no CI run, no

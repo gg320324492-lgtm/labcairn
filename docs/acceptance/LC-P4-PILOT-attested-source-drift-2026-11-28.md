@@ -3,7 +3,7 @@
 **Ticket:** LC-P4-PILOT (the gap the review measured on 2026-11-27 in the
 evidence gate the report goes through).
 **Date:** 2026-11-28.
-**Tree:** `c081eed794225a6b70de092c3a2f23a1140e87db`, the commit this work
+**Tree:** `21ea0725ebd4dd833d50eeacd4698e31c4b34cd1`, the commit this work
 sits on; the change is the commit that carries this record. Worktree
 `.claude/worktrees/attested-drift-2026-11-28`, branch
 `claude/attested-drift-2026-11-28`. Windows 11 Pro (10.0.26300 x64, AMD64),
@@ -23,7 +23,7 @@ appears in this record. No model request was made.
 
 The review's probe (outside this repository, at
 `E:/labcairn-local/tmp/probe-attested-drift/probe.py`) recorded four facts at
-`c081eed`'s predecessor, and each one named a different mechanism:
+`21ea0725ebd4dd833d50eeacd4698e31c4b34cd1`'s predecessor, and each one named a different mechanism:
 
 1. An attested record whose source file changed bytes — the quoted cell did
    not move, only the file's hash — was reported **successfully**: `labcairn

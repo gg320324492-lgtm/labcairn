@@ -1,8 +1,8 @@
 # LC-P4 pilot — what the Chinese in the tree is, and what holds it
 
 **Date:** 2026-11-27
-**Base commit:** `8dacfea180b4e882b7ac87d2c4e2739b609b0528`
-**Record read at:** commit `31c2116`, which adds this file; this sentence
+**Base commit:** `4b90dbc152acbfbdf95535a20f0bddca0277ca4d`
+**Record read at:** commit `45e76a2f3784e5f71028889243b425a1ff4b8507`, which adds this file; this sentence
 naming it is an amendment in the same branch.
 **Measured by:** the classification window, on the development machine.
 **Status:** the classification is measured and pinned; the runs that did not

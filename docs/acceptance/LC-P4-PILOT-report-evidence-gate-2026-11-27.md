@@ -2,7 +2,7 @@
 
 **Ticket:** LC-P4-PILOT (the report's read-side door, and the gate no surface walked through).
 **Date:** 2026-11-27.
-**Tree:** `ba4e537db76e68962cd15c63d4a2da6e354710f2` (worktree
+**Tree:** `95161fa6d0905c48c7cf4c41a4eb8dc78725e4be` (worktree
 `elastic-elbakyan-73c189`, branch `claude/elastic-elbakyan-73c189`), the
 commit this work sits on; the change is the commit that carries this record.
 Windows 11 Pro (10.0.26300 x64, AMD64), Python 3.12.13.
@@ -16,7 +16,7 @@ of a document, or key of the pilot appears in this record.
 
 ## The gap, measured at the base revision
 
-At `ba4e537`, `git grep -n evaluate_task` over `src/` returns **two** lines,
+At `95161fa6d0905c48c7cf4c41a4eb8dc78725e4be`, `git grep -n evaluate_task` over `src/` returns **two** lines,
 both in `src/labcairn/evidence/gate.py`: the export list and the definition.
 No module in `src/` calls it. The gate's own docstring says it is *"the last
 thing that runs before a report says something"*, and nothing ran it before a

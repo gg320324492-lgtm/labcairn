@@ -1,7 +1,7 @@
 # Batch 15 review — the CLI's own request, the removal that names itself, the replay, and a name that got out
 
 **Date:** 2026-11-27
-**Range reviewed:** `6b8e09f..d3da581` on `main` — pull request #224's
+**Range reviewed:** `6b8e09f..49d36597ffe7946c22d69c6645eed4adf9283f47` on `main` — pull request #224's
 merge, four windows' work, two registrations, one redaction.
 **Checklist:** [`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md),
 R1–R7.
@@ -13,8 +13,8 @@ R1–R7.
 | the CLI's own model request | `d31deb1`, `6328fd2` | `labcairn suggest` — one question about one source, one request, and the consent gate ahead of the spend; thirteen witnesses |
 | the report's content checks | `c6c2a3f` | [`LC-P4-PILOT-report-checks-2026-11-26.md`](LC-P4-PILOT-report-checks-2026-11-26.md) — what the five checks and the gate read over the pilot's report |
 | the removal that names itself | `b4e5169`, `af0448f` | `source_removed`, carrying the source's id, path, digest and the released tasks; migration `0034`; six witnesses |
-| the replay on the pilot workspace | `a399bfb` | [`LC-P4-PILOT-replay-2026-11-26.md`](LC-P4-PILOT-replay-2026-11-26.md) — the round's two gaps, on the real workspace |
-| this review's witness | `7fae861` | `tests/test_pilot_records_carry_no_names.py` |
+| the replay on the pilot workspace | `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` | [`LC-P4-PILOT-replay-2026-11-26.md`](LC-P4-PILOT-replay-2026-11-26.md) — the round's two gaps, on the real workspace |
+| this review's witness | `80bc7e53a50cd88ca95f59e57664cf0ee4d1376a` | `tests/test_pilot_records_carry_no_names.py` |
 
 ## R1. No witness depends on a build artifact the runner does not have
 
@@ -69,7 +69,7 @@ metadata, digests, counts, ids and timings.
 record says why — the corpus and the root are still there, so a reader
 can find the row, and the name is not. The redaction is recorded in the
 record itself rather than done silently. **The redaction cleaned the tree
-tip only.** `a399bfb` is an ancestor of `origin/claude/delivery-phase5`
+tip only.** `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` is an ancestor of `origin/claude/delivery-phase5`
 and of `refs/pull/225/head`, both public, and fetching
 `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` at that commit over
 plain HTTPS, with no credential, answers **200** with five Han runs in
@@ -108,7 +108,7 @@ records and the source files carry Chinese too, and whether any of it is
 the material's own wording is a question this batch did not answer. It
 also did not check the **git history** — and that first reading was
 wrong, in a way this review's own record did not catch: the leak was in
-a commit that **had been pushed**. `a399bfb` is an ancestor of
+a commit that **had been pushed**. `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` is an ancestor of
 `origin/claude/delivery-phase5` and of `refs/pull/225/head`, both
 public; an uncredentialed HTTPS fetch of the file at that commit answers
 **200**. What the rewrite would cost, and what it would and would not
@@ -180,9 +180,9 @@ no reader can repeat that without changing the workspace again.
 
 | Finding | Where it went |
 |---|---|
-| A person's name, in Chinese, reached a record in the tree | `7fae861` — redacted in place, said in the record, and watched by a new witness |
-| A name written into a record that was already there was unwatched | `7fae861` — the zero-tolerance witness over the pilot's two record globs; **the Chinese budget does not cover that direction** — it pins the *longest* Han run per file, so a short name in a file that already carries a longer run moves no pinned number. The gap is closed by the per-file Han-total pin, measured and registered in [LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md](LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md) |
+| A person's name, in Chinese, reached a record in the tree | `80bc7e53a50cd88ca95f59e57664cf0ee4d1376a` — redacted in place, said in the record, and watched by a new witness |
+| A name written into a record that was already there was unwatched | `80bc7e53a50cd88ca95f59e57664cf0ee4d1376a` — the zero-tolerance witness over the pilot's two record globs; **the Chinese budget does not cover that direction** — it pins the *longest* Han run per file, so a short name in a file that already carries a longer run moves no pinned number. The gap is closed by the per-file Han-total pin, measured and registered in [LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md](LC-P4-PILOT-history-exposure-and-name-watcher-2026-11-27.md) |
 | Two witnesses froze the old shape (one event; 32 event types) | `3df9e3a` — moved with the product |
 | A record named a temporary directory that is gone next run | `0293a4d` — the parent is the fact |
-| Five anchors moved with the new command | `d3da581` — re-pointed with the checker's own word-matching |
-| Two new test files were in no manifest and no shard | `d3da581` — filed, with their costs owed to the runner |
+| Five anchors moved with the new command | `49d36597ffe7946c22d69c6645eed4adf9283f47` — re-pointed with the checker's own word-matching |
+| Two new test files were in no manifest and no shard | `49d36597ffe7946c22d69c6645eed4adf9283f47` — filed, with their costs owed to the runner |

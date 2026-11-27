@@ -11,7 +11,7 @@
   concerns, and **leaves nothing written**. Both surfaces inherit one
   answer: `labcairn task report` and `POST /report` reach the same operation,
   so neither surface file had to change.
-- **The gap was measured, not assumed.** At `ba4e537`, `git grep -n
+- **The gap was measured, not assumed.** At `95161fa6d0905c48c7cf4c41a4eb8dc78725e4be`, `git grep -n
   evaluate_task` over `src/` returned two lines, both in the gate's own file
   — **nothing in `src/` called it**, while the gate's docstring said it was
   *"the last thing that runs before a report says something"*.
@@ -168,7 +168,7 @@
   at 1.33 s on Ubuntu and 16.80 s on Windows, and
   `test_dangling_source_read_faces.py` at 0.88 s and 8.42 s), the costs
   were re-measured again from that run's log, and the anchor moved to
-  `40609d6`.
+  `fbffd9a16fad6921eac958699233d4c7a3ac4b18`.
 - **What this batch did not answer.** Whether the same kind of leak exists
   in the earlier records that carry Chinese for other reasons, and
   whether the git history holds one. The suggestion loop still cannot run
@@ -196,12 +196,12 @@
   measurement is what says so: two commits carry a name in a document, and
   the repository is public. `e67269a` (2026-11-01) added
   `docs/acceptance/second-corpus-absorption.md` with three Han runs in it
-  and is an ancestor of `origin/main`; `a399bfb` (2026-11-27) added
+  and is an ancestor of `origin/main`; `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` (2026-11-27) added
   `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` with five Han runs
   and is an ancestor of `origin/claude/delivery-phase5` and of
   `refs/pull/225/head`. Fetching either file at its commit over plain
   HTTPS, with no credential, answers **200** with the runs in the body.
-  The redactions (`f0f9cdb`, `7fae861`) cleaned the **tree tips**; the
+  The redactions (`f0f9cdb`, `80bc7e53a50cd88ca95f59e57664cf0ee4d1376a`) cleaned the **tree tips**; the
   blobs stayed in history, and history is what the remote serves.
   **A name is material, so this is a disclosure, not a stale tree.** What
   to do about it — rewriting published history is outward-facing and hard
@@ -213,10 +213,10 @@
   and the witness green. A probe outside the repository confirmed it.
   **What merging #225 would add, stated plainly:** the name is already
   anonymously fetchable today, because `origin/claude/delivery-phase5` and
-  `refs/pull/225/head` both carry `a399bfb` and the remote serves any
+  `refs/pull/225/head` both carry `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` and the remote serves any
   commit's blobs by sha. Merging would not disclose anything new, and it
   would make the name **permanent in the default branch's history**, so
-  every later clone carries it. `origin/main` does not hold `a399bfb`
+  every later clone carries it. `origin/main` does not hold `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e`
   today. The owner's decision on the remedy should take that into
   account; the merge decision and the remedy decision are separable, and
   this review takes neither.

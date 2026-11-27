@@ -1,7 +1,7 @@
 # Batch 16 review — what a removal releases, and a record that reads as sound over a row that is gone
 
 **Date:** 2026-11-27
-**Range reviewed:** `28cf0f1..5ec65b5` on `main` — two windows' work
+**Range reviewed:** `54d61b04cf738894842b048c40970bf18a5de6fd..cfda7bcdfc10a4f239accdb0507d43a3a56a9fa3` on `main` — two windows' work
 merged, two registrations, the threat model's moved write range, and the
 costs re-measured from the runner.
 **Checklist:** [`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md),
@@ -11,11 +11,11 @@ R1–R7.
 
 | Piece | Commit | What it is |
 |---|---|---|
-| the removal's scope | `57b79da` | [`tests/test_source_removal_scope.py`](../../tests/test_source_removal_scope.py) — what a removal releases when two tasks hold the material |
-| the dangling source id | `1dc0197` | [`LC-P4-PILOT-dangling-source-ids-2026-11-26.md`](LC-P4-PILOT-dangling-source-ids-2026-11-26.md) and its witness — the id read back through the product's faces |
-| the registrations | `68eef58` | both new files filed in the manifest and in a shard |
-| the threat model | `28cf0f1` | §1.2's write range, moved with `init`'s three `mkdir` calls |
-| the costs | `28cf0f1` | re-measured from the runner; the documents that print them carried with the table |
+| the removal's scope | `c7b7807250b1d8bda1bebc3b6ef1a884f6dceb59` | [`tests/test_source_removal_scope.py`](../../tests/test_source_removal_scope.py) — what a removal releases when two tasks hold the material |
+| the dangling source id | `42f54d2da3af527853f7620645b4ba7da34e839e` | [`LC-P4-PILOT-dangling-source-ids-2026-11-26.md`](LC-P4-PILOT-dangling-source-ids-2026-11-26.md) and its witness — the id read back through the product's faces |
+| the registrations | `b2598f27bb142f87743c83ddf4b1f395d81adce7` | both new files filed in the manifest and in a shard |
+| the threat model | `54d61b04cf738894842b048c40970bf18a5de6fd` | §1.2's write range, moved with `init`'s three `mkdir` calls |
+| the costs | `54d61b04cf738894842b048c40970bf18a5de6fd` | re-measured from the runner; the documents that print them carried with the table |
 
 ## R1. No witness depends on a build artifact the runner does not have
 
@@ -65,7 +65,7 @@ states them, and the product's words are the same.**
 ## R6. A mutable number enters a record only after a fresh measurement, anchored to that measurement
 
 **Pass.** The costs were re-measured from the second round's runner log
-and the anchor moved to `486a71c`; the three documents that print costs
+and the anchor moved to `f551a9a76ff7bae5751bd3f2e476f42d0bfa871f`; the three documents that print costs
 were carried with the table, and the floor witness confirmed the floor's
 name and its figures against it.
 
@@ -139,8 +139,8 @@ says so.
 
 | Finding | Where it went |
 |---|---|
-| A record can be certified citable over a source row that is gone | measured and witnessed in `1dc0197`; the fix is the next batch's work |
-| What a removal releases with two holders | `57b79da` — three witnesses, and the record's "could not distinguish" is now distinguished |
-| Two new test files were in no manifest and no shard | `68eef58` — filed, with their costs owed to the runner |
-| The threat model's write range moved with the command | `28cf0f1` — 444-448 is now 473-477 |
-| The costs and the documents that print them | `28cf0f1` — measured at `486a71c` and carried |
+| A record can be certified citable over a source row that is gone | measured and witnessed in `42f54d2da3af527853f7620645b4ba7da34e839e`; the fix is the next batch's work |
+| What a removal releases with two holders | `c7b7807250b1d8bda1bebc3b6ef1a884f6dceb59` — three witnesses, and the record's "could not distinguish" is now distinguished |
+| Two new test files were in no manifest and no shard | `b2598f27bb142f87743c83ddf4b1f395d81adce7` — filed, with their costs owed to the runner |
+| The threat model's write range moved with the command | `54d61b04cf738894842b048c40970bf18a5de6fd` — 444-448 is now 473-477 |
+| The costs and the documents that print them | `54d61b04cf738894842b048c40970bf18a5de6fd` — measured at `f551a9a76ff7bae5751bd3f2e476f42d0bfa871f` and carried |

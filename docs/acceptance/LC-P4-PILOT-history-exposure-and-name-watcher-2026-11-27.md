@@ -3,7 +3,7 @@
 **Ticket:** LC-P4-PILOT (the name watchers, measured; the published-history
 exposure, costed).
 **Date:** 2026-11-27.
-**Tree:** `3d99b07` (worktree `sad-proskuriakova-79abb4`), Windows 11 Pro
+**Tree:** `b425005568bed02236e5a327d9eef767cdbd7fdf` (worktree `sad-proskuriakova-79abb4`), Windows 11 Pro
 (10.0.26300 x64, AMD64), Python 3.12.13.
 **Status:** local evidence only. No push, no pull request, no CI run, no
 merge, and no history rewritten. This record measures and costs; it does
@@ -11,7 +11,7 @@ not act on the published history.
 **Scope:** the exposure measurements are about the **remote** refs
 (`origin/main`, `origin/claude/delivery-phase5`, the `refs/pull/*` set) and
 are therefore independent of the local commits this window adds; the
-tree-side measurements are about the tree at `3d99b07`.
+tree-side measurements are about the tree at `b425005568bed02236e5a327d9eef767cdbd7fdf`.
 
 **What is claimed here.** Two things, and only those. First, the tree's two
 name mechanisms, stated precisely: what each catches and what it lets past,
@@ -105,7 +105,7 @@ document, and both are reachable from a public ref:
 | commit | date | the document | Han runs | characters | UTF-8 bytes | redacted at the tip by |
 |---|---|---|---|---|---|---|
 | `e67269a` | 2026-11-01 | `docs/acceptance/second-corpus-absorption.md` | 3 | 20 | 60 | `f0f9cdb` |
-| `a399bfb` | 2026-11-27 | `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` | 5 | 26 | 78 | `7fae861` |
+| `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` | 2026-11-27 | `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` | 5 | 26 | 78 | `80bc7e53a50cd88ca95f59e57664cf0ee4d1376a` |
 
 Fetching either file at its commit over
 `https://raw.githubusercontent.com/gg320324492-lgtm/labcairn/<sha>/<path>`,
@@ -113,13 +113,13 @@ with no credential, answers **HTTP 200** with the runs in the body. The
 counts and byte lengths above are what was measured; the characters
 themselves are not printed here, in a commit, or in any other file.
 
-The redactions (`f0f9cdb`, `7fae861`) cleaned the **tree tips** only; the
+The redactions (`f0f9cdb`, `80bc7e53a50cd88ca95f59e57664cf0ee4d1376a`) cleaned the **tree tips** only; the
 blobs stayed in history, and history is what the remote serves. A name is
 material, so this is a disclosure, not a stale tree.
 
 **Which public refs carry the name.**
 
-| ref | `e67269a` | `a399bfb` |
+| ref | `e67269a` | `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` |
 |---|---|---|
 | `origin/main` | yes | no |
 | `origin/claude/delivery-phase5` | yes | yes |
@@ -128,8 +128,8 @@ material, so this is a disclosure, not a stale tree.
 | `refs/pull/225/merge` | yes | yes |
 
 Of the **220** public `refs/pull/*/head` refs, two carry `e67269a`
-(`#224`, `#225`) and one carries `a399bfb` (`#225`). The repository has
-**0** forks today. `e67269a` is in the default branch already; `a399bfb`
+(`#224`, `#225`) and one carries `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` (`#225`). The repository has
+**0** forks today. `e67269a` is in the default branch already; `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e`
 is not — it reaches `main` only when pull request #225 merges.
 
 ## What a rewrite would and would not do on a public host
@@ -173,8 +173,8 @@ tracked citation of a re-hashed commit dangles. Measured:
   matters. A force-push to the protected `main` also requires the owner
   to relax branch protection, and it invalidates the open pull request
   #225.
-- **Rewriting the delivery line to drop `a399bfb`** re-hashes **21**
-  commits (from `a399bfb` to the `delivery-phase5` tip). Tracked
+- **Rewriting the delivery line to drop `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e`** re-hashes **21**
+  commits (from `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` to the `delivery-phase5` tip). Tracked
   citations inside that range: **24** across **8** files, **17**
   distinct. It would also require closing and recreating pull request
   #225 and one new run. It does **not** reach `e67269a`, which is already
@@ -199,18 +199,87 @@ breach to contain. What follows:
 
 | Option | What it does | Measured cost | What it does not do |
 |---|---|---|---|
-| **1. Do nothing.** | Both names stay anonymously fetchable; `a399bfb` also enters `main` when #225 merges. The tree tips and the pilot's records stay clean, and the new total-Han pin watches the tree going forward. | 0 — no commits, no refs, no run. | Reach any copy of the name. |
-| **2. Rewrite the delivery line only** (drop `a399bfb` from `origin/claude/delivery-phase5`, recreate #225, request a host purge), **before** #225 merges. | The second leak stops reaching `main`; the delivery tip no longer serves the blob. | 21 commits re-hashed; 24 tracked citations in 8 files (17 distinct) re-measured; #225 closed and recreated; one new run; a host-side purge for the old objects. | `e67269a`, already in `main`, is untouched. |
-| **3. Rewrite both** (drop `e67269a` from `main` and `a399bfb` from the delivery line, request a host purge). | The only option that removes **both** names from the default branch's tips. | 1088 commits re-hashed (252 merges); 414 tracked citations in 126 files re-measured (upper bound); the required-check revisions, the shard cost anchor and the six `test_status_consistency` "measured at" anchors all move; a force-push to protected `main` under relaxed branch protection; the open PR #225 closed and recreated; a host-side purge — the 220 `refs/pull/*/head` refs (nearly all merged PRs) keep the old objects reachable, so the purge is the only step that reaches them. | Erase cached or already-cloned copies outright; the purge is best-effort. |
+| **1. Do nothing.** | Both names stay anonymously fetchable; `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` also enters `main` when #225 merges. The tree tips and the pilot's records stay clean, and the new total-Han pin watches the tree going forward. | 0 — no commits, no refs, no run. | Reach any copy of the name. |
+| **2. Rewrite the delivery line only** (drop `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` from `origin/claude/delivery-phase5`, recreate #225, request a host purge), **before** #225 merges. | The second leak stops reaching `main`; the delivery tip no longer serves the blob. | 21 commits re-hashed; 24 tracked citations in 8 files (17 distinct) re-measured; #225 closed and recreated; one new run; a host-side purge for the old objects. | `e67269a`, already in `main`, is untouched. |
+| **3. Rewrite both** (drop `e67269a` from `main` and `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` from the delivery line, request a host purge). | The only option that removes **both** names from the default branch's tips. | 1088 commits re-hashed (252 merges); 414 tracked citations in 126 files re-measured (upper bound); the required-check revisions, the shard cost anchor and the six `test_status_consistency` "measured at" anchors all move; a force-push to protected `main` under relaxed branch protection; the open PR #225 closed and recreated; a host-side purge — the 220 `refs/pull/*/head` refs (nearly all merged PRs) keep the old objects reachable, so the purge is the only step that reaches them. | Erase cached or already-cloned copies outright; the purge is best-effort. |
 
-None of these is performed here, and none is recommended as the
-owner's: the record states the measured cost of each so the owner can
-choose. The tree-side gap is closed regardless, by the new pin.
+None of these was performed when this record was written, and none was
+recommended as the owner's: the record states the measured cost of each so
+the owner can choose. **The owner chose option 2 on 2026-11-28, and it was
+performed — the section below says what that cost and what it reached.**
+
+## The remedy, carried out on 2026-11-28
+
+**The owner chose option 2** — rewrite the delivery line only — and split the
+rest out: `main`'s own history is a batch of its own, with its own run and
+its own anchors to move. This section says what was done, what it cost, what
+it reached and what it did not.
+
+**What was done.** The delivery line was rebuilt with the leaked commit's
+file replaced by the redacted version that already existed later in the
+line, so the name never entered the history that becomes `main`. The rebase
+kept the merges (`--rebase-merges`), and **two commit messages that cited a
+hash the rewrite moves were corrected in the same pass**, so no message
+names a commit that no longer exists. The old commit
+`a399bfb1331786bba5db4ecb9f49f064ee4a0a8e` became
+`9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e`, and the delivery tip
+`40609d659fc434556fbd8f88ddd8bc4c3e04f3d4` became
+`fbffd9a16fad…`.
+
+**What it cost.** **54 commits were re-hashed** and 6 were not (they are
+older than the leak). **72 citations in 18 tracked files** were re-pointed at
+the new hashes, each file's citations moved by one pass over the file, and
+**0 stale citations remain** (measured).
+
+**The table above says "21 commits" and "24 tracked citations in 8 files".
+That was the reading when the table was written**, and the tree has grown
+since — a value that can change is re-measured, not carried forward, and
+the numbers above are the re-measured ones.
+
+**What it reached.** The blob that carried the name —
+`ecdfb94ce018e5c1fa2c7fc9b4348bd188b25cad` — **is no longer reachable from
+the rewritten branch**: `git rev-list --objects` over the new head does not
+name it (measured). The tree at the tip is **identical** to the tree before
+the rewrite, apart from the citations that name the commits.
+
+**What it did not reach.**
+
+- `e67269a` is in `main` and was not touched, by this option's own terms.
+- **The history `main` already holds.** Measured on 2026-11-28, with the
+  tree's own definition of a name-shaped run (one surname and one title),
+  over `origin/main` and the delivery head: **17 blobs in 4 files**
+  (`docs/adr/ADR-0014-paper-revision-provenance.md` 5,
+  `tests/docx_corpus.py` 8, `docs/plans/LC-P2-11-task-breakdown.md` 3,
+  `docs/acceptance/second-corpus-absorption.md` 1), plus the corpus labels
+  in three more files' histories. Every one of them is an **ancestor of
+  `origin/main`**, and the earliest affected commit has **1,306 commits**
+  after it in `main`. The tree's tip is clean; `main`'s history is not, and
+  clearing it is the batch the owner split out.
+- The old objects remain in the remote's object store until a host-side
+  purge. The request text is below.
+
+**The request to the host.**
+
+> Repository: https://github.com/gg320324492-lgtm/labcairn
+>
+> The blob `ecdfb94ce018e5c1fa2c7fc9b4348bd188b25cad`, in commit
+> `a399bfb1331786bba5db4ecb9f49f064ee4a0a8e`, at the path
+> `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md`, carries a person's
+> name. The commit has been rewritten out of the branch that will become
+> `main`, and the tree at the tip of every branch is clean, but the object
+> is still reachable through the pull-request refs. Please remove it from
+> the repository's object store.
+
+**A limit worth naming.** The hashes the records cite are checked by the
+tree's own witness only for the status board's evidence cells; the
+citations in the acceptance records are verified by the rewrite's own
+script, not by a test. **A witness for that is open work.**
 
 ## What this record does not decide
 
-It does not decide which option, if any, the owner takes. It does not
-push, force-push, rewrite, delete or recreate any ref, and it does not
-open a support request. It does not say the exposure is tolerable or
-intolerable; it says what it costs to close and what each closing would
-and would not achieve.
+It does not decide which option, if any, the owner takes — **that is
+decided: option 2, and the section above says what was done.** It does not
+rewrite `main`'s own history, which is the batch the owner split out; it does
+not file the host purge request, which needs the owner's own account; and it
+does not say the exposure that remains in `main`'s history is tolerable or
+intolerable.

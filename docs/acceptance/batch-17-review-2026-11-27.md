@@ -1,7 +1,7 @@
 # Batch 17 review — the batch audited, and a name that was already out
 
 **Date:** 2026-11-27
-**Range reviewed:** `6b8e09f..40609d6` on `main` — the fifteenth batch's
+**Range reviewed:** `6b8e09f..fbffd9a16fad6921eac958699233d4c7a3ac4b18` on `main` — the fifteenth batch's
 delivery, carried by pull request #225, which is open.
 **Checklist:** [`docs/review-checklist-2026-11-14.md`](../review-checklist-2026-11-14.md),
 R1–R7.
@@ -105,7 +105,7 @@ were re-measured from the pull request's own completed run's log by
 | `test_source_removal_scope.py` | 1.33 s | 16.80 s |
 | `test_dangling_source_read_faces.py` | 0.88 s | 8.42 s |
 
-**No cost is `0.0` any more.** The anchor moved to `40609d6`, the partition
+**No cost is `0.0` any more.** The anchor moved to `fbffd9a16fad6921eac958699233d4c7a3ac4b18`, the partition
 was rebuilt from the new numbers, and the three documents that print costs —
 `.github/CI.md`, `.github/workflows/python.yml` and
 `docs/plans/LC-P1-13-evaluation-ci.md` — were carried with the table. The
@@ -140,11 +140,11 @@ Two commits carry a Chinese personal name inside a document:
 | commit | date | the document | Han runs | public ref |
 | --- | --- | --- | ---: | --- |
 | `e67269a` | 2026-11-01 | `docs/acceptance/second-corpus-absorption.md` | 3 | an ancestor of `origin/main` |
-| `a399bfb` | 2026-11-27 | `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` | 5 | an ancestor of `origin/claude/delivery-phase5` and of `refs/pull/225/head` |
+| `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` | 2026-11-27 | `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` | 5 | an ancestor of `origin/claude/delivery-phase5` and of `refs/pull/225/head` |
 
 Fetching either file at its commit over plain HTTPS, **with no credential**,
 answers **200** with the runs in the body. The redactions — `f0f9cdb` and
-`7fae861` — cleaned the **tree tips**; the blobs stayed in history, and
+`80bc7e53a50cd88ca95f59e57664cf0ee4d1376a` — cleaned the **tree tips**; the blobs stayed in history, and
 history is what a remote serves.
 
 **Why this is a disclosure and not a stale tree.** The repository is public,

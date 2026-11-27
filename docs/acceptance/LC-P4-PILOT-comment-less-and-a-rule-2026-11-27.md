@@ -3,7 +3,7 @@
 **Ticket:** LC-P4-PILOT, the path the comment-less run's record left open:
 *"a run over a document with no comment and a rule the card would cite"*.
 **Date:** 2026-11-27.
-**Tree:** based on `main` @ `c081eed` ("Say in the review that the tree caught
+**Tree:** based on `main` @ `21ea0725ebd4dd833d50eeacd4698e31c4b34cd1` ("Say in the review that the tree caught
 one of its own sentences"), worktree `charming-ellis-dffca4`, Windows 11 Pro
 (10.0.26300 x64), Python 3.12.13.
 **Status:** local evidence only. No push, no pull request, no CI run, no merge.
@@ -199,7 +199,7 @@ see what is still open.
 
 ## 5. The local measurement
 
-**On the final tree** — this worktree, `main` @ `c081eed` plus this window's
+**On the final tree** — this worktree, `main` @ `21ea0725ebd4dd833d50eeacd4698e31c4b34cd1` plus this window's
 changes — read from each command's own exit status, not a pipeline's:
 
 | command | reading |

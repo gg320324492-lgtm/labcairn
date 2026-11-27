@@ -1,7 +1,7 @@
 # Batch 19 review — the gate on the report's path, and a drift the door cannot see
 
 **Date:** 2026-11-28
-**Range reviewed:** `ba4e537..8dacfea` on `main` — the window that wired
+**Range reviewed:** `95161fa6d0905c48c7cf4c41a4eb8dc78725e4be..4b90dbc152acbfbdf95535a20f0bddca0277ca4d` on `main` — the window that wired
 the evidence gate into the path a report takes: the read-side counterpart of
 the write-side gap batch 18 closed (an attestation over a source the ledger no
 longer holds).
@@ -12,7 +12,7 @@ R1–R7.
 says anything, over the records the document states as established.
 
 **A note on the order.** The gap was measured at the base revision: at
-`ba4e537`, `git grep -n evaluate_task` over `src/` returned two lines, both in
+`95161fa6d0905c48c7cf4c41a4eb8dc78725e4be`, `git grep -n evaluate_task` over `src/` returned two lines, both in
 `src/labcairn/evidence/gate.py` — the export list and the definition. **No
 module in `src/` called it.** The gate's own docstring says it is *"the last
 thing that runs before a report says something"*, and nothing ran it. The
@@ -175,7 +175,7 @@ directory** — two runs that share one destroy each other's test tree.
 | `ruff check .` | **All checks passed** |
 | `ruff format --check .` | **584 files already formatted** |
 | `mypy --strict src conftest.py tests` | **no issues in 509 source files** |
-| `python scripts/witness_ledger.py ba4e537 HEAD` | **4345 → 4353** test functions, **LOST — none**; the eight added are this batch's four gate witnesses and four surface witnesses |
+| `python scripts/witness_ledger.py 95161fa6d0905c48c7cf4c41a4eb8dc78725e4be HEAD` | **4345 → 4353** test functions, **LOST — none**; the eight added are this batch's four gate witnesses and four surface witnesses |
 
 **The shard and manifest registrations are witnessed, not asserted.** The
 shard file is read by `tests/test_ci_shard_coverage.py` and the manifest by

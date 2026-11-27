@@ -2,7 +2,7 @@
 
 **Ticket:** LC-P4-PILOT (the source-removal's own reading faces)
 **Date:** 2026-11-26 (the reading, 17:28–17:43 UTC), recorded 2026-11-27.
-**Tree:** `124e843542b047c40712ddb01dd35642d0ce5f33` (worktree
+**Tree:** `1d0512dffec5699e2ab8ca3bf392c10841ab9ca9` (worktree
 `determined-mayer-ac3f06`, branch `claude/determined-mayer-ac3f06`), Windows 11
 Pro (10.0.26300 x64, AMD64), Python 3.12.10.
 **Status:** local evidence only. No push, no pull request, no CI run, no
@@ -140,7 +140,7 @@ Every number in the record is a count, a digest, an id, a byte count or a
 code, and each was produced by one command. The commands were run against
 the scratch workspace under `E:/labcairn-local/tmp/`, through this tree's own
 console script (`uv run labcairn`), so the code that ran is the code in the
-tree the record was written on (`124e843`).
+tree the record was written on (`1d0512dffec5699e2ab8ca3bf392c10841ab9ca9`).
 
 | the number in the record | what it is | the command that produced it |
 | --- | --- | --- |
