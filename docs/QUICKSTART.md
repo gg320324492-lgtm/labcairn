@@ -379,7 +379,7 @@ label, its outcome and its detail. The load-bearing ones:
 | The report carries the claims, and every claim cites the address it rests on | §3 |
 | The figure on disk is the bytes the receipt records, and two renders are byte-identical | §3 |
 | The CLI's task document and the API's are the same, field by field — **and the control finds a planted difference** | §3 |
-| The report is marked stale, the stale mark regenerates nothing, and v1's bytes are unchanged | §3 |
+| The report is **refused** while the ledger still holds the bytes that moved, and nothing is written | §3 |
 | The service, in a new process, serves the same task | §3 |
 | Every file the product produced is under the task's own output area | §3 |
 | The repository's own fixture corpus is byte-identical afterwards | §3 |

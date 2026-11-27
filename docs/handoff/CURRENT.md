@@ -1,6 +1,48 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-28 (later) - the delivery is on the remote, and the tree's own walks caught the contract change
+
+- **The delivery is pushed, and pull request #225 carries it.** The rewritten
+  delivery line is `origin/claude/delivery-phase5`; local `main` holds the
+  same commits and `origin/main` does not, because the owner's merge is what
+  moves it.
+- **The runner found what the local review did not.** The batch changed the
+  report path's contract — a report over a source whose bytes have moved is
+  **refused** before it is written, rather than written and marked stale —
+  and the tree's own two walks still asserted the old contract, so both
+  **raised on the refusal** and took **19 witnesses** with them: 16 in
+  `tests/test_smoke_path.py`, 3 in `tests/test_outsider_path.py`. The runner
+  said the same thing: on #225, `python-quality (ubuntu-latest, shard 2)`,
+  `python-quality (windows-latest, shard 3)` and
+  `python-quality (windows-latest, shard 5)` were red, and every failure in
+  those three shards was one of the two walks.
+- **Both walks now show the refusal**: the reason, the source, the bytes the
+  ledger holds and the bytes the file has, and **nothing written** — no
+  revision on disk and no new row, with the first revision's bytes unchanged.
+  The refusal's comparison gets a control of its own in each walk (the bytes
+  the file held before it was moved are hashed and compared with the
+  ledger's), and a witness reads each walk's output for the refusal's line
+  and for the two hashes it names — so a refusal a walk swallowed would
+  leave the run green over a report that was written anyway.
+- **Two witnesses were red for a reason of their own.** The whole-suite local
+  run had `tests/test_fault_injection_e2e.py` failing twice with
+  `sqlite3.OperationalError: disk I/O error` on `PRAGMA
+  journal_mode=WAL` — the crash-recovery case the session module names in
+  its own comment. **Run alone the file passes (8 passed)**, and the runner
+  never saw it: this machine's long-run behaviour, not a regression.
+- **The owner's own plan carries the correction.** LC-P1-11's clause *"Re-
+  rendering after material change invalidates stale output"* is unchanged and
+  is still discharged by the walk that marks the old revision stale; what the
+  plan's discharge description did not say is that the re-render itself is now
+  **refused**, with a reason, while the ledger holds the old bytes. That is
+  written down in `docs/plans/LC-P1-11-12-task-breakdown.md` §2.4.
+- **What is still the owner's:** the merge of #225, the host-side purge
+  request (the text is in the history-exposure record), and `main`'s own
+  history, which still holds 17 name-shaped blobs in 4 files' histories and
+  is the batch the owner split out.
+
+
 ## 2026-11-28 - the evidence gate walks the report's path, and the door's question stops short of an attestation
 
 - **The gate runs before a report says anything.** `render_report` builds the
@@ -49,13 +91,14 @@
   file the filesystem will list but not open, so git can enumerate it and
   cannot delete it. It is harmless to the tree, the suites and the merge, and
   it is the kind of branch a fresh clone or a `git gc` settles.
-- **The push waits.** The delivery to the remote is not made while one window
-  is still running: the owner's call, on 2026-11-28, is that the push carries
-  this batch and that window's together — **one pull request and one run for
-  both**, because a run is a fixed cost (the seventeen required checks — the
-  required set read from GitHub on 2026-11-18 at
+- **The push is made, and the pull request is open.** The delivery went to
+  the remote as `claude/delivery-phase5`, and pull request #225 carries it —
+  one pull request and one run for the whole delivery, because a run is a
+  fixed cost (the seventeen required checks — the required set read from
+  GitHub on 2026-11-18 at
   `ac362d2cb5536d05372cf02b49a499036efd2952` — with the Windows leg the
-  slowest) and a run per batch is a run per batch.
+  slowest) and a run per batch is a run per batch. The owner's merge is what
+  moves `origin/main`; the session does not merge.
 - **What the tree's Chinese turned out to be.** Every Han run in the tracked
   tree is now registered by digest, length and class — **53 files, 1,956
   runs**, eight classes, and the registry holds **no Han character** of its

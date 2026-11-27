@@ -151,6 +151,49 @@ exposes both; the CLI's rendered table prints neither, so a reader at the
 command line cannot see which records the gate judged. The refusal — the
 part that matters — is rendered on both surfaces.
 
+## What the runner found that this review did not
+
+**The batch changed the report path's contract, and the tree's own
+demonstrations still asserted the old one.** That a report over a source
+whose bytes have moved is **refused** rather than written and marked stale
+is the batch's own rule, and it is right — a report written after the move
+would carry a receipt that says `current` over bytes the ledger no longer
+describes. But the two e2e walks that stand in front of that rule still
+rendered a second revision over moved bytes and counted it among their
+claims, so both **raised on the refusal** and took their witnesses with
+them.
+
+**Measured, on the delivered tree and on the runner.** The exit
+demonstration (`examples/g4_exit_demo.py`) takes **16** witnesses with it
+(`tests/test_smoke_path.py`) and the outsider's path
+(`scripts/outsider_path.py`) takes **3** (`tests/test_outsider_path.py`) —
+**19 in all**. The runner said the same: on pull request #225,
+`python-quality (ubuntu-latest, shard 2)`,
+`python-quality (windows-latest, shard 3)` and
+`python-quality (windows-latest, shard 5)` were red, and every failure in
+those three shards was one of these two walks.
+
+**Two witnesses were red for a reason of their own.** In the whole-suite
+local run, `tests/test_fault_injection_e2e.py` failed twice with
+`sqlite3.OperationalError: disk I/O error` on `PRAGMA journal_mode=WAL` —
+the crash-recovery case the session module names in its own comment. **Run
+alone the file passes (8 passed)**, and the runner never saw it, so it is
+this machine's long-run behaviour and not a regression of the batch. It is
+written down here because a reader of the local log would otherwise meet it
+and have to work it out again.
+
+**What was done, and what it is witnessed by.** Both walks now show the
+refusal: the reason, the source, the bytes the ledger holds and the bytes
+the file has, and **nothing written** — no revision on disk and no new row,
+with the first revision's bytes unchanged. The refusal's comparison gets a
+control of its own in each walk: the bytes the file held before it was
+moved are hashed and compared with the ledger's, so the comparison is shown
+to answer "same" for those bytes and "different" for the bytes the file
+has now, rather than asserted from the ledger alone. The witnesses read
+the walks' output for the refusal's line and for the two hashes it names,
+so a refusal a walk swallowed would leave the run green over a report that
+was written anyway.
+
 ## Where each finding went
 
 | Finding | Where it went |
@@ -161,4 +204,5 @@ part that matters — is rendered on both surfaces.
 | The published history still carries the names | measured; the owner's call was to split it, and the second half is the next batch |
 | The records' citations are not witnessed | open — named here, and in the next batch's card |
 | The CLI's table does not show the gate's verdict | open — named here |
+| The tree's own walks asserted the old report contract | closed — both show the refusal, name what it says and write nothing; a witness reads the refusal's line and the two hashes it names |
 | The new files' costs | `0.0` until a runner measures them; filed in the manifest and in a shard |

@@ -115,7 +115,7 @@ The P1 deliverable, in the order the deliverable names it:
 | 4 | **A report and a deterministic figure** | the layer's `render_report`, and `run_analysis` under a granted `analysis.run` approval | `report/v1/` holds `report.json`, `report-manifest.json`, `report.md`, `report.html`, `report.docx`, `report.pdf`; the figure is an SVG whose bytes hash to its receipt, and **two renders of the same recipe are byte-identical** |
 | 5 | **Source locators** | three claims recorded through the layer's `record_claim`, against addresses `list_source_addresses` reports | The report's citations are locators of three kinds — `csv` (row and column), `pdf` (page), `text` (line and section) — and each address **resolves** in the material the task holds |
 | 6 | **An evidence ledger** | three evidence records, written by `record_claim` | The report's snapshot names the three records the operation returned; every claim cites the address it rests on |
-| 7 | **A revision** | the researcher's own edit to the table | The repository's own measurement says the material moved; the walk marks the report's receipt `STALE` with the repository's own reason and **regenerates nothing**; the report is then generated again as **v2**, with **v1's bytes unchanged**; the refreshed material goes back through `labcairn sources ingest`; the analysis runs again over the revised bytes and draws a **different figure**; and the attempt to **recompute** the report from the revised bytes is **refused** — §7.2 |
+| 7 | **A revision** | the researcher's own edit to the table | The repository's own measurement says the material moved; the walk marks the report's receipt `STALE` with the repository's own reason and **regenerates nothing**; the report asked for again over the moved bytes is **refused**, with a reason that names the source, the bytes the ledger holds and the bytes the file has, and **nothing is written** — no second revision, and **v1's bytes unchanged**; the refreshed material goes back through `labcairn sources ingest`; the analysis runs again over the revised bytes and draws a **different figure**; and the report is **recomputed** from the revised bytes, which renders as **v2** — §7.2 |
 | 8 | **A restart** | the service is started again in a **new process** | The task after the restart is the task before it; the service serves the same task; `labcairn task resume` makes **a new run against the same task** |
 | 9 | **Two surfaces** | the CLI and the local service, against one workspace | 308 fields compared between the CLI's `task status --json` and the API's `/task`; 288 between the two artefact lists; for each of the four forms, the bytes on disk, the bytes the API serves and the receipt's hash **agree** |
 | 10 | **The material unchanged** | every file's hash, before and after | The repository's own fixture corpus is byte-identical; the research folder still holds exactly the three files it was given; **every file the product produced is under the task's own output area** |
@@ -346,6 +346,19 @@ revised bytes and the chain names one hash. The measurement above stays as
 the record of what the walk saw at the time. Witnesses:
 `tests/test_application_layer.py::test_a_second_revision_is_recomputed_from_the_revised_material` ·
 `tests/test_analysis_report_build.py::test_the_part_carried_is_the_one_computed_over_the_current_material`.
+
+**What the walk says today (2026-11-28).** The report path has one more
+answer than it had on the day of the measurement above, and it gives it
+*before* the chain is built. A re-render over a source whose bytes have
+moved is **refused** — ADR-0004 I4 invalidates a record whose source has
+moved rather than refreshing it, so a report written over those bytes would
+state claims the ledger no longer supports. The refusal names the source,
+the bytes the ledger holds and the bytes the file has, and **nothing is
+written**: no second revision, and no row. The walk's step 9 shows that
+refusal, and the recomputation after the re-ingest renders as **v2**, which
+is the answer the closing note above records. The refusal is witnessed by
+`tests/test_report_evidence_gate.py::test_an_attested_claim_over_a_moved_file_is_refused_before_anything_is_written`
+and by the walk itself.
 
 ### 7.3 The evidence ledger cannot be written through any surface — closed
 
