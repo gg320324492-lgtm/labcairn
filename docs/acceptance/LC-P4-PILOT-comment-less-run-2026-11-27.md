@@ -261,6 +261,7 @@ helpers are where the property lives.
 | `tests/test_store_events.py` | **122 passed** (the vocabulary's sweep, 34 types) |
 | `tests/test_store_migrations.py` | green (revision 0035 and the downgrade) |
 | `tests/test_task_stage_closure.py` | **4 passed** (the refusal's own log witness) |
+| the thirteen suites above, together with `test_api.py`, `test_cli.py`, `test_application_layer.py` and the four role suites | **486 passed, 1 skipped** |
 | `ruff check .` / `ruff format --check .` | **all checks passed** |
 | `mypy --strict src/ tests/` | **success: no issues found in 506 source files** |
 
