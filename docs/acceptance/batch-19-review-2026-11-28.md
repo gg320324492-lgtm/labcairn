@@ -189,6 +189,17 @@ pytest reported *"no tests ran"* and **exited 0**. A green that ran nothing is
 the failure mode this project's rules are about, so the number above is from
 the run that named only files that exist.
 
+**And the tree caught one of this review's own sentences.** The handoff entry
+this batch added says a run costs *the seventeen required checks* — a
+required-set claim — and the tree's witness
+(`tests/test_ci_shard_coverage.py::test_the_current_pointers_agree_with_the_measured_required_check_set`)
+says such a paragraph must carry the revision the set was read at **in that
+paragraph's own text**: a file-wide anchor is satisfied by an anchor sitting
+anywhere in the document, and a reader who follows a pointer to the wrong
+paragraph is worse off than one with no pointer. The paragraph did not carry
+it, the witness was red, and the anchor is now in the paragraph. **The
+mechanism works, and it worked on the sentence this session wrote.**
+
 ## Where each finding went
 
 | Finding | Where it went |
