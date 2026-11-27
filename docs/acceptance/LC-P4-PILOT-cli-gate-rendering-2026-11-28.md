@@ -221,17 +221,35 @@ The `--basetemp` and `TEMP`/`TMP` were outside the repository, on the E drive
 - **No CI run.** Nothing was pushed and no pull request was opened; the
   seventeen required checks have not read this tree. The local run is the
   evidence until a runner says otherwise.
-- **The new test file is in no shard.** `tests/test_cli_report_gate_rendering.py`
-  is not registered in `.github/ci-shards.json` and not in
-  `tests/evaluation/manifest.py`, as this window was told. **A file in no
-  shard is a test CI never runs**, and every other check would stay green
-  while it went — so the integrating session must register it and re-measure
-  the shard costs.
-- **The shard costs were not re-measured.** The shard file records the commit
-  its costs were measured at, and this change touches `src/`, so
-  `tests/test_ci_shard_coverage.py` will fail until
-  `python .github/remeasure_shards.py <run-id>` runs on a runner's numbers.
-  Not this window's step.
+- **The new test file is in no shard and in no gate class.** Three witnesses
+  say so, each naming the file, and each was measured at this tree:
+
+  | Witness | What it says |
+  |---|---|
+  | `tests/test_ci_shard_coverage.py::test_every_test_file_is_in_exactly_one_shard` | the file is in no shard |
+  | `tests/test_ci_shard_coverage.py::test_the_recorded_costs_cover_every_test_file` | `on ubuntu-latest, these test files have no measured cost recorded: ['test_cli_report_gate_rendering.py']` |
+  | `tests/test_evaluation_harness.py::test_the_partition_files_every_test_file_exactly_once` | `these test files are in no gate class, so their cases enter no denominator: ['test_cli_report_gate_rendering.py']` |
+
+  Measured: **2 failed, 46 passed** in the shard file, and **1 failed, 83
+  passed** in the evaluation harness. **A file in no shard is a test CI never
+  runs**, and every other check would stay green while it went — so the
+  integrating session must register it in `.github/ci-shards.json` and in
+  `tests/evaluation/manifest.py`, and re-measure the shard costs.
+- **A correction to what this record first said.** It first claimed that the
+  shard-cost witness would fail with *"the shard costs were measured at ... and
+  these files have changed since"*. **It does not**, and the measurement says
+  so: `test_the_costs_belong_to_the_tree_they_were_measured_on` **passed**. That
+  witness has **slack** — a changed file only needs re-measurement if its cost
+  could unbalance the partition, and this change does not. So a
+  re-measurement is still needed, but for the reasons the two failures above
+  give (a file with no measured cost, and a file in no shard), **not** for the
+  reason this record first named. The fix is
+  `python .github/remeasure_shards.py <run-id>` on a runner's numbers, and it
+  is the integrating session's step.
+- **Two witnesses that also enumerate the test files pass unchanged.**
+  `tests/test_cli_refusal_enumeration.py` and
+  `tests/test_cli_workspace_refusals.py` were run over the new file:
+  **38 passed**. The new file needs nothing from them.
 - **The API was not re-witnessed by this window.** The API's exposure of both
   fields is carried by the contract and by
   `tests/test_report_evidence_gate.py`; this work did not change the API's
