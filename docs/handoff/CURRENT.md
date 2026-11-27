@@ -1,6 +1,56 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-28 - the evidence gate walks the report's path, and the door's question stops short of an attestation
+
+- **The gate runs before a report says anything.** `render_report` builds the
+  document, then runs `labcairn.evidence.gate` over the records the document
+  states as established, then runs the content checks, and only then renders
+  the forms and writes the revision. A finding refuses the report with a new
+  reason, `report_evidence_refused`, names every objection and the record it
+  concerns, and **leaves nothing written**. Both surfaces inherit one
+  answer: `labcairn task report` and `POST /report` reach the same operation,
+  so neither surface file had to change.
+- **The gap was measured, not assumed.** At `ba4e537`, `git grep -n
+  evaluate_task` over `src/` returned two lines, both in the gate's own file
+  — **nothing in `src/` called it**, while the gate's docstring said it was
+  *"the last thing that runs before a report says something"*.
+- **The scope was chosen by measurement.** Three scopes were measured on a
+  real migrated store: the whole task (it refuses for a planned or superseded
+  record the report never quotes — a refusal the caller cannot act on, since a
+  superseded row is kept by design), every record the report carries (it
+  refuses for a record the report prints *with its status* — the report's own
+  text, answered by the report), and the records the document states as
+  established. The third is the one the window took, and the record says what
+  the choice costs.
+- **The gate's verdict is in the result.** `ReportRendered` carries
+  `evidence_gate` and `unjudged_records`, and the two lists partition the
+  document's snapshot. The checked-in TypeScript contract was regenerated,
+  and the parity test is what caught the omission.
+- **And the door's question stops short of the one citable status the
+  surfaces can produce.** Measured on 2026-11-28: a `user_attested` record
+  whose source file changed bytes is **reported successfully** — the command
+  exits 0, the report is written, and the receipt says `current`. The chain,
+  each link measured: an attestation logs **C4 only**, so the gate's drift
+  question has no subject on it; the report's content checks **deliberately
+  do not compare** `source_content_hash`; the receipt's staleness walk
+  compares the **ledger's stored** hash and not the file; and `advance` has
+  **no caller in `src/`**, so `verified_by_rule` is unreachable from any
+  surface today. The record was corrected in place, and the fix — *the gate
+  should ask the source directly for a citable record* — is the next card.
+- **Bookkeeping.** `tests/test_report_evidence_gate.py` is filed in the
+  manifest and in a shard on both platforms at a cost of `0.0` — the number
+  is owed and comes from a runner. The witness ledger reads **4345 → 4353**
+  with **nothing lost**. A stale count in the evaluation harness's header
+  ("33 files declare unit, integration or e2e"; measured **179**) was removed
+  rather than re-anchored, with the reason written down. The four window
+  branches whose work has landed were deleted; one could not be —
+  `claude/stoic-lighterman-987a04`, whose commit is on `main`, and whose ref
+  file the filesystem will list but not open, so git can enumerate it and
+  cannot delete it. It is harmless to the tree, the suites and the merge, and
+  it is the kind of branch a fresh clone or a `git gc` settles.
+
+
 ## 2026-11-27 - pull request #224 is merged, four windows answered, and a name got out
 
 - **Pull request #224 is merged** (merge commit `6b8e09f`), and the delivery
