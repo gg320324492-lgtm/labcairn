@@ -81,6 +81,23 @@
   in the earlier records that carry Chinese for other reasons, and
   whether the git history holds one. The suggestion loop still cannot run
   on a copy without comments.
+- **The gap the batch measured is now closed.** A record could reach
+  `user_attested` — a state a report may cite — while the source its
+  anchor named was gone, because `attest` checked that the record's
+  *identifiers* resolved and never asked the *source* a second time
+  (ADR-0004 I4). The rule now lives at the layer that owns it:
+  `store.attest` runs **C1** — `check_source_exists`, reached through the
+  same `_run_check` that `advance` uses, not a second implementation — and
+  refuses with the source's id named when the row is gone or its bytes
+  have moved under it. `attest_claim` maps that onto a new refusal code,
+  `CITATION_SOURCE_UNOBSERVABLE`, so the CLI and the API inherit one
+  answer through the existing rendering. The origin witness was **flipped**
+  to assert the refusal and keeps the reading as the control that the
+  record is only `extracted` and not citable; a new file adds the
+  positive control, the missing-source and drift refusals, and the
+  application mapping. The mutation that restores the pre-fix early
+  return turns the four refusal witnesses red and leaves both controls
+  green — checked again independently here.
 - **Correction, 2026-11-27: the git history does hold one, and it left
   this machine.** The sentence above used to read *"the leak never left
   this machine, but no witness looks there"*. **That was wrong**, and the
