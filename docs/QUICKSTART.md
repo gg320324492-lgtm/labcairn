@@ -91,10 +91,12 @@ uv run python scripts/outsider_path.py --mode reviewer --work-root E:\labcairn-l
   `<work-root>/outsider-path-report.json` and prints where everything is.
 
 **The measured run** is in
-[the acceptance record](acceptance/LC-P1-14-outsider-path.md): 115 checks, all
-held, in the reviewer mode, **at the commit it names**. The walk has been
-changed since that run, and the acceptance record says what a reviewer-mode
-run costs now. §5 lists what the walk asserts.
+[the acceptance record](acceptance/LC-P1-14-outsider-path.md): **118 checks,
+all held, in 6619.3 s** — of which the whole suite in the clone is 6515.4 s —
+in the reviewer mode, **at the commit it names** (`6b4a8c6`, measured
+2026-11-28). A reviewer-mode run costs the length of the whole suite as one
+process; the record says where that number and the command's timeout come
+from. §5 lists what the walk asserts.
 
 **The script is run by a test**, in the witness mode, on every CI run:
 [`tests/test_outsider_path.py`](../tests/test_outsider_path.py).
@@ -365,13 +367,13 @@ and it writes nothing to standard output.
 
 ## 5. What the walk asserts
 
-The script's checks are the claim, and in the **witness mode** — the mode the
-tree's test runs, and the mode the count was measured in — there are **83** of
-them. The reviewer mode makes more of them, because it runs every README
-command as the README writes it; **its count has not been re-measured since
-the walk changed on 2026-11-28**, and the acceptance record says why. They
-are not a summary; the report carries each one with its label, its outcome
-and its detail. The load-bearing ones:
+The script's checks are the claim. In the **reviewer mode** — the mode §3
+runs, measured 2026-11-28 at commit `6b4a8c6` — there are **118** of them,
+all held. The **witness mode** — the mode the tree's test runs — makes **83**
+of them, measured 2026-11-28: it does not run the whole suite or the web
+package's commands, so it makes fewer. They are not a summary; the report
+carries each one with its label, its outcome and its detail. The load-bearing
+ones:
 
 | The claim | Where |
 |---|---|

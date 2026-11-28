@@ -27,29 +27,56 @@ quoted; the run's own command lines, exit codes and seconds are in §4.
 | The script | `scripts/outsider_path.py` |
 | The witness | `tests/test_outsider_path.py` |
 | The mode | **`reviewer`** — every command the README shows, as the README writes it (§4) |
-| The work root | `E:\labcairn-local\outsider-reviewer` — outside the repository, and outside every other repository |
-| The clone | `E:\labcairn-local\outsider-reviewer\clone` |
-| The workspace | `E:\labcairn-local\outsider-reviewer\workspace` — **outside** the clone and outside the checkout |
-| The machine | Windows 11 Pro 10.0.26200, `uv 0.11.21`, Node v24.16.0, pnpm 9.15.9, Python 3.12.13 |
-| The commit cloned | `92cc92025ac6d2a8186805ae808d80da7c6287de` |
-| The run | **115 checks, all held**, in **1573.2 s** — of which the whole suite in the clone is 1501.4 s |
+| The work root | `E:\labcairn-local\outsider-reviewer-2026-11-28-d` — outside the repository, and outside every other repository |
+| The clone | `E:\labcairn-local\outsider-reviewer-2026-11-28-d\clone` |
+| The workspace | `E:\labcairn-local\outsider-reviewer-2026-11-28-d\workspace` — **outside** the clone and outside the checkout |
+| The machine | Windows 11 Pro 10.0.26300, `uv 0.11.21`, Node v24.16.0, pnpm 9.15.9, host Python 3.10.11, the clone's Python 3.12.10 |
+| The commit cloned | `6b4a8c6bafb51d57e7d26aa65e2d7e34215d43e7` |
+| The run | **118 checks, all held**, in **6619.3 s** — of which the whole suite in the clone is 6515.4 s (§4) |
 
-**The 2026-11-28 attempt produced no result, and the reason is measured.**
-The reviewer mode was run again on the delivered tree, with its own `TEMP`
-and its own work root. The clone's whole suite **exceeded the timeout the
-walk gives that command** — 5400 seconds — and the walk's report was never
-written. The ceiling is arithmetic rather than a stall: the runner's own
-measured shard costs put the whole suite at **10120 s** on Windows and
-**4197 s** on Ubuntu when it runs as **one process**, and the clone runs it
-as one process. (The six shards run in parallel on six runners, so the
-runner's wall clock is the slowest shard — 1687 s.) **So a reviewer-mode run
-cannot finish on Windows at this tree**, whatever the machine is doing; on
-Ubuntu the same sum would fit, but the clone is the host's own.
+**The run above is the record of the repair.** Two earlier 2026-11-28
+attempts produced no result, and each ceiling is measured:
 
-**What the tree's witness runs instead.** The witness mode reduces the
+1. **The first attempt was killed on a reading that was a pre-existing
+   flake** in `tests/test_drill_rewrite_interrupted.py` (its `_wait_for`
+   reads the child's stdout with `readline()` and no timeout; measured, with
+   nothing else on the machine, alone and at the base revision).
+2. **The second attempt reached the timeout the walk gives the whole-suite
+   command** — 5400 s. That ceiling was arithmetic rather than a stall: the
+   runner's own measured per-file costs put the whole suite at **10119.7 s**
+   on Windows and **4198.6 s** on Ubuntu when it runs as **one process**
+   (`.github/ci-shards.json`, measured at `b56f9994`), and the clone runs it
+   as one process, the way the README writes it. (The six shards run in
+   parallel on six runners, so the runner's wall clock is the slowest shard —
+   1687 s.) **The timeout now rests on that measurement**: the command is
+   given 14400 s — 4280 s (42%) of headroom — and the constant is commented
+   with the measurement and the rule for moving it. Running the six shards
+   instead was considered and not taken: the reviewer mode's claim is the
+   README's command as the README writes it, and a stranger types
+   `uv run pytest` once, not six times with a file list.
+3. **A third attempt ran the suite to the end (6086.5 s) and failed 2 tests
+   in `tests/test_pilot_runbook.py`**, with `TypeError: argument of type
+   'NoneType' is not iterable`. The cause is measured, and it is the
+   **host's codepage**: `child_environment` sets `PYTHONIOENCODING=utf-8`, so
+   the collector grandchild writes UTF-8 bytes; the test's own helper decodes
+   its `text=True` pipe with the host's ANSI codepage because it passes no
+   `encoding`; on this machine that codepage is GBK (936), whose lead bytes
+   collide with the UTF-8 payload, the reader thread raised
+   `UnicodeDecodeError`, and `result.stdout` came back `None`. The same file
+   passes alone (in the tree and in the clone), the whole suite passes with
+   `PYTHONUTF8=1` added (both directed runs measured on 2026-11-28), and CI
+   cannot see any of this because a cp1252 runner never disagrees with its
+   children. The walk now also sets `PYTHONUTF8=1`, so the clone tree runs in
+   UTF-8 mode and the host's codepage is out of what a run measures. The
+   helper's own missing `encoding=` argument is a latent defect on the
+   product side of the line, named here rather than fixed in this work
+   order's files.
+
+**What the tree's witness runs meanwhile.** The witness mode reduces the
 whole-suite command to a collection, and `tests/test_outsider_path.py` runs
-it on every CI run. It makes **83** checks, measured on 2026-11-28, and it
-is the mode the counts in §5 are written from.
+it on every CI run. It made **83** checks, measured on 2026-11-28; §5's
+counts are now written from the reviewer mode's run (118), and the witness
+mode's own count is the one §8's test reads.
 
 To run it yourself:
 
@@ -66,14 +93,14 @@ command it applies to, so a witness run can never be read as a full-suite run.
 it is not. A run inside the checkout proves that the checkout works, which is
 not the claim.
 
-**A note on the seconds.** They were measured on a machine that was running
-other suites at the same time — four LabCairn worktrees' pytest runs and
-some unrelated work — so they are an **upper bound** on what the run costs on
-an idle machine. The counts (115 checks, eleven commands, three sources, six
-files per revision) are the facts; the seconds are what this machine gave,
-and a runner with a quiet machine will give less. The shard file's costs were
-measured the same way, which is the safe direction: a file that looks dearer
-than it is makes its shard look dearer than it is.
+**A note on the seconds.** The run in §1 had the machine to itself — the
+walk's rule that a whole-suite run gets the machine alone was kept — so they
+are the machine's own measurement, not an upper bound taken under load. The
+counts (118 checks, eleven commands, three sources, six files per revision)
+are the facts; the seconds are what this machine gave, and a quieter runner
+will give less. The shard file's costs were measured the other way, under
+load, which is the safe direction: a file that looks dearer than it is makes
+its shard look dearer than it is.
 
 ---
 
@@ -174,22 +201,26 @@ does not show is a failure too. The table is fail-closed.
 
 | The README's command | Exit | Seconds |
 |---|---|---|
-| `uv sync` | 0 | 12.8 |
-| `uv run pytest` | 0 | **1501.4** |
+| `uv sync` | 0 | 7.6 |
+| `uv run pytest` | 0 | **6515.4** |
 | `uv run ruff check .` | 0 | 0.1 |
 | `uv run ruff format --check .` | 0 | 0.1 |
-| `uv run mypy` | 0 | 1.9 |
-| `uv run labcairn --help` | 0 | 0.6 |
-| `pnpm install --frozen-lockfile` | 0 | 2.7 |
-| `pnpm test` | 0 | 2.4 |
-| `pnpm typecheck` | 0 | 1.5 |
-| `pnpm lint` | 0 | 3.8 |
-| `pnpm format:check` | 0 | 1.0 |
+| `uv run mypy` | 0 | 3.0 |
+| `uv run labcairn --help` | 0 | 0.8 |
+| `pnpm install --frozen-lockfile` | 0 | 2.2 |
+| `pnpm test` | 0 | 12.8 |
+| `pnpm typecheck` | 0 | 3.9 |
+| `pnpm lint` | 0 | 12.8 |
+| `pnpm format:check` | 0 | 2.3 |
+
+The suite's own summary, from the run: **6455 passed, 39 skipped, 1259
+warnings in 6503.22 s**. (The pytest process's 6515.4 s includes the
+collection and the session teardown the summary line does not.)
 
 **Two modes, and two reductions.** The `reviewer` mode is the one a person
 runs, and the table above is it: **every command the README shows, as the
-README writes it, including the whole suite in the clone** (1501.4 s of the
-1573.2 s the run took).
+README writes it, including the whole suite in the clone** (6515.4 s of the
+6619.3 s the run took).
 
 The `witness` mode is the one a test runs, twelve times over in the CI's
 shards, and it reduces two of them — and **each reduction is recorded in the
