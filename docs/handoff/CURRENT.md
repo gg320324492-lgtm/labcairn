@@ -1,6 +1,35 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-28 (two more cards, and the next three) — the refusals held, and the pipeline cannot carry the rules
+
+- **Two windows' work is merged** (`4407bfb`, `20c00dd`), and the review of
+  it is `docs/acceptance/batch-23-review-2026-11-28.md`.
+- **A writer outside the product was driven against the three refusals** —
+  the model's, the store boundary's and the schema's. **All three held**, and
+  they **do not add up to a closed door** ✓, which is what the record says
+  now ✓.
+- **The analysis pipeline cannot carry the ledger's rules as they stand** — a
+  computed number cannot be anchored, so C1, C2 and C3 have nothing to read
+  ✓. Option B's two sub-shapes are priced ✓, and **the option is still the
+  owner's** ✓.
+- **The verify door had falsified the threat model's own claim**: the model
+  said no product module reaches for the ledger's verification write, and the
+  layer's verify operation now does ✓. The claim is **inverted rather than
+  deleted** ✓, and the document, its C14 row and the confirmation
+  operation's own docstring say what is true ✓.
+- **A window measured the wrong tree and said so.** The `.venv`'s editable
+  install names the **main checkout**, so a bare `pytest` run imported the
+  main tree: its first mutation check **mutated its worktree and came back
+  green** ✓ — the repository's own trap in a different guise ✓. Every run now
+  sets `PYTHONPATH` to the worktree's `src`, and its mutation script refuses
+  to mutate anything outside it ✓.
+- **Three more cards are up**: every child's output **says which encoding it
+  is** (the class that cost two whole-suite runs), the **pilot round replayed
+  on this tree**, and **the verify door priced for removal** — the price the
+  options table is missing ✓.
+
+
 ## 2026-11-28 (the batch of three cards) — a verify door, a deadline, and a reviewer mode that can finish
 
 - **Three windows' work is merged into the local `main`** (`339f204`,
