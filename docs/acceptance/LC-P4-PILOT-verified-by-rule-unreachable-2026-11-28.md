@@ -155,6 +155,16 @@ window's fix added `_the_source_still_supports`, which *is* live for
   refusals, but this window did not build such a writer and drive it. The
   witnesses at `tests/test_evidence_store.py` cover the store's own refusals;
   what is not covered is that no *surface* reaches them.
+
+  **Closed by the writer window, and the answer is not the one the item
+  assumed.** The writer was built and driven, and each of the three refusals
+  held against it — but they do not add up to a closed door, and the
+  measurement found a path the item did not anticipate. The full account,
+  the attempt-by-attempt verdicts and the mutation check are in **"The
+  writer outside the product"** at the end of this record. The short version:
+  **a writer that lands a located row *and* a forged passing log entry
+  produces a record the product reads, the store never saw, and the report's
+  evidence gate accepts with no finding at all.**
 - **The analysis pipeline.** `labcairn.analysis` registers operators and
   renders charts, and its manifests bind a run's inputs and outputs — but it
   appends nothing to any evidence record's log. The option the owner may
@@ -463,6 +473,223 @@ operation.
 * **Option B's question** — whether verification should live only inside the
   analysis pipeline — is untouched: the pipeline still appends nothing to a
   record's log, and the new door does not make it do so.
-* **Behaviour under a writer outside the product** is still unmeasured, as
-  the section above says; the new door does not close that line and does not
-  pretend to.
+* **Behaviour under a writer outside the product** is no longer unmeasured —
+  the writer window measured it, and what it found is the section below. The
+  new door does not close that line, and does not pretend to.
+
+## The writer outside the product
+
+**This section closes the last open item of "What was not measured" above.**
+It is a third window's account, written after the closing window that wired
+the verify door. It changed nothing under `src/`: the product is not what was
+measured here.
+
+**The tree the measurement was taken at:** `7bcfe53952e969ee1736af3623a656927d550d62`
+(this worktree's branch tip, `claude/zealous-noyce-54abd1`) plus this
+window's two files, which land in the commit this section is committed with.
+Windows 11 Pro (10.0.26300 x64, AMD64), Python 3.12.13 (the project's own
+`.venv`).
+
+**A measurement note that is part of the evidence.** The `.venv`'s editable
+install names the **main checkout** (`E:\LabCairn\src`), not this worktree.
+A bare `pytest` run therefore imports and migrates the main checkout's tree.
+The first mutation check this window ran was therefore **measuring the wrong
+tree**: it mutated this worktree's `src/` and `migrations/`, and every
+mutation came back green, because the tests never loaded the files that
+were changed. That is the failure mode the repository's own rules warn
+about — *"a copied virtualenv is not a virtualenv of its own"*, and the
+check that settles it is *"apply a mutation that only the console script can
+reach, and see whether the witness fails"*. Every run this window reports
+sets `PYTHONPATH` to this worktree's `src`, and the mutation script guards
+it: it prints the module path the tests load and refuses to mutate
+anything unless that path is inside this worktree.
+
+### The writer
+
+`tests/test_evidence_outside_writer.py` holds it, as `OutsideWriter`. Every
+method is a `connection.execute` of a SQL string. It never imports
+`EvidenceRecord`, never calls `append_record`, and never touches the
+application layer — it holds the database the way `psql` holds it, and it
+commits, because a refusal that only holds until the next transaction is not
+a refusal.
+
+It writes into a database that is otherwise indistinguishable from one the
+product wrote: the same migrated schema (at head), the same source, the
+same page of text, the same anchor. The fixture is the store's own, copied
+from `tests/test_evidence_store.py`.
+
+### The three attempts, and what each refusal actually did
+
+**Attempt 1 — the model.** The writer landed a row whose status is
+`verified_by_rule`, with a span, a span hash, a source hash and a non-empty
+anchor key — so every schema CHECK was satisfied — and **no log entry at
+all**.
+
+*The write succeeded.* The row is in the database; the schema accepted it.
+The refusal came when the *product* read the row back:
+`load_record` raised `pydantic.ValidationError`, and the model's own message
+is the one the record's model validator carries:
+
+> verified_by_rule requires a verification_log entry with check in {c1, c2,
+> c3} and outcome 'pass' (ADR-0004 Contract 2). Status without a log entry
+> is a schema violation (I3).
+
+**The model's refusal held.** It held at *read*, not at write — the model is
+not in the write path of a writer that does not use it, so a forged row sits
+in the database until something reads it.
+
+**Attempt 2 — the store boundary.** The writer's one way through the store
+is `append_record`, and it handed it a record whose status is
+`verified_by_rule` and whose log names `a.person` — a checker id no build
+implements. The store refused with its own `LedgerError`:
+
+> Contract 2: a verified_by_rule record needs a passing entry from a
+> checker_id in the registered rule catalog, and 'a.person' is not one.
+
+**The store's refusal held, and it was demonstrably the store's.** The
+record in that attempt is *constructed successfully* before `append_record`
+is called — the model was asked and said yes. So the refusal that follows
+can only be the store's, which is the division of labour the store's
+docstring claims, measured rather than asserted. The append also left no
+row behind.
+
+**Attempt 3 — the schema.** The writer landed a row whose status is
+`verified_by_rule` with no span, no span hash, no source hash and an empty
+anchor key. The database refused the write outright, and named the
+constraint:
+
+> CHECK constraint failed: ck_evidence_records_evidence_records_located_past_planned
+
+**The schema's refusal held**, and it held at the earliest possible moment —
+inside SQLite, on the write, before any product code runs. A second schema
+refusal was measured on the same writer: a status outside the vocabulary
+(`verified_by_ruel`) is refused by
+`ck_evidence_records_evidence_records_status_vocabulary`.
+
+**A third refusal the item did not name.** The migrated schema has **no
+triggers** — revision 0005's own comment says why ("triggers would keep the
+index in step with writes by the application, and silently miss every write
+by anything else"). So there is no fourth layer waiting to catch a writer
+that bypasses the three.
+
+### What the three refusals do not add up to
+
+This is the finding, and it is not what the open item anticipated.
+
+**The three refusals each held, and together they leave a path open.** The
+writer landed **two** rows and no product code:
+
+1. a located row whose status is `verified_by_rule` (satisfying every CHECK
+   the schema has), and
+2. a `verification_records` row claiming C1 concluded `pass`, with
+   `checker_id` `c1.source_exists` — an id that **is** in the registered rule
+   catalog, because the writer copied it from a real check.
+
+What happened, in order:
+
+- **The schema accepted both rows.** Every CHECK was satisfied.
+- **The store never saw the write.** It was not in the store's path.
+- **The model accepted the row back.** `load_record` returned a record in
+  `verified_by_rule` carrying one log entry.
+- **The report's evidence gate accepted it too.** The gate — the last thing
+  that runs before a report says something — judged the forged record and
+  reported `passed` with **no findings at all**.
+
+**Why each of the three refusals did not stop it.**
+
+- The **model** requires *a* passing entry. It does not require the entry
+  to be *true*, and it cannot: a `VerificationRecord` is a statement about
+  the past, and the model has nothing to compare it against.
+- The **store boundary** holds the registered-rule rule — but the writer
+  used a *registered* id, so there was nothing to refuse. The store's rule
+  is about *which* rules may vouch, not about whether the vouch happened.
+- The **schema** holds the location rule — and the writer satisfied it,
+  because a located row is easy to write.
+
+**The narrow finding this does *not* make.** The gate does have a power the
+three refusals do not: it re-runs the checks the log records, so a forgery
+it can *disprove* is caught as a drift finding. A forged **C2** pass is
+caught (re-running C2 says `fail`, because the record's text is not the
+source's text). A forged **C1** pass whose anchor resolves *nowhere* is
+caught (re-running C1 says `fail`). But a forged **C1** pass whose anchor
+*does* resolve is **not** caught — because re-running C1 confirms it. That
+is the narrow case, and it is the case the gate's own power cannot reach.
+
+**Two further costs of a forged row, measured.**
+
+- A forged **status alone** — a bare `UPDATE` of a legitimate located
+  record's status, with no log entry — leaves the record **unreadable**
+  rather than falsely verified. The model's I3 refusal fires on the read.
+  A forged status *breaks* the record; a forged status *plus* a forged log
+  entry *disguises* it.
+- A forged row makes the **whole task** unreadable, not just the row:
+  `load_task_records` loads and validates every record the task holds, so
+  one forged row without a log entry takes the task with it.
+
+### The witness, and the mutation check
+
+`tests/test_evidence_outside_writer.py` — one file, eight tests, all
+`negative`-marked. The claim is watched rather than asserted:
+
+| Test | What it holds |
+| --- | --- |
+| `test_the_model_refuses_a_verified_row_the_writer_landed` | the model's I3 refusal fires on the row the writer landed |
+| `test_the_store_boundary_refuses_a_verified_row_from_an_unregistered_rule` | the store's catalog refusal fires, and is the store's and not the model's |
+| `test_the_schema_refuses_a_verified_row_with_no_location` | the schema's location CHECK fires, by name |
+| `test_the_schema_refuses_a_status_outside_its_vocabulary` | the schema's vocabulary CHECK fires, by name |
+| `test_the_three_refusals_do_not_add_up_to_a_closed_door` | **the open door**: the forgery is read, and the gate passes it with no finding |
+| `test_the_gate_catches_a_forged_entry_that_re_running_would_refuse` | the gate's own power catches what it can disprove |
+| `test_a_forged_status_alone_leaves_the_record_unreadable` | a forged status breaks the record rather than verifying it |
+| `test_a_forged_row_breaks_the_task_that_holds_it` | a forged row takes the task with it |
+
+**The witness is not satisfied by the store's own refusals**, which is what
+the open item said was already covered: four of the eight tests drive the
+writer's raw SQL, and the two that call `append_record` do so to show that
+*the store's* refusal is the store's.
+
+**The registration this file needs.** It is `negative`-marked, so the
+integrating session files it in `tests/evaluation/manifest.py` under the
+`negative` class — its own marker rules out the others — with the clause
+`fabricated-citation`: the outside writer fabricates a verification the
+product never performed. It also needs a shard entry in
+`.github/ci-shards.json` with a measured cost, and the shard file's cost
+witness will be red until the costs are re-measured on a runner.
+
+**The mutation check, and what it measured.** Each witness was made red by
+breaking the property it watches, with the tree restored after each one, and
+the guard in place that proves the tests load this worktree:
+
+| Mutation | The witness | Result |
+| --- | --- | --- |
+| the model stops refusing a status with no passing log entry | the model's refusal | **red** — `DID NOT RAISE ValidationError` |
+| the store stops consulting the registered rule catalog | the store's refusal | **red** |
+| the schema's `located_past_planned` CHECK is neutered | the schema's location refusal | **red** — `DID NOT RAISE IntegrityError` |
+| the schema's `status_vocabulary` CHECK is neutered | the schema's vocabulary refusal | **red** — `DID NOT RAISE IntegrityError` |
+| the gate stops re-running the checks the log records | the gate's drift finding | **red** — `passed=True` |
+| the gate starts refusing a `verified_by_rule` record | the open door | **red** — the gate found the forgery |
+
+**The sixth mutation is the one worth reading twice.** The open-door witness
+is red when the door *closes*: a tree that refuses a forged
+`verified_by_rule` record at the gate would fail that test. It is a
+**floor, not a ceiling** — it says the door is open *now*, and a tree that
+closes it must update this test and this record together. That is the
+correct direction for a witness of an open door, and it is why the test
+asserts that the forgery *succeeds*.
+
+### What is left open
+
+- **The door itself.** The three refusals hold, and a writer outside the
+  product can still land a record the report's gate accepts with no
+  finding. Nothing under `src/` changed here, so this is not a regression
+  — it is a property of the tree as measured, and it was not named anywhere
+  before this section.
+- **What to do about it.** That is the owner's call, and the record's job is
+  to make the decision a real one. The measurement says what the cost of
+  each shape would be: a gate that refuses a `verified_by_rule` record whose
+  log cannot be re-confirmed (a check, a trigger, or a signature over the
+  log) would close the narrow case this section found; a rule that the
+  *store* holds — rather than the model — would not, because the writer
+  used a registered id.
+- **The `verified_by_rule` half of `CITABLE_STATUSES`** remains live for
+  the product's own records and is now also reachable by a writer outside
+  it.
