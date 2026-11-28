@@ -282,6 +282,15 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_cli_layer_models.py": ("e2e", "cli-task"),
     "test_cli_evidence_writer.py": ("e2e", "cli-task"),
     "test_cli_confirmation_guidance.py": ("e2e", "cli-task"),
+    # The CLI's own model request: one question about one source, one
+    # request, and the consent gate ahead of the spend.
+    "test_cli_suggest.py": ("e2e", "cli-task"),
+    # The report's read-side door: the evidence gate runs before a report
+    # says something, over the records the document states as established.
+    "test_report_evidence_gate.py": ("e2e", "cli-task"),
+    # The same judgement where a reader can see it: the command line renders
+    # which records the gate judged, and which it did not judge at all.
+    "test_cli_report_gate_rendering.py": ("e2e", "cli-task"),
     "test_cli_path_refused_catch.py": ("negative", "path-traversal"),
     "test_cli_refusal_enumeration.py": ("negative", "missing-material"),
     "test_cli_serve_bind_refusal.py": ("negative", "path-traversal"),
@@ -566,6 +575,14 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # the layer's operation behind the same guard, and the CLI's command
     # reaches the same operation -- one serialization, two surfaces.
     "test_role_run_entry.py": ("integration", "api-auth"),
+    # A document the advisor never wrote in can take part in the role chain:
+    # the branch is taken on the chain's state, each role abstains through its
+    # own primitive, and nothing is spent.
+    "test_role_run_commentless.py": ("integration", "api-auth"),
+    # The same document, when the request also names a rule: the rule the
+    # memory serves is cited and the run abstains, and the rule the memory
+    # does not hold refuses the request by name, before any consent exists.
+    "test_role_run_commentless_rule.py": ("integration", "api-auth"),
     # Batch 8, window I: the judgement's vocabulary. A part carrying a field
     # the role does not take is refused by name -- the API already refuses it,
     # and the CLI's own docstring promised that it would too. The vocabulary
@@ -616,6 +633,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_skill_approval.py": ("unit", "approvals"),
     "test_skill_contracts.py": ("unit", "typed-contracts"),
     "test_skill_execution.py": ("unit", "state-transitions"),
+    # The states the product can reach: `advance` is the only writer of
+    # `verified_by_rule`, and no surface calls it, so the class the evidence
+    # layer names is unreachable in the product as it stands.
+    "test_surface_status_reach.py": ("unit", "state-transitions"),
     "test_skill_ledger.py": ("unit", "artifact-hashes"),
     # LC-P1-06's G2 debt: the same clause as `test_skill_ledger.py`, witnessed
     # against the table instead of a list. The read-time check is the property,
@@ -632,6 +653,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_store_atomicity.py": ("negative", "crash-between-write-and-confirm"),
     "test_store_concurrency.py": ("integration", "event-append"),
     "test_store_events.py": ("integration", "event-append"),
+    # A removal that leaves no trace in the log: the event that names the
+    # source it took back, written with the deletion.
+    "test_source_removal_event.py": ("integration", "event-append"),
     # The operation's state machine, and the one state the tree used to
     # define and never write: a policy denial now leaves an operation in
     # state ``denied`` and the event that describes it, in one transaction,
@@ -645,6 +669,15 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # the version follows the bytes, and the disclosures that went were the
     # removed row's own.
     "test_source_removal.py": ("integration", "state-transitions"),
+    # What a removal releases when two tasks hold the material: both let
+    # it go, and the --task option does not narrow that.
+    "test_source_removal_scope.py": ("integration", "state-transitions"),
+    # A dangling source id read back through the product's faces: what
+    # refuses it, what names it, and what reads as sound anyway.
+    "test_dangling_source_read_faces.py": ("integration", "state-transitions"),
+    # That an attestation asks the source a second time: the record may not
+    # reach a citable status while the row its anchor names is gone or moved.
+    "test_attest_source_presence.py": ("integration", "state-transitions"),
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),
@@ -666,6 +699,16 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_baseline_document.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_docx_fixture_corpus.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_no_reference_leakage.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The tree's whole Han load, pinned beside the longest-run budget: a name
+    # of any length moves the number the longest run cannot see.
+    "test_chinese_totals_pin.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Every Han run in the tree, registered by digest, length and class: what
+    # the Chinese *is*, and not only how much of it there is.
+    "test_chinese_run_classes.py": (REPOSITORY_CLASS, "repository-gate"),
+    # The revisions the records cite: a hash the tree's own documents name
+    # must be a revision the tree has, and the rewrite that re-pointed
+    # seventy-two of them had no witness that could notice a wrong digit.
+    "test_record_citations.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),
     # The quickstart's command list and the README's against each other. The
@@ -685,6 +728,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # affiliation or project number. Its clause is the repository gates,
     # because it watches the repository's own documents.
     "test_pilot_decisions.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_pilot_records_carry_no_names.py": (REPOSITORY_CLASS, "repository-gate"),
     # Phase 4 (P4-PILOT §9.4). The completed feedback form's walk into the
     # system's issue record: the dry run previews what would be written,
     # the form's two closed vocabularies map onto the record's, and

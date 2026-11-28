@@ -17,11 +17,71 @@ The order, and why the order is the property
 comes first, because a policy denial and a missing renderer have different
 remedies and a caller that is told the wrong one is sent to fix the wrong
 thing. Then the report's material is gathered, the document is built, the
+**sources its citations name are compared with the files on disk**, the
+evidence gate judges the records the document states as established, the
 content checks are run, and only then are the four forms rendered and the
 revision written. A report that cannot be produced leaves **no file behind**:
 a generated file that no receipt names is an artefact nothing can account
 for, and a half-written report is worse than no report, because it looks like
 a finding.
+
+**The evidence gate is the last door, and it runs before the checks.**
+------------------------------------------------------------
+
+The gate is `labcairn.evidence.gate` — the same questions the work order's
+acceptance names (status, identifier, re-verification, conflict), and the one
+this operation found missing from them: whether the source still supports a
+record the report states as established when the record's log holds no source
+check to re-run. Until this operation called it, no surface did. It judges **the records
+the document states as established**: the claims whose status is in
+:data:`~labcairn.evidence.states.CITABLE_STATUSES`. An objection refuses the
+report with ``report_evidence_refused``, names every finding and the record
+it concerns, and leaves nothing written — because a report is the last place
+a fabricated source or a contradicted number can be caught, and a report that
+went out with its objection in an adjacent file would still be a report that
+said it.
+
+**The file is asked before the ledger is, because it moves first.** The gate's
+index answers from the ledger, whose content hash is never refreshed, so it
+cannot see a file edited on disk since ingestion. This operation therefore
+opens every source the document's citations name, hashes it, and refuses the
+report with the same ``report_evidence_refused`` when the file is not the
+bytes the ledger describes. The two checks are the two links of one chain —
+the file against the ledger here, the record against the ledger in the gate —
+and neither may pass a source the other refuses. Refusing rather than writing
+a stale receipt is deliberate: a ``STALE`` mark labels an artifact that was
+current when it was made, and a report made after the move was never current.
+
+**Why that scope, and not the task's whole set.** The gate's whole-task door
+(:func:`~labcairn.evidence.gate.evaluate_task`) would refuse a report for a
+record the report never quotes. A planned record is not carried at all, and a
+superseded record is *kept by design* and skipped by the builder — so that
+refusal could never be repaired: one correction would refuse every later
+report of the task. That is a refusal the product does not promise, and it
+would make the door one nobody could walk through.
+
+**Why citable claims, and not every record the report carries.** The
+document presents its other records *with their own status*: an ``extracted``
+claim is printed as ``(extracted)`` and a conflicted record is disclosed as
+unresolved. The gate's status finding on those records says exactly what the
+report already prints — the report answers it in its own text. Refusing
+there would make the graded claim (the claim that says how far it was
+checked) and the unresolved-record disclosure unreachable, which is the whole
+of the document model's honesty. What the report *does* claim beyond the
+ledger's status label is that a citable record's verification still holds;
+that is the claim the gate is asked about, and the three questions it can
+answer only by asking the ledger and the source again — identifier resolved,
+checks re-run, no contradicting record — are exactly the ones the report
+cannot answer in its own text. So a finding on those refuses.
+
+**What the gate did not judge is on the result.** :class:`ReportRendered`
+carries the gate's own :class:`~labcairn.evidence.gate.GateResult` — the
+records it judged — and ``unjudged_records``, the records the report names
+but does not state as established. The gate judges evidence records and
+nothing else: it does not judge a figure, a table, the snapshot or the
+artefact links, and the content checks are what do. A report is not sound
+because the gate passed it; it is not refused for what the gate did not
+examine.
 
 **The checks are run before the forms are rendered**, and the revision
 machinery runs them again over the document it is about to write. The
@@ -110,6 +170,17 @@ A stage that failed ran and failed, and the work may be worth retrying; a
 report whose content was refused never ran, and the ledger is what has to
 change. A caller that cannot tell those apart cannot tell whether to retry.
 
+**The evidence gate's refusal is its own reason, because it is its own
+repair.** ``report_evidence_refused`` says the records the report was about
+to state as established no longer pass the ledger's and the source's own
+questions: a verification that no longer holds, an identifier nothing
+resolved, a record another contradicts, or a status the store never gave.
+The content checks compare the *document* with the ledger as it is now; the
+gate asks whether the *ledger's own account* is still true. The remedies are
+different — revise the document, or repair the record and the source behind
+it — and a caller told only "the report was refused" would not know which
+door it hit.
+
 The message names **what** refused and why — the check that refused and the
 reason it gave, the builder and what it would not build, the artefact and
 the hash it did not have — because a reason nobody can act on is the same as
@@ -136,8 +207,10 @@ from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.sources import list_sources
 from labcairn.application.tasks import read_task_state
+from labcairn.evidence.gate import GateResult, evaluate_records
 from labcairn.evidence.index import LabCairnIndex
 from labcairn.evidence.record import EvidenceRecord
+from labcairn.evidence.states import CITABLE_STATUSES
 from labcairn.evidence.store import load_task_records
 from labcairn.reports.build import ReportBuildRefusedError, build_report_document
 from labcairn.reports.checks import ReportRefusedError, check_report, ledger_reader
@@ -158,6 +231,7 @@ from labcairn.reports.revisions import (
     write_report_revision,
 )
 from labcairn.runtime.event import EventType
+from labcairn.security.approval import content_hash
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission
 from labcairn.sources.source import Source, SourceAnchor
@@ -202,10 +276,26 @@ class ReportRendered(Result):
     The receipt is the record of it — the hash, the lineage, the revision —
     and it is what the store keeps, so a report that was rendered and not
     recorded does not exist.
+
+    ``evidence_gate`` is the gate's own verdict, carried rather than assumed:
+    which records the report states as established, and that they passed.
+    ``unjudged_records`` is the other half of the same statement — the records
+    the report names and the gate did **not** judge, because the report prints
+    their own status rather than presenting them as established. Together they
+    are every record the report carries, so a reader can see the gate's
+    extent rather than infer it. The gate judges no figure, table, snapshot or
+    link; those are the content checks' business, and a report is not sound
+    because the gate passed it.
     """
 
     receipt: ArtifactReceipt
     resource_key: str
+    #: The gate's verdict over the records the report states as established.
+    evidence_gate: GateResult
+    #: The records the report names and the gate did not judge: claims whose
+    #: status the report prints (``extracted`` and the unresolved states), and
+    #: the records it discloses. Sorted, so two renderings of one ledger agree.
+    unjudged_records: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,8 +337,9 @@ def render_report(
 
     The order is the property, and it is the order the module docstring
     gives: the capability check, then the gathering, then the document, then
-    the checks, then the four forms, then the revision, then the records. A
-    report that cannot be produced leaves no file behind.
+    the evidence gate, then the checks, then the four forms, then the
+    revision, then the records. A report that cannot be produced leaves no
+    file behind.
 
     **The checks run twice, and that is deliberate.** They run here, over
     the document this operation has just built, and the same checks are
@@ -326,13 +417,26 @@ def render_report(
         readings=readings,
     )
 
-    # 5. The checks, before the first byte of the report is rendered.
+    # 5a. The file behind every citation, against the ledger's account of it.
+    #     Asked before the gate because it is the question the ledger cannot
+    #     answer: the ledger's hash is never refreshed, so only the file can
+    #     say whether the material has moved since it was ingested.
+    _refuse_moved_material(context, document=document, sources=sources)
+
+    # 5b. The evidence gate, over the records the document states as
+    #     established -- before any check reads the ledger again, because the
+    #     gate is what asks whether that ledger's own account is still true.
+    gate = _the_evidence_gate(
+        connection, task_id=str(context.task_id), index=index, document=document
+    )
+
+    # 6. The checks, before the first byte of the report is rendered.
     _check_the_document(document, context, connection=connection, index=index)
 
-    # 6. The four forms, rendered from the document just built.
+    # 7. The four forms, rendered from the document just built.
     forms = _the_four_forms(document)
 
-    # 7. The revision: the canonical document, the manifest and the four
+    # 8. The revision: the canonical document, the manifest and the four
     #    forms, written under this task's own revision paths.
     revision = _write_the_revision(
         context,
@@ -344,11 +448,16 @@ def render_report(
         moment=moment,
     )
 
-    # 8. The records: the receipts in the ledger and the event that says so.
+    # 9. The records: the receipts in the ledger and the event that says so.
     _record_the_revision(context, revision, moment=moment)
 
-    # 9. The result.
-    return ReportRendered(receipt=revision.document, resource_key=resource.resolved_key)
+    # 10. The result, with the gate's extent on it.
+    return ReportRendered(
+        receipt=revision.document,
+        resource_key=resource.resolved_key,
+        evidence_gate=gate.result,
+        unjudged_records=gate.unjudged,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -631,6 +740,185 @@ def _build_the_document(
             "a report the ledger cannot support must not be written with a hole "
             "in it.",
         ) from error
+
+
+# --------------------------------------------------------------------------- #
+# the material the ledger cannot see
+# --------------------------------------------------------------------------- #
+
+
+def _refuse_moved_material(
+    context: ApplicationContext,
+    *,
+    document: ReportDocument,
+    sources: tuple[Source, ...],
+) -> None:
+    """Refuse the report when a cited source is not the file the ledger describes.
+
+    **Why the render and not the gate.** The gate's index answers from the
+    ledger, and the ledger's ``content_sha256`` is the hash the material had
+    when it was ingested -- never refreshed (ADR-0004 I4). A file edited on
+    disk since then therefore looks current to every account built only from
+    ledger rows, and a report would be written with a receipt that says
+    ``current`` over bytes that are gone. The source, in the end, is the file;
+    this is the one place in the render that opens it, hashes it and compares.
+
+    **Every source the document's claims cite**, not only the ones behind
+    established claims: the receipt's chain names a link per cited source
+    (:func:`labcairn.reports.manifest.build_report_manifest` reads them out of
+    the same footnotes), and the receipt's ``current`` is a statement about
+    every link it names. A report written while one named source had moved
+    would be a receipt that is current only by not looking.
+
+    **Refused, not marked stale.** A ``STALE`` receipt is the mark for an
+    artifact that was current when it was made and whose input moved since; a
+    report made *after* the move was never current, and its body would still
+    state its claims as established. So nothing is written, and the refusal
+    names each source, the bytes the ledger holds and the bytes the file has.
+
+    The comparison is with the **ledger's** hash, not the record's: the gate
+    asks the record against the ledger, and this asks the ledger against the
+    file. The two are the links of one chain, and a record whose binding holds
+    against a ledger that no longer describes the file is still a claim on
+    bytes nobody can produce. Reading here is hashing only -- the bytes are
+    never parsed and nothing of the material enters the report -- and it is
+    the act the approval machinery already performs on every bound source
+    (:func:`labcairn.security.approval.sources_intact`).
+    """
+    by_id = {source.source_id: source for source in sources}
+    footnotes = {footnote.footnote_id: footnote for footnote in document.footnotes}
+    cited: set[str] = set()
+    for claim in document.claims:
+        for footnote_id in claim.footnote_ids:
+            footnote = footnotes.get(footnote_id)
+            if footnote is not None:
+                cited.add(footnote.source_id)
+
+    moved: list[str] = []
+    for source_id in sorted(cited):
+        source = by_id.get(source_id)
+        if source is None:
+            # The builder refuses a claim whose citation the report does not
+            # carry, so a document that reaches here names only sources in
+            # this list. An absent row is not this check's question.
+            continue
+        try:
+            resource = context.resource_for(source.relative_path)
+            observed = content_hash(resource.real_path)
+        except ApplicationRefusedError as error:
+            moved.append(f"{source_id!r} ({source.relative_path}) is not addressable: {error}")
+            continue
+        except OSError as error:
+            moved.append(f"{source_id!r} ({source.relative_path}) cannot be read: {error}")
+            continue
+        if observed != source.content_sha256:
+            moved.append(
+                f"{source_id!r} ({source.relative_path}) has moved: the ledger holds "
+                f"{source.content_sha256}, and the file now hashes to {observed}"
+            )
+    if not moved:
+        return
+    raise ApplicationRefusedError(
+        ApplicationRefusal.REPORT_EVIDENCE_REFUSED,
+        f"{len(moved)} source(s) the report cites are not the bytes the ledger "
+        f"describes: {'; '.join(moved)}. ADR-0004 I4 invalidates a record whose "
+        "source has moved rather than refreshing it, so the report is refused "
+        "before it is written: a receipt that said 'current' over these bytes "
+        "would be a claim about the ledger alone, and the report's claims rest on "
+        "the source. Nothing was written. Ingest the material again, then "
+        "re-verify or re-attest the claims it carries.",
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _EvidenceGate:
+    """The gate's answer over the report, and the records it did not judge.
+
+    A pair rather than one field because the two are one statement: the gate
+    judged *these* records and passed them, and *those* records the report
+    names are outside the gate. Carrying only the verdict would let a reader
+    take "passed" for "the whole report was judged", which is the inference
+    the module docstring says the result must prevent.
+    """
+
+    #: The gate's own result, over the records the report states as established.
+    result: GateResult
+    #: The records the report names and the gate did not judge, sorted.
+    unjudged: tuple[str, ...]
+
+
+def _the_evidence_gate(
+    connection: Connection,
+    *,
+    task_id: str,
+    index: LabCairnIndex,
+    document: ReportDocument,
+) -> _EvidenceGate:
+    """Run the evidence gate over the records the document states as established.
+
+    **Which records, and why exactly these.** A claim whose status is in
+    :data:`~labcairn.evidence.states.CITABLE_STATUSES` is the report's own
+    assertion that the ledger's verification stands behind the sentence; that
+    is the assertion the gate re-asks the ledger and the source about. A claim
+    with any other status is printed *with that status* — the document's
+    ``(extracted)`` — and a disclosure is printed as unresolved, so the
+    gate's status finding on those records is a finding the report's own text
+    already states. Refusing there would delete the graded claim and the
+    disclosure, and neither is a claim that the verification holds.
+
+    The set is read from the **document**, not recomputed from the gathered
+    records: the document is the thing that will be rendered and checked, and
+    a second computation of "which of these are established" is a second rule
+    that can drift from the builder's.
+
+    A finding refuses the report. The gate refuses the set rather than the
+    record — a report may not drop the failing sentence and keep the rest —
+    and the message names every finding and the record it concerns, because a
+    refusal that said only "the gate refused" would send the reader hunting
+    through a ledger.
+    """
+    judged = tuple(
+        claim.record.record_id
+        for claim in document.claims
+        if claim.record.status in CITABLE_STATUSES
+    )
+    result = evaluate_records(connection, task_id=task_id, index=index, evidence_ids=judged)
+    if not result.passed:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.REPORT_EVIDENCE_REFUSED, _the_gate_s_refusal(result)
+        )
+    unjudged = tuple(
+        sorted(
+            [
+                claim.record.record_id
+                for claim in document.claims
+                if claim.record.status not in CITABLE_STATUSES
+            ]
+            + [disclosure.record.record_id for disclosure in document.unresolved_records]
+        )
+    )
+    return _EvidenceGate(result=result, unjudged=unjudged)
+
+
+def _the_gate_s_refusal(result: GateResult) -> str:
+    """Every objection the gate raised, with the record it is about.
+
+    The message is the actionable shape: one clause per finding, each naming
+    the record, the kind of objection, and the gate's own sentence about what
+    it found. The gate reports all of its objections rather than the first, so
+    the refusal does too — a caller who fixes one and is refused again by the
+    next has been made to pay for the same mistake twice.
+    """
+    objections = "; ".join(
+        f"{finding.evidence_id} ({finding.kind}): {finding.reason}" for finding in result.findings
+    )
+    return (
+        "the evidence gate refused the report before anything was written: "
+        f"{len(result.findings)} objection(s) over the {len(result.considered)} "
+        f"record(s) the report states as established. {objections}. Nothing was "
+        "written: a report may not state a record the ledger and the source no "
+        "longer support, and the gate refuses the set rather than the record."
+    )
 
 
 def _check_the_document(

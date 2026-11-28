@@ -412,6 +412,40 @@ class ChainEdge:
 
 
 @dataclass(frozen=True)
+class ChainDocumentShape:
+    """What a project's chain holds, read as the shape of the document.
+
+    **This is the answer for a chain that holds no comment at all.** The
+    chain's own promise is that *"a manuscript that holds hundreds of
+    changes and no comment at all is a shape the chain can report and
+    does not explain away"* — so the shape is a fact to be read, and this
+    is what it says:
+
+    * ``version_ids`` — the versions the project holds, in the order the
+      accepted edges give them;
+    * ``revision_count`` — how many tracked changes the chain holds for
+      those versions, **counted and not listed**. The count is what a
+      reader needs to know that the document carries marks; the marks
+      themselves are the reviewer's words, and they are read by
+      :func:`read_revision_events` when a caller may reach them;
+    * ``comment_count`` — how many comments the chain holds. **Zero is the
+      fact this whole shape exists to carry**, so it is a count and not
+      an absence: a chain that holds none says so. **It is the project's
+      count, not one version's** — a comment is the advisor's remark on a
+      round, and the chain reads it by key wherever it was written, so the
+      count and that read have to agree about the same fact.
+
+    **And the counts are the log's own currency.** A shape is named by
+    ids and counts, and the material's text never travels in it.
+    """
+
+    project_id: str
+    version_ids: tuple[str, ...]
+    revision_count: int
+    comment_count: int
+
+
+@dataclass(frozen=True)
 class ProjectGraph:
     """The versions a project holds among the ones named, and its accepted edges.
 
@@ -528,6 +562,105 @@ def read_issue_keys(
         if key
     }
     return tuple(sorted(keys))
+
+
+def read_document_shape(
+    context: ApplicationContext, *, project_id: str, version_ids: Sequence[str] = ()
+) -> ChainDocumentShape:
+    """The shape of the document the chain holds, whether or not it holds a comment.
+
+    **This is the read that tells a comment-less document from a missing
+    comment.** The two are different facts and they have different
+    remedies, so the layer answers both in one read:
+
+    * a project whose chain holds **no comment at all** — the advisor wrote
+      nothing in the margins — is a *shape of the material*, and the chain
+      reports it rather than explaining it away;
+    * a chain that **does** hold comments, but none under the key a caller
+      named, is a *mistake about a comment*, and the caller is told so.
+
+    **The versions come from the accepted edges' order, not from the file
+    names.** A caller that names none gets the project's whole graph, and
+    the order is the one :func:`labcairn.roles.trajectory.order_versions`
+    computes — the same order the role loop reads the chain in, so the
+    shape a run reports and the chain it read are one chain.
+
+    **And the marks are counted, not carried.** ``revision_count`` is the
+    number of tracked changes the chain holds for those versions; the
+    changes themselves are the reviewer's words and are read through
+    :func:`read_revision_events` by a caller that may reach them. **The
+    shape is ids and counts, and the material's text never travels in it.**
+
+    :param project_id: the project whose chain is read.
+    :param version_ids: the versions to narrow the answer to. **Naming none
+        means the project's whole graph.**
+    :raises ApplicationRefusedError: the chain holds no such project, or one
+        of the versions named does not belong to it, or the accepted edges
+        leave the order ambiguous.
+    """
+    from labcairn.roles.trajectory import order_versions
+
+    session = context.store.session
+    if project_row(session, project_id) is None:
+        raise chain_refused(
+            ChainRefusal.PROJECT_NOT_FOUND,
+            f"the store holds no paper project with the id {project_id!r}, so the chain"
+            " holds no document to report the shape of.",
+        )
+    wanted = tuple(str(version_id) for version_id in version_ids if version_id)
+    if not wanted:
+        # **Naming no version means the project's whole graph**, the same
+        # scope the issue-key listing reaches before it knows which versions
+        # it wants. The project's own rows are the base, and the accepted
+        # edges then order them.
+        wanted = tuple(str(row.version_id) for row in project_version_rows(session, project_id))
+    # **The order is computed by the role, and the role refuses first.** A
+    # version outside the project's graph is refused by the role that reads
+    # the chain, and it is refused in the role's own vocabulary. So the
+    # ordering is asked for before anything else here narrows the answer:
+    # a chain-layer refusal would arrive first and would be a second
+    # spelling of the role's rule.
+    ordered = order_versions(context, project_id=project_id, version_ids=wanted)
+    revisions = read_revision_events(context, version_ids=ordered)
+    return ChainDocumentShape(
+        project_id=project_id,
+        version_ids=ordered,
+        revision_count=len(revisions),
+        comment_count=_the_comments_held(context, project_id),
+    )
+
+
+def _the_comments_held(context: ApplicationContext, project_id: str) -> int:
+    """How many comments the project holds, keyed or not.
+
+    **The count is of the chain's own rows, not of its issue keys.** A
+    comment nobody keyed is still a comment the advisor wrote — it is
+    *uncategorised*, and the chain's own words are that "a comment nobody
+    keyed is uncategorised: it is not in this list, and it is not keyed by
+    similarity to one that is". Counting the keys instead would report a
+    document with a comment in it as a document with none, and the run
+    would then abstain over a chain that holds the advisor's words.
+
+    **And the count is the project's, not one version's.** The comments the
+    chain holds are read by key, and a key names a comment wherever it was
+    written — :func:`read_comments` narrows by neither version nor project.
+    **So the count and that read have to agree about the comments the run is
+    about**, and a count narrowed to the versions the caller named would say
+    "no comment" about a project that holds one, while the read under the
+    same key found it. The versions narrow the *shape's* revisions and its order;
+    they do not narrow the comments.
+
+    **The versions are still checked.** The order above was computed by the
+    role, which refused a version outside the project's graph first and in
+    its own vocabulary -- so this count is reached only over versions the
+    chain holds.
+    """
+    session = context.store.session
+    return len(
+        session.scalars(
+            select(FeedbackEventRow.feedback_id).where(FeedbackEventRow.project_id == project_id)
+        ).all()
+    )
 
 
 def _the_versions_named(
@@ -950,7 +1083,6 @@ def read_project_graph(
     context: ApplicationContext, *, project_id: str, version_ids: Sequence[str]
 ) -> ProjectGraph:
     """The project's graph, as the accepted edges have it.
-
     **Only the accepted edges are here, and only those between the
     versions named.** An edge nobody accepted is a proposal, and a
     proposal may not decide an order; an edge between two versions the

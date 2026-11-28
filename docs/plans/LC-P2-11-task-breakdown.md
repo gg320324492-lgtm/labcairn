@@ -39,10 +39,10 @@ and the retrieval over it.** Every rule carries:
 | **when**, and **who confirmed it** | |
 
 **And the retrieval returns the rule with its evidence and its conditions**,
-never a bare sentence the model has abstracted. *"王老师总是这样改"* is
-not a rule; *"when the claim has no comparison group, the advisor asks for
-one — see the comment of 2026-03-02, and note the two cases where
-asking for one was declined"* is.
+never a bare sentence the model has abstracted. *"the advisor always
+corrects it this way"* is not a rule; *"when the claim has no comparison
+group, the advisor asks for one — see the comment of 2026-03-02, and note
+the two cases where asking for one was declined"* is.
 
 ### 1.2 Already done — removed from scope
 

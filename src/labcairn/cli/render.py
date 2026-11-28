@@ -23,10 +23,17 @@ from rich.table import Table
 from rich.text import Text
 
 from labcairn.application.artifacts import ArtifactView
+from labcairn.application.reports import ReportRendered
 from labcairn.application.sources import SourceView
 from labcairn.application.stages import StageRun, TaskPlan
 from labcairn.application.tasks import TaskState
-from labcairn.cli.models import DoctorReport, ProviderFinding, WorkspaceInitialised
+from labcairn.cli.models import (
+    DoctorReport,
+    ProviderFinding,
+    SuggestionAsked,
+    SuggestionOutcome,
+    WorkspaceInitialised,
+)
 from labcairn.runtime.lifecycle import Task
 
 
@@ -266,12 +273,93 @@ def render_artifacts(models: tuple[ArtifactView, ...]) -> RenderableType:
     return Panel(table, title="artifacts", expand=False)
 
 
+def render_report_gate(model: ReportRendered) -> RenderableType:
+    """What the evidence gate judged, and what it did not.
+
+    **The two lists are one statement, and the drawing shows both.** The gate
+    judged the records the report states as established, and the report also
+    names records it does not state as established — a claim whose status it
+    prints, and the records it discloses as unresolved. A reader who sees only
+    the judged list cannot tell what the other list holds, and the two together
+    are every record the report carries.
+
+    **Ids, counts and outcomes; never the records' text.** A record's words are
+    the material, and the tree's own rule is that material does not enter the
+    repository and does not travel in a rendering either. What travels is the
+    id, so a reader can look the record up in the ledger.
+
+    **A gate that refused did not get here.** The refusal is rendered by the
+    refusal path, with its reason, and this function is not called: a report
+    that the gate refused was never written, so there is nothing to draw.
+    """
+
+    gate = model.evidence_gate
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    verdict = "passed" if gate.passed else "did not pass"
+    table.add_row("evidence gate", f"{verdict}, over {len(gate.considered)} record(s)")
+    table.add_row(
+        "judged",
+        ", ".join(gate.considered) if gate.considered else "(none)",
+    )
+    table.add_row(
+        "unjudged",
+        ", ".join(model.unjudged_records) if model.unjudged_records else "(none)",
+    )
+    table.add_row("findings", str(len(gate.findings)))
+    return Panel(table, title="evidence gate", expand=False)
+
+
+def render_suggestion_asked(model: SuggestionAsked) -> RenderableType:
+    """What ``suggest`` is asking for, before anything is spent.
+
+    **The question is printed, because a person is about to grant it.** The
+    material is not: it is named by its digest and by how much of it the
+    question is about, and the truncation is stated rather than left for the
+    reader to guess.
+    """
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("source", model.source_id)
+    table.add_row("question", model.question)
+    table.add_row("provider", f"{model.provider}:{model.model}")
+    table.add_row("destination", model.destination)
+    table.add_row("material sha256", model.material_sha256)
+    table.add_row(
+        "material read",
+        f"{model.excerpt_characters} of {model.material_characters} characters"
+        + (" (truncated)" if model.truncated else ""),
+    )
+    table.add_row("approval", model.approval_id)
+    table.add_row("expires", model.expires_at)
+    return Panel(table, title="suggestion asked", expand=False)
+
+
+def render_suggestion(model: SuggestionOutcome) -> RenderableType:
+    """What came back from one question about one source's material."""
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("source", model.source_id)
+    table.add_row("provider", f"{model.provider}:{model.model}")
+    table.add_row("destination", model.destination)
+    table.add_row("answer sha256", model.answer_sha256)
+    table.add_row("answer", model.answer)
+    table.add_row("written to", model.answer_path)
+    table.add_row("exchange", model.exchange_event_id)
+    return Panel(table, title="suggestion", expand=False)
+
+
 __all__ = [
     "render_artifacts",
     "render_doctor",
     "render_initialised",
     "render_source",
     "render_stage_run",
+    "render_suggestion",
+    "render_suggestion_asked",
     "render_task",
     "render_task_plan",
     "render_task_state",

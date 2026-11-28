@@ -13,13 +13,18 @@ The commands — ``init``, ``doctor``, ``serve``,
 ``task claim-attest/proposal-confirm``,
 ``task approval-request/approval-grant``,
 ``sources inspect/ingest/addresses/remove``, ``artifacts list``,
-``guidance rule-confirm``, ``roles run`` — and the plumbing they share:
+``guidance rule-confirm``, ``roles run``, ``suggest`` — and the plumbing
+they share:
 
 * **every command's data comes from the application layer.** A command here
   decides what to ask and how to draw the answer. It never reads the store
   and never computes a thing the layer would compute. The one thing it
   builds for the layer is the store handle, because the handle is what the
-  layer consumes;
+  layer consumes; **and the one command the layer has no operation for —
+  ``suggest`` — is the one place this package assembles a request of its
+  own**, because the layer's route to a model is ``roles run``, which judges
+  comments and refuses material that carries none. Every gate that request
+  goes through is the layer's own; only the question is this package's;
 * **every command has a machine-readable form, and the rendered form is a
   drawing of the same data.** ``docs/ARCHITECTURE.md`` says formatting must
   never be load-bearing for a machine-readable command, and this package is
@@ -36,9 +41,10 @@ The JSON and the API
 
 The machine-readable form is the layer's own pydantic model, serialised by
 pydantic — the same bytes the local API will serve for the same question.
-The two exceptions are ``init`` and ``doctor``, which report on a *workspace*
-rather than on a task; the application layer has no operation that does that,
-so their models are this package's, and that is recorded in
+The exceptions are the commands the layer has no operation for: ``init`` and
+``doctor`` report on a *workspace* rather than on a task, and ``suggest``
+reports on a *suggestion* rather than on a task either; so their models are
+this package's, and that is recorded in
 :mod:`labcairn.cli.models` rather than left for someone to discover.
 """
 

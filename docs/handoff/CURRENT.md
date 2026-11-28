@@ -1,6 +1,377 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-28 (later still, and the last of the day) — the batch is audited, and three cards are up
+
+- **The batch is audited against the checklist** (`docs/acceptance/batch-21-review-2026-11-28.md`),
+  and the two gaps the earlier review named are **closed**: the acceptance
+  records' cited hashes now have a witness, and the command line draws the
+  gate's verdict. The witness ledger across the delivery's whole range
+  reports **no lost witness** — 4289 test functions before, 4410 after.
+- **Three cards are up**, each with its own files and no overlap between
+  them: **a deadline for the drill tests' wait helper** (the flake that has
+  cost two windows a whole-suite run), **a reviewer mode that can finish**
+  (the clone's serial suite costs 10120 s against the walk's own 5400 s
+  timeout, so the deliverable's full form cannot run at all), and **a verify
+  surface** — option A of the unreachable-status record, which the owner
+  chooses by starting it.
+- **The `main`-history rewrite is deliberately not a card yet.** The owner
+  split it off as a batch of its own, and it re-points citations in many
+  files — which would collide with the card above that edits the same
+  records. It goes up after this delivery lands.
+
+
+## 2026-11-28 (later still) - three cards answered, and the records' citations got a witness
+
+- **Three cards the owner started. Two answered, and both are merged into the
+  local `main`; the third was killed by the provider's daily limit, and its
+  work was picked up here.**
+- **The status the product cannot reach, measured.** `store.advance` is the
+  only writer of `verified_by_rule`, and **nothing in `src/` calls it** — the
+  six surfaces produce `planned`, `extracted` and `user_attested`, and the
+  reachable state machine is **three states wide** (`conflicted`,
+  `unsupported` and every fallback belong to `advance` too). The record
+  carries the three options with their costs and **does not choose for the
+  owner**; the witness (`tests/test_surface_status_reach.py`) reads `src/`
+  with an AST, so the gap is watched rather than described.
+- **The gate's verdict where a reader can see it.** `labcairn task report`
+  now prints the records the evidence gate judged **and the ones it did not
+  judge at all**, so the command line says what the refusal was about.
+  Seven witnesses and an acceptance record.
+- **A witness for the citations the records make.** The delivery-line
+  rewrite re-pointed seventy-two citations in eighteen files with a script of
+  its own, and **nothing in the tree could tell a right commit from a wrong
+  one** — both are ancestors of a branch. `tests/test_record_citations.py`
+  is that witness, and it **found what the rewrite missed**: the record the
+  status-reach batch wrote cites the commit that batch started from under the
+  name the rewrite gave it, and no document said so. The citation is
+  re-pointed, and the record says the hash moved. **Its own acceptance
+  record** (`docs/acceptance/record-citations-witness-2026-11-28.md`) says
+  what it reads, which token shapes it judges, and the eight declared
+  absences with the reason each one is gone.
+- **The provider's daily limit took the third card.** That session's own
+  transcript says it had run 113 turns when it was rejected with HTTP 429
+  (`daily_usage_exceeded`, resets 2026-11-28 00:00 UTC). It left one file
+  uncommitted; the work here finished it, and the rule it needed — that a
+  **quoted** hash is quoted material and not a claim — has an arm of its own,
+  so it cannot become a tolerance.
+- **A whole-suite run wants the machine to itself, and the integrating
+  session's first attempt produced no result.** The delivery's
+  reviewer-mode walk runs the whole suite in its clone; it was started at
+  05:03 with four pytest runs measured beside it, and the walk produced **no
+  result**: killed at fifty minutes, an empty log, no report. **The cause is
+  measured, and it is not the concurrency**: the command-line window re-ran
+  the hang alone and at the base revision and found a **pre-existing flake**
+  in `tests/test_drill_rewrite_interrupted.py`, whose `_wait_for` helper
+  reads the child's stdout with `readline()` and no timeout — so a child
+  that dies before printing its marker leaves the parent blocked on a read
+  that never returns, and the pytest process at **zero CPU**. That is
+  exactly the reading the kill was based on, and it reproduces with nothing
+  else on the machine.
+- **And the second attempt's end is measured, and it is a ceiling rather
+  than a stall.** The clone's whole suite **exceeded the timeout the walk
+  gives that command** (5400 s): the runner's own shard costs put the
+  whole suite at **10120 s** on Windows when it runs as one process, while
+  the six shards run in parallel on six runners (the slowest is 1687 s).
+  **A reviewer-mode run cannot finish on Windows at this tree**, whatever
+  the machine is doing, and the walk's report is not written. The counts
+  in `docs/QUICKSTART.md` are written from the **witness mode** instead —
+  83 checks, measured, and the mode the tree's test runs on every CI run.
+
+
+## 2026-11-28 (later) - the delivery is on the remote, and the tree's own walks caught the contract change
+
+- **The delivery is pushed, and pull request #225 carries it.** The rewritten
+  delivery line is `origin/claude/delivery-phase5`; local `main` holds the
+  same commits and `origin/main` does not, because the owner's merge is what
+  moves it.
+- **The runner found what the local review did not.** The batch changed the
+  report path's contract — a report over a source whose bytes have moved is
+  **refused** before it is written, rather than written and marked stale —
+  and the tree's own two walks still asserted the old contract, so both
+  **raised on the refusal** and took **19 witnesses** with them: 16 in
+  `tests/test_smoke_path.py`, 3 in `tests/test_outsider_path.py`. The runner
+  said the same thing: on #225, `python-quality (ubuntu-latest, shard 2)`,
+  `python-quality (windows-latest, shard 3)` and
+  `python-quality (windows-latest, shard 5)` were red, and every failure in
+  those three shards was one of the two walks.
+- **Both walks now show the refusal**: the reason, the source, the bytes the
+  ledger holds and the bytes the file has, and **nothing written** — no
+  revision on disk and no new row, with the first revision's bytes unchanged.
+  The refusal's comparison gets a control of its own in each walk (the bytes
+  the file held before it was moved are hashed and compared with the
+  ledger's), and a witness reads each walk's output for the refusal's line
+  and for the two hashes it names — so a refusal a walk swallowed would
+  leave the run green over a report that was written anyway.
+- **Two witnesses were red for a reason of their own.** The whole-suite local
+  run had `tests/test_fault_injection_e2e.py` failing twice with
+  `sqlite3.OperationalError: disk I/O error` on `PRAGMA
+  journal_mode=WAL` — the crash-recovery case the session module names in
+  its own comment. **Run alone the file passes (8 passed)**, and the runner
+  never saw it: this machine's long-run behaviour, not a regression.
+- **The owner's own plan carries the correction.** LC-P1-11's clause *"Re-
+  rendering after material change invalidates stale output"* is unchanged and
+  is still discharged by the walk that marks the old revision stale; what the
+  plan's discharge description did not say is that the re-render itself is now
+  **refused**, with a reason, while the ledger holds the old bytes. That is
+  written down in `docs/plans/LC-P1-11-12-task-breakdown.md` §2.4.
+- **What is still the owner's:** the merge of #225, the host-side purge
+  request (the text is in the history-exposure record), and `main`'s own
+  history, which still holds 17 name-shaped blobs in 4 files' histories and
+  is the batch the owner split out.
+
+
+## 2026-11-28 - the evidence gate walks the report's path, and the door's question stops short of an attestation
+
+- **The gate runs before a report says anything.** `render_report` builds the
+  document, then runs `labcairn.evidence.gate` over the records the document
+  states as established, then runs the content checks, and only then renders
+  the forms and writes the revision. A finding refuses the report with a new
+  reason, `report_evidence_refused`, names every objection and the record it
+  concerns, and **leaves nothing written**. Both surfaces inherit one
+  answer: `labcairn task report` and `POST /report` reach the same operation,
+  so neither surface file had to change.
+- **The gap was measured, not assumed.** At `95161fa6d0905c48c7cf4c41a4eb8dc78725e4be`, `git grep -n
+  evaluate_task` over `src/` returned two lines, both in the gate's own file
+  — **nothing in `src/` called it**, while the gate's docstring said it was
+  *"the last thing that runs before a report says something"*.
+- **The scope was chosen by measurement.** Three scopes were measured on a
+  real migrated store: the whole task (it refuses for a planned or superseded
+  record the report never quotes — a refusal the caller cannot act on, since a
+  superseded row is kept by design), every record the report carries (it
+  refuses for a record the report prints *with its status* — the report's own
+  text, answered by the report), and the records the document states as
+  established. The third is the one the window took, and the record says what
+  the choice costs.
+- **The gate's verdict is in the result.** `ReportRendered` carries
+  `evidence_gate` and `unjudged_records`, and the two lists partition the
+  document's snapshot. The checked-in TypeScript contract was regenerated,
+  and the parity test is what caught the omission.
+- **And the door's question stops short of the one citable status the
+  surfaces can produce.** Measured on 2026-11-28: a `user_attested` record
+  whose source file changed bytes is **reported successfully** — the command
+  exits 0, the report is written, and the receipt says `current`. The chain,
+  each link measured: an attestation logs **C4 only**, so the gate's drift
+  question has no subject on it; the report's content checks **deliberately
+  do not compare** `source_content_hash`; the receipt's staleness walk
+  compares the **ledger's stored** hash and not the file; and `advance` has
+  **no caller in `src/`**, so `verified_by_rule` is unreachable from any
+  surface today. The record was corrected in place, and the fix — *the gate
+  should ask the source directly for a citable record* — is the next card.
+- **Bookkeeping.** `tests/test_report_evidence_gate.py` is filed in the
+  manifest and in a shard on both platforms at a cost of `0.0` — the number
+  is owed and comes from a runner. The witness ledger reads **4345 → 4353**
+  with **nothing lost**. A stale count in the evaluation harness's header
+  ("33 files declare unit, integration or e2e"; measured **179**) was removed
+  rather than re-anchored, with the reason written down. The four window
+  branches whose work has landed were deleted; one could not be —
+  `claude/stoic-lighterman-987a04`, whose commit is on `main`, and whose ref
+  file the filesystem will list but not open, so git can enumerate it and
+  cannot delete it. It is harmless to the tree, the suites and the merge, and
+  it is the kind of branch a fresh clone or a `git gc` settles.
+- **The push is made, and the pull request is open.** The delivery went to
+  the remote as `claude/delivery-phase5`, and pull request #225 carries it —
+  one pull request and one run for the whole delivery, because a run is a
+  fixed cost (the seventeen required checks — the required set read from
+  GitHub on 2026-11-18 at
+  `ac362d2cb5536d05372cf02b49a499036efd2952` — with the Windows leg the
+  slowest) and a run per batch is a run per batch. The owner's merge is what
+  moves `origin/main`; the session does not merge.
+- **What the tree's Chinese turned out to be.** Every Han run in the tracked
+  tree is now registered by digest, length and class — **53 files, 1,956
+  runs**, eight classes, and the registry holds **no Han character** of its
+  own. The classes that were not allowed — corpus labels, corpus
+  quotations, person names — are **gone from the tree**: the trial record's
+  corpus file names, the exit decision's fingerprint label, the readerB
+  review's annotated-file label, ADR-0014's author label, the LC-P2-11
+  surname-and-title and the synthetic corpus's name-shaped author are
+  redacted or replaced, and each record says why. The design quotations
+  stayed, classified, with the reasoning that they are the tree's own
+  specification. **Both quantity pins were re-measured at that tree**, not
+  carried forward (56 → 53 files, 13,139 → 13,074 characters, 1,971 → 1,956
+  runs).
+- **The report's door now asks the source.** The gate runs C1 for **every**
+  citable record, whether or not its log holds a C1 to re-run, and the
+  report compares the **file** with the ledger's account before it writes
+  anything. **The review's own probe, unchanged, now refuses**: the report
+  over an attested claim whose source moved exits **3** and writes nothing,
+  where it exited 0 and wrote a receipt that said `current`.
+- **What the published history still carries, measured on 2026-11-28.** The
+  tree's tip is clean; the history is not. Over `origin/main` and the
+  delivery head, with the tree's own definition of a name-shaped run (one
+  surname and one title): **17 blobs in 4 files**, plus the corpus labels in
+  three more files' histories, and every one of them an **ancestor of
+  `origin/main`**. The earliest affected commit has **1,306 commits** after
+  it in `main`.
+- **The owner's call: split in two.** The delivery line is rewritten now —
+  the leaked commit's name leaves the branch that becomes `main` — and
+  **`main`'s history is a batch of its own**, with its own run and its own
+  anchors to move. The card for it goes up after this delivery lands, so it
+  cannot collide with the rewrite now in flight.
+- **Two gaps the review named.** The acceptance records' cited hashes are
+  checked by **no test** (only the status board's are), and the CLI's
+  rendered table does not show the gate's verdict the way the API's contract
+  does. **Both are closed now** — the first by `tests/test_record_citations.py`
+  and the second by the command line's own drawing of the gate's verdict and
+  the records it did not judge — and the review that named them says where
+  each went.
+
+
+## 2026-11-27 - pull request #224 is merged, four windows answered, and a name got out
+
+- **Pull request #224 is merged** (merge commit `6b8e09f`), and the delivery
+  branch is gone from both the remote and the local checkout. The work it
+  carried is on `main`; the round's records, the two bookkeeping closures,
+  the re-measured shard costs and the floor witness are all in it.
+- **Four more windows have been merged into the local `main`.**
+  - **The CLI has a model request of its own.** `labcairn suggest` asks one
+    question about one source and sends exactly one request, and **the
+    consent gate runs before the approval is spent** — a refusal costs
+    nothing, which is the property its thirteen witnesses hold. The owner
+    decided this shape after the round found that `roles run` refuses on a
+    document with no comments, so no command could reach a model at all on
+    the pilot's copy. **No real request was made**: the witnesses use the
+    project's own fakes.
+  - **The report's content checks, read and written down.** The gate runs
+    on the **model** and not on an exported file — checking a rendered file
+    would be a second copy of the content — so **there is no route that
+    checks an export that already exists**. Both versions of the pilot's
+    report pass all five checks, and seven mutation probes each broke one
+    check and were each refused by that check.
+  - **A removal says in the log which source it took back**: a
+    `source_removed` event carrying the source's id, its path, its digest
+    and the tasks that let it go, written in the same transaction as the
+    deletion; migration `0034`; the checked-in TypeScript contract
+    regenerated.
+  - **The round replayed on the pilot workspace, on the tree that closes
+    its gaps.** The refusal is now in the event log (`seq 74`,
+    `refusal_recorded`), and the consent-gated run closes its stage and
+    its run (`seq 120`–`131`, ending in `run_finished`). **The workspace
+    changed** — the store moved from revision 0032 to 0034 and the event
+    log from 10,305 to 10,401 — and the record says so, because a window
+    that changes state outside the repository must say what it changed.
+- **A person's name reached a record in the tree, and that is the batch's
+  one failure.** The replay's record named the workspace's own issue key,
+  version id and file name for the second corpus, and all three carried a
+  name in Chinese. **The workspace is allowed to hold them; the tree is
+  not** — a label that carries a name is material too. The identifiers are
+  redacted in place and the record says why. **Two witnesses now cover
+  the two directions.** `tests/test_no_reference_leakage.py` holds the
+  tree's Chinese budget — a file carrying Chinese that was never measured
+  fails the build, and **the leak was exactly that**, so it would have
+  been caught before it merged. What was unwatched was the other
+  direction, a name written into a record that was already there, and
+  `tests/test_pilot_records_carry_no_names.py` now holds every pilot
+  record to no Chinese, no fullwidth comma and no identifying pattern.
+- **Two more windows have answered, and one of them found something.**
+  - **What a removal releases when two tasks hold the material** is now
+    held still: the removal releases **both** bindings, and `--task` does
+    not narrow that. The record had said the CLI's `--task` option does
+    not narrow the release and that one run could not tell two behaviours
+    apart; **two holders tell them apart**, and the answer is the wider
+    one.
+  - **A dangling source id, read back through the product's faces, splits
+    into three answers.** The source faces refuse it and name it (`403`,
+    exit 3); the report face refuses it and names it
+    (`report_content_refused`); **and the record face reads as sound while
+    the row it names is gone** — `GET /records` answers **200** with the
+    record intact, and `task claim-attest` advances it into the **citable**
+    set with exit 0 **without asking of the anchor's source row a second
+    time**. The record's observed hash is `None` because there is no row
+    to read it from, and no wired face runs the C1-C3 comparison. **That
+    is a product gap, measured and witnessed, not fixed** — the witness
+    would go red if a face learned to check the source row again.
+- **The threat model followed the command.** The `suggest` command moved
+  `init`'s three `mkdir` calls down 29 lines, and §1.2's write range
+  moved with them (444-448 is now 473-477).
+- **Pull request #225 is open** and carries this batch; one run, one
+  pull request. The costs were re-measured from the runner and the
+  documents that print them were carried with the table. **The two newest
+  witnesses carried `0.0` until the run that carried this batch supplied
+  their numbers; they are now measured** (`test_source_removal_scope.py`
+  at 1.33 s on Ubuntu and 16.80 s on Windows, and
+  `test_dangling_source_read_faces.py` at 0.88 s and 8.42 s), the costs
+  were re-measured again from that run's log, and the anchor moved to
+  `fbffd9a16fad6921eac958699233d4c7a3ac4b18`.
+- **What this batch did not answer.** Whether the same kind of leak exists
+  in the earlier records that carry Chinese for other reasons, and
+  whether the git history holds one. The suggestion loop still cannot run
+  on a copy without comments.
+- **The gap the batch measured is now closed.** A record could reach
+  `user_attested` — a state a report may cite — while the source its
+  anchor named was gone, because `attest` checked that the record's
+  *identifiers* resolved and never asked the *source* a second time
+  (ADR-0004 I4). The rule now lives at the layer that owns it:
+  `store.attest` runs **C1** — `check_source_exists`, reached through the
+  same `_run_check` that `advance` uses, not a second implementation — and
+  refuses with the source's id named when the row is gone or its bytes
+  have moved under it. `attest_claim` maps that onto a new refusal code,
+  `CITATION_SOURCE_UNOBSERVABLE`, so the CLI and the API inherit one
+  answer through the existing rendering. The origin witness was **flipped**
+  to assert the refusal and keeps the reading as the control that the
+  record is only `extracted` and not citable; a new file adds the
+  positive control, the missing-source and drift refusals, and the
+  application mapping. The mutation that restores the pre-fix early
+  return turns the four refusal witnesses red and leaves both controls
+  green — checked again independently here.
+- **Correction, 2026-11-27: the git history does hold one, and it left
+  this machine.** The sentence above used to read *"the leak never left
+  this machine, but no witness looks there"*. **That was wrong**, and the
+  measurement is what says so: two commits carry a name in a document, and
+  the repository is public. `e67269a` (2026-11-01) added
+  `docs/acceptance/second-corpus-absorption.md` with three Han runs in it
+  and is an ancestor of `origin/main`; `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` (2026-11-27) added
+  `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md` with five Han runs
+  and is an ancestor of `origin/claude/delivery-phase5` and of
+  `refs/pull/225/head`. Fetching either file at its commit over plain
+  HTTPS, with no credential, answers **200** with the runs in the body.
+  The redactions (`f0f9cdb`, `80bc7e53a50cd88ca95f59e57664cf0ee4d1376a`) cleaned the **tree tips**; the
+  blobs stayed in history, and history is what the remote serves.
+  **A name is material, so this is a disclosure, not a stale tree.** What
+  to do about it — rewriting published history is outward-facing and hard
+  to undo, and the objects and any cached copies may persist — is the
+  owner's decision, and a window has measured the options and their costs
+  against it. **The tree's own budget could not have caught this**: it
+  measures the **longest** Han run per file, so a short name added to a
+  file that already carries a longer run leaves the measurement unchanged
+  and the witness green. A probe outside the repository confirmed it.
+  **What merging #225 would add, stated plainly:** the name is already
+  anonymously fetchable today, because `origin/claude/delivery-phase5` and
+  `refs/pull/225/head` both carry `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e` and the remote serves any
+  commit's blobs by sha. Merging would not disclose anything new, and it
+  would make the name **permanent in the default branch's history**, so
+  every later clone carries it. `origin/main` does not hold `9c7eb191509aba1c5bd13ea0452b0433bb2f4c3e`
+  today. The owner's decision on the remedy should take that into
+  account; the merge decision and the remedy decision are separable, and
+  this review takes neither.
+- **The tree's blind spot is closed.** The budget measures the **longest**
+  Han run per file, so a short name added to a file that already carries a
+  longer run left the measurement unchanged and the witness green. A
+  companion measure now pins the **whole** Han load of every tracked file,
+  so a name of any length moves a number the pin holds. **The two rules
+  are deliberately not merged**: the budget stays a budget — it is not
+  quietly a ban, and it is not quietly widened — and the new pin measures
+  a different quantity (the whole load) over a different scope (every
+  tracked file, not the pilot's two globs). Verified here by hand: a
+  four-character name appended to a file whose longest run was 7 left the
+  longest run at **7** and moved the total from **34** to **38**.
+- **A document with no comments can take part in the role chain.** The
+  branch is taken on **the chain's state, not the request's shape**: the
+  chain counts the comments the project holds, zero is a shape like any
+  other, and a chain that holds comments but not under the key the
+  request named is **still refused exactly as it was** — same reason, same
+  place, same witnesses. Each role abstains through **its own primitive**
+  (role A has no advisor's words to carry, so it carries no advisor's
+  quote), the abstention is recorded in a new `role_abstention_recorded`
+  event (migration `0035`), and the run and stage beside it are closed in
+  the same transaction as the annotation. **Nothing is spent**: no wire, no
+  approval, and no refusal for want of a provider.
+- **Three new test files carry `0.0` until a runner measures them**:
+  `test_attest_source_presence.py`, `test_chinese_totals_pin.py` and
+  `test_role_run_commentless.py`. They are filed in the manifest and in a
+  shard, so CI will run them — the number is what is owed.
+
+
 ## 2026-11-26 (night) - the two bookkeeping gaps are closed, the shard costs are measured again, and the pull request is ready
 
 - **The pilot's copy went through one whole round on the product's own

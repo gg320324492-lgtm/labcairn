@@ -840,7 +840,7 @@ than left for the next reader to find.**
    is answered
    (`src/labcairn/api/routes.py:845` — `@router.get("/events", response_model=EventStreamPage, tags=["events"])`),
    `serve` hands the app an event source
-   (`src/labcairn/cli/commands.py:2714` — `event_source=StoreEventSource(),`),
+   (`src/labcairn/cli/commands.py:2754` — `event_source=StoreEventSource(),`),
    the workspace's rounds are named
    (`src/labcairn/api/routes.py:1183` — `@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])`),
    and the suggestion run's account is served
@@ -870,7 +870,7 @@ than left for the next reader to find.**
    served by `GET /review/suggest/runs/{run_id}`
    (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`),
    and `serve` hands the app an event source
-   (`src/labcairn/cli/commands.py:2714` — `event_source=StoreEventSource(),`).
+   (`src/labcairn/cli/commands.py:2754` — `event_source=StoreEventSource(),`).
    **What has not happened is a real run whose account was read back, or an
    event stream read during a trial** — the capability record that first
    asked for them was collected on the synthetic workspace, and no

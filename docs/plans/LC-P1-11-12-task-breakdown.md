@@ -367,6 +367,18 @@ The receipt already carries `revision`, and its docstring already says that
   report.** It produces a new revision of a *new* document, and the old one
   stays stale and says so.
 
+  **What the product answers today (2026-11-28).** A re-render over a source
+  whose bytes have moved is **refused**, with a reason that names the source,
+  the bytes the ledger holds and the bytes the file has, and it writes
+  nothing — ADR-0004 I4 invalidates a record whose source has moved rather
+  than refreshing it, so a report made over those bytes would state claims
+  the ledger no longer supports. The refusal says what to do next: ingest the
+  material again, then re-verify or re-attest the claims it carries. The new
+  revision of a new document comes after that, and the old one stays stale
+  and says so. The clause above is unchanged and is still discharged by the
+  walk that marks the old revision stale; what changed is the answer given
+  to the re-render itself.
+
 ### 2.5 One application layer, three surfaces
 
 The work order is explicit: *"CLI/API/UI call same application layer"*. The
@@ -631,7 +643,7 @@ skipped by accident.
 | 3 | figures/captions intact | T00, T01, T04, **T12** | the figure's bytes in the report are the figure artefact's bytes, and the caption beside it is the caption in the model |
 | 4 | links resolve | T04, **T12** | every link in the report points at a locator that the index can resolve, and the check is a resolution, not a string comparison |
 | 5 | output hash/lineage retained | T02, T03, **T13** | the manifest records each part's hash and its lineage, and the receipt records the manifest's hash, so the chain from the ledger to the exported file is one line of hashes |
-| 6 | re-rendering after material change invalidates stale output | T03, **T13** | the invalidation walk marks the report `STALE` with a reason, and the re-render is a new revision that does not alter the old one |
+| 6 | re-rendering after material change invalidates stale output | T03, **T13** | the invalidation walk marks the report `STALE` with a reason, and the old revision says so; a re-render over the moved bytes is **refused** — naming the source, the bytes the ledger holds and the bytes the file has — and writes nothing, so the new revision of a new document comes only after the material is ingested again |
 
 ### 4.2 LC-P1-12's own acceptance clause
 

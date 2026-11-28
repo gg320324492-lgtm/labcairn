@@ -92,8 +92,9 @@ uv run python scripts/outsider_path.py --mode reviewer --work-root E:\labcairn-l
 
 **The measured run** is in
 [the acceptance record](acceptance/LC-P1-14-outsider-path.md): 115 checks, all
-held, in the reviewer mode, at the commit it names. §5 lists what the walk
-asserts.
+held, in the reviewer mode, **at the commit it names**. The walk has been
+changed since that run, and the acceptance record says what a reviewer-mode
+run costs now. §5 lists what the walk asserts.
 
 **The script is run by a test**, in the witness mode, on every CI run:
 [`tests/test_outsider_path.py`](../tests/test_outsider_path.py).
@@ -364,9 +365,13 @@ and it writes nothing to standard output.
 
 ## 5. What the walk asserts
 
-The script's checks are the claim, and there are **115** of them in the
-reviewer mode. They are not a summary; the report carries each one with its
-label, its outcome and its detail. The load-bearing ones:
+The script's checks are the claim, and in the **witness mode** — the mode the
+tree's test runs, and the mode the count was measured in — there are **83** of
+them. The reviewer mode makes more of them, because it runs every README
+command as the README writes it; **its count has not been re-measured since
+the walk changed on 2026-11-28**, and the acceptance record says why. They
+are not a summary; the report carries each one with its label, its outcome
+and its detail. The load-bearing ones:
 
 | The claim | Where |
 |---|---|
@@ -379,7 +384,7 @@ label, its outcome and its detail. The load-bearing ones:
 | The report carries the claims, and every claim cites the address it rests on | §3 |
 | The figure on disk is the bytes the receipt records, and two renders are byte-identical | §3 |
 | The CLI's task document and the API's are the same, field by field — **and the control finds a planted difference** | §3 |
-| The report is marked stale, the stale mark regenerates nothing, and v1's bytes are unchanged | §3 |
+| The report is **refused** while the ledger still holds the bytes that moved, and nothing is written | §3 |
 | The service, in a new process, serves the same task | §3 |
 | Every file the product produced is under the task's own output area | §3 |
 | The repository's own fixture corpus is byte-identical afterwards | §3 |

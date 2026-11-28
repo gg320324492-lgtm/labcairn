@@ -123,6 +123,29 @@ class TrajectoryCandidate(RoleOutput):
     note: str
 
 
+@dataclass(frozen=True)
+class TrajectoryAbstention(RoleOutput):
+    """Role A's abstention: there is no mark to align, and it says so.
+
+    **A separate type, and the separation is the point.** The candidate
+    carries the advisor's own words — checked verbatim against the comment
+    the chain holds — and it is a judgement about *that comment*. **An
+    abstention has no advisor's words to carry**, so it cannot be a
+    candidate with the quote left blank: a candidate with an empty quote
+    would be a shape in which a role could say "I judged the advisor's
+    comment" while having quoted nothing, and the loop would hand that
+    shape to a reader as a judgement.
+
+    So the abstention is its own type, and it says **what was missing** —
+    the difference between "the system does not know" and "the system is
+    broken" is the difference between a product and an outage.
+    """
+
+    issue_key: str
+    what_is_missing: str
+    note: str
+
+
 def order_versions(
     context: ApplicationContext, *, project_id: str, version_ids: tuple[str, ...]
 ) -> tuple[str, ...]:
@@ -296,5 +319,49 @@ def propose_candidate(
         edit_action_id=edit_action_id,
         alignment=alignment,
         advisor_quote=advisor_quote,
+        note=note,
+    )
+
+
+def abstain_from_candidate(
+    *,
+    spec: AgentRoleSpec,
+    issue_key: str,
+    what_is_missing: str,
+    note: str,
+) -> TrajectoryAbstention:
+    """Role A's abstention, when the chain holds no mark for it to align.
+
+    **The abstention is stamped with the contract that governed it**, the
+    same way the candidate is: a replay opens the contract the abstention
+    was made under, and an output that does not say which contract governed
+    it cannot be replayed against that contract.
+
+    **And it names what was missing.** A role that abstains without saying
+    what it lacked is a shrug wearing a result's clothes — the difference
+    between "the chain holds no comment" and "the memory holds no rule" is
+    the difference between a product and an outage, and only the first is
+    a fact about the advisor.
+
+    :raises ApplicationRefusedError: what was missing was not said, or the
+        note was empty. **An abstention that cannot say what it lacks is
+        not an abstention** — it is a silence.
+    """
+    if not what_is_missing.strip():
+        raise role_refused(
+            RoleRefusal.ABSTENTION_WITHOUT_A_MISSING,
+            "the abstention names no missing thing, and an abstention that cannot"
+            " say what it lacks is a shrug rather than a result",
+        )
+    if not note.strip():
+        raise role_refused(
+            RoleRefusal.CARD_FIELD_EMPTY,
+            "the abstention's note is empty, and a note that says nothing is a silence",
+        )
+    return TrajectoryAbstention(
+        role_id=spec.role_id,
+        role_version=spec.role_version,
+        issue_key=issue_key,
+        what_is_missing=what_is_missing,
         note=note,
     )

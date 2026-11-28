@@ -163,8 +163,8 @@ by requiring a `human` edge before a version is treated as settled. An
 
 Every event carries `observed | inferred | human_verified`.
 
-- **`observed`** — read from the file's XML. A `w:ins` by "李老师" dated
-  2026-03-02 with the text "补充对照组" is observed.
+- **`observed`** — read from the file's XML. A `w:ins` by the advisor's
+  account dated 2026-03-02 with the text "add a control group" is observed.
 - **`inferred`** — a guess. "This deletion was *because* the innovation was
   unclear" is inferred unless a comment says so.
 - **`human_verified`** — a person confirmed it.

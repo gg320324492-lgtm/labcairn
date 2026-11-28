@@ -1072,6 +1072,7 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
     from labcairn.analysis.service import AnalysisRequest, analysis_arguments, run_analysis
     from labcairn.application import render_report
     from labcairn.application.evidence import ClaimRequest, list_source_addresses, record_claim
+    from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
     from labcairn.application.reports import ReportRequest
     from labcairn.cli.workspace import (
         DEFAULT_POLICY_RULES,
@@ -1754,26 +1755,50 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             "no second revision exists yet",
         )
 
-    # -- the report is generated again ---------------------------------------- #
+    # -- the report is refused ------------------------------------------------ #
     #
     # **Before** the ledger learns about the new bytes and **before** a second
-    # figure is drawn over them. A revision is generated from what the task
-    # holds, and what the task holds is the material the claims were read
-    # from; the walk tries to recompute the report from the revised bytes
-    # further down, and records what the layer says about that.
+    # figure is drawn over them. The report is rendered again, and the layer
+    # refuses it, because the ledger still holds the bytes that moved: a
+    # receipt written now would say the report is current over material that
+    # is gone, and the walk would be carrying a claim the file does not back.
+    #
+    # The refusal is not a failure of the walk. It is the product's answer to
+    # the question the walk asks, and the walk records the answer whole: the
+    # reason, the detail that names the source and both hashes, and the fact
+    # that nothing was written.
+    refusal_reason = ""
+    refusal_detail = ""
     with application_context(location, read_config(location), task_id) as layer:
-        store = layer.store
-        second_revision = render_report(
-            layer,
-            ReportRequest(path="report", template_id="default"),
-            now=RECORDS_MOMENT + timedelta(minutes=1),
+        refusal: ApplicationRefusedError | None = None
+        try:
+            render_report(
+                layer,
+                ReportRequest(path="report", template_id="default"),
+                now=RECORDS_MOMENT + timedelta(minutes=1),
+            )
+        except ApplicationRefusedError as refused:
+            refusal = refused
+        recorder.check(
+            "the report is refused while the ledger still holds the bytes that moved",
+            refusal is not None and refusal.reason is ApplicationRefusal.REPORT_EVIDENCE_REFUSED,
+            refusal.reason.value if refusal is not None else "the render was not refused",
         )
-        store.session.commit()
+        assert refusal is not None
+        refusal_reason = refusal.reason.value
+        refusal_detail = refusal.detail
+        recorder.check(
+            "and the refusal names the source, the ledger's bytes and the file's bytes",
+            csv_source.source_id in refusal.detail
+            and original_hash in refusal.detail
+            and measured[f"materials/{TABLE_NAME}"] in refusal.detail,
+            refusal.detail[:300],
+        )
         revision_two = workspace / "output" / str(task_id) / "report" / "v2"
         recorder.check(
-            "the report is generated again, as a second revision",
-            second_revision.receipt.revision == 2 and revision_two.is_dir(),
-            f"v{second_revision.receipt.revision}",
+            "nothing was written: there is no second revision",
+            not revision_two.exists(),
+            f"{revision_two} does not exist",
         )
         recorder.check(
             "the first revision's bytes are unchanged",
@@ -1781,13 +1806,23 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             == {path.name: digest_of_file(path) for path in sorted(revision_one.iterdir())},
             f"{len(first_revision_digests)} file(s)",
         )
+
+        # The control: the comparison the refusal rests on is not a constant
+        # that always says "different". The bytes the file had before the
+        # researcher edited it are still in hand, so the same comparison can
+        # be run over them — and it answers the other way. A comparison that
+        # could only answer one way would make the refusal meaningless, and
+        # the ledger's hash is asserted here by hashing the pre-edit bytes
+        # rather than by reading the ledger back.
         recorder.check(
-            "the second revision is not itself marked stale",
-            second_revision.receipt.staleness is not ArtifactStaleness.STALE,
-            second_revision.receipt.staleness.value,
+            "the hash comparison finds the difference it was given",
+            digest(raw) == original_hash and measured[f"materials/{TABLE_NAME}"] != original_hash,
+            f"the bytes the file had before it moved hash to {digest(raw)[:12]}, "
+            f"the ledger holds {original_hash[:12]}, and the file now hashes to "
+            f"{measured[f'materials/{TABLE_NAME}'][:12]}",
         )
         print(f"  v1         : {report_receipt.relative_path}")
-        print(f"  v2         : {second_revision.receipt.relative_path}")
+        print(f"  v2         : refused ({refusal_reason})")
 
     # The refreshed material goes back into the ledger through the CLI.
     refreshed = run_cli("sources", "ingest", "--json")
@@ -1993,7 +2028,26 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         {"name": "task", "task_id": str(task_id), "bound_source_ids": list(bound)},
         {"name": "sources", "kinds": sorted(by_kind)},
         {"name": "report", "revision": 1, "receipt": report_receipt.receipt_id},
-        {"name": "revision", "revision": 2, "receipt": second_revision.receipt.receipt_id},
+        {
+            # The revision over the bytes the ledger still holds was
+            # attempted and refused, so the step carries the refusal rather
+            # than a receipt id: a receipt id would name a revision that
+            # was never written.
+            #
+            # **The attempt is named, not numbered.** The walk ends with a
+            # second revision — the one the later recomputation writes, once
+            # the refreshed material is back in the ledger — and a step that
+            # said "v2, refused" beside that one would read as a report
+            # that says the second revision does not exist. So the attempt
+            # names what it was made over, and the recomputation's own
+            # outcome is carried beside it.
+            "name": "revision",
+            "attempted": "a second revision, over the bytes the ledger still holds",
+            "outcome": "refused",
+            "reason": refusal_reason,
+            "detail": refusal_detail,
+            "recomputed": report.get("recomputation", {}).get("outcome", "not attempted"),
+        },
         {"name": "material", "pristine": pristine},
     ]
     report["findings"] = [

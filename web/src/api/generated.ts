@@ -196,6 +196,18 @@ export type ComputationLocator = {
   input_hashes: string[]
 }
 
+export type ConflictDetail = {
+  locator: string
+  left: ConflictSide
+  right: ConflictSide
+}
+
+export type ConflictSide = {
+  evidence_id: string
+  value: number | null
+  unit: string | null
+}
+
 export type DeliverableFileWire = {
   kind: string
   relative_path: string
@@ -279,6 +291,7 @@ export type EventType =
   | 'checkpoint_created'
   | 'artifact_recorded'
   | 'source_changed'
+  | 'source_removed'
   | 'outbound_consent_requested'
   | 'feedback_recorded'
   | 'edit_action_recorded'
@@ -286,6 +299,7 @@ export type EventType =
   | 'followup_assessed'
   | 'model_exchanged'
   | 'refusal_recorded'
+  | 'role_abstention_recorded'
 
 export type EvidenceCreator = 'rule' | 'user' | 'model_proposal'
 
@@ -330,6 +344,19 @@ export type FileRef = {
 }
 
 export type FilterOp = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le'
+
+export type Finding = {
+  evidence_id: string
+  kind: string
+  reason: string
+  detail?: ConflictDetail | null
+}
+
+export type GateResult = {
+  passed: boolean
+  findings: Finding[]
+  considered?: string[]
+}
 
 export type GuidanceCheck = {
   check_id: string
@@ -642,6 +669,8 @@ export type ReportBody = {
 export type ReportRendered = {
   receipt: ArtifactReceipt
   resource_key: string
+  evidence_gate: GateResult
+  unjudged_records?: string[]
 }
 
 export type ReproducibilityManifest = {
@@ -851,6 +880,14 @@ export type RoleGuidanceJudgement = {
   style_notes?: string[]
 }
 
+export type RoleRunAbstention = {
+  role_id: string
+  role_version: number
+  issue_key: string
+  what_is_missing: string
+  note: string
+}
+
 export type RoleRunBody = {
   roles: string[]
   project_id: string
@@ -921,8 +958,18 @@ export type RoleRunRun = {
   answer: string | null
   exchange_event_id: string | null
   candidate?: RoleRunCandidate | null
+  abstention?: RoleRunAbstention | null
   card?: RoleRunCard | null
   verdict?: RoleRunVerdict | null
+  abstentions?: Record<string, string>
+  shape?: RoleRunShape | null
+}
+
+export type RoleRunShape = {
+  project_id: string
+  version_ids: string[]
+  revision_count: number
+  comment_count: number
 }
 
 export type RoleRunTicketWire = {

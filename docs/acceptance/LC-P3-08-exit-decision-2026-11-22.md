@@ -202,7 +202,9 @@ Sample actually trialed (owner decision 2026-11-21: reuse
 material-batch-5; the protocol §1's drilled sample 9154e56c… was
 superseded by that decision and is not this trial's sample):
   advisor-annotated working sample:
-    MNBs氯消毒大肠杆菌5批注.docx
+    MNBs-<subject redacted>-5-annotated.docx
+    (label redacted 2026-11-27: it carried the manuscript's title-of-record;
+    the original name is in the workspace's T1 supply receipt)
     sha256 a7a38132cf35d3632c4cb8aacba910994e9ad7e8b27413761260ade2d6502278
     8,871,367 B — measured 2026-11-21/22, matches T1 supply receipt
     (T1-SUPPLY-RECORD-20261121.json, sha256 23622d2d…) and the batch-5

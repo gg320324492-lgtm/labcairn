@@ -57,7 +57,7 @@ differently.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 
 from labcairn.application.context import ApplicationContext, store_refusals
@@ -460,6 +460,108 @@ def complete_consumed_approval(
     )
 
 
+def record_role_abstention(
+    context: ApplicationContext,
+    *,
+    project_id: str,
+    roles: Sequence[str],
+    missing: Mapping[str, str],
+    run_id: RunId | None,
+    stage_id: StageId | None,
+    now: datetime,
+) -> None:
+    """Record that the mentor loop ran and abstained, and close what it ran.
+
+    **The record is an annotation, and the run state beside it is closed.**
+    An abstention is not an attempt: no model was called, no approval was
+    spent, and there is no operation for it to belong to. **So the event
+    carries no run and no operation** -- inventing a Run for it would be the
+    trace that could be mistaken for work that was attempted.
+
+    **And the run that ran it is finished anyway.** The pilot measured the
+    gap: a run that did its work and stopped left its stage ``blocked`` and
+    its run ``running`` although nothing was waiting. A run that abstained
+    has done everything it was asked to do, so its stage is completed and its
+    run is finished -- **in the same transaction as the annotation**, so a
+    reader never sees a finished run without the record of what it did, nor
+    a record of an abstention inside a run that claims to be going.
+
+    **The run and stage are written only if the caller had them.** A run
+    over a comment-less document may be reached without a stage of its own
+    -- nothing was planned and nothing was approved -- and then the
+    annotation is the whole of the record, which is the honest shape for a
+    run that touched nothing.
+
+    :param project_id: the project whose chain was read.
+    :param roles: the roles the request named.
+    :param missing: what each role could not answer, keyed by role id.
+    :param run_id: the run the abstention belongs to, when there is one.
+    :param stage_id: the stage the abstention belongs to, when there is one.
+    """
+    with context.store.unit(context.task_id) as work:
+        work.emit(
+            EventType.ROLE_ABSTENTION_RECORDED,
+            payload={
+                "project_id": project_id,
+                "roles": list(roles),
+                "missing": dict(missing),
+            },
+            occurred_at=now,
+        )
+        if stage_id is not None and run_id is not None:
+            stage = _the_stage(context, run_id, stage_id)
+            if stage is not None:
+                completed = _finished(stage, StageStatus.COMPLETED, ())
+                work.emit(
+                    EventType.STAGE_COMPLETED,
+                    run_id=run_id,
+                    stage_id=stage_id,
+                    transition=EventTransition(
+                        from_state=stage.status.value,
+                        to_state=StageStatus.COMPLETED.value,
+                    ),
+                    occurred_at=now,
+                )
+                work.put_stage(completed)
+        if run_id is not None:
+            run = _the_run(context, run_id)
+            if run is not None:
+                finished = Run.model_validate(
+                    {
+                        **run.model_dump(),
+                        "status": RunStatus.FINISHED,
+                        "finished_at": _the_finish_moment(run, now),
+                    }
+                )
+                work.emit(
+                    EventType.RUN_FINISHED,
+                    run_id=run_id,
+                    transition=EventTransition(
+                        from_state=run.status.value,
+                        to_state=RunStatus.FINISHED.value,
+                    ),
+                    occurred_at=now,
+                )
+                work.put_run(finished)
+
+
+def _the_run(context: ApplicationContext, run_id: RunId) -> Run | None:
+    """The run with that id, when the task holds it."""
+    with store_refusals():
+        runs = list_runs(context.store.session, context.task_id)
+    return next((run for run in runs if run.run_id == run_id), None)
+
+
+def _the_stage(context: ApplicationContext, run_id: RunId, stage_id: StageId) -> Stage | None:
+    """The stage with that id, when the task holds it."""
+    with store_refusals():
+        stages = list_stages(context.store.session, context.task_id)
+    return next(
+        (stage for stage in stages if stage.stage_id == stage_id and stage.run_id == run_id),
+        None,
+    )
+
+
 def record_refusal(
     context: ApplicationContext,
     *,
@@ -497,6 +599,51 @@ def record_refusal(
                 "reason": reason,
                 "message": message,
                 "asked_for": dict(asked_for),
+            },
+            occurred_at=now,
+        )
+
+
+def record_source_removed(
+    context: ApplicationContext,
+    *,
+    source_id: str,
+    relative_path: str,
+    content_sha256: str,
+    released_task_ids: tuple[str, ...],
+    now: datetime,
+) -> None:
+    """Record the removal of a source's row on the task's own event log.
+
+    **Before this function, a removal left no entry that named the source.**
+    The pilot measured it: ``sources remove --source src-0738f31ecf1e750b``
+    took the row back and wrote exactly one event, ``task_revised``, whose
+    payload was empty. The binding release was in the log; the removal was
+    not, and the next morning the log could not say what had been taken back.
+
+    The event is an **annotation** — no run, stage, operation or transition —
+    for the same reason :func:`record_refusal` is: taking a stale location
+    back changes no attempt, and inventing one would be the trace a reader
+    could mistake for work that started. The source it names is the *row*
+    that left; ``source_changed`` is a different fact, the material moving
+    under a source that stays.
+
+    **The removal's state change rides in this unit, not before it.** The
+    caller deletes the row inside the same session and leaves the commit to
+    this function: ADR-0003 C3 puts a state row and the event that describes
+    it in one transaction, so a store that cannot take the event does not
+    take the deletion either. A deletion committed first and an event written
+    afterwards would leave the log silent about a row that is gone — the
+    failure this function exists to end, one direction or the other.
+    """
+    with context.store.unit(context.task_id) as work:
+        work.emit(
+            EventType.SOURCE_REMOVED,
+            payload={
+                "source_id": source_id,
+                "relative_path": relative_path,
+                "content_sha256": content_sha256,
+                "released_task_ids": list(released_task_ids),
             },
             occurred_at=now,
         )
@@ -770,4 +917,5 @@ __all__ = [
     "plan_approval",
     "record_denial",
     "record_refusal",
+    "record_role_abstention",
 ]

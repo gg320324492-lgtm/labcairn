@@ -94,6 +94,11 @@ class ApplicationRefusal(StrEnum):
     ATTESTATION_NOT_THE_AUTHOR = "attestation_not_the_author"
     #: The ledger refused the move. The original failure is kept as the cause.
     ATTESTATION_REFUSED = "attestation_refused"
+    #: The attestation would make the record citable, but C1 could not confirm
+    #: the source an anchor names -- the ledger no longer holds it, or its bytes
+    #: have moved. ADR-0004 I4 invalidates such a record rather than certifying
+    #: it; the message names the source that could not be observed.
+    CITATION_SOURCE_UNOBSERVABLE = "citation_source_unobservable"
     #: The record is not a model's proposal, so there is nothing to settle.
     PROPOSAL_NOT_A_PROPOSAL = "proposal_not_a_proposal"
     #: The proposal has already been settled by a person. **A proposal is
@@ -156,6 +161,23 @@ class ApplicationRefusal(StrEnum):
     #: the reason it gave — because a reason nobody can act on is the same as
     #: no reason.
     REPORT_CONTENT_REFUSED = "report_content_refused"
+    #: The evidence gate refused the records the report was about to state as
+    #: established, and nothing was written.
+    #:
+    #: Its own member, and not ``REPORT_CONTENT_REFUSED``, because the two
+    #: name different repairs. A content refusal says the **document** and the
+    #: ledger disagree — a number, a word, a status or a link the ledger does
+    #: not support — and the document is what has to change. A gate refusal
+    #: says the **ledger's own account** no longer holds: a verification that
+    #: stopped being true when the source moved, an identifier nothing
+    #: resolved, a record another contradicts, or a status the record's
+    #: history does not bear out. There, the record and the source behind it
+    #: are what has to change.
+    #:
+    #: The message names every finding and the record it concerns, because the
+    #: gate reports the whole set and a refusal that named one objection would
+    #: hide the rest.
+    REPORT_EVIDENCE_REFUSED = "report_evidence_refused"
     #: The operation is declared but not implemented yet.
     NOT_IMPLEMENTED = "not_implemented"
     # -- the reasons the pilot's issue record says ---------------------------- #

@@ -768,6 +768,15 @@ def test_the_removal_is_recorded_in_the_log_as_the_task_s_own_revision(
     improvement rather than a regression, and a witness that forbade it would
     forbid the better answer. It holds the shape that is here: one event, the
     task's own revision.
+
+    **The shape changed on 2026-11-27, and the witness moved with it.** The
+    better answer arrived: the removal now writes a ``source_removed`` event
+    naming the row it took back (migration 0034), in the same transaction as
+    the deletion. **Two events are written now** — the task's own revision,
+    then the one that names the source — and this witness says so rather
+    than freezing the old count. What the naming event carries is checked in
+    ``tests/test_source_removal_event.py``; what is checked here is that the
+    removal is in the log at all, and that the task let the material go.
     """
     material = _one_material_ingested_twice(env, workspace_root, relative="one.csv", body=_CSV_BODY)
     events_before = events_after(env.session, material.task_id)
@@ -776,8 +785,9 @@ def test_the_removal_is_recorded_in_the_log_as_the_task_s_own_revision(
 
     events_after_removal = events_after(env.session, material.task_id)
     new = events_after_removal[len(events_before) :]
-    assert len(new) == 1, "the removal wrote something other than one event"
+    assert len(new) == 2, "the removal wrote something other than two events"
     assert new[0].type is EventType.TASK_REVISED
+    assert new[1].type is EventType.SOURCE_REMOVED
     assert new[0].task_id == material.task_id
     assert material.stale_id not in _held(env, material.task_id)
     assert material.survivor_id in _held(env, material.task_id)
