@@ -208,12 +208,18 @@ its marker; with the deadline removed from the helper, that witness **fails**
 2s") rather than hanging, because the call is made on a thread with a
 deadline of its own.
 
-**One consequence is still open.** The shard costs were measured at
-`b56f9994`, so `tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on`
-**will fail once these changes are committed** — `tests/test_drill_rewrite_interrupted.py`
-is the Ubuntu partition's structural bottleneck and costs more than the
-Windows partition's slack. The re-measurement needs a CI run, because the
-numbers must come from a runner.
+**One consequence is still open, and it is red.** The shard costs were
+measured at `b56f9994`, so
+`tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on`
+**fails on this commit** — measured, not predicted. The same witness was
+green at the parent commit `f39b96b`, so the red is this change and nothing
+else: `b56f9994..HEAD` touches `tests/` in `aaa5378` and nowhere else.
+`tests/test_drill_rewrite_interrupted.py` is the Ubuntu partition's
+structural bottleneck, and its recorded cost — 1209.03 s — *is* the hang that
+was fixed; the file now costs 24.41 s. The re-measurement is
+`python .github/remeasure_shards.py <run-id>`, and it needs a CI run, because
+the numbers must come from a runner. The integrating session's run is that
+run.
 
 The second attempt's end **is** arithmetic, and it is not a stall: **the
 clone's whole suite exceeded the timeout the walk gives that command**

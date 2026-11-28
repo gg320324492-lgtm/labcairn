@@ -405,18 +405,38 @@ parent instead of failing it
 1 failed in 32.53s
 ```
 
-**What this window did not do, and why.** The shard costs in
-`.github/ci-shards.json` were measured at `b56f9994`, and
+**What this window did not do, and why — a witness that is now red.** The
+shard costs in `.github/ci-shards.json` were measured at `b56f9994`, and
 `tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on`
-**will fail once these changes are committed** — on both platforms.
-`tests/test_drill_rewrite_interrupted.py` is the Ubuntu partition's
-structural bottleneck and costs more than the Windows partition's slack
-(1219.62 s against 1012 s). The re-measurement is
-`python .github/remeasure_shards.py <run-id>`, and **the numbers must come
-from a runner**, so it needs a CI run. The new costs are known to be
-dramatically lower (24.41 s against 1209.03 s), but *the partition must be
-re-measured on the runner, not on this machine* — the project's own rule is
-that a value which can change is re-measured, not carried forward.
+**is red on this commit** — measured, not predicted:
+
+```
+AssertionError: the anchor b56f9994c1429fafcd37072c0ed8599c8aba474d could be
+compared against HEAD, but on ubuntu-latest these files changed since the
+costs were measured, and the partition is outside the limit by structure
+(tests/test_drill_rewrite_interrupted.py alone costs 1209s of a 1209s shard
+set), so only the bottleneck's own change is worth measuring again:
+  tests/test_drill_rewrite_interrupted.py
+```
+
+The same witness was **green at the parent commit `f39b96b`** (48 passed), so
+the red is this window's own change and nothing else: `b56f9994..HEAD` touches
+`tests/` in `aaa5378` and nowhere else.
+
+**Why it is red is the point.** `tests/test_drill_rewrite_interrupted.py` is
+the Ubuntu partition's structural bottleneck, and its recorded cost — 1209.03 s
+— *is* the hang this window fixed. The witness is asking for a measurement
+because the number it holds no longer describes the tree: the file now costs
+24.41 s. **The re-measurement is `python .github/remeasure_shards.py
+<run-id>`**, and **the numbers must come from a runner** — a development
+machine gives a different answer, not only a different total but a different
+*order* — so it needs a CI run, and this window was not permitted to start
+one. The integrating session's run is that run: re-measure from it, and the
+witness goes green on the numbers the runner actually produced.
+
+**This is the project's own rule, not an obstacle to it.** *A value that can
+change is re-measured, not carried forward* — and here the value changed by a
+factor of fifty.
 
 **Two things a reader should know.** The two drill files each carry their
 own copy of the wait helper — 137 lines, byte-identical — so each copy has
