@@ -31,7 +31,7 @@ quoted; the run's own command lines, exit codes and seconds are in §4.
 | The clone | `E:\labcairn-local\outsider-reviewer-2026-11-28-d\clone` |
 | The workspace | `E:\labcairn-local\outsider-reviewer-2026-11-28-d\workspace` — **outside** the clone and outside the checkout |
 | The machine | Windows 11 Pro 10.0.26300, `uv 0.11.21`, Node v24.16.0, pnpm 9.15.9, host Python 3.10.11, the clone's Python 3.12.10 |
-| The commit cloned | `6b4a8c6bafb51d57e7d26aa65e2d7e34215d43e7` |
+| The commit cloned | `6e945fe` |
 | The run | **118 checks, all held**, in **6619.3 s** — of which the whole suite in the clone is 6515.4 s (§4) |
 
 **The run above is the record of the repair.** Two earlier 2026-11-28

@@ -640,6 +640,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # The verify door: the operation, the console command and the API route
     # that reach the store's only writer of `verified_by_rule`.
     "test_evidence_verify_door.py": ("e2e", "cli-task"),
+    # A writer outside the product: a record cannot claim a rule's pass it
+    # does not have, whether the refusal is the model's, the store's or the
+    # schema's.
+    "test_evidence_outside_writer.py": ("negative", "insufficient-evidence"),
     "test_skill_ledger.py": ("unit", "artifact-hashes"),
     # LC-P1-06's G2 debt: the same clause as `test_skill_ledger.py`, witnessed
     # against the table instead of a list. The read-time check is the property,

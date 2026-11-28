@@ -421,7 +421,7 @@ set), so only the bottleneck's own change is worth measuring again:
 
 The same witness was **green at the parent commit `f39b96b`** (48 passed), so
 the red is this window's own change and nothing else: `b56f9994..HEAD` touches
-`tests/` in `aaa5378` and nowhere else.
+`tests/` in `5d54391` and nowhere else.
 
 **Why it is red is the point.** `tests/test_drill_rewrite_interrupted.py` is
 the Ubuntu partition's structural bottleneck, and its recorded cost — 1209.03 s

@@ -213,7 +213,7 @@ measured at `b56f9994`, so
 `tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on`
 **fails on this commit** — measured, not predicted. The same witness was
 green at the parent commit `f39b96b`, so the red is this change and nothing
-else: `b56f9994..HEAD` touches `tests/` in `aaa5378` and nowhere else.
+else: `b56f9994..HEAD` touches `tests/` in `5d54391` and nowhere else.
 `tests/test_drill_rewrite_interrupted.py` is the Ubuntu partition's
 structural bottleneck, and its recorded cost — 1209.03 s — *is* the hang that
 was fixed; the file now costs 24.41 s. The re-measurement is

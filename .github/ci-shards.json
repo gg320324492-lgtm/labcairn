@@ -255,6 +255,7 @@
         "tests/test_provider_adapter.py",
         "tests/test_analysis_selection.py",
         "tests/test_analysis_report_build.py",
+        "tests/test_evidence_outside_writer.py",
         "tests/test_evidence_verify_door.py"
       ]
     ],
@@ -294,6 +295,7 @@
         "tests/test_analysis_report_manifest.py",
         "tests/test_pilot_redaction.py",
         "tests/test_security_listing_canonical.py",
+        "tests/test_evidence_outside_writer.py",
         "tests/test_evidence_verify_door.py"
       ],
       [
@@ -611,6 +613,7 @@
       "test_evidence_gate.py": 0.32,
       "test_evidence_index.py": 85.71,
       "test_evidence_normalize.py": 1.22,
+      "test_evidence_outside_writer.py": 0.0,
       "test_evidence_retrieval.py": 0.14,
       "test_evidence_schema.py": 0.9,
       "test_evidence_store.py": 0.37,
@@ -856,6 +859,7 @@
       "test_evidence_gate.py": 0.91,
       "test_evidence_index.py": 73.66,
       "test_evidence_normalize.py": 1.51,
+      "test_evidence_outside_writer.py": 0.0,
       "test_evidence_retrieval.py": 0.88,
       "test_evidence_schema.py": 17.69,
       "test_evidence_store.py": 0.96,

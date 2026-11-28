@@ -1301,7 +1301,7 @@
       ]
     },
     {
-      "path": "E:/labcairn-local/outsider-reviewer",
+      "path": "E:/labcairn-local/outsider-reviewer-2026-11-28-d",
       "expectation": "present",
       "kind": "material",
       "replacement": null,
@@ -1312,18 +1312,18 @@
       ]
     },
     {
-      "path": "E:/labcairn-local/outsider-reviewer/clone",
-      "expectation": "absent",
-      "kind": "scratch",
+      "path": "E:/labcairn-local/outsider-reviewer-2026-11-28-d/clone",
+      "expectation": "present",
+      "kind": "material",
       "replacement": null,
-      "note": "the clone the outsider walk made; it was removed after the walk",
+      "note": "named by a record and found on disk when the ledger was built",
       "announcements": [],
       "sites": [
         "docs/acceptance/LC-P1-14-outsider-path.md"
       ]
     },
     {
-      "path": "E:/labcairn-local/outsider-reviewer/workspace",
+      "path": "E:/labcairn-local/outsider-reviewer-2026-11-28-d/workspace",
       "expectation": "present",
       "kind": "material",
       "replacement": null,
@@ -2553,6 +2553,7 @@
         "docs/acceptance/LC-P4-PILOT-report-evidence-gate-2026-11-27.md",
         "docs/acceptance/LC-P4-PILOT-source-removal-event-2026-11-26.md",
         "docs/acceptance/LC-P4-PILOT-task-stage-closure-2026-11-26.md",
+        "docs/acceptance/LC-P4-PILOT-verified-by-rule-unreachable-2026-11-28.md",
         "docs/acceptance/batch-16-review-2026-11-27.md",
         "docs/acceptance/batch-19-review-2026-11-28.md",
         "docs/plans/LC-P1-13-evaluation-ci.md",
