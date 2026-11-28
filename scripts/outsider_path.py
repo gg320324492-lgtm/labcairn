@@ -504,9 +504,9 @@ def child_environment(work: Path) -> dict[str, str]:
     directory inside the checkout makes two of the repository's own tests fail
     for a reason that has nothing to do with what they test.
 
-    ``PYTHONIOENCODING`` and ``COLUMNS`` are set because the child's output
-    encoding and terminal width are the machine's business, and neither is a
-    fact about the CLI.
+    ``PYTHONIOENCODING``, ``PYTHONUTF8`` and ``COLUMNS`` are set because the
+    child's output encoding and terminal width are the machine's business, and
+    neither is a fact about the CLI.
     """
     tmp = work / "tmp"
     tmp.mkdir(parents=True, exist_ok=True)
@@ -521,6 +521,18 @@ def child_environment(work: Path) -> dict[str, str]:
     environment["TMPDIR"] = str(tmp)
     environment["MPLCONFIGDIR"] = str(tmp / "matplotlib")
     environment["PYTHONIOENCODING"] = "utf-8"
+    # **The codepage is pinned as well, and the reason is measured.**
+    # `PYTHONIOENCODING` makes the tree's children *write* UTF-8, but a
+    # process that reads a child's `text=True` pipe decodes with the host's
+    # ANSI codepage unless the interpreter is in UTF-8 mode -- and on a host
+    # whose codepage is not cp1252 (this machine's is GBK, codepage 936) the
+    # two disagree byte for byte. Measured on 2026-11-28: the clone's whole
+    # suite failed twice in `tests/test_pilot_runbook.py` -- its collector
+    # helper decodes with the parent's locale, hit 0x94, and the reader
+    # thread died leaving `result.stdout` None -- and the same file passed
+    # alone and passed the whole suite with `PYTHONUTF8=1` added. Pinning
+    # UTF-8 mode takes the host's codepage out of what a run measures.
+    environment["PYTHONUTF8"] = "1"
     environment["COLUMNS"] = "200"
     return environment
 
