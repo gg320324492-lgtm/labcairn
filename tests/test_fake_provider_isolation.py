@@ -45,6 +45,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+)
 from store_support import StoreEnv
 from store_support import env as _shared_env
 
@@ -325,12 +329,21 @@ def test_fake_provider_needs_no_environment_at_all(repo_root: Path) -> None:
         "sys.stdout.write('OK')\n"
     )
     completed = subprocess.run(
-        [sys.executable, "-I", "-c", program],
+        # **``-X utf8``, and not the environment.** Isolated mode (``-I``)
+        # ignores ``PYTHONIOENCODING`` and ``PYTHONUTF8``, so the
+        # ``PYTHONIOENCODING`` this call sets has no effect at all: the
+        # child would write the machine's code page while the parent reads
+        # UTF-8, which is the same failure with the arrow turned round.
+        # Measured on 2026-11-28 with the project's own CPython 3.12: ``-I``
+        # ignores both variables and ``-X utf8`` is what makes the child
+        # write UTF-8.
+        [sys.executable, "-I", "-X", "utf8", "-c", program],
         capture_output=True,
         text=True,
-        encoding="utf-8",
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         cwd=repo_root,
-        env={"SYSTEMROOT": "C:\\Windows", "PYTHONIOENCODING": "utf-8"},
+        env={"SYSTEMROOT": "C:\\Windows"},
         check=False,
         timeout=120,
     )

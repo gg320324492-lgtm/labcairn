@@ -35,6 +35,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
 from evaluation.competitor_run import (
     BASELINE_PATH,
     DRY_RUN,
@@ -217,14 +222,21 @@ def test_the_frozen_side_refuses_when_an_answer_key_pin_no_longer_matches(
 
 
 def _command_environment(repo_root: Path) -> dict[str, str]:
-    """An environment in which the script imports this tree, not another."""
+    """An environment in which the script imports this tree, not another.
+
+    **And in which it writes UTF-8.** The child's output encoding is pinned
+    here as well as the parent's decode, because pinning only one of the two
+    turns the failure around rather than fixing it: a child that writes the
+    machine's code page (cp936 on this machine) read as UTF-8 fails the same
+    way. See ``tests/child_encoding.py``.
+    """
     environment = dict(os.environ)
     paths = [str(repo_root / "src"), str(repo_root / "tests")]
     existing = environment.get("PYTHONPATH")
     if existing:
         paths.append(existing)
     environment["PYTHONPATH"] = os.pathsep.join(paths)
-    return environment
+    return python_child_environment(environment)
 
 
 def test_the_command_line_writes_the_report_and_the_record(repo_root: Path, tmp_path: Path) -> None:
@@ -241,6 +253,8 @@ def test_the_command_line_writes_the_report_and_the_record(repo_root: Path, tmp_
         env=_command_environment(repo_root),
         capture_output=True,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         timeout=180,
     )
     assert completed.returncode == 0, completed.stderr
@@ -269,6 +283,8 @@ def test_the_command_line_refuses_a_real_run_without_a_budget(
         env=_command_environment(repo_root),
         capture_output=True,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         timeout=180,
     )
     assert completed.returncode == 2

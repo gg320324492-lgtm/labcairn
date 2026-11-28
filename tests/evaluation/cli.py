@@ -39,6 +39,8 @@ import time
 from pathlib import Path
 from typing import Final
 
+from child_encoding import CHILD_OUTPUT_ERRORS, GIT_OUTPUT_ENCODING
+
 from . import manifest
 from .aggregate import (
     blocker_results,
@@ -69,13 +71,26 @@ REPO_ROOT: Final[Path] = Path(__file__).resolve().parent.parent.parent
 
 
 def _git(repo_root: Path, *arguments: str) -> str | None:
-    """The output of a git command, or ``None`` when git could not be run."""
+    """The output of a git command, or ``None`` when git could not be run.
+
+    **The decode is UTF-8, and that is a fact about git rather than a
+    choice.** Git writes its path and ref output as UTF-8 unconditionally: it
+    converts from the wide-character filesystem itself, whatever the
+    machine's locale is. Measured on 2026-11-28 — ``git rev-parse
+    --show-toplevel`` under a directory whose name holds Chinese characters
+    returns UTF-8 bytes, and those bytes raise ``UnicodeDecodeError`` under
+    this machine's cp936. Left to the locale, the decode fails inside
+    subprocess's reader thread, where the exception is swallowed and the
+    capture comes back as ``None``.
+    """
     try:
         completed = subprocess.run(
             ["git", *arguments],
             cwd=str(repo_root),
             capture_output=True,
             text=True,
+            encoding=GIT_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
             timeout=30,
             check=False,
         )

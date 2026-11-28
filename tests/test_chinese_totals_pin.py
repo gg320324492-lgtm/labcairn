@@ -49,6 +49,10 @@ from typing import Final
 
 import pytest
 from deadline_support import bounded_git, bounded_run
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+)
 
 #: The shipped measurement tool, driven the way this project's own tests
 #: drive it -- as a subprocess of the console script, not an import.
@@ -146,10 +150,17 @@ def _json_map(raw: str) -> dict[str, int]:
 def _measured_totals(repo_root: Path) -> dict[str, int]:
     """Ask the script for the totals. The measurement lives in one place."""
     proc = bounded_run(
-        [sys.executable, "-I", str(SCRIPT), "--totals", "--root", str(repo_root)],
-        capture_output=True,
+        # **``-X utf8``, and not the environment.** Isolated mode (``-I``)
+        # ignores ``PYTHONIOENCODING`` and ``PYTHONUTF8``, so an
+        # environment alone would leave the child writing the machine's code
+        # page -- and the parent reading UTF-8, which is the same failure
+        # with the arrow turned round. Measured on 2026-11-28 with the
+        # project's own CPython 3.12: ``-I`` ignores both variables and
+        # ``-X utf8`` is what makes the child write UTF-8.
+        [sys.executable, "-I", "-X", "utf8", str(SCRIPT), "--totals", "--root", str(repo_root)],        capture_output=True,
         text=True,
-        encoding="utf-8",
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=True,
     )
     return _json_map(proc.stdout)
@@ -158,10 +169,21 @@ def _measured_totals(repo_root: Path) -> dict[str, int]:
 def _run_script(root: Path, flag: str) -> dict[str, int]:
     """Run the script against an arbitrary repository root, for the demonstration."""
     proc = bounded_run(
-        [sys.executable, "-I", str(SCRIPT), flag, "--root", str(root)],
-        capture_output=True,
+        # ``-X utf8`` rather than the environment: isolated mode ignores
+        # ``PYTHONIOENCODING`` and ``PYTHONUTF8``. See the note above.
+        [
+            sys.executable,
+            "-I",
+            "-X",
+            "utf8",
+            str(SCRIPT),
+            flag,
+            "--root",
+            str(root),
+        ],        capture_output=True,
         text=True,
-        encoding="utf-8",
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=True,
     )
     return _json_map(proc.stdout)
@@ -183,6 +205,7 @@ def _git(repo: Path, *args: str) -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     assert finished.returncode == 0, f"git {' '.join(args)} failed: {finished.stderr}"

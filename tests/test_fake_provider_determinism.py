@@ -39,6 +39,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+)
 
 from labcairn.core.providers import (
     FakeProvider,
@@ -108,6 +111,7 @@ def _replay_in_subprocess(repo_root: Path, *, hash_seed: str) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors=CHILD_OUTPUT_ERRORS,
         cwd=repo_root,
         env=env,
         check=False,

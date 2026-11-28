@@ -35,6 +35,11 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
 from sqlalchemy import select
 from store_support import StoreEnv
 from store_support import env as _shared_env
@@ -131,11 +136,19 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
     src = str(SCRIPT.parent.parent / "src")
     existing = script_env.get("PYTHONPATH")
     script_env["PYTHONPATH"] = f"{src}{os.pathsep}{existing}" if existing else src
+    # The child's write side is pinned as well as the parent's decode.
+    # Pinning one half alone turns the failure around rather than fixing
+    # it: a child that writes the machine's code page read as UTF-8 fails
+    # the same way. The environment the child is given carries its
+    # PYTHONPATH and its own settings, so the encoding variables are added
+    # to it rather than replacing it.
+    script_env = python_child_environment(script_env)
     return subprocess.run(
         [INTERPRETER, str(SCRIPT), *args],
         capture_output=True,
         text=True,
-        encoding="utf-8",
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         env=script_env,
         timeout=120,
     )

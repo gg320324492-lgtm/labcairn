@@ -53,6 +53,11 @@ import tempfile
 from pathlib import Path
 
 from deadline_support import bounded_run
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
 
 #: The program the subprocess runs: import the repository's root ``conftest``
 #: — which is what applies the isolation — and print the temp directory the
@@ -102,12 +107,25 @@ def _temp_dir_for_worker(
     # A root the test owns, so the probe writes nothing outside it — and
     # nothing inside the repository, which other tests hold to be clean.
     env["LABCAIRN_TEMP_ROOT"] = str(probe_root)
-    proc = bounded_run(
-        [sys.executable, "-c", _PROBE],
+    # The child's write side is pinned to UTF-8, next to the parent's UTF-8
+    # decode below. Pinning one half alone turns the failure around rather
+    # than fixing it. See `tests/child_encoding.py`.
+    env = python_child_environment(env)
+    proc = bounded_run(        [sys.executable, "-c", _PROBE],
         cwd=repo_root,
         env=env,
         capture_output=True,
         text=True,
+        # **Both halves of the pipe are stated, and they agree.** The child
+        # is told to write UTF-8 and the parent decodes UTF-8. Pinning only
+        # the parent's half turns the failure around rather than fixing it:
+        # a child that writes the machine's code page (cp936 on this
+        # machine) read as UTF-8 fails the same way. The environment the
+        # probe is given carries the ``TMPDIR`` and the worker name this
+        # test is about, so the encoding variables are added to it rather
+        # than replacing it. See `tests/child_encoding.py`.
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     assert proc.returncode == 0, f"the probe failed: {proc.stderr}"

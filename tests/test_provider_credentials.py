@@ -34,6 +34,9 @@ import subprocess
 from pathlib import Path, PurePosixPath
 
 import pytest
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+)
 from test_real_provider_smoke import (
     SMOKE_BASE_URL_ENV,
     SMOKE_KEY_ENV,
@@ -522,6 +525,7 @@ def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
         timeout=120,
     )

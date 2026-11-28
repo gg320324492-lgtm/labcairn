@@ -60,6 +60,7 @@ from typing import Any, Final
 
 from analysis_fixtures import build_spreadsheet_fixtures, expected_path
 from deadline_support import bounded_git
+from child_encoding import CHILD_OUTPUT_ERRORS, GIT_OUTPUT_ENCODING
 
 from .corpus import CORPUS_FIXTURES
 from .paperqa_adapter import question_for
@@ -161,6 +162,8 @@ def find_repository_root(start: Path) -> Path:
         ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     if result.returncode != 0:

@@ -30,6 +30,7 @@ from pathlib import Path, PurePosixPath
 from typing import Final
 
 import pytest
+from child_encoding import CHILD_OUTPUT_ERRORS, GIT_OUTPUT_ENCODING
 
 from labcairn.material.intake import (
     ArchiveLimits,
@@ -428,6 +429,8 @@ def _git_paths(repo_root: Path, *args: str) -> list[str]:
         ["git", "-C", str(repo_root), *args],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
         timeout=GIT_TIMEOUT_S,
     )

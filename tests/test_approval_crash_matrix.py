@@ -27,6 +27,11 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -164,7 +169,14 @@ def _child(root: Path, task_id: TaskId, mode: str) -> ApprovalId:
         [sys.executable, "-c", DRIVER, str(root), str(task_id), mode],
         capture_output=True,
         text=True,
-        encoding="utf-8",
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
+        # **Both halves of the pipe are stated, and they agree.** The child
+        # is a Python program, and a Python program writes in the machine's
+        # code page unless it is told otherwise — so the child's write side
+        # is pinned as well as the parent's decode. Pinning one half alone
+        # turns the failure around rather than fixing it.
+        env=python_child_environment(),
         timeout=120,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr

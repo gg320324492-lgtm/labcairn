@@ -46,6 +46,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
+
 from .junit import parse_junit
 from .model import TestOutcome
 
@@ -108,6 +114,13 @@ def _environment(root: Path, repo_root: Path) -> dict[str, str]:
     The temporary variables are pointed at ``root`` and nothing else is
     changed, so the inner run sees the same installed package, the same
     ``PATH`` and the same credentials-as-none as the outer one.
+
+    **And the child's output encoding is pinned.** The inner run is a
+    ``pytest`` process, and a pytest process writes its failure output in
+    the machine's code page unless it is told otherwise — so the write side
+    is pinned here, next to the parent's UTF-8 decode. Pinning only one of
+    the two turns the failure around rather than fixing it. See
+    ``tests/child_encoding.py``.
     """
     env = dict(os.environ)
     matplotlib = root / "matplotlib"
@@ -128,7 +141,7 @@ def _environment(root: Path, repo_root: Path) -> dict[str, str]:
     # The inner run must not inherit a base temp directory that pytest would
     # clear out from under an outer run that shares it.
     env["PYTEST_ADDOPTS"] = ""
-    return env
+    return python_child_environment(env)
 
 
 def _assert_outside_repository(root: Path, repo_root: Path) -> None:
@@ -200,6 +213,8 @@ def run_class(
             env=env,
             capture_output=True,
             text=True,
+            encoding=PYTHON_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
             timeout=timeout,
             check=False,
         )

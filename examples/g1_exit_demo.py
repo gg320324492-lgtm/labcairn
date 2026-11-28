@@ -313,7 +313,14 @@ def refuse_traversal_and_junction(workspace: Workspace, tmp: Path, sources: Path
         raise AssertionError("FAILED: a junction escape was not refused")
     except (PathRefusedError, WorkspaceError) as exc:
         check("the junction escape is refused", True, str(exc).split(":")[0])
-    check("the outside file is untouched", (outside / "secret.txt").read_text() == "ORIGINAL")
+    check(
+        "the outside file is untouched",
+        # **The encoding is stated.** The file is read with the encoding it
+        # was written with -- UTF-8, two lines above -- and not with the
+        # machine's code page, which is a different statement and the one
+        # that makes the check mean what it says.
+        (outside / "secret.txt").read_text(encoding="utf-8") == "ORIGINAL",
+    )
 
     try:
         workspace.canonicalize(sources / ".." / ".." / "outside" / "secret.txt")

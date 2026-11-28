@@ -71,6 +71,7 @@ from typing import Any, Final
 
 import pytest
 from deadline_support import bounded_git
+from child_encoding import CHILD_OUTPUT_ERRORS, GIT_OUTPUT_ENCODING
 from evaluation import manifest
 from evaluation.aggregate import (
     blocker_results,
@@ -2174,6 +2175,8 @@ def _git(repo: Path, *arguments: str) -> str:
         cwd=str(repo),
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=True,
     )
     return completed.stdout

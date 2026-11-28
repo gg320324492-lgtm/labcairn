@@ -56,6 +56,11 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from deadline_support import bounded_run
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
 from workbench_serve_support import run_cli, start_served_workbench
 
 from labcairn.application.issues import PILOT_ISSUE_CATEGORIES, PILOT_ISSUE_SEVERITIES
@@ -1358,6 +1363,9 @@ def _run_collector(
         ],
         capture_output=True,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
+        env=python_child_environment(),
         check=False,
         cwd=str(workspace),
     )

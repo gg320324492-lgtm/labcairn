@@ -297,6 +297,13 @@ def export_requirements(*, repo_root: Path = REPO_ROOT, timeout: int = 180) -> s
         capture_output=True,
         text=True,
         encoding="utf-8",
+        # An undecodable byte must cost this script a wrong character and
+        # never a dead stream: a decode that raises inside subprocess's
+        # reader thread is swallowed there, and the capture comes back as
+        # None — so the failure a caller sees is `AttributeError:
+        # 'NoneType' object has no attribute 'strip'`, which names neither
+        # the cause nor the fix.
+        errors="replace",
         check=False,
         timeout=timeout,
     )

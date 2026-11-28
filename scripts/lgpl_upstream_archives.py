@@ -69,6 +69,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 
 from deadline_support import bounded_run
 
+#: The encoding 7-Zip writes its output in, and the encoding this script
+#: decodes it with.
+#:
+#: **UTF-8, and only because 7-Zip is told to.** 7-Zip is the one native
+#: tool this repository runs, and a native tool writes in whatever output
+#: code page it was built against — not a fact this repository can assume.
+#: Measured on 2026-11-28 with 7-Zip 26.02 on this machine: listing an
+#: archive whose name holds Chinese characters writes the name as **GBK**
+#: bytes, and those bytes raise ``UnicodeDecodeError`` under UTF-8.
+#:
+#: 7-Zip has an output-charset switch, so the tool is *asked* to write
+#: UTF-8 (``-sccUTF-8``, passed at the call site) and the parent decodes
+#: UTF-8. Pinning one half alone turns the failure around rather than
+#: fixing it, and for a native tool that means passing the switch as well
+#: as the ``encoding=``.
+SEVEN_ZIP_OUTPUT_ENCODING = "utf-8"
+
+#: What the decode does with a byte it cannot represent.
+#:
+#: ``"replace"``: an undecodable byte must cost this script a wrong
+#: character and never a dead stream. A decode without an ``encoding=``
+#: raises inside subprocess's reader thread, where the exception is
+#: swallowed, and the capture comes back as ``None`` — so the failure a
+#: caller sees is ``AttributeError: 'NoneType' object has no attribute
+#: 'strip'``, which names neither the cause nor the fix.
+SEVEN_ZIP_OUTPUT_ERRORS = "replace"
+
 #: The archive each delivery entry is fetched from, keyed by the entry's
 #: artefact name. Two entries deliver the archive itself (`Nsis7z_19.00.7z`,
 #: `7z1900-src.7z`); the StdUtils entry delivers a tar that is a member of the
@@ -159,9 +186,18 @@ def _extract(seven_zip: str, archive: Path, destination: Path) -> None:
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
     result = bounded_run(
-        [seven_zip, "x", "-y", f"-o{destination}", str(archive)],
-        capture_output=True,
+        [seven_zip, "x", "-y", "-sccUTF-8", f"-o{destination}", str(archive)],        capture_output=True,
         text=True,
+        # **Both halves of the pipe are stated, and they agree.** 7-Zip is
+        # the one native tool this repository runs, and a native tool writes
+        # in whatever output code page it was built against -- measured on
+        # 2026-11-28, this machine's 7-Zip writes GBK, and the bytes of a
+        # Chinese archive name raise ``UnicodeDecodeError`` under UTF-8.
+        # 7-Zip has an output-charset switch, so it is *asked* to write
+        # UTF-8 (``-sccUTF-8``) and the parent decodes UTF-8. Pinning one
+        # half alone turns the failure around rather than fixing it.
+        encoding=SEVEN_ZIP_OUTPUT_ENCODING,
+        errors=SEVEN_ZIP_OUTPUT_ERRORS,
     )
     if result.returncode != 0:
         raise SystemExit(

@@ -53,6 +53,10 @@ from typing import Final, cast
 
 import pytest
 from deadline_support import bounded_git, bounded_run
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+)
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "cjk_ceilings.py"
 REGISTRY = Path(__file__).resolve().parent / "cjk_run_classes.json"
@@ -274,9 +278,17 @@ def _canonical(registry: dict[str, object]) -> dict[str, list[tuple[str, int, st
 
 def _run_tool(root: Path, *args: str) -> str:
     proc = bounded_run(
-        [
+        # **``-X utf8``, and not the environment.** Isolated mode (``-I``)
+        # ignores ``PYTHONIOENCODING`` and ``PYTHONUTF8``, so an
+        # environment alone would leave the child writing the machine's code
+        # page -- and the parent reading UTF-8, which is the same failure
+        # with the arrow turned round. Measured on 2026-11-28 with the
+        # project's own CPython 3.12: ``-I`` ignores both variables and
+        # ``-X utf8`` is what makes the child write UTF-8.        [
             sys.executable,
             "-I",
+            "-X",
+            "utf8",
             str(SCRIPT),
             *args,
             "--root",
@@ -284,7 +296,8 @@ def _run_tool(root: Path, *args: str) -> str:
         ],
         capture_output=True,
         text=True,
-        encoding="utf-8",
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=True,
     )
     return proc.stdout

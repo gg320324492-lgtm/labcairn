@@ -52,6 +52,12 @@ from typing import Any, Final
 import pytest
 import yaml
 from deadline_support import bounded_git, bounded_run
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    GIT_OUTPUT_ENCODING,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
 from evaluation import manifest
 from workflow_job_names import MATRIX_NON_AXIS_KEYS, load_workflows, rendered_job_names
 
@@ -381,6 +387,8 @@ def _ancestor_of_head(repo_root: Path, revision: str) -> tuple[bool, str]:
         ],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     if proc.returncode == 0:
@@ -876,6 +884,8 @@ def _changed_paths(repo_root: Path, since: str) -> list[str]:
         ],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     if proc.returncode != 0:
@@ -956,6 +966,8 @@ def _a_repository_with_a_side_branch(tmp_path: Path) -> tuple[Path, str, str]:
             ["git", "-C", str(repo), *arguments],
             capture_output=True,
             text=True,
+            encoding=GIT_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
             check=True,
         )
         return proc.stdout.strip()
@@ -1940,6 +1952,8 @@ def _check_reading_record(repo_root: Path, reading_path: Path) -> None:
         ["git", "-C", str(repo_root), "cat-file", "-t", revision],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     assert proc.returncode == 0 and proc.stdout.strip() == "commit", (
@@ -2155,6 +2169,8 @@ def test_every_required_check_the_record_lists_is_a_name_a_job_reports(
         ["git", "-C", str(repo_root), "cat-file", "-t", anchor],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     assert proc.returncode == 0 and proc.stdout.strip() == "commit", (
@@ -2605,8 +2621,20 @@ def _run_remeasure(
     ]
     if measured_at is not None:
         command.extend(["--measured-at", measured_at])
-    return bounded_run(command, capture_output=True, text=True, check=False)
-
+    return bounded_run(
+        command,
+        capture_output=True,
+        text=True,
+        # **Both halves of the pipe are stated, and they agree.** The tool is
+        # a Python program, and a Python program writes in the machine's
+        # code page unless it is told otherwise -- so the child's write side
+        # is pinned as well as the parent's decode. Pinning one half alone
+        # turns the failure around rather than fixing it.
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
+        env=python_child_environment(),
+        check=False,
+    )
 
 def test_the_remeasurement_reads_the_numbers_out_of_the_logs(
     repo_root: Path, tmp_path: Path
@@ -4092,6 +4120,8 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         ],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     assert listing.returncode == 0, listing.stderr
@@ -4142,6 +4172,8 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     assert head.returncode == 0, head.stderr
@@ -4169,6 +4201,8 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         ],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     assert reachable.returncode == 0, reachable.stderr
@@ -4188,6 +4222,8 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
             ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", short, head_full],
             capture_output=True,
             text=True,
+            encoding=GIT_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
             check=False,
         )
         if merged.returncode == 0:
@@ -4196,6 +4232,8 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
             ["git", "-C", str(repo_root), "merge-base", short, head_full],
             capture_output=True,
             text=True,
+            encoding=GIT_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
             check=False,
         )
         assert base.returncode == 0, base.stderr
@@ -4212,6 +4250,8 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
             ],
             capture_output=True,
             text=True,
+            encoding=GIT_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
             check=False,
         )
         assert base_paired.returncode == 0, (
@@ -5098,6 +5138,8 @@ def _a_tree_with_one_more_shard(tmp_path: Path, repo_root: Path) -> tuple[Path, 
         check=True,
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
     ).stdout.strip()
     assert FULL_SHA.fullmatch(revision) is not None, (
         f"the copy's commit is {revision!r}, which is not a full revision"

@@ -29,6 +29,11 @@ import sys
 from pathlib import Path
 
 import pytest
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -59,6 +64,9 @@ def demonstration(repo_root: Path) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(DEMO)],
         capture_output=True,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
+        env=python_child_environment(),
         timeout=120,
         check=False,
         cwd=str(repo_root),

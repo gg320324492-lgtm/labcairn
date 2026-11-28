@@ -46,6 +46,21 @@ from labcairn.runtime.operation import Checkpoint, Operation, OperationState
 PASSED: list[str] = []
 BODY = b"# Findings\n\nMean = 4.0 across both groups.\n"
 
+#: The encoding the child's output is decoded as, and the encoding the
+#: child writes it in.
+#:
+#: UTF-8, on both halves. This demonstration's child is a Python program,
+#: and a Python program writes in ``locale.getpreferredencoding(False)`` —
+#: which is cp936 on this machine — unless it is told otherwise. Measured
+#: on 2026-11-28 with the project's own CPython 3.12: a plain child writes
+#: GBK, and ``PYTHONIOENCODING=utf-8`` makes it write UTF-8.
+#:
+#: Pinning one half alone turns the failure around rather than fixing it:
+#: a parent told to read UTF-8 while the child writes the machine's code
+#: page fails the same way. So the child's environment is pinned too, at
+#: the call site.
+CHILD_OUTPUT_ENCODING = "utf-8"
+
 
 def check(label: str, condition: bool, detail: str = "") -> None:
     if not condition:
@@ -192,14 +207,32 @@ def main() -> int:
         f"pathlib.Path({str(sentinel)!r}).write_text('in');"
         f"sys.stdout.write('ready\\n'); sys.stdout.flush(); time.sleep(600)"
     )
-    # The decode is left to the machine's locale encoding on purpose, because
-    # it cannot fail here: the child's only write to this pipe is the ASCII
-    # literal "ready\n", and its error output is inherited rather than piped,
-    # so nothing else is decoded. Every other subprocess in this repository
-    # states the encoding it decodes with -- and, where the child is a Python
-    # program, the encoding it asks that child to write in -- because their
-    # children do write paths.
-    child = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    # The decode is stated, like every other text pipe in this repository.
+    # It used to be left to the machine's locale encoding on the ground that
+    # it could not fail here -- the child's only write to this pipe is the
+    # ASCII literal "ready\n", and its error output is inherited rather than
+    # piped, so nothing else is decoded. That reasoning was sound about
+    # *this* pipe and it was used as a reason not to say anything, which is
+    # how 30 text pipes across the tree came to decode with the host's code
+    # page. Two of those cost a whole-suite run each on 2026-11-28.
+    #
+    # The claim this comment used to make -- that every other subprocess in
+    # the repository states the encoding it decodes with -- was false when it
+    # was written: a sweep on 2026-11-28 found 30 text pipes that stated
+    # nothing. So the pipe says what it decodes now, and the reason it means
+    # UTF-8 is that the tree's output is UTF-8.
+    child = subprocess.Popen(
+        [sys.executable, "-c", code],
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding=CHILD_OUTPUT_ENCODING,
+        errors="replace",
+        # The child's write side is pinned as well as the parent's decode.
+        # Pinning one half alone turns the failure around rather than
+        # fixing it: a child that writes the machine's code page read as
+        # UTF-8 fails the same way.
+        env={**os.environ, "PYTHONIOENCODING": CHILD_OUTPUT_ENCODING},
+    )
     deadline = 0
     while not sentinel.exists() and deadline < 300:
         deadline += 1

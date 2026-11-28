@@ -2134,7 +2134,22 @@ def start_the_service(console: Path, workspace: Path, recorder: Recorder) -> dic
         stderr=subprocess.STDOUT,
         cwd=workspace,
         env=child_environment(workspace.parent),
+        # **The decode is stated, and it is UTF-8 because the log file is.**
+        # The child's output goes into `log`, which is opened as UTF-8
+        # above, so the bytes on disk are the bytes this script reads back
+        # with ``read_text(encoding="utf-8")``. `text=True` here is
+        # actually **inert** — `stdout` is an open file rather than a pipe,
+        # so subprocess creates no pipe, wraps nothing, and decodes nothing
+        # (measured on 2026-11-28: `Popen.stdout` is `None` for a file
+        # object, where it is a `TextIOWrapper` for `PIPE`). It is stated
+        # anyway, because a reader who sees `text=True` and no encoding has
+        # to assume the machine's code page — and the day someone changes
+        # `stdout=log` to `stdout=subprocess.PIPE`, that assumption
+        # becomes the bug. The console script forces UTF-8 on its own
+        # streams before it writes, so UTF-8 is what it writes.
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     deadline = time.monotonic() + 120.0
     ready = False

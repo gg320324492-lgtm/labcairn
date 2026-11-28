@@ -41,6 +41,11 @@ from typing import Any
 
 import pytest
 from deadline_support import bounded_run
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+    PYTHON_OUTPUT_ENCODING,
+    python_child_environment,
+)
 from feedback_chain_fixtures import ChainEnv, a_comment, build_chain
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -638,6 +643,14 @@ def test_the_layer_and_the_mentor_line_import_in_any_order(repo_root: Path) -> N
             [sys.executable, "-c", program],
             capture_output=True,
             text=True,
+            # **Both halves of the pipe are stated, and they agree.** The child
+            # is told to write UTF-8 and the parent decodes UTF-8. Pinning only
+            # the parent's half would turn the failure around rather than fix
+            # it: a child that writes the machine's code page (cp936 on this
+            # machine) read as UTF-8 fails the same way.
+            encoding=PYTHON_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
+            env=python_child_environment(),
             cwd=repo_root,
         )
         assert finished.returncode == 0, (
@@ -709,6 +722,14 @@ def test_every_first_party_module_can_be_imported_first(repo_root: Path) -> None
             [sys.executable, "-c", program],
             capture_output=True,
             text=True,
+            # **Both halves of the pipe are stated, and they agree.** The child
+            # prints the module's own path, which on a checkout under a path
+            # with Chinese characters holds characters the machine's code page
+            # cannot spell — so the child's write side is pinned to UTF-8 and
+            # the parent's decode is UTF-8. See `tests/child_encoding.py`.
+            encoding=PYTHON_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
+            env=python_child_environment(),
             cwd=repo_root,
         )
         if finished.returncode != 0:

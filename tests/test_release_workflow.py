@@ -96,6 +96,9 @@ from typing import Any, Final
 import pytest
 import yaml
 from deadline_support import bounded_run
+from child_encoding import (
+    CHILD_OUTPUT_ERRORS,
+)
 
 #: The directory the workflows live in.
 WORKFLOW_DIR: Final[Path] = Path(".github") / "workflows"
@@ -2316,6 +2319,7 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors=CHILD_OUTPUT_ERRORS,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     assert one_directory.returncode == 2, (
@@ -2338,6 +2342,7 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors=CHILD_OUTPUT_ERRORS,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     assert four_directories.returncode == 2, (
@@ -2366,6 +2371,7 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors=CHILD_OUTPUT_ERRORS,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     assert run.returncode == 0, (
@@ -2405,6 +2411,7 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors=CHILD_OUTPUT_ERRORS,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     assert red.returncode == 1, (

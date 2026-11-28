@@ -47,6 +47,7 @@ from typing import Any, NamedTuple
 
 import pytest
 from deadline_support import bounded_git
+from child_encoding import CHILD_OUTPUT_ERRORS, GIT_OUTPUT_ENCODING
 
 #: The script, as a person runs it.
 SCRIPT: Path = Path(__file__).resolve().parent.parent / "scripts" / "outsider_path.py"
@@ -183,6 +184,8 @@ def test_the_run_was_made_in_a_clean_clone(outsider_run: OutsiderRun, repo_root:
         ["git", "-C", str(repo_root), "cat-file", "-e", f"{clone['head']}^{{commit}}"],
         capture_output=True,
         text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
         check=False,
     )
     assert present.returncode == 0, (
