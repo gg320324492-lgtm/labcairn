@@ -183,6 +183,11 @@ export type ClaimRecorded = {
   anchor_id: string
 }
 
+export type ClaimVerified = {
+  record: EvidenceRecord
+  check: CheckKind
+}
+
 export type CommentResponses = {
   feedback_id: string
   states: string[]
@@ -647,6 +652,10 @@ export type QualityCheckFact = {
 export type RawId = string
 
 export type RawSourceId = string
+
+export type RecordVerificationBody = {
+  check: CheckKind
+}
 
 export type RefusalBody = {
   reason: string

@@ -648,11 +648,11 @@ Stated plainly, because a dossier that lists only its strengths is a brochure.
    additions to it, which are what closed the evidence gaps the gates had: the
    consent gate a capability probe goes through, and the routes that name a
    workspace's rounds
-   (`src/labcairn/api/routes.py:1183` — `@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])`),
+   (`src/labcairn/api/routes.py:1213` — `@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])`),
    read a suggestion run's account
-   (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`)
+   (`src/labcairn/api/routes.py:1346` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`)
    and answer the event stream
-   (`src/labcairn/api/routes.py:845` — `@router.get("/events", response_model=EventStreamPage, tags=["events"])`).
+   (`src/labcairn/api/routes.py:875` — `@router.get("/events", response_model=EventStreamPage, tags=["events"])`).
    **Nothing above establishes anything about any of that.** Phase 4's four
    exit gates `P4-G1`–`P4-G4` are **open**: all **18** of their evidence slots
    are `PENDING` in the exit skeleton

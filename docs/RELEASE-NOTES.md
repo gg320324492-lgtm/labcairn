@@ -355,7 +355,7 @@ rather than inventing an empty log.
 one bound workspace plus four mutating consent routes; none selects a
 workspace. The CLI can.~~
 
-**Closed by `37591c7`.** `POST /task/select` (`src/labcairn/api/routes.py:373` — `@router.post("/task/select", response_model=Health, tags=["task"])`)
+**Closed by `37591c7`.** `POST /task/select` (`src/labcairn/api/routes.py:376` — `@router.post("/task/select", response_model=Health, tags=["task"])`)
 moves the workspace's `current_task` through a host-supplied port; the task is
 validated through the application layer before anything is written, and the
 route needs the session token like every other change. The CLI and the page are
@@ -838,13 +838,13 @@ than left for the next reader to find.**
    publishes a suggestion run's account"*. All three were true when the
    record was collected; **none of them is true of this tree.** `GET /events`
    is answered
-   (`src/labcairn/api/routes.py:845` — `@router.get("/events", response_model=EventStreamPage, tags=["events"])`),
+   (`src/labcairn/api/routes.py:875` — `@router.get("/events", response_model=EventStreamPage, tags=["events"])`),
    `serve` hands the app an event source
-   (`src/labcairn/cli/commands.py:2754` — `event_source=StoreEventSource(),`),
+   (`src/labcairn/cli/commands.py:2823` — `event_source=StoreEventSource(),`),
    the workspace's rounds are named
-   (`src/labcairn/api/routes.py:1183` — `@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])`),
+   (`src/labcairn/api/routes.py:1213` — `@router.get("/review/rounds", response_model=list[ReviewRoundListed], tags=["review"])`),
    and the suggestion run's account is served
-   (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`).
+   (`src/labcairn/api/routes.py:1346` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`).
    **The slots stay `PENDING` because the trial has not run and the workspace
    the record was taken in held no material — not because the service still
    refuses.** A slot whose reason has expired must not be read as a defect
@@ -868,9 +868,9 @@ than left for the next reader to find.**
    only in this batch.** Both were service gaps the eleventh batch's
    measurement found, and both are closed in this tree: the run's record is
    served by `GET /review/suggest/runs/{run_id}`
-   (`src/labcairn/api/routes.py:1316` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`),
+   (`src/labcairn/api/routes.py:1346` — `@router.get("/review/suggest/runs/{run_id}", response_model=ReviewSuggestRun, tags=["review"])`),
    and `serve` hands the app an event source
-   (`src/labcairn/cli/commands.py:2754` — `event_source=StoreEventSource(),`).
+   (`src/labcairn/cli/commands.py:2823` — `event_source=StoreEventSource(),`).
    **What has not happened is a real run whose account was read back, or an
    event stream read during a trial** — the capability record that first
    asked for them was collected on the synthetic workspace, and no

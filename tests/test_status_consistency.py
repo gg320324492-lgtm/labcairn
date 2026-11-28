@@ -2116,11 +2116,11 @@ _PROBE_HEADER = (
 )
 
 #: A pointer, and words that really are on the line the pointer cites -- so a probe that reads
-#: **one** anchor is reading the format and not an accident. (The route moved to line 373 when
-#: the review workbench's, preview, multi-source, meeting-text, issue, rule-sharing
-#: and recovery/quality/trajectory/cancel/role routes joined the file, and again when
-#: the rounds route and the run's account joined it; the probe follows it.)
-_PROBE_POINTER = "`src/labcairn/api/routes.py:373`"
+#: **one** anchor is reading the format and not an accident. (The route moved to line 376 when
+#: the verify door's route joined the file, after the review workbench's, preview,
+#: multi-source, meeting-text, issue, rule-sharing and recovery/quality/trajectory/
+#: cancel/role routes had already moved it from its original line; the probe follows it.)
+_PROBE_POINTER = "`src/labcairn/api/routes.py:376`"
 _PROBE_WORDS = '@router.post("/task/select"'
 
 
@@ -2176,17 +2176,29 @@ def test_the_anchored_pointer_shape_reads_what_the_format_says_it_reads() -> Non
     # **The machinery is live, not just the shape.** The same probe, with its pointer moved to
     # a line the cited file does not print, has to produce a report. A probe that reads its
     # shape correctly while its checking half was switched off would pass every case above.
-    # Line 500 of routes.py exists and does not carry the words; the words live on line 373
-    # (they moved as the review workbench's, preview, multi-source, meeting-text,
-    # issue, rule-sharing, recovery and trajectory routes joined the file, and
-    # again when the rounds route and the run's account joined it).
-    # The report has to say 373, because naming the destination is the whole point
-    # of carrying the words.
+    # Line 500 of routes.py exists and does not carry the words; the destination is **read
+    # from the file itself**, because a hard-coded line is a value that changes the day a
+    # route joins above it, and a witness that carries the old number fails for the wrong
+    # reason. The report has to name that line, because naming the destination is the whole
+    # point of carrying the words.
+    route_lines = [
+        number
+        for number, line in enumerate(
+            (REPO / "src" / "labcairn" / "api" / "routes.py")
+            .read_text(encoding="utf-8")
+            .splitlines(),
+            start=1,
+        )
+        if _PROBE_WORDS in line
+    ]
+    assert len(route_lines) == 1, f"the probe's words are on {len(route_lines)} lines of routes.py"
+    destination = route_lines[0]
     drifted = _PROBE_HEADER + "`src/labcairn/api/routes.py:500`" + f" — `{_PROBE_WORDS}`\n"
     problems = _anchor_problems(REPO / "docs" / "README.md", drifted, {})
     assert problems, "a probe carrying a pointer at a line the file does not print reported nothing"
-    assert any("373" in problem for problem in problems), (
-        f"the probe's report did not name the line the words are really on: {problems}"
+    assert any(str(destination) in problem for problem in problems), (
+        f"the probe's report did not name the line the words are really on "
+        f"({destination}): {problems}"
     )
     assert _declarations(_PROBE_HEADER), "the probe's own declaration is not being read"
 

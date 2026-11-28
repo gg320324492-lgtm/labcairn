@@ -48,8 +48,22 @@ distinction this module rests on: the *material* is guarded by
 guarded by the task's own area, because a record is not a path and the
 material it was taken from is not named by the record itself.
 
-What the operation does not do
-------------------------------
+A rule's pass, and the door it opens
+------------------------------------
+
+:func:`verify_claim` answers *a rule checked this, and here is what it found*.
+It runs C1, C2 or C3 through :func:`~labcairn.evidence.store.advance` — the
+ledger's only writer of ``verified_by_rule`` — and the record moves only when
+the check passes. It is the operation that makes ``verified_by_rule``
+reachable: before it, every surface a person could reach wrote ``planned``,
+``extracted`` or ``user_attested``, and half of the evidence machinery
+described a state nothing could reach
+(``docs/acceptance/LC-P4-PILOT-verified-by-rule-unreachable-2026-11-28.md``).
+The operation does not choose *which* check a claim deserves; the caller
+names it, and the store judges it.
+
+What the recording operation does not do
+----------------------------------------
 
 **It does not run a check.** The record it writes is ``extracted``: located,
 copied out, and no more. C1, C2 and C3 are separate acts with their own audit
@@ -100,13 +114,16 @@ from labcairn.evidence.cite_support import LocationResolution
 from labcairn.evidence.index import LabCairnIndex, load_anchor, locator_from_key
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import (
+    CheckKind,
     EvidenceCreator,
     EvidenceKind,
     VerificationStatus,
 )
 from labcairn.evidence.store import (
+    UPGRADING_CHECKS,
     DanglingSourceError,
     LedgerError,
+    advance,
     append_record,
     attest,
     load_record,
@@ -128,6 +145,7 @@ __all__ = [
     "ClaimAttested",
     "ClaimRecorded",
     "ClaimRequest",
+    "ClaimVerified",
     "ProposalSettled",
     "SourceAddress",
     "attest_claim",
@@ -136,6 +154,7 @@ __all__ = [
     "list_task_records",
     "record_claim",
     "record_model_proposal",
+    "verify_claim",
 ]
 
 #: The kinds a claim can carry. A ``result`` is this project's own analysis
@@ -383,6 +402,18 @@ class ClaimAttested(Result):
     note: str
 
 
+class ClaimVerified(Result):
+    """The claim as it now stands, and the rule whose pass moved it.
+
+    **The record carries the verdict**, in the log entry the check appended:
+    a reader sees the outcome and the detail beside the status they produced,
+    which is the difference between "a rule said yes" and "a rule said this".
+    """
+
+    record: EvidenceRecord
+    check: CheckKind
+
+
 class ProposalSettled(Result):
     """A model's proposal, and the person's word about it.
 
@@ -472,6 +503,122 @@ def attest_claim(
         ) from error
     session.commit()
     return ClaimAttested(record=attested, user_id=user_id, note=note)
+
+
+def verify_claim(
+    context: ApplicationContext,
+    evidence_id: str,
+    *,
+    check: CheckKind,
+    now: datetime | None = None,
+) -> ClaimVerified:
+    """A rule checks the record, and its pass is what makes it citable.
+
+    This is the door to ``verified_by_rule``. The store's
+    :func:`~labcairn.evidence.store.advance` is the ledger's only writer of
+    that status, and it had no caller in the product: every surface a person
+    could reach wrote ``planned``, ``extracted`` or ``user_attested``, so half
+    of the evidence machinery described a state nothing could reach
+    (``docs/acceptance/LC-P4-PILOT-verified-by-rule-unreachable-2026-11-28.md``).
+    This operation calls it with the check the caller names, and the surfaces
+    call this operation — the store stays the only writer.
+
+    **The rule is run, not asserted.** ``advance`` evaluates C1, C2 or C3
+    against the ledger's own anchors and appends the verdict to the record's
+    log before it judges the move; the status changes only if the verdict is a
+    pass and every other precondition holds. So the status a report cites is
+    the residue of a check that ran, and the log says which rule said what.
+
+    **Only C1, C2 and C3 can verify.** ``UPGRADING_CHECKS`` is the store's own
+    set, and it excludes C4: C4's only verdict is ``not_checked``, and
+    ``not_checked`` is a person's attestation's entry. A caller asking for it
+    is refused here with the reason rather than sent into a move that could
+    only fail.
+
+    **A check that fails is not a crash and not a move.** The verdict is
+    committed — the store appends it because it is evidence and stays true
+    whether or not the transition is refused — and the operation raises
+    :class:`~labcairn.application.refusal.ApplicationRefusedError` whose
+    message carries the verdict's outcome and detail. The record's status is
+    unchanged, so "the quotation did not match" and "the claim was verified"
+    cannot be confused.
+
+    **The record must be this task's.** A record belongs to the task whose
+    material it cites; a context bound to one task may not move another
+    task's record into a state a report can cite, so a record outside the
+    context's task is refused as one the ledger does not hold for this task.
+
+    **No capability is asked.** The checks read the ledger's rows — text the
+    ingestion admitted under ``source.inventory`` — and not the material's
+    bytes again, which is the same posture
+    :func:`attest_claim` takes: an act on a record's own log, not a second
+    read of the material.
+
+    **It does not decide which claims deserve a rule's pass.** The surface
+    makes the choice possible; choosing the right check for a claim is the
+    operator's judgement, and the record's own decision is that the surface
+    does not make it.
+
+    :raises ApplicationRefusedError: no such record; the record belongs to
+        another task; the check is not one that can verify; the move is
+        refused by Contract 2 or by a precondition; or the check's verdict is
+        not a pass.
+    """
+    moment = now if now is not None else datetime.now(UTC)
+    if check not in UPGRADING_CHECKS:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{check.value!r} cannot verify a claim. The checks whose pass moves a "
+            "record to 'verified_by_rule' are "
+            + ", ".join(sorted(upgrading.value for upgrading in UPGRADING_CHECKS))
+            + ". A C4 entry is a person's attestation's own record of not checking, "
+            "and it never passes.",
+        )
+    session = context.store.session
+    connection = session.connection()
+    record = load_record(connection, evidence_id)
+    if record is None or record.task_id != str(context.task_id):
+        # One refusal for both: a record in another task is not a record this
+        # task's operator can see, and saying which of the two it is would let
+        # a context probe another task's ledger.
+        raise ApplicationRefusedError(
+            ApplicationRefusal.EVIDENCE_NOT_FOUND,
+            f"the ledger holds no record with the id {evidence_id!r} for this task.",
+        )
+    before = len(record.verification_log)
+    try:
+        verified = advance(
+            connection,
+            evidence_id,
+            VerificationStatus.VERIFIED_BY_RULE,
+            index=LabCairnIndex(connection),
+            checks=(check,),
+            checked_at=moment,
+        )
+    except LedgerError as error:
+        # The store appends the verdict before it judges the move, so a refused
+        # move may still have run a rule. The verdict is evidence — it says
+        # what the check found — so it is committed; the status is not.
+        session.commit()
+        # ``commit`` ends the transaction the first connection was bound to,
+        # so the read-back asks the session for its connection again.
+        after = load_record(session.connection(), evidence_id)
+        appended = () if after is None else after.verification_log[before:]
+        if appended:
+            entry = appended[-1]
+            finding = (
+                f"the rule {entry.check.value!r} ran and returned "
+                f"{entry.outcome.value!r}: {entry.detail}. Its verdict is in the "
+                "record's log."
+            )
+        else:
+            finding = f"the rule {check.value!r} did not run, because the move was refused first."
+        raise ApplicationRefusedError(
+            ApplicationRefusal.VERIFICATION_REFUSED,
+            f"{finding} The record {evidence_id!r} did not move to 'verified_by_rule': {error}",
+        ) from error
+    session.commit()
+    return ClaimVerified(record=verified, check=check)
 
 
 def confirm_proposal(

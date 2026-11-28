@@ -66,6 +66,7 @@ from labcairn.api.contracts import (
     MeetingIngestBody,
     PptIngestBody,
     ProposalAcceptanceBody,
+    RecordVerificationBody,
     ReportBody,
     ReviewApplyCancelBody,
     ReviewApplyCancelled,
@@ -93,6 +94,7 @@ from labcairn.application import (
     ClaimExtractionBackend,
     ClaimRecorded,
     ClaimRequest,
+    ClaimVerified,
     ExtractClaimRequest,
     FigureRequest,
     FigureRun,
@@ -131,6 +133,7 @@ from labcairn.application import (
     request_approval,
     run_figure,
     run_stage,
+    verify_claim,
 )
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
 from labcairn.application.chain import read_issue_keys
@@ -570,6 +573,33 @@ def post_record_acceptance(
         verdict=body.verdict,
         note=body.note,
     )
+
+
+@router.post(
+    "/records/{evidence_id}/verify",
+    response_model=ClaimVerified,
+    tags=["evidence"],
+)
+def post_record_verification(
+    evidence_id: str,
+    body: RecordVerificationBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ClaimVerified:
+    """A rule checks a claim, and its pass makes the record citable.
+
+    The layer's own operation and the layer's own result, so the record this
+    route moves is the record the CLI's ``task claim-verify`` moves. The rule
+    is **run** against the ledger's own anchors, the verdict is appended to
+    the record's log, and the status becomes ``verified_by_rule`` only when
+    the verdict is a pass. A check that does not pass is refused with what the
+    rule found, and the record stays where it was.
+
+    Only C1, C2 and C3 can verify; C4 is a person's attestation's entry and
+    the body's own vocabulary refuses nothing it does not know, so the layer
+    holds the C4 rule. The route does not decide *which* claims deserve a
+    rule's pass — the caller names the check.
+    """
+    return verify_claim(context, evidence_id, check=body.check)
 
 
 @router.get("/records", response_model=list[EvidenceRecord], tags=["evidence"])

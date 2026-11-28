@@ -15,8 +15,12 @@ found the old name still written here.
 Windows 11 Pro (10.0.26300 x64, AMD64), Python 3.12.13 (the project's own
 `.venv`).
 **Status:** local evidence only. No push, no pull request, no CI run, no
-merge, and **no change to any file under `src/`** — this window measures and
-records; it does not change the product's behaviour.
+merge. **The measuring window changed nothing under `src/`** — it measured
+and recorded. **A second window then closed the gap** (the owner chose
+option A by starting it), and changed the product: the closing section at the
+end of this record says what was wired, what it cost and what was measured.
+Read the measurement below as the state at the commit named above, and the
+closing section as what is true after it.
 **Material:** **none of the pilot's was read.** The measurement is a read of
 this repository's own source at the commit named above, plus greps over
 `tests/` and `web/src/`. No document text, digest of a document, or key of
@@ -162,6 +166,14 @@ window's fix added `_the_source_still_supports`, which *is* live for
   `tests/test_evidence_store.py` calls `advance` fifteen times — the
   harness's own arms were not inspected).
 
+  **Closed by the closing window, and the answer is no.** A read of
+  `tests/evaluation/` (every module, not only `arms.py`) for `advance`,
+  `append_record`, `VERIFIED_BY_RULE` and `VerificationStatus` returns no
+  occurrence: the harness's arms describe which *faces* of evidence an arm
+  sees and build no evidence rows of their own. The only test code that
+  constructs the state through the store is the store's own
+  (`tests/test_evidence_store.py`), as this section said.
+
 ## The options, with their costs
 
 The owner decides; the record's job is to make the decision a real one. Each
@@ -265,3 +277,192 @@ record carries the options. A brittle witness would be one that greps the
 
 <!-- Each branch of the tree the owner may cut is named above with what it
      would cost; the record recommends none of them. -->
+
+## The gap closed — the verify door (option A)
+
+**The owner chose option A by starting the window that wired it**, the same
+day this record was written. This section is that window's account: what was
+wired, what it cost, what was measured, and what the witness now says. It is
+written because the witness above was designed to go red at exactly this
+moment — it did, and it was inverted rather than silenced.
+
+**The tree the closing was measured at:** `f39b96b36bebbf20852ec570b393c9433fb0f01b`
+(the worktree's branch tip before the closing changes) plus the closing
+changes themselves, which land in the commit this section is committed with.
+Windows 11 Pro (10.0.26300 x64, AMD64), Python 3.12.13 (the project's own
+`.venv`). **The venv's editable install names the main checkout**, so every
+test run below was launched with `PYTHONPATH` pointing at the worktree's
+`src`; the console script was checked to be loading that tree (the new
+`task claim-verify --help` exists only there), which is the check the
+repository's own rules ask for when a tree is not the installed one.
+
+### What was wired
+
+The store is still the only writer of the status, and the three layers are
+unchanged in their division of labour:
+
+| Layer | What it holds |
+| --- | --- |
+| store (`evidence/store.py`) | `advance`, unchanged — the only writer of the status column, and the only place the rule catalog, the transition table and the identifier rule are enforced |
+| application (`application/evidence.py`) | `verify_claim(context, evidence_id, check=...)` — the operation, and the only caller of `advance` in `src/` |
+| CLI (`cli/commands.py`) | `labcairn task claim-verify <id> --check c1\|c2\|c3` — calls the operation |
+| API (`api/routes.py`, `api/contracts.py`) | `POST /records/{evidence_id}/verify` with `{"check": "c1"\|"c2"\|"c3"}` — calls the operation; `ClaimVerified` is the response model |
+
+The operation's rules, each a deliberate one:
+
+* **The rule is run, not asserted.** `verify_claim` calls `advance` with the
+  named `CheckKind`; the store evaluates it against the ledger's anchors,
+  appends the verdict, and moves the status only on a pass. The status a
+  report cites is the residue of a check that ran.
+* **A check that does not pass does not move the record.** The store appends
+  the verdict before judging the move; the operation commits it (it is
+  evidence, and it says what the rule found) and raises
+  `ApplicationRefusedError` with reason `verification_refused`, whose message
+  carries the outcome and the detail. This is why the refusal is not a
+  rollback: the record's log keeps the failing verdict, and the status stays
+  `extracted`.
+* **Only C1, C2 and C3 can verify.** C4's only outcome is `not_checked`; the
+  operation refuses it with `arguments_invalid` before any check runs, rather
+  than sending it into a move whose precondition could not hold.
+* **A record the context's task does not hold is refused as not found.** One
+  refusal for "no such record" and "another task's record", so a context
+  cannot probe another task's ledger.
+* **No capability is asked.** The checks read the ledger's own rows, not the
+  material's bytes again — the posture `attest_claim` takes for the same kind
+  of act. The write that admitted those rows was the ingestion's
+  `source.inventory` question.
+
+The store's file is in the table and **was not changed**: the record's option A
+called the existing `advance`, and the existing `advance` already refuses
+everything the new door must refuse. The closing window verified that by
+driving it, not by assuming it (the refusals are in the mutation table below).
+
+### What it cost
+
+| Change | Size |
+| --- | --- |
+| `application/evidence.py` | `ClaimVerified`, `verify_claim`, module docstring (the operation and its refusals) |
+| `application/refusal.py` | one reason, `verification_refused` |
+| `application/__init__.py` | the export and the capability table's row |
+| `cli/commands.py` | `task claim-verify`, one command |
+| `api/routes.py`, `api/contracts.py` | the route and `RecordVerificationBody` |
+| `web/src/api/generated.ts` | regenerated; +9 lines (`ClaimVerified`, `RecordVerificationBody`) |
+| `tests/test_surface_status_reach.py` | inverted from "nothing wires it" to "the door is wired and is the only way in" |
+| `tests/test_evidence_verify_door.py` | new; nine tests (six `integration`, three `e2e`) |
+| `tests/test_api.py` | the mutating-surface set gains `POST /records/{evidence_id}/verify`; one docstring sentence now says three evidence acts instead of two |
+| `tests/test_status_consistency.py` | the anchored-pointer witness's own probe destination is **read from `routes.py`** instead of hard-coded at 373 — a hard-coded line is a value that changes the day a route joins above it, and the witness's comment now says the verify route moved it |
+| 7 documents (`docs/RELEASE-NOTES.md`, `docs/REVIEW-DOSSIER.md`, `docs/THREAT-MODEL.md`, two plans, one work-orders draft, `web/README.md`) | **citations re-pointed only** — the routes and CLI command added lines above pointers those documents carry, and the pointer witness names the destination; no words changed |
+
+**The shard costs are stale, by the tree's own rule.** The work changes files
+under `src/` and adds a test file, so `.github/ci-shards.json`'s witness will
+fail until `python .github/remeasure_shards.py <run-id>` runs against a CI
+run's log. The numbers must come from a runner; this window did not run CI
+and did not guess. The batch's one pull request and one run supply the
+run id. **The new test file must be registered** — the shard list and the
+evaluation manifest are the integrating session's files, because other
+windows in the batch add files too.
+
+### What was measured
+
+All commands run in the worktree, with `TEMP`/`TMP` at
+`E:\labcairn-local\tmp` and distinct `--basetemp` per run:
+
+| Command | Result |
+| --- | --- |
+| `ruff check` over the changed files | clean |
+| `ruff format --check` over the changed files | clean, 9 files |
+| `mypy --strict` (the project's full configuration) | clean, 515 source files |
+| `pytest tests/test_evidence_verify_door.py -m integration` | 6 passed, 6.53s |
+| `pytest tests/test_evidence_verify_door.py -m e2e` | 3 passed, 25.06s |
+| `pytest tests/test_surface_status_reach.py` | 4 passed, 1.63s |
+| `pytest tests/test_application_evidence.py` | 20 passed |
+| `pytest tests/test_evidence_store.py` | 28 passed |
+| `pytest tests/test_api.py` (the five contract and mutating-surface tests) | 5 passed |
+| `pytest tests/test_status_consistency.py` | 597 passed, 16.82s |
+| `pytest tests/test_record_citations.py tests/test_cli_evidence_writer.py tests/test_cli_confirmation_guidance.py` | 46 passed, 201.81s |
+
+**One fact about this table's provenance.** The worktree the work was first
+measured in was **removed by the host while the changes were uncommitted**;
+the changes were rebuilt from this session's own operation log (every write
+and edit recorded as it happened), and every run above was re-measured on the
+rebuilt tree before the branch was committed. The branch's commit is the
+durable copy; the numbers are the rebuilt tree's, not the lost one's. Nothing
+about the product's behaviour depends on this, but a reader comparing a
+number here with a missing worktree deserves to know which one was measured.
+
+**The witnesses were mutation-checked, and each mutation is red for its own
+property, not for lint or an import error.** Twelve cases, twelve reds; the
+source was restored byte-for-byte after each:
+
+1. the operation asks `advance` for `extracted` instead of the status — the
+   pass witness fails;
+2. the operation runs no check before judging the move — the failing-check
+   witness fails (no verdict in the log, no outcome in the message);
+3. the C4 guard is removed — the C4 witness fails (the wrong reason, and a
+   log entry it said would not exist);
+4. the transition table allows `planned -> verified_by_rule` — the proposal
+   witness fails;
+5. the operation stops checking the record's task — the cross-task witness
+   fails;
+6. `verified_by_rule` is removed from `CITABLE_STATUSES` — the gate witness
+   fails;
+7. the CLI sends `c1` whatever the operator typed — the console witness
+   fails;
+8. the CLI lets an unknown `--check` escape as a traceback — the CLI refusal
+   witness fails;
+9. the API route sends `c1` whatever the body said — the route witness
+   fails;
+10. the CLI calls the store's writer itself — the static witness fails;
+11. the operation stops calling the writer — the static witness fails;
+12. a surface holds the status column's SQL — the SQL-boundary witness
+    fails.
+
+The limits of these measurements: no runner measured them (no CI run, by the
+batch's rule), so the shard costs above are stale rather than re-measured;
+the CLI's end-to-end witnesses drive the console script from the worktree via
+`PYTHONPATH`, not from a fresh install; and the API witness uses the
+service's own `create_app` with the test's event-source adapter, as the two
+other API test files do.
+
+### What the witness now says
+
+`tests/test_surface_status_reach.py` keeps its path and its subject; its
+direction is inverted. It now asserts:
+
+1. **the verify operation is the one caller of `store.advance`** under
+   `src/` — a tree with no caller would be the old gap back, and a tree with
+   a second caller would be a surface that skipped the layer;
+2. **the call asks for `VerificationStatus.VERIFIED_BY_RULE`** — a wired
+   writer asked for another status would leave the state unreachable;
+3. **CLI and API import `verify_claim` and never call the writer or name the
+   status member outside the operation**;
+4. **the status column's SQL lives only in `evidence/store.py`.**
+
+The record's old claims that are now **false for this tree**, and the
+measurement above is the one that is superseded:
+
+* *"no record can ever hold `verified_by_rule` through any surface"* — one
+  can, through `task claim-verify` and `POST /records/{id}/verify`;
+* *"the reachable state machine is three states wide"* — it is four wide
+  now: `extracted -> verified_by_rule` is reachable from a person's act;
+* *"C2 and C3 re-verification in the gate is dead code on any record the
+  product wrote"* — it is live on rule-verified records, and the gate
+  re-runs the logged checks before the report cites them;
+* *the middle member of `FINDING_STATUSES`* — a report can now state a
+  finding in `verified_by_rule`.
+
+Still true, and now by construction rather than by absence: the store
+remains the only writer, and the surfaces reach it only through the layer's
+operation.
+
+### What the closing did not decide
+
+* **Which claims deserve a rule's pass.** The surface runs the check the
+  operator names; nothing in it chooses a check for a claim. The record's
+  option A said this is a second decision, and it is still open.
+* **Option B's question** — whether verification should live only inside the
+  analysis pipeline — is untouched: the pipeline still appends nothing to a
+  record's log, and the new door does not make it do so.
+* **Behaviour under a writer outside the product** is still unmeasured, as
+  the section above says; the new door does not close that line and does not
+  pretend to.

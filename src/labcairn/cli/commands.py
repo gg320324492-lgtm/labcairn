@@ -1641,6 +1641,75 @@ def task_claim_attest(
         )
 
 
+@task_app.command("claim-verify")
+def task_claim_verify(
+    ctx: typer.Context,
+    evidence_id: Annotated[str, typer.Argument(help="The claim being checked.")],
+    check: Annotated[
+        str,
+        typer.Option(
+            "--check",
+            help="The rule to run: 'c1' (source and locator), 'c2' (quotation), or 'c3' (number).",
+        ),
+    ],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """A rule checks the claim, and its pass is what makes the claim citable.
+
+    This is the door to `verified_by_rule`. The rule is **run**, not asserted:
+    C1, C2 or C3 evaluates the record against the ledger's own anchors, the
+    verdict is appended to the record's log, and the status moves only when
+    the verdict is a pass. A check that does not pass leaves the record
+    `extracted` and is refused with what the rule found — the verdict stays in
+    the log, because it is evidence either way.
+
+    **It does not decide which claims deserve a rule's pass.** Which check a
+    claim should be held to is the operator's judgement; this command makes
+    the check possible and the ledger judges it.
+
+    Only C1, C2 and C3 can verify. C4 is a person's attestation's own entry —
+    the record of *not* checking — and `task claim-attest` is its door.
+    """
+    from labcairn.application import verify_claim
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import is_uuid7
+    from labcairn.evidence.states import CheckKind
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if not is_uuid7(evidence_id):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{evidence_id!r} is not a claim id: claim ids are UUIDv7.",
+                as_json=as_json,
+            )
+        try:
+            kind = CheckKind(check)
+        except ValueError:
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{check!r} is not a check this build runs. The checks are "
+                + ", ".join(member.value for member in CheckKind)
+                + "; the ones that can verify a claim are c1, c2 and c3.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            verified = verify_claim(context, evidence_id, check=kind)
+    if as_json:
+        emit_model(verified)
+    else:
+        entry = verified.record.verification_log[-1]
+        _console().print(
+            f"[bold]verified[/bold] {verified.record.evidence_id} — "
+            f"{entry.check.value} returned {entry.outcome.value}: {entry.detail}"
+        )
+
+
 @task_app.command("proposal-confirm")
 def task_proposal_confirm(
     ctx: typer.Context,

@@ -1175,11 +1175,13 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
     token, because a page that could move the pointer could make every later
     write land on a task nobody chose.
 
-    **The two evidence acts are writes too.** ``POST /claims/extract`` spends
+    **The evidence acts are writes too.** ``POST /claims/extract`` spends
     a model call and writes a proposal; ``POST /records/{id}/accept`` writes
-    the person's record and marks the proposal superseded. Both are the
-    layer's own operations, and both present the token — an extraction a page
-    could start without it would be a model call nobody authorised.
+    the person's record and marks the proposal superseded;
+    ``POST /records/{id}/verify`` runs a rule and writes its verdict and the
+    record's status. All are the layer's own operations, and all present the
+    token — an extraction a page could start without it would be a model call
+    nobody authorised.
     """
     document = contract_app().openapi()
     mutating = {
@@ -1198,6 +1200,12 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /claims",
         "POST /claims/extract",
         "POST /records/{evidence_id}/accept",
+        # The rule's door (LC-P4-PILOT, verified-by-rule reach): a check runs
+        # against the record and its pass moves the record to
+        # ``verified_by_rule``. It writes the verdict and the status, and it
+        # is the layer's own operation — the CLI's ``task claim-verify`` is
+        # the same one.
+        "POST /records/{evidence_id}/verify",
         "POST /guidance/rules/{rule_id}/confirm",
         "POST /task/select",
         # The review workbench's writes (Phase 4, LC-P4-CAP): a suggestion

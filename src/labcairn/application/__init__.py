@@ -65,6 +65,7 @@ Operation                  Capability
 ``record_claim``           ``source.inventory``
 ``record_model_proposal``  ``source.inventory``
 ``attest_claim``           ``source.inventory``
+``verify_claim``           — (the record's own log)
 ``confirm_proposal``       ``source.inventory``
 ``claim_extraction_use``   ``model.request``
 ``extract_claim``          ``model.request``
@@ -247,6 +248,7 @@ from labcairn.application.events import EventPage, read_events
 from labcairn.application.evidence import (
     ClaimRecorded,
     ClaimRequest,
+    ClaimVerified,
     ProposalSettled,
     SourceAddress,
     attest_claim,
@@ -255,6 +257,7 @@ from labcairn.application.evidence import (
     list_task_records,
     record_claim,
     record_model_proposal,
+    verify_claim,
 )
 from labcairn.application.extraction import (
     ClaimExtractionBackend,
@@ -410,6 +413,7 @@ __all__ = [
     "ClaimExtractionBackend",
     "ClaimRecorded",
     "ClaimRequest",
+    "ClaimVerified",
     "ConfirmationRecorded",
     "ConfirmationRequest",
     "CritiqueJudgement",
@@ -527,6 +531,7 @@ __all__ = [
     "run_stage",
     "settle_reply",
     "the_role_run_question",
+    "verify_claim",
     "write_guidance_check",
     "write_guidance_check_confirmation",
     "write_guidance_check_withdrawal",

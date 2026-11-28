@@ -94,6 +94,12 @@ class ApplicationRefusal(StrEnum):
     ATTESTATION_NOT_THE_AUTHOR = "attestation_not_the_author"
     #: The ledger refused the move. The original failure is kept as the cause.
     ATTESTATION_REFUSED = "attestation_refused"
+    #: A rule ran against the record and the ledger refused the move to
+    #: ``verified_by_rule`` — the check did not pass, a precondition was not
+    #: met, or Contract 2 does not allow the transition from where the record
+    #: stands. The check's verdict, when it was appended, stays in the log; the
+    #: record's status did not change.
+    VERIFICATION_REFUSED = "verification_refused"
     #: The attestation would make the record citable, but C1 could not confirm
     #: the source an anchor names -- the ledger no longer holds it, or its bytes
     #: have moved. ADR-0004 I4 invalidates such a record rather than certifying

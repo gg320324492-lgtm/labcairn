@@ -59,7 +59,7 @@ from labcairn.application import ChainComment, ChainEdit
 from labcairn.application.model_suggestions import SuggestionRequestEntry
 from labcairn.application.models import Result
 from labcairn.core.ids import ApprovalId, RunId
-from labcairn.evidence.states import EvidenceKind
+from labcairn.evidence.states import CheckKind, EvidenceKind
 from labcairn.security.capabilities import CapabilityId
 
 
@@ -180,6 +180,18 @@ class ClaimBody(Result):
     value: float | None = None
     unit: str | None = None
     tolerance: float | None = None
+
+
+class RecordVerificationBody(Result):
+    """Which rule to run against a record, as the API accepts it.
+
+    The check is the ledger's own closed vocabulary rather than a string this
+    package translates, so an unknown check is refused by the model that
+    defines the checks. Which of them can verify a claim — C1, C2 and C3, and
+    never C4 — is the store's own set, and the layer holds that rule.
+    """
+
+    check: CheckKind
 
 
 class TaskSelectBody(Result):
