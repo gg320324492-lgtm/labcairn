@@ -143,13 +143,17 @@ its own run. The costs are in the record and the card.
 the handoff cite are not checked by any test. The rewrite re-pointed **66
 citations in 15 files** with a script of its own, and **0 stale citations
 remain** (measured) — but a wrong re-pointing would have been caught by
-nothing. A witness for that is open work.
+nothing. A witness for that is open work. **Closed in batch 21**:
+`tests/test_record_citations.py`, which found the one citation the rewrite
+missed.
 
 **The CLI's human-readable output does not show the gate's verdict.** The
 result carries `evidence_gate` and `unjudged_records`, and the API's contract
 exposes both; the CLI's rendered table prints neither, so a reader at the
 command line cannot see which records the gate judged. The refusal — the
-part that matters — is rendered on both surfaces.
+part that matters — is rendered on both surfaces. **Closed in batch 21**:
+the command line draws the verdict, the ids the gate judged and the ids it
+did not.
 
 ## What the runner found that this review did not
 
@@ -202,7 +206,7 @@ was written anyway.
 | A name re-pinned as an allowed class would pass | closed — the name shape is refused independently of the registry |
 | An attested record's source could move and the report still went out | closed — the gate asks every citable record, and the report compares the file with the ledger before writing |
 | The published history still carries the names | measured; the owner's call was to split it, and the second half is the next batch |
-| The records' citations are not witnessed | open — named here, and in the next batch's card |
-| The CLI's table does not show the gate's verdict | open — named here |
+| The records' citations are not witnessed | closed — `tests/test_record_citations.py`, in batch 21; it found the one citation the rewrite missed |
+| The CLI's table does not show the gate's verdict | closed — the command line draws the verdict, the judged ids and the unjudged ones, in batch 21 |
 | The tree's own walks asserted the old report contract | closed — both show the refusal, name what it says and write nothing; a witness reads the refusal's line and the two hashes it names |
-| The new files' costs | `0.0` until a runner measures them; filed in the manifest and in a shard |
+| The new files' costs | measured on the runner and carried into the table, the three documents that print them, and the partition |

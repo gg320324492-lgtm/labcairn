@@ -188,7 +188,10 @@
 - **Two gaps the review named.** The acceptance records' cited hashes are
   checked by **no test** (only the status board's are), and the CLI's
   rendered table does not show the gate's verdict the way the API's contract
-  does. Both are cards in the next batch.
+  does. **Both are closed now** — the first by `tests/test_record_citations.py`
+  and the second by the command line's own drawing of the gate's verdict and
+  the records it did not judge — and the review that named them says where
+  each went.
 
 
 ## 2026-11-27 - pull request #224 is merged, four windows answered, and a name got out
