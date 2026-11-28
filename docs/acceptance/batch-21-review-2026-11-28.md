@@ -15,7 +15,7 @@ the other two.
 
 ## What each window did
 
-- **The status the product cannot reach** (`aa920a9`, from `db99028`).
+- **The status the product cannot reach** (`aa920a9`).
   `store.advance` is the only writer of `verified_by_rule`, and **nothing in
   `src/` calls it**: the six surfaces produce `planned`, `extracted` and
   `user_attested`, so the reachable state machine is **three states wide** —
