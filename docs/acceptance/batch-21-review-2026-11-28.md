@@ -170,22 +170,25 @@ reviewer-mode walk runs the whole suite in its clone. **Two attempts were
 made here and neither produced a result**, for two different reasons.
 
 The first was killed at fifty minutes on a reading — one interpreter at zero
-CPU over a fifteen-second interval — that the second attempt showed does not
-tell a stall from progress: the second, with its own `TEMP`, its own work
-root and nothing measured beside it, showed the same shape while **working**
-(an idle parent, a child burning CPU, and a temp directory whose newest
-entry went eleven minutes without a change). So the first attempt's cause is
-not established, and none is claimed.
+CPU over a fifteen-second interval. **The cause is measured, and it is not
+the concurrency**: the command-line window re-ran the hang alone and at the
+base revision and found the same thing — a **pre-existing flake** in
+`tests/test_drill_rewrite_interrupted.py`, whose `_wait_for` helper reads
+the child's stdout with `readline()` and no timeout, so a child that dies
+before printing its marker leaves the parent blocked on a read that never
+returns and the pytest process at **zero CPU**. That is exactly the reading
+the kill was based on, and it reproduces with nothing else on the machine, so
+the parallel runs are not what caused this attempt either.
 
-The second attempt's end **is** measured, and it is not a stall: **the
+The second attempt's end **is** arithmetic, and it is not a stall: **the
 clone's whole suite exceeded the timeout the walk gives that command**
 (5400 s), because the runner's own measured shard costs put the whole suite
 at **10120 s** on Windows when it runs as one process — the six shards run
 in parallel on six runners, so the runner's wall clock is the slowest shard,
 1687 s, while the clone runs everything as one process. **A reviewer-mode
 run cannot finish on Windows at this tree**, whatever the machine is doing.
-The tree's **witness mode** — 83 checks, and the mode the tree's test runs
-on every CI run — is what the counts are written from.
+The tree's **witness mode** — 83 checks, measured, and the mode the tree's
+test runs on every CI run — is what the counts are written from.
 
 ## Where each finding went
 
@@ -198,4 +201,4 @@ on every CI run — is what the counts are written from.
 | A citation the rewrite missed, in a record written after the rewrite | closed — the citation is re-pointed, the record says the hash moved, and the witness that found it is in the tree |
 | The status the product cannot reach | measured and filed; the three options and their costs are the owner's to take |
 | The CLI's human rendering shows neither list | closed — the gate's verdict, the judged ids, the unjudged ids and the findings count are drawn |
-| A reviewer-mode walk produced no result | measured twice over: the first attempt's cause is not established and none is claimed, and the second exceeded the walk's own 5400 s timeout because the clone's serial suite costs 10120 s on Windows; the counts are written from the witness mode instead |
+| A reviewer-mode walk produced no result | measured twice over: the first attempt hit the pre-existing flake in `tests/test_drill_rewrite_interrupted.py`, which reproduces alone and at the base revision, and the second exceeded the walk's own 5400 s timeout because the clone's serial suite costs 10120 s on Windows; the counts are written from the witness mode instead |

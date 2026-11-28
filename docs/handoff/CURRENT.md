@@ -35,16 +35,16 @@
 - **A whole-suite run wants the machine to itself, and the integrating
   session's first attempt produced no result.** The delivery's
   reviewer-mode walk runs the whole suite in its clone; it was started at
-  05:03 and four pytest runs were then measured **beside** it, every one
-  against the same `TEMP` — what the rule forbids. The walk produced **no
-  result**: killed at fifty minutes, an empty log, no report. **The cause
-  was not measured and none is claimed.** The kill followed a reading of
-  one interpreter at zero CPU over a fifteen-second interval, and the
-  attempt that followed — its own `TEMP`, its own work root, nothing
-  measured beside it — showed the same shape while **working**: an idle
-  parent, a child burning CPU, and a temp directory whose newest entry
-  went eleven minutes without a change. So that reading does not tell a
-  stall from progress.
+  05:03 with four pytest runs measured beside it, and the walk produced **no
+  result**: killed at fifty minutes, an empty log, no report. **The cause is
+  measured, and it is not the concurrency**: the command-line window re-ran
+  the hang alone and at the base revision and found a **pre-existing flake**
+  in `tests/test_drill_rewrite_interrupted.py`, whose `_wait_for` helper
+  reads the child's stdout with `readline()` and no timeout — so a child
+  that dies before printing its marker leaves the parent blocked on a read
+  that never returns, and the pytest process at **zero CPU**. That is
+  exactly the reading the kill was based on, and it reproduces with nothing
+  else on the machine.
 - **And the second attempt's end is measured, and it is a ceiling rather
   than a stall.** The clone's whole suite **exceeded the timeout the walk
   gives that command** (5400 s): the runner's own shard costs put the
