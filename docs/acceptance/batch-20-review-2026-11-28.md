@@ -206,7 +206,7 @@ was written anyway.
 | A name re-pinned as an allowed class would pass | closed — the name shape is refused independently of the registry |
 | An attested record's source could move and the report still went out | closed — the gate asks every citable record, and the report compares the file with the ledger before writing |
 | The published history still carries the names | measured; the owner's call was to split it, and the second half is the next batch |
-| The records' citations are not witnessed | closed — `tests/test_record_citations.py`, in batch 21; it found the one citation the rewrite missed |
+| The records' citations are not witnessed | closed — `tests/test_record_citations.py` and its own acceptance record, in batch 21; it found the one citation the rewrite missed |
 | The CLI's table does not show the gate's verdict | closed — the command line draws the verdict, the judged ids and the unjudged ones, in batch 21 |
 | The tree's own walks asserted the old report contract | closed — both show the refusal, name what it says and write nothing; a witness reads the refusal's line and the two hashes it names |
 | The new files' costs | measured on the runner and carried into the table, the three documents that print them, and the partition |

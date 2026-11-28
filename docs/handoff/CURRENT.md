@@ -45,7 +45,10 @@
   is that witness, and it **found what the rewrite missed**: the record the
   status-reach batch wrote cites the commit that batch started from under the
   name the rewrite gave it, and no document said so. The citation is
-  re-pointed, and the record says the hash moved.
+  re-pointed, and the record says the hash moved. **Its own acceptance
+  record** (`docs/acceptance/record-citations-witness-2026-11-28.md`) says
+  what it reads, which token shapes it judges, and the eight declared
+  absences with the reason each one is gone.
 - **The provider's daily limit took the third card.** That session's own
   transcript says it had run 113 turns when it was rejected with HTTP 429
   (`daily_usage_exceeded`, resets 2026-11-28 00:00 UTC). It left one file
