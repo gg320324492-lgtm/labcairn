@@ -266,21 +266,45 @@ window's change: the run was sitting in
 and kills it in a window — with the pytest process consuming **zero CPU over
 a measured 15-second interval**, blocked on a child that never signalled.
 
-**The cause was this window's own doing, and it is the rule the project's own
-document states.** While the whole suite was running, this window also ran
-**three other pytest suites** against the same machine (`test_ci_shard_coverage`,
+**The cause was measured, and the first answer this record gave was wrong.**
+While the whole suite was running, this window also ran **three other pytest
+suites** against the same machine (`test_ci_shard_coverage`,
 `test_evaluation_harness`, and the two refusal-enumeration files).
 `CLAUDE.md` says it: *"Parallel runs each need their own `TEMP`. `MPLCONFIGDIR`
 is pinned under the temp directory, so two runs sharing one temp directory
 fight over it. **Whole-suite runs go one at a time.**"* All four runs shared
-`E:/labcairn-local/tmp`, and the whole-suite run was the one that hung.
+`E:/labcairn-local/tmp`, and the whole-suite run was the one that hung — so
+this record first said the concurrency was the cause.
 
-**It is recorded because the number that came out of it is not a number.**
-The killed run reported progress to 29% with no failures in the first 20%
-except the two expected shard ones, and a reader skimming the log would take
-that for a passing run. It is not a passing run: it is a run that stopped.
-**A run that was killed has no result, and "no failures before the hang" is not
-a result.** The suite was re-run alone, with nothing else on the machine.
+**It is not the cause.** The hang was measured again, twice, and it
+reproduces with nothing else on the machine:
+
+- **At this tree**, `tests/test_drill_rewrite_interrupted.py` alone: attempt 1
+  passed, attempt 2 passed, **attempt 3 hung** (killed after 600 s).
+- **At the base revision `9fff78d`**, in a separate worktree with its own
+  environment: attempt 1 passed, **attempt 2 hung** (killed after 400 s).
+
+**So it is a pre-existing flake in that test file, not this window's change.**
+The mechanism is visible in the test's own helper: `_wait_for` reads the
+child's stdout with `readline()` **and no timeout**, and raises only if the
+child's stream *ends*. A child that dies before printing its marker line
+leaves the parent blocked on a read that will never return — the pytest
+process then sits at **zero CPU**, which is how the hang was recognised.
+
+**Two failures of reasoning, both corrected here.** The first was to attribute
+the hang to this window's concurrent runs because that fitted the project's own
+rule; the second was to assume a second hang had the same cause. Both were
+attributions without a measurement. **The measurement is that the flake is
+pre-existing and reproduces at the base revision** — so the honest reading of
+the whole suite is the one that *completed*, and the hung runs are a known
+flake rather than a signal about this change.
+
+**It is recorded because the number that came out of a hung run is not a
+number.** The killed run reported progress to 29% with no failures in the
+first 20% except the two expected shard ones, and a reader skimming the log
+would take that for a passing run. It is not a passing run: it is a run that
+stopped. **A run that was killed has no result, and "no failures before the
+hang" is not a result.** The suite was re-run alone, and it completed.
 
 The lesson for the next window: the whole-suite run gets the machine to
 itself, and the witnesses that need measuring run **before** it or **after**
