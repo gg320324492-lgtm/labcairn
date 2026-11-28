@@ -472,7 +472,12 @@ operation.
   option A said this is a second decision, and it is still open.
 * **Option B's question** — whether verification should live only inside the
   analysis pipeline — is untouched: the pipeline still appends nothing to a
-  record's log, and the new door does not make it do so.
+  record's log, and the new door does not make it do so. **A later window
+  has since measured the pipeline's capacity** (see the options section and
+  "What was not measured" above), and its finding is that the pipeline
+  **could not** carry the ledger's rules as they stand — a computed number
+  cannot be anchored, so C1, C2 and C3 have nothing to read. **The question
+  itself remains the owner's**, and the record does not choose.
 * **Behaviour under a writer outside the product** is no longer unmeasured —
   the writer window measured it, and what it found is the section below. The
   new door does not close that line, and does not pretend to.
