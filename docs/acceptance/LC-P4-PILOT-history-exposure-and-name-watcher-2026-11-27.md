@@ -242,6 +242,16 @@ the rewritten branch**: `git rev-list --objects` over the new head does not
 name it (measured). The tree at the tip is **identical** to the tree before
 the rewrite, apart from the citations that name the commits.
 
+**And it is no longer reachable from any ref at all** (measured on
+2026-11-28): the fetched pull-request refs — the pull request's pre-rewrite
+head and its merge ref — still reached it locally, and the branch that
+carried it went with the other window branches. The remote's refs have moved
+the same way: the pull request's head is the rewritten line, its merge ref
+is recomputed from it, and the only other ref that could have descended from
+the leaked commit does not reach it (measured). **The object itself stays in
+the local object store until a garbage collection, and the host still serves
+it by its id** — `HTTP 200`, measured, and the body was not read.
+
 **What it did not reach.**
 
 - `e67269a` is in `main` and was not touched, by this option's own terms.
@@ -266,9 +276,11 @@ the rewrite, apart from the citations that name the commits.
 > `a399bfb1331786bba5db4ecb9f49f064ee4a0a8e`, at the path
 > `docs/acceptance/LC-P4-PILOT-replay-2026-11-26.md`, carries a person's
 > name. The commit has been rewritten out of the branch that will become
-> `main`, and the tree at the tip of every branch is clean, but the object
-> is still reachable through the pull-request refs. Please remove it from
-> the repository's object store.
+> `main`, and the tree at the tip of every branch is clean. **The object is
+> no longer reachable from any ref** — measured on 2026-11-28 — but the
+> repository still serves it by its id, so it is in the object store and in
+> whatever the host caches in front of it. Please remove it from the
+> repository's object store.
 
 **A limit worth naming.** The hashes the records cite are checked by the
 tree's own witness only for the status board's evidence cells; the
