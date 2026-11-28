@@ -1,6 +1,26 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-28 (later still, and the last of the day) — the batch is audited, and three cards are up
+
+- **The batch is audited against the checklist** (`docs/acceptance/batch-21-review-2026-11-28.md`),
+  and the two gaps the earlier review named are **closed**: the acceptance
+  records' cited hashes now have a witness, and the command line draws the
+  gate's verdict. The witness ledger across the delivery's whole range
+  reports **no lost witness** — 4289 test functions before, 4410 after.
+- **Three cards are up**, each with its own files and no overlap between
+  them: **a deadline for the drill tests' wait helper** (the flake that has
+  cost two windows a whole-suite run), **a reviewer mode that can finish**
+  (the clone's serial suite costs 10120 s against the walk's own 5400 s
+  timeout, so the deliverable's full form cannot run at all), and **a verify
+  surface** — option A of the unreachable-status record, which the owner
+  chooses by starting it.
+- **The `main`-history rewrite is deliberately not a card yet.** The owner
+  split it off as a batch of its own, and it re-points citations in many
+  files — which would collide with the card above that edits the same
+  records. It goes up after this delivery lands.
+
+
 ## 2026-11-28 (later still) - three cards answered, and the records' citations got a witness
 
 - **Three cards the owner started. Two answered, and both are merged into the
