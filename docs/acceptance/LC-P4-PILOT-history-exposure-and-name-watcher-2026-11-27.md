@@ -282,10 +282,16 @@ it by its id** — `HTTP 200`, measured, and the body was not read.
 > whatever the host caches in front of it. Please remove it from the
 > repository's object store.
 
-**A limit worth naming.** The hashes the records cite are checked by the
-tree's own witness only for the status board's evidence cells; the
-citations in the acceptance records are verified by the rewrite's own
-script, not by a test. **A witness for that is open work.**
+**A limit worth naming — and the limit has a witness now.** The hashes the
+records cite are checked by the tree's own witness only for the status
+board's evidence cells; the citations in the acceptance records were
+verified by the rewrite's own script, not by a test. **`tests/test_record_citations.py`
+is that witness** (batch 21), and its own record is
+`docs/acceptance/record-citations-witness-2026-11-28.md`. It reads the
+records' citations, judges the ones that name this repository, and it
+**found the one citation the rewrite missed** — the record the status-reach
+batch wrote cited the commit that batch started from under the name the
+rewrite gave it.
 
 ## What this record does not decide
 

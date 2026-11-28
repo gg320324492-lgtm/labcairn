@@ -1,7 +1,40 @@
 # LabCairn — Current handoff
 
 
-## 2026-11-28 (later still, and the last of the day) — the batch is audited, and three cards are up
+## 2026-11-28 (the batch of three cards) — a verify door, a deadline, and a reviewer mode that can finish
+
+- **Three windows' work is merged into the local `main`** (`339f204`,
+  `5d54391`, `69302d2`, `19595eb`, `6e945fe`), and the review of it is
+  `docs/acceptance/batch-22-review-2026-11-28.md`.
+- **The verify door.** `verify_claim` in the application layer calls the
+  store's only writer with the check the caller names; `task claim-verify
+  --check c1|c2|c3` and `POST /records/{id}/verify` are its surfaces. A
+  pass moves the record to `verified_by_rule` and the verdict is in its
+  log; a check that does not pass is committed to the log and refused with
+  what the rule found, **and the status does not move**. The static witness
+  that watched the gap is **inverted** into four arms that watch the door's
+  presence instead ✓ — and twelve mutations turn the new witnesses red,
+  twelve times ✓.
+- **The drill tests' wait has a deadline** — 120 seconds, and the injector
+  fires on the write it names. The two drill files went from **603.91 s** and
+  **1204.83 s** to **29.03 s** and **24.41 s** ✓.
+- **The reviewer mode can finish.** The whole-suite command's timeout rests
+  on the runner's own measurement now (**10119.7 s** on Windows, 42% of
+  margin), and the clone tree's interpreter is pinned to UTF-8 mode, which
+  removed a second ceiling the first measurement found ✓. Its records follow
+  the run in flight ✓.
+- **The shard costs are owed to a runner, and that is the design.** The
+  drill fix moved two heavy files, so the shard-cost witness is red until a
+  runner re-measures ✓. **A prediction the re-measurement settles**: the
+  heaviest ubuntu file is the drill file the fix touches (1209.0 s in a shard
+  whose other five carry 596–605 s), so the partition's imbalance factor
+  **2.028** should go with it.
+- **What is still the owner's:** the merge of #225 — **its CI is green** —
+  the host-side purge request, and the second decision the verify door
+  makes possible: which claims deserve a rule's pass.
+
+
+## 2026-11-28 (later still) - the batch is audited, and three cards are up
 
 - **The batch is audited against the checklist** (`docs/acceptance/batch-21-review-2026-11-28.md`),
   and the two gaps the earlier review named are **closed**: the acceptance

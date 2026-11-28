@@ -103,6 +103,11 @@ source_id = _source_id_fixture
 task_id = _task_id_fixture
 workspace = _workspace_fixture
 
+#: This file drives the verify door through the console script and through the
+#: API, so it says so: the marker is the file's own statement of its class,
+#: and the harness reads it rather than the partition table.
+pytestmark = pytest.mark.e2e
+
 #: The instant the writes are dated with, as the application tests date theirs.
 _MOMENT_AT = datetime(2026, 1, 1, tzinfo=UTC)
 

@@ -637,6 +637,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # `verified_by_rule`, and no surface calls it, so the class the evidence
     # layer names is unreachable in the product as it stands.
     "test_surface_status_reach.py": ("unit", "state-transitions"),
+    # The verify door: the operation, the console command and the API route
+    # that reach the store's only writer of `verified_by_rule`.
+    "test_evidence_verify_door.py": ("e2e", "cli-task"),
     "test_skill_ledger.py": ("unit", "artifact-hashes"),
     # LC-P1-06's G2 debt: the same clause as `test_skill_ledger.py`, witnessed
     # against the table instead of a list. The read-time check is the property,
