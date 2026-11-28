@@ -41,7 +41,11 @@ Two modes
 ``reviewer``
     Everything, including the README's ``uv run pytest`` as the README writes
     it. This is the mode an external reviewer runs, and it takes the length the
-    whole suite takes.
+    whole suite takes. As one process on a Windows runner that length is
+    measured at **10119.7 s** (``.github/ci-shards.json``, measured at
+    ``b56f9994``), and the command's timeout is 14400 s so the cost fits
+    inside it. The number is re-measured with the costs; see the note on the
+    whole-suite row of ``README_COMMANDS``.
 
 ``witness``
     The same walk, with one reduction: ``uv run pytest`` becomes
@@ -281,12 +285,30 @@ README_COMMANDS: tuple[ReadmeCommand, ...] = (
         documented="uv run pytest",
         argv=("uv", "run", "pytest"),
         in_suite_argv=("uv", "run", "pytest", "--collect-only", "-q", "tests"),
-        timeout_s=5400.0,
-        note="The whole suite. In `witness` mode it is reduced to --collect-only, "
-        "because running the whole suite from inside the suite would recurse: this "
-        "file's own test runs the script, which runs the suite, which runs this "
-        "file's own test. The reduction is recorded in the report against this "
-        "command, so a witness run can never be read as a full-suite run.",
+        # **The timeout fits the measured serial cost, and the measurement is
+        # named here.** The clone runs the suite as one process, the way the
+        # README writes it. Summed over all 242 files, the runner's own
+        # per-file costs in `.github/ci-shards.json` (measured at b56f9994,
+        # 2026-11-28) are 10119.7 s on windows-latest and 4198.6 s on
+        # ubuntu-latest. The command used to be given 5400 s, which no Windows
+        # host could finish inside; 14400 s leaves 4280 s (42%) of headroom
+        # for a slower host. **This is not made faster by running the six
+        # shards**: the reviewer mode's claim is the README's command as the
+        # README writes it, and a stranger types `uv run pytest` once, not six
+        # times with a file list; the project's own measurement also says
+        # parallel pytest processes on one machine lose, and two runs sharing
+        # one temp directory fight over MPLCONFIGDIR. So the repair is the
+        # timeout, and the number moves when the costs are re-measured.
+        timeout_s=14400.0,
+        note="The whole suite, as one process, at the README's command. The timeout "
+        "is 14400 s because the runner's measured per-file costs ("
+        ".github/ci-shards.json, measured at b56f9994) sum to 10119.7 s on "
+        "windows-latest when the 242 files run serially. In `witness` mode it is "
+        "reduced to --collect-only, because running the whole suite from inside the "
+        "suite would recurse: this file's own test runs the script, which runs the "
+        "suite, which runs this file's own test. The reduction is recorded in the "
+        "report against this command, so a witness run can never be read as a "
+        "full-suite run.",
     ),
     ReadmeCommand(
         documented="uv run ruff check .",
