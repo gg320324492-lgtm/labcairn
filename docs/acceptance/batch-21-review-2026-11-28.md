@@ -174,11 +174,46 @@ CPU over a fifteen-second interval. **The cause is measured, and it is not
 the concurrency**: the command-line window re-ran the hang alone and at the
 base revision and found the same thing — a **pre-existing flake** in
 `tests/test_drill_rewrite_interrupted.py`, whose `_wait_for` helper reads
-the child's stdout with `readline()` and no timeout, so a child that dies
-before printing its marker leaves the parent blocked on a read that never
+the child's stdout with `readline()` and no timeout, so a child that never
+prints its marker leaves the parent blocked on a read that never
 returns and the pytest process at **zero CPU**. That is exactly the reading
 the kill was based on, and it reproduces with nothing else on the machine, so
 the parallel runs are not what caused this attempt either.
+
+> **Corrected on 2026-11-28, by a measurement of the mechanism.** The
+> original text said the child that *dies* before printing its marker leaves
+> the parent blocked. **A child that dies closes its pipe**, so `readline()`
+> returns at once (measured: 0.047 s) and the helper's own assertion fired.
+> The child in the hang was **alive** — parked in the injector's own
+> `time.sleep(600)`, holding its stdout open, at zero CPU. The missing
+> timeout was real and is what was fixed; the description of the trigger was
+> not.
+
+**What the fix measured to be.** The helper now has a **120 s deadline** and
+reports the child's exit status and its stderr instead of blocking, and the
+measurement turned up a second cause that the deadline alone would not have
+removed: each drill child performs three exclusive creates and the
+`before_temp_write` injector fired on the **first** — the manifest write
+inside `build_rig` — so the child was parked before it printed anything at
+all. **The two slowest tests in the suite had never exercised the window
+they name.** The injector is now armed, so it fires on the publication's or
+the rewrite's own temp.
+
+Measured before and after on this machine: `603.91 s` → `29.03 s` for
+`tests/test_drill_interrupted_writes.py`, `1204.83 s` → `24.41 s` for
+`tests/test_drill_rewrite_interrupted.py`, both files whole **9 passed in
+43.57 s**. Each file carries a witness that drives a child which never prints
+its marker; with the deadline removed from the helper, that witness **fails**
+(`1 failed in 32.53 s`, "the wait is still blocked after its deadline of
+2s") rather than hanging, because the call is made on a thread with a
+deadline of its own.
+
+**One consequence is still open.** The shard costs were measured at
+`b56f9994`, so `tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on`
+**will fail once these changes are committed** — `tests/test_drill_rewrite_interrupted.py`
+is the Ubuntu partition's structural bottleneck and costs more than the
+Windows partition's slack. The re-measurement needs a CI run, because the
+numbers must come from a runner.
 
 The second attempt's end **is** arithmetic, and it is not a stall: **the
 clone's whole suite exceeded the timeout the walk gives that command**

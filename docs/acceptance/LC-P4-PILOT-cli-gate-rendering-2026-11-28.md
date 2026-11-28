@@ -287,9 +287,23 @@ reproduces with nothing else on the machine:
 **So it is a pre-existing flake in that test file, not this window's change.**
 The mechanism is visible in the test's own helper: `_wait_for` reads the
 child's stdout with `readline()` **and no timeout**, and raises only if the
-child's stream *ends*. A child that dies before printing its marker line
-leaves the parent blocked on a read that will never return — the pytest
-process then sits at **zero CPU**, which is how the hang was recognised.
+child's stream *ends*. A child that never prints its marker line leaves the
+parent blocked on a read that will never return — the pytest process then
+sits at **zero CPU**, which is how the hang was recognised.
+
+> **Corrected on 2026-11-28, by a measurement of the mechanism.** The sentence
+> above said the child *dies* before printing its marker line. **That is not
+> what happens, and the difference is the whole fix.** A child that dies
+> closes its pipe: `readline()` returns `''` in 0.047 s, so that case already
+> produced the helper's `AssertionError` and was never the hang. The child in
+> the hang was **alive** — parked inside the injector's own `time.sleep(600)`,
+> holding its stdout open, at zero CPU. The read was waiting for a line the
+> child was 600 seconds away from.
+>
+> The helper's missing timeout was real, and it is what was fixed. The
+> *description* of the trigger was wrong: it is a live and silent child, not
+> a dead one. A helper that only ever watched for the stream's end could not
+> see this case at all.
 
 **Two failures of reasoning, both corrected here.** The first was to attribute
 the hang to this window's concurrent runs because that fitted the project's own
@@ -327,6 +341,91 @@ with its own `TEMP`, its own work root, and nothing else measured beside
 it, and it reached the walk's own timeout: the clone's whole suite costs
 **10120 s** on Windows when it runs as one process, against the **5400 s**
 the walk gives that command. That ceiling holds with or without the flake.
+
+### The fix, and what it was measured to be
+
+A later window (2026-11-28) gave the drill tests' wait helper **a deadline**,
+and — having measured the mechanism rather than reading it — found that the
+hang had a second cause that the missing timeout alone would not have
+removed.
+
+**What the measurement found.** Each drill child performs **three** exclusive
+creates (`"xb"`) — the manifest, the copy, then the publication — and the
+`before_temp_write` injector fired on the **first** one, which is the
+manifest write inside `build_rig`. So the child was parked *before it had
+printed anything at all*, and the parent's wait for its first marker line
+became a wait for a line 600 seconds away. Measured, per test, with a 90 s
+cap: exactly the two `before_temp_write` tests hung and the other five
+passed in 3.3 s to 4.3 s.
+
+**So the two slowest tests in the suite had never exercised the window they
+name.** They passed, eventually, because the injector's pause ended and the
+child went on to do the work — after the marker the parent was waiting for.
+Given 1500 s, both passed: `603.91 s` and `1204.83 s`, which is the
+recorded shard cost of the second file almost exactly.
+
+**Three things changed.**
+
+1. **The wait has a deadline.** The child's stdout is read on a thread and
+   the answer is collected with a deadline, so a child that is alive and
+   silent is a **failure that says what it saw** — the child's exit status
+   and its stderr — instead of a hang. The deadline is **120 s**: far above
+   the healthy path (3.3 s to 4.3 s), far below the 600 s pause it has to
+   interrupt, and the same ceiling `tests/test_fault_injection_e2e.py`
+   already gives a service to answer.
+2. **The injector fires on the write it names.** `before_temp_write` is now
+   armed, so it fires on the first temp created *after* the drill arms
+   itself — the publication's or the rewrite's, not the rig's own manifest
+   write. The rewrite drill's `rewrite_clobber` window was already armed and
+   already correct.
+3. **The failure names the child.** The message carries the marker it
+   wanted, what the child had printed, the child's exit status and its
+   stderr.
+
+**Measured, before and after**, on this machine:
+
+| | before | after |
+| --- | --- | --- |
+| `tests/test_drill_interrupted_writes.py` | `603.91 s` (one test) | `29.03 s` (all three) |
+| `tests/test_drill_rewrite_interrupted.py` | `1204.83 s` (one test) | `24.41 s` (all five) |
+
+Both files, whole, with the new witnesses: **9 passed in 43.57 s**.
+
+**The witness is what makes this a claim rather than a story.** Each drill
+file has a test that drives a child which never prints its marker and asserts
+that the helper gives up within its deadline and says what it saw. The call
+is made on a thread and the witness waits for that thread with a deadline of
+its own, **because a witness that hangs cannot fail**. Measured with the
+deadline removed from the helper:
+
+```
+AssertionError: the wait is still blocked after its deadline of 2s, so the
+helper has no deadline and a child that never prints its marker hangs the
+parent instead of failing it
+1 failed in 32.53s
+```
+
+**What this window did not do, and why.** The shard costs in
+`.github/ci-shards.json` were measured at `b56f9994`, and
+`tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on`
+**will fail once these changes are committed** — on both platforms.
+`tests/test_drill_rewrite_interrupted.py` is the Ubuntu partition's
+structural bottleneck and costs more than the Windows partition's slack
+(1219.62 s against 1012 s). The re-measurement is
+`python .github/remeasure_shards.py <run-id>`, and **the numbers must come
+from a runner**, so it needs a CI run. The new costs are known to be
+dramatically lower (24.41 s against 1209.03 s), but *the partition must be
+re-measured on the runner, not on this machine* — the project's own rule is
+that a value which can change is re-measured, not carried forward.
+
+**Two things a reader should know.** The two drill files each carry their
+own copy of the wait helper — 137 lines, byte-identical — so each copy has
+its own witness; a shared helper would be the better shape, but the module
+that owns the drill family (`tests/drill_support.py`) is outside this
+window's file ownership, so the duplication is recorded rather than removed.
+And the brief this window was given described the trigger as *a child that
+dies* before its marker line. **The measurement says the child was alive**,
+and the fix is written against what was measured.
 
 ### The environment, and why it was rebuilt rather than shared
 

@@ -18,11 +18,14 @@ harness serves every window.
 from __future__ import annotations
 
 import os
+import queue
 import subprocess
 import sys
+import threading
 import time
+import weakref
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import pytest
 
@@ -33,6 +36,31 @@ BEFORE_TEMP_WRITE = "before_temp_write"
 AFTER_TEMP_FSYNC = "after_temp_fsync"
 AFTER_REPLACE = "after_replace"
 AFTER_PUBLISH_LANDED = "after_publish_landed"
+
+#: How long the injector's pause holds the child before the parent kills it.
+#:
+#: The pause is deliberately longer than any healthy run: the point is to
+#: park the child inside the window under test and let the parent kill it
+#: there, so a wait that gave up before the pause would be giving up on the
+#: child rather than on the injector.
+INJECTOR_PAUSE_SECONDS = 600
+
+#: How long the parent waits for a marker line before it gives up on the child.
+#:
+#: **Why this number.** A healthy drill child prints its first marker within a
+#: few seconds — the drills that pass do so in 3.3 s to 4.3 s on this machine —
+#: while the injector's own pause is 600 s. A wait that could reach 600 s
+#: would be waiting on the injector rather than on the child, and a drill that
+#: hangs would cost ten minutes to say so. 120 s is far above the healthy
+#: path, far below the pause it has to interrupt, and it is the same ceiling
+#: ``tests/test_fault_injection_e2e.py`` already gives a service to answer.
+WAIT_TIMEOUT_SECONDS = 120.0
+
+#: How long the parent waits for the child's stderr to end once the child's
+#: stdout has ended. A child that is gone closes both at once; the ceiling is
+#: there so that a stream some grandchild still holds open cannot turn the
+#: failure into a hang of its own.
+STDERR_DRAIN_SECONDS = 5.0
 
 INJECTOR = '''
 """A pause planted in the drill child, from outside.
@@ -48,18 +76,29 @@ import time
 
 WINDOW = os.environ["DRILL_WINDOW"]
 SENTINEL = pathlib.Path(os.environ["DRILL_SENTINEL"])
+PAUSE = int(os.environ["DRILL_PAUSE_SECONDS"])
 
 
 def reach() -> None:
     SENTINEL.write_text(WINDOW, encoding="utf-8")
-    time.sleep(600)
+    time.sleep(PAUSE)
 
 
 if WINDOW == "before_temp_write":
     _original_open = pathlib.Path.open
 
     def open_patch(self, *args, **kwargs):
-        if args and args[0] == "xb":
+        # Armed only once the drill is inside the publication's own write.
+        #
+        # **Why the arming matters, and it is not decoration.** The rig's own
+        # assembly writes the manifest through this same ``"xb"`` call, and
+        # that write happens *before* the child prints its first marker. A
+        # pause there parks the child before it has said anything at all, and
+        # the parent's wait for that marker becomes a wait for a line the
+        # child is 600 seconds away from. The window is named for the
+        # *publication's* temp, so the pause is placed on the first temp
+        # created after the drill arms itself.
+        if args and args[0] == "xb" and os.environ.get("DRILL_ARMED") == "1":
             reach()
         return _original_open(self, *args, **kwargs)
 
@@ -149,6 +188,7 @@ def _child_environment(inject_dir: Path, sentinel: Path, window: str) -> dict[st
         "PYTHONPATH": str(inject_dir),
         "DRILL_WINDOW": window,
         "DRILL_SENTINEL": str(sentinel),
+        "DRILL_PAUSE_SECONDS": str(int(INJECTOR_PAUSE_SECONDS)),
         "PYTHONIOENCODING": "utf-8",
         "COLUMNS": "200",
     }
@@ -209,7 +249,7 @@ class KilledLoop:
             if child.poll() is not None:
                 raise AssertionError(
                     "the drill child died before reaching the window:\n"
-                    + (child.stderr.read() if child.stderr else "")
+                    + _drain(child.stderr, STDERR_DRAIN_SECONDS)
                 )
             time.sleep(0.05)
         else:  # pragma: no cover
@@ -219,20 +259,151 @@ class KilledLoop:
         child.wait(timeout=60)
 
 
-def _wait_for(child: subprocess.Popen[str], marker: str) -> str:
-    """Read the child's stdout up to a marker line, so rig output is not lost."""
+#: The stdout pump per drill child, so that two waits on one child do not
+#: take turns at the pipe's rows. Keyed weakly: the pump's thread holds the
+#: stream, not the child, and a finished drill must not be kept alive by the
+#: table that remembers it.
+_STDOUT_PUMPS: weakref.WeakKeyDictionary[subprocess.Popen[str], queue.Queue[str | None]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _pump_lines(stream: IO[str]) -> queue.Queue[str | None]:
+    """Read *stream* line by line on a thread and hand the lines over.
+
+    A stream a live child still holds open never ends, so reading it on the
+    calling thread is a way to hang. The pump is what makes the wait
+    interruptible: the caller waits on the queue with a deadline instead of
+    on the read. The queue's ``None`` is the stream's end.
+
+    The thread is a daemon, so a stream that is never closed does not keep
+    the interpreter alive: the run ends with the child, not with the pipe.
+    """
+    lines: queue.Queue[str | None] = queue.Queue()
+
+    def pump() -> None:
+        try:
+            while True:
+                line = stream.readline()
+                if not line:
+                    return
+                lines.put(line)
+        finally:
+            lines.put(None)
+
+    threading.Thread(target=pump, daemon=True).start()
+    return lines
+
+
+def _stdout_lines(child: subprocess.Popen[str]) -> queue.Queue[str | None]:
+    """The queue carrying the child's stdout, one per child.
+
+    **One pump per child, not one per call.** The helper is called more than
+    once on the same child — the rewrite drill waits for ``RIG`` and then for
+    ``FIRST`` — and two pumps on one pipe would take turns at the rows: the
+    first pump could swallow the ``FIRST`` line before the second wait asked
+    for it, and the second wait would then wait for a line that has already
+    been read. So the queue belongs to the child and is found again on the
+    next call.
+    """
+    pump = _STDOUT_PUMPS.get(child)
+    if pump is None:
+        assert child.stdout is not None
+        pump = _pump_lines(child.stdout)
+        _STDOUT_PUMPS[child] = pump
+    return pump
+
+
+def _drain(stream: IO[str] | None, timeout: float) -> str:
+    """Whatever *stream* has produced by now, without waiting for its end.
+
+    A child that is alive holds its stderr open, so reading it to the end
+    would hang on exactly the failure this helper reports. What is wanted is
+    what the child has *said*, so the read stops at the ceiling and the
+    text so far is the answer.
+    """
+    if stream is None:
+        return ""
+    lines = _pump_lines(stream)
+    collected: list[str] = []
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            line = lines.get(timeout=remaining)
+        except queue.Empty:
+            break
+        if line is None:
+            break
+        collected.append(line)
+    return "".join(collected)
+
+
+def _child_status(child: subprocess.Popen[str]) -> str:
+    """The child's exit status, said in words when it has not exited yet."""
+    status = child.poll()
+    if status is None:
+        return f"the child was still running (pid {child.pid})"
+    if status < 0:
+        return f"the child was killed by signal {-status}"
+    return f"the child exited with status {status}"
+
+
+def _wait_for(
+    child: subprocess.Popen[str],
+    marker: str,
+    timeout: float = WAIT_TIMEOUT_SECONDS,
+) -> str:
+    """Read the child's stdout up to a marker line, so rig output is not lost.
+
+    **The deadline is the point of this helper.** A blocking ``readline()``
+    waits for a line that a child which never prints one will never produce,
+    and the child that never prints one is the child that is *alive* — parked
+    inside the injector's pause, holding its stdout open. The parent then
+    waits for a line that is 600 seconds away, and the run costs ten minutes
+    to report nothing. So the read happens on a thread, the answer is
+    collected with a deadline, and a child that has not spoken by then is a
+    **failure that says what it saw** — the child's exit status and its
+    stderr — rather than a hang.
+
+    **What did not change.** The successful path is the one it always was:
+    the same line, the same assertion, and the same text when the marker
+    never appears and the child's stdout simply ends. Only the case where
+    the child's stream *stays open* is new, and it is the case that used to
+    hang.
+    """
     assert child.stdout is not None
     lines: list[str] = []
+    pending = _stdout_lines(child)
+    deadline = time.monotonic() + timeout
     while True:
-        line = child.stdout.readline()
-        if not line:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AssertionError(
+                "the child produced no "
+                + marker
+                + " line within "
+                + f"{timeout:g}s:\n"
+                + "\n".join(lines)
+                + "\nstatus: "
+                + _child_status(child)
+                + "\nstderr:\n"
+                + _drain(child.stderr, STDERR_DRAIN_SECONDS)
+            )
+        try:
+            line = pending.get(timeout=remaining)
+        except queue.Empty:
+            continue
+        if line is None:
             raise AssertionError(
                 "the child produced no "
                 + marker
                 + " line:\n"
                 + "\n".join(lines)
                 + "\nstderr:\n"
-                + (child.stderr.read() if child.stderr else "")
+                + _drain(child.stderr, STDERR_DRAIN_SECONDS)
             )
         if line.startswith(marker):
             return line
@@ -358,3 +529,99 @@ def test_a_kill_before_the_first_byte_leaves_nothing_behind(tmp_path: Path) -> N
     assert strays == [], "no temp file exists when the kill precedes its creation"
     published = list(loop_dir.glob("*/revisions/*/published.bin")) if loop_dir.exists() else []
     assert published == [], "nothing was published, because nothing was written"
+
+
+#: The child that never speaks. It prints a line that is *not* the marker, and
+#: then it holds its stdout open forever — the shape that used to hang the
+#: parent, because a live child keeps the pipe open and a blocking read waits
+#: for a line that will never come.
+SILENT_CHILD = """\
+import sys
+import time
+
+sys.stdout.write("READY BUT NOT THE MARKER\\n")
+sys.stdout.flush()
+time.sleep(3600)
+"""
+
+
+def test_the_wait_gives_up_on_a_child_that_never_prints_its_marker(tmp_path: Path) -> None:
+    """A child that never speaks is a failure with a reason, not a hang.
+
+    **What this watches.** The wait's deadline. The helper reads the child's
+    stdout with a deadline, so a child that is alive and silent is reported:
+    the helper says which marker it wanted, what the child had printed, what
+    the child's exit status was, and what the child wrote to its stderr.
+
+    **Why the call is made on a thread.** A witness that hangs is a witness
+    that cannot fail. If the deadline were removed, the call below would
+    block forever and the whole run would hang — which is the very failure
+    this witness exists to catch, reproduced in the witness instead of
+    caught by it. So the call runs on a thread, the witness waits for that
+    thread with a deadline of its own, and a thread that is still running
+    when that deadline passes is a **failure of the witness**: the helper
+    did not give up, and the tree says so rather than hanging.
+
+    **What the child's own state is.** The child is alive, holds its stdout
+    open, and writes a line of its own to stderr. The failure must say all
+    three: the child was still running, and the stderr is what the child
+    said.
+    """
+    script = tmp_path / "silent.py"
+    script.write_text(SILENT_CHILD, encoding="utf-8")
+    child = subprocess.Popen(
+        [sys.executable, str(script)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8", "COLUMNS": "200"},
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    outcome: list[BaseException | None] = []
+    try:
+        # A short deadline, so the witness costs seconds rather than minutes:
+        # the property under test is that the deadline is *honoured*, not
+        # what it happens to be.
+        deadline_seconds = 2.0
+        captured: list[BaseException | None] = []
+
+        def wait_for_the_marker() -> None:
+            try:
+                _wait_for(child, "MARKER", timeout=deadline_seconds)
+            except BaseException as error:
+                captured.append(error)
+            else:
+                captured.append(None)
+
+        waiter = threading.Thread(target=wait_for_the_marker, daemon=True)
+        waiter.start()
+        waiter.join(timeout=deadline_seconds + 30)
+
+        assert not waiter.is_alive(), (
+            "the wait is still blocked after its deadline of "
+            f"{deadline_seconds:g}s, so the helper has no deadline and a child "
+            "that never prints its marker hangs the parent instead of "
+            "failing it"
+        )
+        outcome = captured
+    finally:
+        if child.poll() is None:  # pragma: no cover - only on a failure
+            hard_kill(child)
+        child.wait(timeout=30)
+
+    assert outcome, "the wait returned without saying anything"
+    failure = outcome[0]
+    assert isinstance(failure, AssertionError), f"the wait did not fail; it returned {failure!r}"
+    message = str(failure)
+    assert "MARKER" in message, "the failure does not name the marker it waited for"
+    assert "within 2s" in message, (
+        f"the failure does not say the wait gave up on its deadline: {message!r}"
+    )
+    assert "READY BUT NOT THE MARKER" in message, (
+        f"the failure does not report what the child had printed: {message!r}"
+    )
+    assert "still running" in message, (
+        f"the failure does not report the child's exit status: {message!r}"
+    )
+    assert "stderr:" in message, f"the failure does not report the child's stderr: {message!r}"
