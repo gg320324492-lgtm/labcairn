@@ -792,10 +792,14 @@ listing beside it. The outsider walk records its claims through it.
 own claim — it is a record of the gate at its commit, not a description of
 the tree.
 
-**What no surface does is run the ledger's checks.** `evidence.store.advance`
-is the only path to a verified state, and no module under `src/labcairn/`
-calls it — the records the product writes stay `extracted` until a test
-advances them.
+**What the checks run through is one operation.** `evidence.store.advance` is
+the only path to a verified state, and **the layer's verify operation is the
+only product module that calls it** — the surfaces name the operation, never
+the writer. A record the product wrote becomes `verified_by_rule` when an
+operator asks for a check by name and that check passes, and the verdict is
+in the record's log. `test_threat_model.py` watches that the operation is the
+only caller; `tests/test_surface_status_reach.py` watches that the call
+asks for that status and that the surfaces import the operation.
 
 **Both evidence acts now have routes.** `POST /claims/extract` asks a model
 for one claim and records the answer as a `model_proposal` — never as a
@@ -1055,7 +1059,7 @@ drifts from the tree goes red.
 | C11 | The credential cannot be printed by accident | `test_threat_model.py` |
 | C12 | The declared outbound policy forbids sending document excerpts | `test_threat_model.py` |
 | C13 | Every path out of the machine is a provider request | `test_threat_model.py` — a scan of `src/labcairn/` for network-capable calls |
-| C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench consumes the event stream and can switch tasks; the API's two evidence acts have routes; no product operation runs the ledger's checks |
+| C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench consumes the event stream and can switch tasks; the API's two evidence acts have routes; the ledger's checks run through the layer's verify operation and through nothing else |
 | C15 | Every write in `src/labcairn/` is enumerated in §1.2 | `test_threat_model.py` — a scan of `src/labcairn/` for write primitives, compared with the lines §1.2 cites |
 | C16 | A revision event records what changed, where and who — and **the schema cannot say why** | `test_threat_model.py` — `test_the_revision_events_cannot_carry_a_reason`; and `tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made` |
 | C17 | The chain holds other people's words — comments, rewrites and judgements about them — and **the product does not take on their correctness** | `test_threat_model.py` — `test_the_threat_model_says_what_the_chain_holds` |

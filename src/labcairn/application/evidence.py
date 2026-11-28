@@ -653,9 +653,10 @@ def confirm_proposal(
     3. **the settlement is attested on the person's own record**, and the
        attestation's entry carries their id, their verdict and their note.
        **Not on the proposal's log** — the store's own design is that the
-       old row is *marked* and the new one carries the attestation, and a
-       product module writing the ledger's verification row is what the
-       threat model's C14 forbids.
+       old row is *marked* and the new one carries the attestation. This
+       operation writes no verification row: the ledger's verification row is
+       the verify operation's to write, and the threat model's C14 says the
+       checks run through that one operation and through nothing else.
 
     **The note is the verdict's, not the record's.** ``disputed`` requires
     one — a disagreement nobody states is an accusation with no content —

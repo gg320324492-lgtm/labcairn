@@ -1323,18 +1323,26 @@ def test_the_api_selects_a_task_and_the_document_says_so() -> None:
     assert "current_task" in model
 
 
-def test_no_product_operation_runs_the_ledger_checks() -> None:
-    """C14 — the product writes claims, but no surface verifies them.
+def test_only_the_layers_operation_runs_the_ledger_checks() -> None:
+    """C14 — a check runs through one operation, and no surface reaches past it.
 
     ``advance`` is the ledger's only path to a verified state, and
-    ``append_verification`` is the row it writes. If a product module reached
-    either, then a surface produced a verdict, and the threat model's
-    statement that the product's records stay ``extracted`` would be false.
+    ``append_verification`` is the row it writes. The product now has a
+    verify operation — the layer's ``verify_claim`` — and it is the **only**
+    product module that reaches for the writer. The surfaces name the
+    operation; none of them names the writer.
 
     **Both the import and the call are watched**, for the same reason the
     write check watched both when this claim said the opposite thing: a
     module one line away from the check is a module the document must not
     describe as not running it.
+
+    **The direction is inverted, and the record says why.** This claim said
+    that *no* product module reached the writer, and it was true while the
+    status was unreachable. It became false when the verify door was wired,
+    so the claim now says what is true: one module reaches the writer, it
+    is the layer's operation, and a surface that reached past it would be
+    named here too.
     """
     root = _repo_root() / "src" / "labcairn"
     watched = {"advance", "append_verification"}
@@ -1357,9 +1365,13 @@ def test_no_product_operation_runs_the_ledger_checks() -> None:
                 if name in watched:
                     line = getattr(node, "lineno", 0)
                     users.append(f"{relative}:{line}")
-    assert not users, (
-        "these product modules reach for the ledger's verification write, so a "
-        "surface now runs a check:\n  " + "\n  ".join(users)
+    modules = sorted({user.split(":", 1)[0] for user in users})
+    assert modules == ["application/evidence.py"], (
+        "the ledger's verification write is reached by "
+        + (", ".join(modules) if modules else "nothing")
+        + "; the layer's verify operation is the one product module that may "
+        "reach it, and a surface that reached past the layer would be here too:\n  "
+        + "\n  ".join(users)
     )
 
 
