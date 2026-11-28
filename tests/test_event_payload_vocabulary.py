@@ -28,13 +28,13 @@ from __future__ import annotations
 import ast
 import json
 import re
-import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import get_args
 
 import pytest
+from deadline_support import bounded_run
 from pydantic import ValidationError
 from store_support import StoreEnv, make_operation, make_run, make_stage, make_task
 from store_support import env as _shared_env
@@ -127,7 +127,7 @@ def _write_a_reconciled_event(env: StoreEnv) -> tuple[str, dict[str, object]]:
 
 
 def _run_in_fresh_interpreter(program: str, *arguments: str) -> dict[str, object]:
-    completed = subprocess.run(
+    completed = bounded_run(
         [sys.executable, "-c", program, *arguments],
         capture_output=True,
         text=True,

@@ -38,12 +38,17 @@ import argparse
 import hashlib
 import json
 import re
-import subprocess
 import sys
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, TypeGuard
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_git
 
 #: Where the records live, relative to the repository root.
 RELEASES_SUBDIR = Path("docs") / "releases"
@@ -66,7 +71,7 @@ class ReleaseRecordError(Exception):
 
 def _git(*arguments: str) -> str:
     """Run git in the current repository and return its stripped stdout."""
-    result = subprocess.run(
+    result = bounded_git(
         ["git", *arguments],
         capture_output=True,
         text=True,
@@ -83,7 +88,7 @@ def _git(*arguments: str) -> str:
 
 def _git_succeeds(*arguments: str) -> bool:
     """Whether git accepts the arguments -- for existence probes."""
-    result = subprocess.run(
+    result = bounded_git(
         ["git", *arguments],
         capture_output=True,
         text=True,

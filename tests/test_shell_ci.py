@@ -37,12 +37,12 @@ from __future__ import annotations
 
 import fnmatch
 import re
-import subprocess
 from pathlib import Path
 from typing import Any, Final
 
 import pytest
 import yaml
+from deadline_support import bounded_git
 from workflow_job_names import UnrenderableJobNameError, load_workflows, rendered_job_names
 
 #: The workflow the shell's Node witnesses are supposed to live in.
@@ -582,7 +582,7 @@ def test_the_shell_case_counts_are_at_least_the_recorded_floors(repo_root: Path)
 
 def _revision_is_in(repo_root: Path, revision: str) -> bool:
     """Whether `revision` is a commit this checkout can show."""
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "-C", str(repo_root), "cat-file", "-e", f"{revision}^{{commit}}"],
         capture_output=True,
         check=False,
@@ -592,7 +592,7 @@ def _revision_is_in(repo_root: Path, revision: str) -> bool:
 
 def _shell_test_text_at(repo_root: Path, revision: str, name: str) -> str | None:
     """One shell witness file as it stood at `revision`, or None if it is not there."""
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "-C", str(repo_root), "show", f"{revision}:shell/test/{name}"],
         capture_output=True,
         check=False,

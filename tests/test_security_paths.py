@@ -26,11 +26,11 @@ test asserts they are the same file.
 from __future__ import annotations
 
 import os
-import subprocess
 import unicodedata
 from pathlib import Path
 
 import pytest
+from deadline_support import bounded_fast
 
 from labcairn.security.paths import (
     AllowedRoot,
@@ -55,7 +55,7 @@ def make_junction(link: Path, target: Path) -> None:
     ``Path.is_symlink()`` does report. A junction is the thing that slips past
     that check, so it is the thing these tests must use.
     """
-    proc = subprocess.run(
+    proc = bounded_fast(
         ["cmd", "/c", "mklink", "/J", str(link), str(target)],
         capture_output=True,
         check=False,

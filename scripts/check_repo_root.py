@@ -28,9 +28,14 @@ what it expected, because a guard that fails without saying why gets ignored.
 from __future__ import annotations
 
 import contextlib
-import subprocess
 import sys
 from pathlib import Path
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_git
 
 #: The package directory that must sit directly under the repository root.
 MARKER = Path("src") / "labcairn" / "__init__.py"
@@ -68,7 +73,7 @@ GIT_OUTPUT_ENCODING = "utf-8"
 def _repo_root(start: Path) -> tuple[Path | None, str]:
     """Return (root, diagnostic). ``root`` is None when git could not answer."""
     try:
-        completed = subprocess.run(
+        completed = bounded_git(
             ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,

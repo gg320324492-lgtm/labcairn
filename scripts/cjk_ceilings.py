@@ -46,10 +46,15 @@ import argparse
 import hashlib
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Final
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_git
 
 #: A maximal run of Han characters. Punctuation is deliberately outside the run:
 #: a sentence quoted with 「」 still measures by the words it carries.
@@ -116,9 +121,7 @@ def tracked_files(root: Path) -> list[str]:
     A listing over the working tree would watch files that are not committed, and
     miss the thing the promise is about.
     """
-    proc = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True
-    )
+    proc = bounded_git(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True)
     return sorted(p for p in proc.stdout.decode("utf-8").split("\0") if p)
 
 

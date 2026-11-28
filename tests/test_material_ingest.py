@@ -25,6 +25,7 @@ from typing import Any
 
 import openpyxl
 import pytest
+from deadline_support import bounded_run
 from sqlalchemy.orm import Session
 
 from conftest import migrated_database_from
@@ -564,7 +565,6 @@ def test_an_array_formula_is_recorded_as_its_formula_not_a_repr() -> None:
 
 def test_extraction_is_the_same_under_hash_randomisation() -> None:
     """A repr with a memory address would make the hash process-dependent."""
-    import subprocess
     import sys
 
     data = _xlsx(cells={"A1": "trial", "B2": 3.5}).hex()
@@ -578,7 +578,7 @@ def test_extraction_is_the_same_under_hash_randomisation() -> None:
     )
     digests = set()
     for seed in ("0", "1", "99999"):
-        out = subprocess.run(
+        out = bounded_run(
             [sys.executable, "-c", script],
             capture_output=True,
             encoding="utf-8",

@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import os
 import pathlib
-import subprocess
 
 import pytest
+from deadline_support import bounded_fast
 
 from labcairn.core.ids import TaskId, new_id
 from labcairn.security.capabilities import CapabilityId
@@ -79,7 +79,7 @@ def workspace_with_junction(tmp_path: pathlib.Path) -> tuple[Workspace, str]:
     (sources / "private").mkdir(parents=True)
     (sources / "private" / "secret.md").write_text("# SECRET" + NL, encoding="utf-8")
     (sources / "public" / "ok.md").write_text("# fine" + NL, encoding="utf-8")
-    made = subprocess.run(
+    made = bounded_fast(
         ["cmd", "/c", "mklink", "/J", str(sources / "public" / "hop"), str(sources / "private")],
         capture_output=True,
         check=False,

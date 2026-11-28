@@ -51,6 +51,7 @@ from typing import Any, Final
 
 import pytest
 import yaml
+from deadline_support import bounded_git, bounded_run
 from evaluation import manifest
 from workflow_job_names import MATRIX_NON_AXIS_KEYS, load_workflows, rendered_job_names
 
@@ -368,7 +369,7 @@ def _ancestor_of_head(repo_root: Path, revision: str) -> tuple[bool, str]:
     a tree that was never part of this one -- so the caller is told which
     happened instead of being handed a bare "no".
     """
-    proc = subprocess.run(
+    proc = bounded_git(
         [
             "git",
             "-C",
@@ -863,7 +864,7 @@ def _changed_paths(repo_root: Path, since: str) -> list[str]:
     and they are the things a rebalance changes.
     """
     excluded = ("--", "src/", "tests/")
-    proc = subprocess.run(
+    proc = bounded_git(
         [
             "git",
             "-C",
@@ -951,7 +952,7 @@ def _a_repository_with_a_side_branch(tmp_path: Path) -> tuple[Path, str, str]:
     )
 
     def git(*arguments: str) -> str:
-        proc = subprocess.run(
+        proc = bounded_git(
             ["git", "-C", str(repo), *arguments],
             capture_output=True,
             text=True,
@@ -1935,7 +1936,7 @@ def _check_reading_record(repo_root: Path, reading_path: Path) -> None:
     assert isinstance(revision, str) and FULL_SHA.fullmatch(revision), (
         f"read_at_revision is {revision!r}, which is not a full 40-character revision"
     )
-    proc = subprocess.run(
+    proc = bounded_git(
         ["git", "-C", str(repo_root), "cat-file", "-t", revision],
         capture_output=True,
         text=True,
@@ -2150,7 +2151,7 @@ def test_every_required_check_the_record_lists_is_a_name_a_job_reports(
         "the rename was the mistake."
     )
 
-    proc = subprocess.run(
+    proc = bounded_git(
         ["git", "-C", str(repo_root), "cat-file", "-t", anchor],
         capture_output=True,
         text=True,
@@ -2485,6 +2486,13 @@ def _this_repo_root() -> Path:
 #: The two scripts a re-measurement is made of.
 REMEASURE_SCRIPTS: Final[tuple[str, ...]] = ("remeasure_shards.py", "make_ci_shards.py")
 
+#: The tree's shared deadline helper, which the tools above wait through.
+#:
+#: It is copied with them, because the tool reaches it through the
+#: repository's ``tests/`` directory and a copy of the tool without it
+#: cannot run at all.
+DEADLINE_HELPER_NAME: Final[str] = "deadline_support.py"
+
 #: The commit the synthetic logs were "measured at". The tool writes it
 #: through; whether the checkout contains it is not part of this contract.
 MEASURED_AT: Final[str] = "0123456789abcdef0123456789abcdef01234567"
@@ -2535,12 +2543,24 @@ def _write_mini_checkout(repo_root: Path, destination: Path) -> Path:
 
     The tools are copied **byte for byte**, so a mutation applied to the
     checkout's copy is the version the witness runs.
+
+    **The tools' shared helper is copied with them.** The re-measurement
+    tool waits on the commands it runs, and it waits on them through
+    ``tests/deadline_support.py`` — the tree's one place where a wait's
+    deadline is stated. The tool reaches it through the repository's
+    ``tests/`` directory, which is the first directory above it, so the
+    helper has to travel with the tool or the copy cannot run at all. That
+    is why the fixture copies it: a copy of a tool that cannot run is not
+    a fixture, it is a broken one.
     """
     tools = destination / ".github"
     tools.mkdir(parents=True)
     (destination / "tests").mkdir()
     for script in REMEASURE_SCRIPTS:
         (tools / script).write_bytes((repo_root / ".github" / script).read_bytes())
+    (destination / "tests" / DEADLINE_HELPER_NAME).write_bytes(
+        (repo_root / "tests" / DEADLINE_HELPER_NAME).read_bytes()
+    )
     for name, count in MINI_TEST_FILES.items():
         source = "".join(
             f"def test_{index}() -> None:\n    assert True\n\n" for index in range(count)
@@ -2585,7 +2605,7 @@ def _run_remeasure(
     ]
     if measured_at is not None:
         command.extend(["--measured-at", measured_at])
-    return subprocess.run(command, capture_output=True, text=True, check=False)
+    return bounded_run(command, capture_output=True, text=True, check=False)
 
 
 def test_the_remeasurement_reads_the_numbers_out_of_the_logs(
@@ -3070,7 +3090,7 @@ def _derive_with_ruler(
     repo_root: Path, ruler: Callable[[str], list[dict[str, Any]]]
 ) -> dict[str, int]:
     """The candidate derivation, with the ruler supplied: the seam the control below blinds."""
-    tracked = subprocess.run(
+    tracked = bounded_git(
         ["git", "ls-files", "-z"],
         cwd=repo_root,
         capture_output=True,
@@ -3343,7 +3363,7 @@ def _figures_at_revision(
     None means unreadable — no such revision, no such file at it, or unparseable — which the
     caller reports as a failed claim rather than treating as an exemption.
     """
-    shown = subprocess.run(
+    shown = bounded_git(
         ["git", "-C", str(repo_root), "show", f"{revision}:{workflow_relative.as_posix()}"],
         capture_output=True,
         check=False,
@@ -4059,7 +4079,7 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
     # the first run of this witness reported the file "exists on disk, but not in" a revision
     # where it plainly does. A witness that cannot read the history it asserts about has to
     # fail, and it did — but the fix is the pathspec, not the claim.
-    listing = subprocess.run(
+    listing = bounded_git(
         [
             "git",
             "-C",
@@ -4085,7 +4105,7 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
     thirteen_revisions: list[str] = []
     six_with_lint: list[str] = []
     for revision in revisions:
-        shown = subprocess.run(
+        shown = bounded_git(
             ["git", "-C", str(repo_root), "show", f"{revision}:{WORKFLOW_FILE.as_posix()}"],
             capture_output=True,
             check=False,
@@ -4118,7 +4138,7 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
     # assertions below check the history the other way: the only revision
     # that pairs six-or-more shards with `lint` is the current head, and every
     # earlier revision rendered a different total.
-    head = subprocess.run(
+    head = bounded_git(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
@@ -4137,7 +4157,7 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
     # whose merge-base with HEAD predates the pairing's own first appearance
     # on the reachable line — a side branch that invented the pairing before
     # the dated move. That would make the records' date a guess.
-    reachable = subprocess.run(
+    reachable = bounded_git(
         [
             "git",
             "-C",
@@ -4164,7 +4184,7 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
     )
     first_paired = min(paired_reachable)
     for short in six_with_lint:
-        merged = subprocess.run(
+        merged = bounded_git(
             ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", short, head_full],
             capture_output=True,
             text=True,
@@ -4172,7 +4192,7 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         )
         if merged.returncode == 0:
             continue
-        base = subprocess.run(
+        base = bounded_git(
             ["git", "-C", str(repo_root), "merge-base", short, head_full],
             capture_output=True,
             text=True,
@@ -4180,7 +4200,7 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         )
         assert base.returncode == 0, base.stderr
         base_sha = base.stdout.strip()
-        base_paired = subprocess.run(
+        base_paired = bounded_git(
             [
                 "git",
                 "-C",
@@ -4351,7 +4371,7 @@ def _section_paragraphs(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
 
 def _commit_exists(repo_root: Path, revision: str) -> bool:
     return (
-        subprocess.run(
+        bounded_git(
             ["git", "-C", str(repo_root), "cat-file", "-e", f"{revision}^{{commit}}"],
             capture_output=True,
             check=False,
@@ -5064,15 +5084,15 @@ def _a_tree_with_one_more_shard(tmp_path: Path, repo_root: Path) -> tuple[Path, 
         "-c",
         "user.email=witness@example.invalid",
     ]
-    subprocess.run(["git", "init", "-q"], cwd=tree, check=True, capture_output=True)
-    subprocess.run([*git, "add", "-A"], cwd=tree, check=True, capture_output=True)
-    subprocess.run(
+    bounded_git(["git", "init", "-q"], cwd=tree, check=True, capture_output=True)
+    bounded_run([*git, "add", "-A"], cwd=tree, check=True, capture_output=True)
+    bounded_run(
         [*git, "commit", "-q", "-m", "a tree with a seventh shard"],
         cwd=tree,
         check=True,
         capture_output=True,
     )
-    revision = subprocess.run(
+    revision = bounded_git(
         ["git", "rev-parse", "HEAD"],
         cwd=tree,
         check=True,

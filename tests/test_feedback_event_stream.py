@@ -37,11 +37,11 @@ product's chain.
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from typing import Final
 
 import pytest
+from deadline_support import bounded_run
 from pydantic import ValidationError
 from store_support import StoreEnv, make_task
 from store_support import env as _shared_env
@@ -598,7 +598,7 @@ def test_a_process_that_only_reads_decodes_the_chain_events(env: StoreEnv) -> No
     # Release the file before another interpreter opens it.
     env.engine.dispose()
 
-    completed = subprocess.run(
+    completed = bounded_run(
         [sys.executable, "-c", _READER, str(env.db_path), str(task.task_id)],
         capture_output=True,
         text=True,

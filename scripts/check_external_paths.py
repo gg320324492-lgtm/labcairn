@@ -62,6 +62,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
 
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_git
+
 #: The root every external path in this repository lives under.
 ROOT_MARKER: Final = "labcairn-local"
 
@@ -283,7 +289,7 @@ def tracked_files(root: Path) -> list[str]:
     repository *says*, which is what is tracked.
     """
     try:
-        finished = subprocess.run(
+        finished = bounded_git(
             ["git", "-C", str(root), "ls-files", "-z"],
             capture_output=True,
             check=True,

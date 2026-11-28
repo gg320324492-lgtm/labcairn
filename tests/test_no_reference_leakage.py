@@ -88,6 +88,7 @@ from typing import Any, Final
 
 import pytest
 import yaml
+from deadline_support import bounded_run
 
 pytestmark = pytest.mark.reference_exclusion
 
@@ -1548,7 +1549,7 @@ MATERIAL_FREE_RECORDS: Final[tuple[str, ...]] = (
 
 def _measured_ceilings(repo_root: Path) -> dict[str, int]:
     """Ask the script. The measurement lives in one place, not in the test."""
-    proc = subprocess.run(
+    proc = bounded_run(
         [sys.executable, "-I", str(repo_root / "scripts" / "cjk_ceilings.py"), "--json"],
         capture_output=True,
         check=True,

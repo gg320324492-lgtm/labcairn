@@ -44,11 +44,11 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-import subprocess
 from pathlib import Path
 from typing import Any, Final
 
 import pytest
+from deadline_support import bounded_git
 from evaluation.comparison import ComparisonBasis, assess, load_baseline
 from evaluation.corpus import CORPUS_FIXTURES
 from evaluation.manifest import ALL_CLASS_KEYS
@@ -112,7 +112,7 @@ def _run_side_basis() -> ComparisonBasis:
 
 def _git(*arguments: str) -> bytes:
     """The raw bytes a git command prints, from this repository."""
-    completed = subprocess.run(
+    completed = bounded_git(
         ["git", *arguments],
         cwd=str(_ROOT),
         capture_output=True,

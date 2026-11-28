@@ -35,13 +35,13 @@ import datetime as dt
 import hashlib
 import inspect
 import os
-import subprocess
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
+from deadline_support import bounded_fast
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
 from store_support import StoreEnv
@@ -516,7 +516,7 @@ def _link_out_of_the_workspace(link: Path, target: Path) -> None:
     only thing that sees through either.
     """
     if os.name == "nt":
-        proc = subprocess.run(
+        proc = bounded_fast(
             ["cmd", "/c", "mklink", "/J", str(link), str(target)],
             capture_output=True,
             check=False,

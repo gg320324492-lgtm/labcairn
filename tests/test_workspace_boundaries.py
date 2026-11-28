@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from deadline_support import bounded_fast
 from pydantic import ValidationError
 
 from labcairn.core.ids import TaskId, new_id
@@ -476,12 +477,11 @@ def test_a_junction_from_source_into_output_is_refused(
     """The root-kind check follows the link, so a planted link gains nothing."""
     if os.name != "nt":
         pytest.skip("junction creation is Windows-specific")
-    import subprocess
 
     output = workspace.output_root.path
     (output / "planted.txt").write_text("planted", encoding="utf-8")
     link = workspace.root_for(source_id).path / "escape"
-    proc = subprocess.run(
+    proc = bounded_fast(
         ["cmd", "/c", "mklink", "/J", str(link), str(output)],
         capture_output=True,
         check=False,
@@ -583,11 +583,10 @@ def test_writing_over_a_source_file_through_a_junction_is_refused(
     """The one that matters most: an output write must not reach a source file."""
     if os.name != "nt":
         pytest.skip("junction creation is Windows-specific")
-    import subprocess
 
     source = workspace.root_for(source_id).path / "papers"
     planted = workspace.output_root.path / "hop"
-    proc = subprocess.run(
+    proc = bounded_fast(
         ["cmd", "/c", "mklink", "/J", str(planted), str(source)],
         capture_output=True,
         check=False,

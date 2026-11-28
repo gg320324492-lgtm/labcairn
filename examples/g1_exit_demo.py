@@ -19,7 +19,6 @@ an assertion failure rather than a printed warning, so this doubles as a test.
 
 from __future__ import annotations
 
-import subprocess
 import sys
 import tempfile
 from datetime import UTC, datetime, timedelta
@@ -62,6 +61,12 @@ from labcairn.security.paths import PathRefusedError
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.workspace import Workspace
 from labcairn.workspace.roots import WorkspaceError
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_fast
 
 FROZEN_NOW = datetime(2026, 1, 1, tzinfo=UTC)
 PASSED: list[str] = []
@@ -287,7 +292,7 @@ def refuse_traversal_and_junction(workspace: Workspace, tmp: Path, sources: Path
 
     hop = sources / "hop"
     try:
-        link = subprocess.run(
+        link = bounded_fast(
             ["cmd", "/c", "mklink", "/J", str(hop), str(outside)], capture_output=True
         )
     except FileNotFoundError:

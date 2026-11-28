@@ -12,12 +12,12 @@ every adapter in this package is held to.
 from __future__ import annotations
 
 import datetime as dt
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+from deadline_support import bounded_run
 
 from labcairn.material import adapter_for
 from labcairn.material.ingest import ingest_bytes
@@ -85,7 +85,7 @@ def test_extraction_is_the_same_under_hash_randomisation(path: Path) -> None:
     )
     digests = set()
     for seed in ("0", "1", "524287"):
-        out = subprocess.run(
+        out = bounded_run(
             [sys.executable, "-c", script],
             capture_output=True,
             encoding="utf-8",

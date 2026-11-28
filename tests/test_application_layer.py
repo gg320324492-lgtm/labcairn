@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from deadline_support import bounded_run
 from feedback_chain_fixtures import ChainEnv, a_comment, build_chain
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -621,7 +622,6 @@ def test_the_layer_and_the_mentor_line_import_in_any_order(repo_root: Path) -> N
     the one that names the cycle: *"cannot import name ... from partially
     initialized module"*.
     """
-    import subprocess
     import sys
 
     orders = (
@@ -634,7 +634,7 @@ def test_the_layer_and_the_mentor_line_import_in_any_order(repo_root: Path) -> N
     )
     for order in orders:
         program = "; ".join(f"import {name}" for name in order)
-        finished = subprocess.run(
+        finished = bounded_run(
             [sys.executable, "-c", program],
             capture_output=True,
             text=True,
@@ -683,7 +683,6 @@ def test_every_first_party_module_can_be_imported_first(repo_root: Path) -> None
     would prove nothing about the tree under test, which is the trap a worktree
     walks into when its `PYTHONPATH` is not set.
     """
-    import subprocess
     import sys
     from concurrent.futures import ThreadPoolExecutor
 
@@ -706,7 +705,7 @@ def test_every_first_party_module_can_be_imported_first(repo_root: Path) -> None
             f"importlib.import_module({name!r});"
             f"print(getattr(sys.modules[{name!r}], '__file__', ''))"
         )
-        finished = subprocess.run(
+        finished = bounded_run(
             [sys.executable, "-c", program],
             capture_output=True,
             text=True,

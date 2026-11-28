@@ -54,12 +54,12 @@ from __future__ import annotations
 
 import ast
 import re
-import subprocess
 from pathlib import Path
 from typing import Final
 from urllib.parse import unquote
 
 import pytest
+from deadline_support import bounded_git
 
 REPO = Path(__file__).resolve().parents[1]
 PLAN = REPO / "docs" / "PHASE_1_WORKORDERS.md"
@@ -362,7 +362,7 @@ def _merge_commits() -> list[tuple[str, str]] | None:
     has main's remote-tracking ref and not always main itself.
     """
     for ref in ("origin/main", "main"):
-        result = subprocess.run(
+        result = bounded_git(
             ["git", "log", "--merges", "--first-parent", ref, "--format=%H%x00%s"],
             cwd=REPO,
             capture_output=True,
@@ -398,7 +398,7 @@ def _merge_touched_code(sha: str) -> bool:
     *plans* a NOT STARTED work order would otherwise turn this row red for
     doing exactly the right thing.
     """
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "diff", "--name-only", f"{sha}^1", sha],
         cwd=REPO,
         capture_output=True,
@@ -411,7 +411,7 @@ def _merge_touched_code(sha: str) -> bool:
 
 def _commit_exists(sha: str) -> bool:
     return (
-        subprocess.run(
+        bounded_git(
             ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
             cwd=REPO,
             capture_output=True,
@@ -808,7 +808,7 @@ ISSUE_REGION_RECORDS = (PLAN, REPO / "docs" / "ROADMAP.md")
 
 
 def _tracked_files() -> set[str]:
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "ls-files"],
         cwd=REPO,
         capture_output=True,
@@ -818,7 +818,7 @@ def _tracked_files() -> set[str]:
 
 
 def _existed_at(revision: str, path: str) -> bool:
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "ls-tree", "--name-only", revision, "--", path],
         cwd=REPO,
         capture_output=True,
@@ -1058,7 +1058,7 @@ _OPEN_NEAR_PR: tuple[re.Pattern[str], ...] = (
 
 
 def _is_ancestor(token: str) -> bool:
-    full = subprocess.run(
+    full = bounded_git(
         ["git", "rev-parse", "--verify", f"{token}^{{commit}}"],
         cwd=REPO,
         capture_output=True,
@@ -1067,7 +1067,7 @@ def _is_ancestor(token: str) -> bool:
     if full.returncode:
         return False
     return (
-        subprocess.run(
+        bounded_git(
             ["git", "merge-base", "--is-ancestor", full.stdout.decode().strip(), "HEAD"],
             cwd=REPO,
             capture_output=True,
@@ -1084,7 +1084,7 @@ def _merge_commit_for(pr: int) -> str | None:
     merge subjects are where the branch convention lives. A body match is how an earlier
     attempt in this file appeared to fail on changes that had nothing to do with the claim.
     """
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "log", "--all", "--format=%H\x1f%s", "--grep", f"#{pr}"],
         cwd=REPO,
         capture_output=True,
@@ -1187,7 +1187,7 @@ def _release_note_problems(text: str) -> list[str]:
     covered, misplaced = _marked_lines(text)
     tags = [
         t
-        for t in subprocess.run(["git", "tag"], cwd=REPO, capture_output=True, check=False)
+        for t in bounded_git(["git", "tag"], cwd=REPO, capture_output=True, check=False)
         .stdout.decode()
         .split("\n")
         if t.strip()
@@ -1400,7 +1400,7 @@ _DOSSIER_ADR = re.compile(r"ADR-(\d{4})")
 
 
 def _revision_exists(revision: str) -> bool:
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "cat-file", "-e", f"{revision}^{{commit}}"],
         cwd=REPO,
         capture_output=True,
@@ -1411,7 +1411,7 @@ def _revision_exists(revision: str) -> bool:
 
 def _text_at(revision: str, path: str) -> str | None:
     """The file's text at `revision`, or None if that tree does not carry it."""
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "show", f"{revision}:{path}"],
         cwd=REPO,
         capture_output=True,
@@ -1458,7 +1458,7 @@ def _dossier_exceptions(revision: str, text: str) -> list[str]:
         body = _text_at(revision, f"tests/{file_name}")
         if body is None or f"def {function}(" not in body:
             exceptions.append(f"tests/{file_name}::{function}")
-    adr_listing = subprocess.run(
+    adr_listing = bounded_git(
         ["git", "ls-tree", "--name-only", revision, "--", "docs/adr/"],
         cwd=REPO,
         capture_output=True,
@@ -1686,7 +1686,7 @@ def _fenced_lines(text: str) -> set[int]:
 def _tracked_markdown() -> list[Path]:
     """Every tracked Markdown file. Tracked, not merely present: a scratch file in the
     checkout is not a record, and it is not what a reader opens."""
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "ls-files", "-z", "*.md"],
         cwd=REPO,
         capture_output=True,

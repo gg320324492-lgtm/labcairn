@@ -95,6 +95,7 @@ from typing import Any, Final
 
 import pytest
 import yaml
+from deadline_support import bounded_run
 
 #: The directory the workflows live in.
 WORKFLOW_DIR: Final[Path] = Path(".github") / "workflows"
@@ -1509,7 +1510,7 @@ def test_the_delivery_checklist_runs_as_a_command_and_reads_the_record() -> None
     # arrives as replacement characters: a reader that then asserted on "§2.5.1"
     # would go red over the encoding rather than over the record. The project's
     # other subprocess cases pin PYTHONIOENCODING for the same reason.
-    completed = subprocess.run(
+    completed = bounded_run(
         [sys.executable, str(_lgpl_script_path())],
         capture_output=True,
         text=True,
@@ -2310,7 +2311,7 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
     # (d2) The command's own shape: the refusal that names the argument count. A CLI that
     # accepted one directory, or four, would run the audit over the wrong pair of archives
     # and report a comparison nobody asked for.
-    one_directory = subprocess.run(
+    one_directory = bounded_run(
         [sys.executable, str(_lgpl_script_path()), "--audit-extracts", str(tmp_path)],
         capture_output=True,
         text=True,
@@ -2324,7 +2325,7 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
     assert "takes two directories" in one_directory.stderr, (
         f"the refusal did not say what it takes: {one_directory.stderr}"
     )
-    four_directories = subprocess.run(
+    four_directories = bounded_run(
         [
             sys.executable,
             str(_lgpl_script_path()),
@@ -2353,7 +2354,7 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
             "re-counted against the upstream bytes here; arms (a)-(d) ran regardless"
         )
     script = _lgpl_script_path()
-    run = subprocess.run(
+    run = bounded_run(
         [
             sys.executable,
             str(script),
@@ -2390,7 +2391,7 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
     assert doctored != notice_text, "the control did not change the notice document's byte count"
     doctored_notice = tmp_path / "NOTICE-doctored"
     doctored_notice.write_text(doctored, encoding="utf-8")
-    red = subprocess.run(
+    red = bounded_run(
         [
             sys.executable,
             str(script),
@@ -2510,7 +2511,7 @@ def _run_replaceability_tool(
     if notice is not None:
         command += ["--notice", str(notice)]
     command += list(extra)
-    return subprocess.run(
+    return bounded_run(
         command,
         capture_output=True,
         text=True,

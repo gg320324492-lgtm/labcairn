@@ -66,12 +66,17 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 from collections.abc import Iterator, Sequence
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_git
 
 #: Where the records live, relative to the repository root.
 REGISTRATIONS_SUBDIR = Path("docs") / "pilot" / "registrations"
@@ -217,7 +222,7 @@ class RegistrationError(Exception):
 
 def _git(*arguments: str) -> str:
     """Run git in the current repository and return its stripped stdout."""
-    result = subprocess.run(
+    result = bounded_git(
         ["git", *arguments],
         capture_output=True,
         text=True,
@@ -245,7 +250,7 @@ def repository_root() -> Path:
     again for every check costs more than it buys.
     """
     here = Path(__file__).resolve().parent.parent
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,

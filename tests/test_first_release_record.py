@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from deadline_support import bounded_git, bounded_run
 
 #: Where the first release record lives, relative to the repository root.
 RECORD_RELATIVE = Path("docs") / "releases" / "v0.1.0.json"
@@ -68,7 +69,7 @@ def _nonempty(value: object) -> bool:
 
 def _git(repo_root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     """Run git in the repository and return the completed process."""
-    return subprocess.run(
+    return bounded_git(
         ["git", *arguments],
         cwd=repo_root,
         capture_output=True,
@@ -338,7 +339,7 @@ def test_the_tools_check_subcommand_accepts_the_record(repo_root: Path, tmp_path
     copy = tmp_path / source.name
     copy.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
-    result = subprocess.run(
+    result = bounded_run(
         [sys.executable, str(RELEASE_SCRIPT), "check", str(copy)],
         cwd=repo_root,
         capture_output=True,

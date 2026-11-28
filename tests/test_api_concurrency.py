@@ -52,7 +52,7 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -187,6 +187,36 @@ O6_REQUEST_TIMEOUT: float = 8.0
 
 #: How many rounds of one write beside seven reads the write test makes.
 WRITE_ROUNDS: int = 10
+
+#: How long a write and the read beside it may take to answer.
+#:
+#: **The deadline is the point.** The two futures are waited on with
+#: ``Future.result()``, which has no bound of its own: a request that never
+#: completes leaves the pool's worker holding the connection and the test
+#: blocked forever, at zero CPU, with no failure to report. The bound is
+#: generous because these are real SQLite writes against a real service on a
+#: loaded runner — the request's own timeout is 8 seconds — and finite because
+#: the point of the deadline is that it is.
+WRITE_TIMEOUT_SECONDS: float = 60.0
+
+
+def _result_within(future: Future[Any], timeout: float) -> Any:
+    """The future's answer, or a failure that says it never came.
+
+    **It says what it saw.** A future that does not answer has no output to
+    report, so what it reports is the fact that it did not answer, and the
+    bound it was given. The worker is still running at that moment, so the
+    message says so: a request that was *waiting* is a different fault from
+    a request that *failed*, and only the first is what this deadline is for.
+    """
+    try:
+        return future.result(timeout=timeout)
+    except TimeoutError as expired:
+        raise AssertionError(
+            f"the request did not answer within {timeout:g}s: it was still "
+            "waiting. A request that never answers is the failure this "
+            "deadline exists to turn into a failure that says so."
+        ) from expired
 
 
 # --------------------------------------------------------------------------- #
@@ -737,8 +767,8 @@ def test_a_request_s_end_cannot_discard_another_request_s_write(
                     headers=headers,
                 )
                 read = pool.submit(client.get, "/task")
-                approval = written.result()
-                task = read.result()
+                approval = _result_within(written, WRITE_TIMEOUT_SECONDS)
+                task = _result_within(read, WRITE_TIMEOUT_SECONDS)
             assert approval.status_code == 201, (
                 f"the write was refused: {approval.status_code} {approval.text[:200]}"
             )

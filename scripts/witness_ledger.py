@@ -18,9 +18,14 @@ same question in any checkout rather than in the one it was written in.
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from pathlib import Path
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_git
 
 REPO = Path(sys.argv[3]) if len(sys.argv) > 3 else Path(__file__).resolve().parent.parent
 BEFORE, AFTER = sys.argv[1], sys.argv[2]
@@ -43,7 +48,7 @@ def functions(ref: str) -> set[tuple[str, str]]:
     the copy in one file leaves the other's identical name in place, so
     "LOST -- none" would be printed over a tree that lost a witness.
     """
-    listing = subprocess.run(
+    listing = bounded_git(
         ["git", "ls-tree", "-r", "--name-only", ref, "tests/"],
         cwd=REPO,
         capture_output=True,
@@ -55,7 +60,7 @@ def functions(ref: str) -> set[tuple[str, str]]:
     for path in listing.stdout.split():
         if not path.endswith(".py"):
             continue
-        blob = subprocess.run(
+        blob = bounded_git(
             ["git", "show", f"{ref}:{path}"],
             cwd=REPO,
             capture_output=True,

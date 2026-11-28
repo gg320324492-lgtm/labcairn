@@ -55,6 +55,7 @@ from typing import Any, Final, get_args
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from deadline_support import bounded_run
 from workbench_serve_support import run_cli, start_served_workbench
 
 from labcairn.application.issues import PILOT_ISSUE_CATEGORIES, PILOT_ISSUE_SEVERITIES
@@ -1341,7 +1342,7 @@ def _run_collector(
     its exit status is part of what a caller's script reads, so the
     witness watches the process boundary rather than a call.
     """
-    return subprocess.run(
+    return bounded_run(
         [
             sys.executable,
             str(COLLECTOR),

@@ -208,11 +208,11 @@ def main() -> int:
     check("the child is still running before the kill", child.poll() is None)
 
     if os.name == "nt":
-        killed = subprocess.run(
+        killed = bounded_fast(
             ["taskkill", "/F", "/PID", str(child.pid)], capture_output=True, check=False
         )
     else:
-        killed = subprocess.run(["kill", "-9", str(child.pid)], capture_output=True, check=False)
+        killed = bounded_fast(["kill", "-9", str(child.pid)], capture_output=True, check=False)
     child.wait(timeout=30)
     # `taskkill /F` is TerminateProcess: no finally block, no atexit, no buffer
     # flush. The child was inside a bare `time.sleep` with no handler of its own,
@@ -371,6 +371,12 @@ def _probe(side_effect: SideEffect) -> str:
 
 
 import time  # noqa: E402
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_fast  # noqa: E402  # noqa: E402
 
 if __name__ == "__main__":
     raise SystemExit(main())

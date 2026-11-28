@@ -43,12 +43,12 @@ them is a person's name.
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Final
 
 import pytest
+from deadline_support import bounded_git, bounded_run
 
 #: The shipped measurement tool, driven the way this project's own tests
 #: drive it -- as a subprocess of the console script, not an import.
@@ -145,7 +145,7 @@ def _json_map(raw: str) -> dict[str, int]:
 
 def _measured_totals(repo_root: Path) -> dict[str, int]:
     """Ask the script for the totals. The measurement lives in one place."""
-    proc = subprocess.run(
+    proc = bounded_run(
         [sys.executable, "-I", str(SCRIPT), "--totals", "--root", str(repo_root)],
         capture_output=True,
         text=True,
@@ -157,7 +157,7 @@ def _measured_totals(repo_root: Path) -> dict[str, int]:
 
 def _run_script(root: Path, flag: str) -> dict[str, int]:
     """Run the script against an arbitrary repository root, for the demonstration."""
-    proc = subprocess.run(
+    proc = bounded_run(
         [sys.executable, "-I", str(SCRIPT), flag, "--root", str(root)],
         capture_output=True,
         text=True,
@@ -169,7 +169,7 @@ def _run_script(root: Path, flag: str) -> dict[str, int]:
 
 def _git(repo: Path, *args: str) -> None:
     """A git command in ``repo``, with an identity that is not the machine's."""
-    finished = subprocess.run(
+    finished = bounded_git(
         [
             "git",
             "-c",

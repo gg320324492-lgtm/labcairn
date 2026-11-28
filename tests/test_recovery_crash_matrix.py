@@ -35,6 +35,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from deadline_support import bounded_fast, read_stream_within
 from recovery_support import (
     RecordingSink,
     Scenario,
@@ -870,10 +871,20 @@ def _report_child_failure(child: subprocess.Popen[bytes], point: CrashPoint) -> 
     A matrix test that reports only "child never reached the injection point"
     sends the reader looking for a timing problem when the real fault is an
     import error in the child three lines away.
+
+    **The read is bounded, and the reason is this function's second caller.**
+    The first caller runs when the child has *died*, and a dead child's
+    stderr reaches its end immediately. The second caller runs when the
+    child is *alive* and parked inside the injector's pause — it never
+    reached the injection point at all — and that child's stderr will not
+    reach its end for as long as the pause lasts. So a read to the end
+    would wait out the pause on exactly the path that exists to report a
+    child that is stuck. The read is therefore bounded, and what it
+    returns is the child's output so far.
     """
     if child.stderr is None:  # pragma: no cover
         return
-    detail = child.stderr.read().decode("utf-8", errors="replace")[-2000:]
+    detail = read_stream_within(child.stderr)[-2000:]
     raise AssertionError(f"child died before reaching {point.value}:\n{detail}")
 
 
@@ -893,7 +904,7 @@ def _hard_kill(child: subprocess.Popen[bytes]) -> None:
     injected crash does not already prove.
     """
     if os.name == "nt":  # pragma: no cover - platform branch
-        subprocess.run(
+        bounded_fast(
             ["taskkill", "/F", "/PID", str(child.pid)],
             capture_output=True,
             check=False,

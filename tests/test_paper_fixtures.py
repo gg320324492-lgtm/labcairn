@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from deadline_support import bounded_git
 
 pytestmark = pytest.mark.unit
 
@@ -235,10 +236,9 @@ def test_no_pdf_is_tracked_outside_the_fixture_directory() -> None:
     shipped in the distribution. Nothing referenced it, and the fixture
     guard did not see it, because that guard globs one directory.
     """
-    import subprocess
 
     repo_root = PAPERS.parents[2]
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "ls-files", "*.pdf"],
         cwd=repo_root,
         capture_output=True,

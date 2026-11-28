@@ -23,6 +23,8 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from deadline_support import bounded_git, bounded_run
+
 import labcairn
 import labcairn.core
 
@@ -150,7 +152,7 @@ def test_a_new_witness() -> None:
 
 def _git(repo: Path, *args: str) -> str:
     """A git command in ``repo``, with an identity that is not the machine's."""
-    finished = subprocess.run(
+    finished = bounded_git(
         [
             "git",
             "-c",
@@ -187,7 +189,7 @@ def _ledger_repo(tmp_path: Path, second: str) -> tuple[Path, str, str]:
 
 def _run_the_ledger(repo: Path, before: str, after: str) -> subprocess.CompletedProcess[str]:
     """The tool, run over two revisions of ``repo``."""
-    return subprocess.run(
+    return bounded_run(
         [sys.executable, str(LEDGER), before, after, str(repo)],
         capture_output=True,
         text=True,

@@ -48,10 +48,11 @@ it is arranged. The third is the one that was missing.
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+from deadline_support import bounded_run
 
 #: The program the subprocess runs: import the repository's root ``conftest``
 #: — which is what applies the isolation — and print the temp directory the
@@ -101,7 +102,7 @@ def _temp_dir_for_worker(
     # A root the test owns, so the probe writes nothing outside it — and
     # nothing inside the repository, which other tests hold to be clean.
     env["LABCAIRN_TEMP_ROOT"] = str(probe_root)
-    proc = subprocess.run(
+    proc = bounded_run(
         [sys.executable, "-c", _PROBE],
         cwd=repo_root,
         env=env,

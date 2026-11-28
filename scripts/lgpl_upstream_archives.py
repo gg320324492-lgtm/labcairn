@@ -55,7 +55,6 @@ from __future__ import annotations
 
 import hashlib
 import shutil
-import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -63,6 +62,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import lgpl_source_release as reader
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_run
 
 #: The archive each delivery entry is fetched from, keyed by the entry's
 #: artefact name. Two entries deliver the archive itself (`Nsis7z_19.00.7z`,
@@ -153,7 +158,7 @@ def _extract(seven_zip: str, archive: Path, destination: Path) -> None:
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
-    result = subprocess.run(
+    result = bounded_run(
         [seven_zip, "x", "-y", f"-o{destination}", str(archive)],
         capture_output=True,
         text=True,

@@ -51,6 +51,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from deadline_support import bounded_run
 
 from labcairn.application import (
     ApplicationContext,
@@ -403,7 +404,7 @@ def _wall_seconds(command: list[str], runs: int = 5) -> float:
     timings: list[float] = []
     for _ in range(runs):
         started = time.perf_counter()
-        completed = subprocess.run(
+        completed = bounded_run(
             command,
             capture_output=True,
             text=True,
@@ -423,7 +424,7 @@ def test_loading_the_cli_does_not_load_the_layer() -> None:
     somebody wrote down. A layer type imported at runtime instead of under
     ``TYPE_CHECKING`` works perfectly well — and costs a second and a half.
     """
-    completed = subprocess.run(
+    completed = bounded_run(
         [sys.executable, "-c", _REPORT_LOADED],
         capture_output=True,
         text=True,

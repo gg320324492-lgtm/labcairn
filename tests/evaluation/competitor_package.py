@@ -52,7 +52,6 @@ import io
 import json
 import re
 import shutil
-import subprocess
 import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -60,6 +59,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from analysis_fixtures import build_spreadsheet_fixtures, expected_path
+from deadline_support import bounded_git
 
 from .corpus import CORPUS_FIXTURES
 from .paperqa_adapter import question_for
@@ -157,7 +157,7 @@ class PackageInvalidError(RuntimeError):
 def find_repository_root(start: Path) -> Path:
     """The repository root containing *start*, by its own git metadata."""
     start = start if start.is_dir() else start.parent
-    result = subprocess.run(
+    result = bounded_git(
         ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,

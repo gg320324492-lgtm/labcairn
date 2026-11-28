@@ -29,12 +29,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import subprocess
 import sys
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from deadline_support import bounded_run
 from pydantic import ValidationError
 
 from labcairn.analysis.manifest import (
@@ -1253,7 +1253,7 @@ def test_the_export_does_not_depend_on_who_was_imported_first() -> None:
         "from labcairn.reports import ReportDocument; assert ReportDocument",
     )
     for code in orders:
-        result = subprocess.run(
+        result = bounded_run(
             [sys.executable, "-c", code],
             capture_output=True,
             text=True,

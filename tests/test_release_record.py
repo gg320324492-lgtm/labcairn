@@ -35,6 +35,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from deadline_support import bounded_git
 
 SCRIPT_PATH = Path(__file__).resolve().parent.parent / "scripts" / "release_record.py"
 
@@ -66,7 +67,7 @@ FOREIGN_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 
 def _git(repo: Path, *arguments: str) -> str:
     """Run one git command in *repo* and return its stripped stdout."""
-    result = subprocess.run(
+    result = bounded_git(
         ["git", *arguments],
         cwd=repo,
         capture_output=True,

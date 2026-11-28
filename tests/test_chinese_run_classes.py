@@ -47,12 +47,12 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Final, cast
 
 import pytest
+from deadline_support import bounded_git, bounded_run
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "cjk_ceilings.py"
 REGISTRY = Path(__file__).resolve().parent / "cjk_run_classes.json"
@@ -273,7 +273,7 @@ def _canonical(registry: dict[str, object]) -> dict[str, list[tuple[str, int, st
 
 
 def _run_tool(root: Path, *args: str) -> str:
-    proc = subprocess.run(
+    proc = bounded_run(
         [
             sys.executable,
             "-I",
@@ -299,7 +299,7 @@ def _measure(root: Path, flag: str) -> dict[str, int]:
 
 
 def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=True)
+    bounded_git(["git", "-C", str(repo), *args], capture_output=True, check=True)
 
 
 def _scratch_repo(tmp_path: Path, content: str) -> Path:

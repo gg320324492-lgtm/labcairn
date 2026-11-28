@@ -21,8 +21,16 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
+from typing import Final
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "check_repo_root.py"
+
+#: The tree's shared deadline helper, which the guard waits through.
+#:
+#: It is copied with the guard, because the guard reaches it through the
+#: repository's ``tests/`` directory and a copy of the guard without it
+#: cannot run at all.
+DEADLINE_HELPER_NAME: Final[str] = "deadline_support.py"
 
 #: A directory name that is not ASCII.
 #:
@@ -108,11 +116,23 @@ def _checkout(base: Path, name: str) -> Path:
     It holds the two things the guard looks at: its own script, and the
     marker directory it checks for. The guard never asks anything else of a
     checkout, so this is a checkout in the sense the guard means.
+
+    **The guard's shared deadline helper travels with it.** The guard waits
+    on ``git`` through ``tests/deadline_support.py``, which it reaches
+    through the repository's ``tests/`` directory. A checkout that carries
+    the guard but not the helper cannot run the guard at all — and a witness
+    that copies a tool without the thing the tool imports is not testing
+    the tool, it is testing a broken copy of it.
     """
     checkout = base / name
     (checkout / "scripts").mkdir(parents=True)
     (checkout / "src" / "labcairn").mkdir(parents=True)
+    (checkout / "tests").mkdir(parents=True)
     shutil.copy2(SCRIPT, checkout / "scripts" / SCRIPT.name)
+    shutil.copy2(
+        SCRIPT.parent.parent / "tests" / DEADLINE_HELPER_NAME,
+        checkout / "tests" / DEADLINE_HELPER_NAME,
+    )
     shutil.copy2(
         SCRIPT.parent.parent / "src" / "labcairn" / "__init__.py",
         checkout / "src" / "labcairn" / "__init__.py",
@@ -306,6 +326,14 @@ def test_the_guard_invokes_git_read_only() -> None:
     Checked against the AST rather than the text: a substring scan flags the
     module docstring, which legitimately contains the word "checkout". What
     matters is which command lists the script actually builds.
+
+    **The deadline helper counts as an invocation.** The guard waits on git
+    through ``tests/deadline_support.py``'s ``bounded_git``, so the call is
+    no longer spelled ``subprocess.run``. A witness that only recognised
+    the old spelling would report that the guard invokes no git at all —
+    which is a *pass* by accident, on a tree where the guard had stopped
+    checking anything. So the helper's name is in the set of call shapes
+    that are inspected, and the guard's git calls are still checked.
     """
     tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
     # -C asks git about another directory; it reads, it does not write.
@@ -335,7 +363,16 @@ def test_the_guard_invokes_git_read_only() -> None:
             continue
         func = node.func
         target = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
-        if target not in {"run", "check_output", "check_call", "Popen", "call"}:
+        if target not in {
+            "run",
+            "check_output",
+            "check_call",
+            "Popen",
+            "call",
+            "bounded_run",
+            "bounded_git",
+            "bounded_fast",
+        }:
             continue
         if not node.args:
             continue

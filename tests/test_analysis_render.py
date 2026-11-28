@@ -54,6 +54,7 @@ from typing import IO, Any, Protocol, runtime_checkable
 
 import pytest
 from analysis_fixtures import corpus_selection, corpus_source
+from deadline_support import bounded_run, read_line_within, read_stream_within
 from matplotlib.transforms import Bbox
 
 from labcairn.analysis.chart import render as render_module
@@ -507,7 +508,7 @@ def _out_of_process(drawn: _Drawn, *, unset_salt: bool = False) -> str:
         "operator_id": "labcairn.analysis.grouped_aggregate",
         "unset_salt": unset_salt,
     }
-    done = subprocess.run(
+    done = bounded_run(
         [sys.executable, "-c", _OUT_OF_PROCESS],
         input=json.dumps(payload),
         capture_output=True,
@@ -589,11 +590,11 @@ def _preparing_processes(
                 source.write("\n")
                 source.flush()
             for _source, sink, errors in streams:
-                line = sink.readline()
+                line = read_line_within(sink)
                 if not line:
                     raise AssertionError(
                         "a preparing process stopped before its round was over: "
-                        f"{errors.read()[-800:]}"
+                        f"{read_stream_within(errors)[-800:]}"
                     )
                 digests.append(line.strip())
     finally:

@@ -45,13 +45,13 @@ import hashlib
 import io
 import os
 import re
-import subprocess
 import sys
 import tomllib
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+from deadline_support import bounded_run
 
 #: The version floor and ceiling the project declares, as they appear in
 #: ``pyproject.toml``. Parsed from there rather than restated, so the
@@ -140,7 +140,7 @@ def _render_svg(*, controls: bool) -> bytes:
 def _render_in_another_process() -> str:
     """The sha256 of the same render, made by a separate interpreter."""
     program = _RENDER_PROGRAM.replace("__HASHSALT__", HASHSALT)
-    done = subprocess.run(
+    done = bounded_run(
         [sys.executable, "-c", program],
         capture_output=True,
         text=True,

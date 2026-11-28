@@ -70,6 +70,7 @@ from pathlib import Path
 from typing import Any, Final
 
 import pytest
+from deadline_support import bounded_git
 from evaluation import manifest
 from evaluation.aggregate import (
     blocker_results,
@@ -2167,9 +2168,8 @@ def test_the_crash_matrix_coverage_is_read_from_the_matrix(repo_root: Path) -> N
 
 def _git(repo: Path, *arguments: str) -> str:
     """The output of a git command, run to completion."""
-    import subprocess
 
-    completed = subprocess.run(
+    completed = bounded_git(
         ["git", *arguments],
         cwd=str(repo),
         capture_output=True,

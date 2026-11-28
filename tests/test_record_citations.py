@@ -97,12 +97,12 @@ not; a repository whose branch was deleted is seen by the reachability scan.
 from __future__ import annotations
 
 import re
-import subprocess
 from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Final, NamedTuple
 
 import pytest
+from deadline_support import bounded_git
 
 #: The checkout this file lives in.
 REPO: Final[Path] = Path(__file__).resolve().parents[1]
@@ -303,7 +303,7 @@ class _Context(NamedTuple):
 
 def _git(root: Path, *args: str, stdin: str | None = None) -> str:
     """Run one git command in ``root`` and return its standard output."""
-    completed = subprocess.run(
+    completed = bounded_git(
         ["git", *args],
         cwd=root,
         input=stdin,

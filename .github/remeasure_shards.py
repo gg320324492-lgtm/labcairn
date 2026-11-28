@@ -48,6 +48,14 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+
+#: The repository's shared test helpers, for the deadline this
+#: script's waits carry.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
+from deadline_support import bounded_run  # noqa: E402
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHARD_FILE = REPO_ROOT / ".github" / "ci-shards.json"
 TESTS = REPO_ROOT / "tests"
@@ -104,7 +112,7 @@ def _gh(args: list[str]) -> str:
     """
     last = ""
     for attempt in range(4):
-        proc = subprocess.run(
+        proc = bounded_run(
             ["gh", "api", *args],
             capture_output=True,
             text=True,
@@ -153,7 +161,7 @@ def _run_head_sha(run_id: str, repo: str) -> str | None:
     cannot check anything -- which, before the witness was taught to fail
     when it cannot check, meant the check passed without having looked.
     """
-    proc = subprocess.run(
+    proc = bounded_run(
         ["gh", "api", f"repos/{repo}/actions/runs/{run_id}", "--jq", ".head_sha"],
         capture_output=True,
         text=True,
@@ -267,7 +275,7 @@ def main() -> int:
     SHARD_FILE.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     print(f"the costs are written, measured at {measured_at}")
 
-    subprocess.run([sys.executable, str(REPO_ROOT / ".github" / "make_ci_shards.py")], check=True)
+    bounded_run([sys.executable, str(REPO_ROOT / ".github" / "make_ci_shards.py")], check=True)
     return 0
 
 

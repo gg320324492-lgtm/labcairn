@@ -557,7 +557,7 @@ precisely the `UNCERTAIN` state, and the product's answer is to **not guess**:
   not happen (`tests/test_recovery_crash_matrix.py:186-195`).
 - **A replay of an `UNCERTAIN` operation is refused**, and the refusal is
   checked with a **write counter** that proves the effect was not called at
-  all — `assert counter.calls == 0` (`tests/test_recovery_crash_matrix.py:210` — `assert counter.calls == 0`).
+  all — `assert counter.calls == 0` (`tests/test_recovery_crash_matrix.py:211` — `assert counter.calls == 0`).
   The counter is an injected hook rather than a global, so "the write counter
   is still 1" cannot depend on test ordering (`src/labcairn/workspace/outputs.py:72-79`).
 - **The stage is `BLOCKED`, and says why** — `blocked_reason` contains

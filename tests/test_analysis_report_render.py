@@ -35,7 +35,6 @@ from __future__ import annotations
 import io
 import os
 import re
-import subprocess
 import sys
 import time
 import zipfile
@@ -47,6 +46,7 @@ from xml.etree import ElementTree
 
 import pdfplumber
 import pytest
+from deadline_support import bounded_run
 from markdown_it import MarkdownIt
 
 from labcairn.analysis.chart import INTERPRETATION_MARKER as FIGURE_INTERPRETATION_MARKER
@@ -3286,7 +3286,7 @@ assert "docx" not in sys.modules, "the DOCX library was loaded"
 assert "reportlab" not in sys.modules, "the PDF library was loaded"
 print("ok")
 """
-    result = subprocess.run(
+    result = bounded_run(
         [sys.executable, "-c", code],
         capture_output=True,
         text=True,

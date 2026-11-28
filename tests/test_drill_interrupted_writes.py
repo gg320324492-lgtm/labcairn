@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import IO, Any
 
 import pytest
+from deadline_support import bounded_fast
 
 pytestmark = pytest.mark.e2e
 
@@ -197,7 +198,7 @@ def _child_environment(inject_dir: Path, sentinel: Path, window: str) -> dict[st
 def hard_kill(child: subprocess.Popen[Any]) -> None:
     """Terminate without cleanup — ``taskkill /F`` on Windows, ``SIGKILL`` elsewhere."""
     if os.name == "nt":  # pragma: no cover - platform branch
-        subprocess.run(
+        bounded_fast(
             ["taskkill", "/F", "/T", "/PID", str(child.pid)],
             capture_output=True,
             check=False,

@@ -132,6 +132,7 @@ from typing import IO, Any
 from uuid import UUID
 
 import pytest
+from deadline_support import bounded_fast, read_stream_within
 from sqlalchemy import func, select
 
 from labcairn.cli.commands import EXIT_REFUSED
@@ -329,7 +330,7 @@ def hard_kill(child: subprocess.Popen[Any]) -> None:
     in-process injected crash does not already prove.
     """
     if os.name == "nt":  # pragma: no cover - platform branch
-        subprocess.run(
+        bounded_fast(
             ["taskkill", "/F", "/T", "/PID", str(child.pid)],
             capture_output=True,
             check=False,
@@ -407,10 +408,15 @@ class Crash:
         A test that reports only "the CLI never reached the window" sends the
         reader looking for a timing problem when the real fault is an import
         error in the child three lines away.
+
+        **The read is bounded.** This is called when the child has died, and
+        a dead child's stderr reaches its end at once — but a bounded read
+        costs nothing and removes the possibility of a diagnostic that hangs
+        on the very path that exists to report a child that is stuck.
         """
         if child.stderr is None:  # pragma: no cover
             return "the CLI died before reaching the crash window"
-        detail = child.stderr.read().decode("utf-8", errors="replace")[-2000:]
+        detail = read_stream_within(child.stderr)[-2000:]
         return f"the CLI died before reaching the crash window:\n{detail}"
 
 
