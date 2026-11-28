@@ -418,12 +418,12 @@ def test_a_python_child_writes_what_the_tree_says_it_writes(tmp_path: Path) -> N
 
     **Why the characters are these ones.** They have to be encodable in
     *both* code pages, so that the ambient child writes something rather
-    than failing. ``café`` and ``中文`` are: GBK encodes them as two and
-    four bytes, UTF-8 as two and six. A character only UTF-8 can spell
+    than failing. A Latin letter with an acute accent, and a two-character
+    Chinese word, are: GBK encodes the accent as two bytes and the word as four, UTF-8 as two and six. A character only UTF-8 can spell
     (a tick, say) would make the ambient child raise instead, and the
     measurement would be about a crash rather than about an encoding.
     """
-    text = "café中文"
+    text = "caf\u00e9\u4e2d\u6587"
     code = f"import sys; sys.stdout.buffer.write({text!r}.encode(sys.stdout.encoding))"
     pinned = subprocess.run(
         [sys.executable, "-c", code],

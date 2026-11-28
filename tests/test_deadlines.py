@@ -42,6 +42,7 @@ import time
 from pathlib import Path
 
 import pytest
+from child_encoding import CHILD_OUTPUT_ERRORS, PYTHON_OUTPUT_ENCODING
 from deadline_support import (
     COMMAND_TIMEOUT_SECONDS,
     FAST_TIMEOUT_SECONDS,
@@ -109,7 +110,14 @@ def test_the_failure_says_what_the_command_printed() -> None:
         "sys.stdout.flush(); time.sleep(600)"
     )
     with pytest.raises(DeadlineExceededError) as raised:
-        bounded_run([sys.executable, "-c", program], timeout=3.0, capture_output=True, text=True)
+        bounded_run(
+            [sys.executable, "-c", program],
+            timeout=3.0,
+            capture_output=True,
+            text=True,
+            encoding=PYTHON_OUTPUT_ENCODING,
+            errors=CHILD_OUTPUT_ERRORS,
+        )
 
     assert "the real fault" in str(raised.value), (
         f"the failure did not carry the output the command had printed:\n{raised.value}"
@@ -152,6 +160,8 @@ def test_a_command_that_succeeds_is_not_changed() -> None:
         timeout=30.0,
         capture_output=True,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
     )
     assert completed.returncode == 0
     assert completed.stdout.strip() == "hello"
@@ -208,6 +218,8 @@ def test_a_line_that_never_arrives_is_given_up_on() -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
     )
     try:
         assert child.stdout is not None
@@ -234,6 +246,8 @@ def test_a_line_that_arrives_is_returned() -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
     )
     try:
         assert child.stdout is not None
@@ -261,6 +275,8 @@ def test_a_stream_that_never_ends_is_given_up_on() -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
     )
     try:
         assert child.stderr is not None
@@ -282,6 +298,8 @@ def test_a_stream_that_has_ended_is_read_to_the_end() -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding=PYTHON_OUTPUT_ENCODING,
+        errors=CHILD_OUTPUT_ERRORS,
     )
     try:
         assert child.stderr is not None

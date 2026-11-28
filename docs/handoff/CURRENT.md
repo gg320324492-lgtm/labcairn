@@ -1,6 +1,35 @@
 # LabCairn — Current handoff
 
 
+## 2026-11-28 (three more cards, and the round on real material) — deadlines, encodings, and a remedy nobody can carry out
+
+- **Three windows' work is merged**, and the review of it is
+  `docs/acceptance/batch-24-review-2026-11-28.md`.
+- **99 waits had no deadline**, across 47 files: 97 were given one through a
+  shared helper, two are read-only and watched, and sixteen witnesses fail by
+  hanging when the deadline is taken away ✓.
+- **30 text pipes decoded a child's output with the host's code page** — the
+  class that cost two whole-suite runs — and now every one says which
+  encoding it decodes ✓. The two sweeps' witnesses caught **each other**:
+  the encoding witness held the deadline sweep's own new file to the same
+  rule ✓.
+- **The pilot round, replayed on the tree as it stands**, behaved as designed
+  on real material ✓ — the verify door ✓, the command line's drawing of the
+  gate's verdict ✓, the report's refusal over a moved source ✓, both
+  demonstrations ✓.
+- **And it found a gap: the refusal names a remedy no surface can carry
+  out.** Ingesting the material again works ✓; re-verifying or re-attesting
+  does not ✓, because those transitions are illegal and nothing writes
+  `extracted` as a transition ✓. So **a task whose material moved cannot
+  produce a report again** ✓. The round's record asks the question rather
+  than answering it ✓.
+- **Three more cards are up**: give the surfaces a way to carry that remedy
+  out ✓; make the project's own temp conventions and its external-path
+  ledger agree ✓ (following `CLAUDE.md` exactly turns a witness red today);
+  and say what it would cost to hold the tree's own scripts to the type
+  checker it holds everything else to ✓.
+
+
 ## 2026-11-28 (two more cards, and the next three) — the refusals held, and the pipeline cannot carry the rules
 
 - **Two windows' work is merged** (`4407bfb`, `20c00dd`), and the review of

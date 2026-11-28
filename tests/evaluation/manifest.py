@@ -719,7 +719,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # The tree's own discipline: every wait has a deadline, and every child's
     # output says which encoding it is decoded with.
     "test_deadlines.py": (REPOSITORY_CLASS, "repository-gate"),
-    "test_child_encodings.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_child_encodings.py": ("unit", "typed-contracts"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),
     # The quickstart's command list and the README's against each other. The

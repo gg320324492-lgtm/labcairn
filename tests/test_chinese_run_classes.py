@@ -284,7 +284,8 @@ def _run_tool(root: Path, *args: str) -> str:
         # page -- and the parent reading UTF-8, which is the same failure
         # with the arrow turned round. Measured on 2026-11-28 with the
         # project's own CPython 3.12: ``-I`` ignores both variables and
-        # ``-X utf8`` is what makes the child write UTF-8.        [
+        # ``-X utf8`` is what makes the child write UTF-8.
+        [
             sys.executable,
             "-I",
             "-X",
